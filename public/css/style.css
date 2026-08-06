@@ -230,11 +230,34 @@ html, body {
   border: 1px solid transparent;
 }
 
-#saveStatus {
-  font-size: 12px;
-  color: var(--text-dim);
-  white-space: nowrap;
+/* #saveStatusBtn sits near the left of the topbar — the default
+   right-anchored .dropdown-menu (correct for Share/Settings near the right
+   edge) would overflow off the left of the viewport here. */
+.save-status-popup { left: 0; right: auto; }
+
+#saveStatusBtn .icon { color: var(--text-dim); }
+#saveStatusBtn.saving .icon { color: var(--accent); animation: save-status-pulse 1.2s ease-in-out infinite; }
+@keyframes save-status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
+
+.save-status-popup { min-width: 240px; padding: 12px 14px; }
+.save-status-popup .menu-section-label { padding: 0 0 4px; }
+.save-status-popup p { margin: 0 0 8px; }
+.save-status-popup .menu-link-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px -14px -12px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border-top: 1px solid var(--border);
+}
+.save-status-popup .menu-link-item:hover { background: var(--accent-dim); color: var(--accent); }
 
 .spacer { flex: 1; }
 

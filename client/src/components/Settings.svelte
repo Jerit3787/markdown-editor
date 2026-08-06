@@ -18,10 +18,6 @@
     if (cm) cm.setOption("theme", next === "dark" ? "material-darker" : "default");
   }
 
-  function toggleTheme() {
-    applyTheme(theme === "dark" ? "light" : "dark");
-  }
-
   function open() {
     hidden = false;
   }
@@ -71,10 +67,14 @@
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
       <h2 id="settingsModalTitle"><svg class="icon"><use href="#icon-settings"></use></svg> Settings</h2>
       <div class="menu-section-label">Appearance</div>
-      <button type="button" class="settings-row" onclick={toggleTheme}>
-        <svg class="icon"><use href={theme === "dark" ? "#icon-sun" : "#icon-moon"}></use></svg>
-        <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
-      </button>
+      <div class="theme-switch" role="tablist" aria-label="Theme">
+        <button type="button" class="theme-switch-btn" class:active={theme === "light"} role="tab" aria-selected={theme === "light"} onclick={() => applyTheme("light")}>
+          <svg class="icon"><use href="#icon-sun"></use></svg> Light
+        </button>
+        <button type="button" class="theme-switch-btn" class:active={theme === "dark"} role="tab" aria-selected={theme === "dark"} onclick={() => applyTheme("dark")}>
+          <svg class="icon"><use href="#icon-moon"></use></svg> Dark
+        </button>
+      </div>
       <div class="menu-divider"></div>
       <div class="menu-section-label">GitHub</div>
       <div class="share-row">

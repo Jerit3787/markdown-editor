@@ -445,6 +445,23 @@
       <section id="previewPane" class="pane">
         <div id="preview"></div>
       </section>
+
+      <!-- Shown instead of editorPane/previewPane/divider (see app.ts's
+           updateMainView) when no document is open — a brand-new visitor
+           with nothing in storage yet, or after deleting the last
+           remaining document. -->
+      <div id="emptyState" class="empty-state" hidden>
+        <div class="empty-state-inner">
+          <img src="/logo.svg" width="52" height="52" alt="">
+          <h1>Markdown Editor</h1>
+          <p>A fast, distraction-free markdown editor that runs entirely in your browser — no server, no account, nothing leaves your machine.</p>
+          <div class="empty-state-actions">
+            <button type="button" id="emptyNewDocBtn" class="primary-btn"><svg class="icon"><use href="#icon-file-plus"></use></svg> New document</button>
+            <button type="button" id="emptyOpenLocalBtn" class="secondary-btn"><svg class="icon"><use href="#icon-upload"></use></svg> Open from device</button>
+            <button type="button" id="emptyOpenGistBtn" class="secondary-btn"><svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Gist</button>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 

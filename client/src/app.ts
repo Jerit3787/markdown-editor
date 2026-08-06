@@ -28,39 +28,6 @@ import { showToast } from "./stores/toast";
     document.title = docName ? `${APP_NAME} - ${docName}` : APP_NAME;
   }
 
-  const WELCOME = `# Welcome to Markdown Editor
-
-A fast, distraction-free markdown editor that runs entirely in your browser — no server, no account, nothing leaves your machine.
-
-## Features
-
-- **Live preview** as you type
-- Multiple documents, saved automatically to this browser
-- Export to **.md**, **.html**, **.pdf**, or **.txt**
-- Formatting toolbar and keyboard shortcuts (\`Ctrl/Cmd+B\`, \`Ctrl/Cmd+I\`, \`Ctrl/Cmd+K\`)
-- Light and dark themes
-
-## Try it
-
-1. Edit this text
-2. Click **+** in the sidebar to start a new document
-3. Click **Export** to download your work
-
-> Everything is saved locally in your browser as you type.
-
-\`\`\`js
-function hello() {
-  console.log("Happy writing!");
-}
-\`\`\`
-
-| Format | Good for |
-|---|---|
-| Markdown | Editing, version control |
-| HTML | Sharing, publishing |
-| PDF | Printing, archiving |
-`;
-
   // ---------- State ----------
   let docs: Doc[] = [];
   let activeId: string | null = null;
@@ -73,8 +40,10 @@ function hello() {
       const raw = localStorage.getItem(STORAGE_DOCS);
       if (raw) return JSON.parse(raw);
     } catch (e) { /* ignore corrupt storage */ }
-    const id = uid();
-    return [{ id, name: "Welcome", content: WELCOME, updatedAt: Date.now() }];
+    // No seeded Welcome doc — a brand-new visitor (or someone who deletes
+    // every document) sees the empty state instead, same as VS Code with
+    // no folder/file open.
+    return [];
   }
 
   function persistDocs() {
@@ -102,8 +71,8 @@ function hello() {
 
   function init() {
     docs = loadDocs();
-    activeId = localStorage.getItem(STORAGE_ACTIVE) || docs[0].id;
-    if (!docs.find((d) => d.id === activeId)) activeId = docs[0].id;
+    activeId = localStorage.getItem(STORAGE_ACTIVE) || (docs[0] ? docs[0].id : null);
+    if (activeId && !docs.find((d) => d.id === activeId)) activeId = docs[0] ? docs[0].id : null;
 
     initEditor();
     initImageUploads();
@@ -119,6 +88,7 @@ function hello() {
     initShortcutsModal();
     initGithubSignInModal();
     initModalEscapeKey();
+    initEmptyState();
 
     renderDocList();
     loadDocIntoEditor(getActiveDoc());
@@ -146,6 +116,22 @@ function hello() {
       document.querySelectorAll(".modal-backdrop:not([hidden]):not([data-svelte-modal])").forEach((m) => {
         (m as HTMLElement & { hidden: boolean }).hidden = true;
       });
+    });
+  }
+
+  // Empty-state action buttons just trigger the equivalent existing
+  // control rather than duplicating its logic — "New document" is
+  // #newDocBtn's own handler, "Open from device"/"Open from GitHub Gist"
+  // are the File menu's own submenu buttons, all wired elsewhere.
+  function initEmptyState() {
+    document.getElementById("emptyNewDocBtn").addEventListener("click", () => {
+      document.getElementById("newDocBtn").click();
+    });
+    document.getElementById("emptyOpenLocalBtn").addEventListener("click", () => {
+      document.getElementById("importInput").click();
+    });
+    document.getElementById("emptyOpenGistBtn").addEventListener("click", () => {
+      document.getElementById("menuOpenGist").click();
     });
   }
 
@@ -388,8 +374,30 @@ function hello() {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 
-  function loadDocIntoEditor(doc: Doc) {
+  // Toggles between the editor/preview panes and the empty-state welcome
+  // screen (#emptyState) — the only reachable "no document" case is
+  // deleting the last remaining doc, or a brand-new visitor with nothing
+  // in storage yet (loadDocs() no longer seeds a Welcome doc).
+  function updateMainView(empty: boolean) {
+    document.getElementById("emptyState").hidden = !empty;
+    (document.getElementById("editorPane") as HTMLElement).style.display = empty ? "none" : "";
+    (document.getElementById("previewPane") as HTMLElement).style.display = empty ? "none" : "";
+    (document.getElementById("divider") as HTMLElement).style.display = empty ? "none" : "";
+  }
+
+  function loadDocIntoEditor(doc: Doc | undefined) {
     window.MDE.onBeforeDocLoad && window.MDE.onBeforeDocLoad();
+    updateMainView(!doc);
+    if (!doc) {
+      cm.setValue("");
+      (document.getElementById("docTitle") as HTMLInputElement).value = "";
+      resizeDocTitle();
+      updatePageTitle("");
+      cm.clearHistory();
+      setSaveStatus("");
+      window.MDE.onActiveDocChanged && window.MDE.onActiveDocChanged(undefined as unknown as Doc);
+      return;
+    }
     cm.setValue(doc.content || "");
     (document.getElementById("docTitle") as HTMLInputElement).value = doc.name || "Untitled";
     resizeDocTitle();
@@ -711,16 +719,17 @@ function hello() {
     if (!doc) return;
     if (!confirm(`Delete "${doc.name}"? This can't be undone.`)) return;
     docs = docs.filter((d) => d.id !== id);
-    if (docs.length === 0) {
-      docs.push({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now() });
-    }
     if (activeId === id) {
-      activeId = docs[0].id;
+      // Deleting the last remaining doc leaves docs empty and activeId
+      // null — loadDocIntoEditor(undefined) shows the empty state rather
+      // than force-creating a placeholder "Untitled" doc.
+      activeId = docs[0] ? docs[0].id : null;
+      if (activeId) localStorage.setItem(STORAGE_ACTIVE, activeId);
+      else localStorage.removeItem(STORAGE_ACTIVE);
       loadDocIntoEditor(getActiveDoc());
       updatePreview();
       updateCounts();
     }
-    localStorage.setItem(STORAGE_ACTIVE, activeId);
     persistDocs();
     renderDocList();
     showToast(`Deleted "${doc.name || "Untitled"}"`, "success");

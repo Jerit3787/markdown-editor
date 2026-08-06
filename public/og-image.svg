@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <g transform="translate(110, 195)">
+    <rect width="240" height="240" rx="52" fill="#ffffff" fill-opacity="0.14"/>
+    <text x="28" y="160" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="136" fill="#ffffff">M</text>
+    <text x="140" y="160" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="88" fill="#ffffff" fill-opacity="0.92">d</text>
+  </g>
+
+  <g font-family="Arial, Helvetica, sans-serif" fill="#ffffff">
+    <text x="420" y="330" font-size="72" font-weight="700">Markdown Editor</text>
+    <text x="422" y="384" font-size="30" fill-opacity="0.88">Live preview, export, and real-time collaboration</text>
+  </g>
+</svg>

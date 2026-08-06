@@ -90,15 +90,21 @@ async function joinSharedLink(roomId: string) {
   if (existing) window.MDE.switchDoc(existing.id);
   else window.MDE.createDoc({ id: roomId, name: "Shared document" });
 
-  await window.MDE.githubSessionReady;
-  if (!window.MDE.githubUsername) {
-    window.MDE.requireGithubSignIn("Sign in with GitHub to open this shared document.");
-    return;
-  }
+  // Checked before requiring sign-in, not after: a link with general
+  // access set to "anyone" needs no account at all — only a restricted
+  // (invite-only) room needs a real identity to check against the
+  // invited list, which computeMyRole()'s username==null branch already
+  // falls through to correctly either way.
   const access = await fetchAccess(roomId);
-  const role = computeMyRole(access, window.MDE.githubUsername);
+  await window.MDE.githubSessionReady;
+  const username = window.MDE.githubUsername;
+  const role = computeMyRole(access, username);
   if (!role) {
-    alert("You don't have access to this document. Ask the owner to invite your GitHub username, or share a link with general access turned on.");
+    if (!username) {
+      window.MDE.requireGithubSignIn("Sign in with GitHub to open this shared document.");
+    } else {
+      alert("You don't have access to this document. Ask the owner to invite your GitHub username, or share a link with general access turned on.");
+    }
     return;
   }
   window.MDE.markActiveDocShared(true);
@@ -106,9 +112,9 @@ async function joinSharedLink(roomId: string) {
 }
 
 function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): string | null {
-  if (!username) return null;
-  if (access.owner === username) return "editor";
+  if (username && access.owner === username) return "editor";
   if (access.generalAccess === "anyone") return access.role;
+  if (!username) return null;
   if (access.invited.includes(username)) return "editor";
   return null;
 }
@@ -123,8 +129,11 @@ function handleDocChanged(doc: any) {
 
 async function rejoinKnownRoom(doc: any) {
   await window.MDE.githubSessionReady;
-  if (!window.MDE.githubUsername) return; // can't reconnect without a session; modal will prompt if they try to share
   const access = await fetchAccess(doc.id);
+  // computeMyRole's username==null branch still grants access for a
+  // public ("anyone") room, so this quietly reconnects an anonymous
+  // visitor's own previously-joined doc same as a signed-in one; a
+  // restricted room correctly stays unreachable without a session.
   const role = computeMyRole(access, window.MDE.githubUsername);
   if (!role) return;
   joinRoom(doc.id, { seedFromLocal: false, role });
@@ -171,7 +180,7 @@ function joinRoom(roomId: string, { seedFromLocal, role }: { seedFromLocal: bool
   cm.setOption("readOnly", role !== "editor");
 
   const username = window.MDE.githubUsername;
-  const identity = { name: username, color: colorForUsername(username) };
+  const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
   room.awareness.setLocalState({ user: identity, cursor: cursorFieldFromCm(), role, username });
   room.awareness.on("update", onLocalAwarenessUpdate);
 
@@ -433,14 +442,31 @@ function send(bytes: Uint8Array) {
 }
 
 // ---------- User identity ----------
-// Sharing requires a GitHub account, so collab identity is just the signed
-// -in username with a color hashed from it (stable across devices/sessions
-// — no per-browser random guest name to manage anymore).
+// Signed-in identity is the GitHub username with a color hashed from it
+// (stable across devices/sessions). A public ("anyone with the link") room
+// doesn't require an account at all, though — anonymous visitors get a
+// random guest name + color instead, generated once per tab and reused for
+// every room they join in that session (not regenerated per-join, so their
+// presence avatar/cursor label stays consistent while they're around).
 
 function colorForUsername(name: string) {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   return COLORS[hash % COLORS.length];
+}
+
+const GUEST_ADJECTIVES = ["Quiet", "Curious", "Swift", "Gentle", "Bold", "Clever", "Calm", "Bright"];
+const GUEST_ANIMALS = ["Fox", "Owl", "Otter", "Falcon", "Panda", "Lynx", "Heron", "Wren"];
+let guestIdentity: { name: string; color: string } | null = null;
+
+function getGuestIdentity() {
+  if (!guestIdentity) {
+    const adjective = GUEST_ADJECTIVES[Math.floor(Math.random() * GUEST_ADJECTIVES.length)];
+    const animal = GUEST_ANIMALS[Math.floor(Math.random() * GUEST_ANIMALS.length)];
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    guestIdentity = { name: `${adjective} ${animal}`, color };
+  }
+  return guestIdentity;
 }
 
 // ---------- Server access-control API ----------

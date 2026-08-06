@@ -160,6 +160,45 @@ function hello() {
     cm.on("cursorActivity", updateCursorPos);
   }
 
+  // ---------- Edit menu clipboard commands ----------
+  // The browser's native Ctrl/Cmd+X/C/V already work on the editor without
+  // any of this — these three only exist to back the Edit-menu Cut/Copy/Paste
+  // items, since a menu click has no native clipboard access of its own.
+  async function menuClipboardCut() {
+    const sel = cm.getSelection();
+    if (!sel) { cm.focus(); return; }
+    try {
+      await navigator.clipboard.writeText(sel);
+      cm.replaceSelection("");
+    } catch {
+      cm.focus();
+      document.execCommand("cut");
+    }
+    cm.focus();
+  }
+
+  async function menuClipboardCopy() {
+    const sel = cm.getSelection();
+    if (!sel) { cm.focus(); return; }
+    try {
+      await navigator.clipboard.writeText(sel);
+    } catch {
+      cm.focus();
+      document.execCommand("copy");
+    }
+    cm.focus();
+  }
+
+  async function menuClipboardPaste() {
+    cm.focus();
+    try {
+      const text = await navigator.clipboard.readText();
+      cm.replaceSelection(text);
+    } catch {
+      alert("Couldn't read the clipboard automatically — press Ctrl/Cmd+V instead, or allow clipboard access for this site.");
+    }
+  }
+
   // ---------- Image embedding (paste / drop / toolbar) ----------
   // Images are embedded directly as base64 data URIs in the markdown — no
   // upload, no server involved. Kept fairly small since it counts against
@@ -734,6 +773,9 @@ function hello() {
     const closeEditMenu = () => editMenu.classList.remove("open");
     document.getElementById("menuUndo").addEventListener("click", () => { cm.undo(); cm.focus(); closeEditMenu(); });
     document.getElementById("menuRedo").addEventListener("click", () => { cm.redo(); cm.focus(); closeEditMenu(); });
+    document.getElementById("menuCut").addEventListener("click", () => { menuClipboardCut(); closeEditMenu(); });
+    document.getElementById("menuCopy").addEventListener("click", () => { menuClipboardCopy(); closeEditMenu(); });
+    document.getElementById("menuPaste").addEventListener("click", () => { menuClipboardPaste(); closeEditMenu(); });
     document.getElementById("menuBold").addEventListener("click", () => { runCmd("bold"); cm.focus(); closeEditMenu(); });
     document.getElementById("menuItalic").addEventListener("click", () => { runCmd("italic"); cm.focus(); closeEditMenu(); });
     document.getElementById("menuStrike").addEventListener("click", () => { runCmd("strike"); cm.focus(); closeEditMenu(); });

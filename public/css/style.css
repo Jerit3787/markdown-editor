@@ -190,7 +190,10 @@ html, body {
 
 .dropdown-menu.open { display: block; }
 
-.dropdown-menu button {
+/* Excludes .primary-btn/.secondary-btn (e.g. Start/Stop collaborating,
+   Copy) — those keep their real button styling; this flat/transparent
+   look is only for plain list-style items like the export menu rows. */
+.dropdown-menu button:not(.primary-btn):not(.secondary-btn) {
   display: block;
   width: 100%;
   text-align: left;
@@ -202,7 +205,7 @@ html, body {
   cursor: pointer;
 }
 
-.dropdown-menu button:hover { background: var(--accent-dim); color: var(--accent); }
+.dropdown-menu button:not(.primary-btn):not(.secondary-btn):hover { background: var(--accent-dim); color: var(--accent); }
 
 /* Collaboration: presence bar, share menu, remote cursors */
 .presence-bar { display: flex; align-items: center; }

@@ -56,6 +56,9 @@ async function checkSession() {
   } catch (err) {
     connectedUsername = null;
   }
+  if (connectedUsername && window.MDE.applyGithubUsername) {
+    window.MDE.applyGithubUsername(connectedUsername);
+  }
   render();
 }
 

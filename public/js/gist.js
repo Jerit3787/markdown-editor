@@ -23,6 +23,20 @@ function init() {
     if (e.key === "Enter") openGist();
   });
 
+  document.getElementById("menuPublishSignedOut").addEventListener("click", () => {
+    closeFileMenu();
+    document.getElementById("gistLoginModal").hidden = false;
+  });
+  document.getElementById("gistLoginModalCancelBtn").addEventListener("click", () => {
+    document.getElementById("gistLoginModal").hidden = true;
+  });
+  document.getElementById("gistLoginModalSignInBtn").addEventListener("click", () => {
+    location.href = "/api/auth/github/login";
+  });
+  document.getElementById("gistLoginModal").addEventListener("click", (e) => {
+    if (e.target.id === "gistLoginModal") e.target.hidden = true;
+  });
+
   // collab.js already claims onActiveDocChanged — chain onto it rather than
   // clobber it, since both need to react to the active doc switching.
   const existing = window.MDE.onActiveDocChanged;
@@ -57,18 +71,32 @@ function render() {
   dot.className = `status-dot status-${connected ? "shared" : "idle"}`;
   text.textContent = connected ? `Signed in as ${connectedUsername}` : "Not connected";
 
+  // Signed out: File menu shows a plain "Publish to Gist" row that opens a
+  // sign-in prompt. Signed in: swap to the real Publish submenu.
+  document.getElementById("menuPublishSignedOut").hidden = connected;
+  document.getElementById("publishSubmenu").hidden = !connected;
+
   const label = document.getElementById("menuGistLabel");
   const viewLink = document.getElementById("gistViewLink");
   const doc = window.MDE.getActiveDoc();
   const hasGist = doc && doc.gistId;
-  label.textContent = !connected ? "Sign in to publish to Gist" : hasGist ? "Update Gist" : "Publish to Gist";
+  label.textContent = hasGist ? "Update Gist" : "Publish to Gist";
   viewLink.hidden = !hasGist;
   if (hasGist) viewLink.href = `https://gist.github.com/${doc.gistId}`;
 }
 
+function closeFileMenu() {
+  document.getElementById("fileMenu").classList.remove("open");
+  document.querySelectorAll("#fileMenu .menu-submenu.open").forEach((sub) => {
+    sub.classList.remove("open");
+    sub.querySelector(".menu-submenu-trigger").classList.remove("active");
+  });
+}
+
 async function publish() {
   if (!connectedUsername) {
-    location.href = "/api/auth/github/login";
+    closeFileMenu();
+    document.getElementById("gistLoginModal").hidden = false;
     return;
   }
   const doc = window.MDE.getActiveDoc();
@@ -131,12 +159,7 @@ async function openGist() {
     const content = file.truncated ? await fetchRaw(file.raw_url) : file.content;
     window.MDE.createDoc({ name: file.filename.replace(/\.(md|markdown)$/i, ""), content, gistId: data.id });
     input.value = "";
-    // Close the whole File menu, not just the Open submenu this lives in.
-    document.getElementById("fileMenu").classList.remove("open");
-    document.querySelectorAll("#fileMenu .menu-submenu.open").forEach((sub) => {
-      sub.classList.remove("open");
-      sub.querySelector(".menu-submenu-trigger").classList.remove("active");
-    });
+    closeFileMenu();
     btn.textContent = original;
   } catch (err) {
     btn.textContent = "Failed";

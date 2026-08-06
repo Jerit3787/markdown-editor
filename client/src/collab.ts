@@ -434,7 +434,7 @@ function setupShareUI() {
   const shareModal = document.getElementById("shareModal");
   const accessSelect = document.getElementById("shareAccessSelect") as HTMLSelectElement;
   const roleSelect = document.getElementById("shareRoleSelect") as HTMLSelectElement;
-  const copyBtn = document.getElementById("copyShareLink");
+  const copyBtn = document.getElementById("copyShareLink") as HTMLButtonElement;
   const addPeopleInput = document.getElementById("shareAddPeopleInput") as HTMLInputElement;
 
   shareBtn.addEventListener("click", async () => {
@@ -535,7 +535,7 @@ function setupShareUI() {
 function renderShareUI() {
   const accessSelect = document.getElementById("shareAccessSelect") as HTMLSelectElement;
   const roleSelect = document.getElementById("shareRoleSelect") as HTMLSelectElement;
-  const copyBtn = document.getElementById("copyShareLink");
+  const copyBtn = document.getElementById("copyShareLink") as HTMLButtonElement;
   const shareBtn = document.getElementById("shareBtn");
   const docNameSpan = document.getElementById("shareModalDocName");
   const row = document.getElementById("shareAccessRow");
@@ -550,7 +550,9 @@ function renderShareUI() {
   if (isAnyone) roleSelect.value = access.role;
   // A link is meaningful once the room is shared in any capacity — either
   // open to anyone, or restricted but with at least one invited person.
-  copyBtn.hidden = !isAnyone && access.invited.length === 0;
+  // Disabled rather than hidden so the control stays in the same place
+  // (Google Docs keeps Copy link visible but greyed out too).
+  copyBtn.disabled = !isAnyone && access.invited.length === 0;
   shareBtn.classList.toggle("active", !!room.id);
 
   row.classList.toggle("active", isAnyone);

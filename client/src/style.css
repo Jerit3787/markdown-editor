@@ -509,6 +509,8 @@ html, body {
 }
 
 .secondary-btn:hover { background: var(--border); }
+.secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.secondary-btn:disabled:hover { background: var(--bg-alt); }
 
 .status-dot {
   width: 8px;

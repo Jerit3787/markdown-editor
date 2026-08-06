@@ -655,6 +655,14 @@ ${bodyHtml}
       persistDocs();
       renderDocList();
     },
+    setActiveDocGistId(gistId) {
+      const doc = getActiveDoc();
+      if (!doc) return null;
+      doc.gistId = gistId;
+      doc.updatedAt = Date.now();
+      persistDocs();
+      return doc;
+    },
     // Set by collab.js. Called by loadDocIntoEditor() right before/after the
     // editor content is swapped, so collab.js can unbind the outgoing doc's
     // room before CodeMirror's setValue() fires a bogus "edit".

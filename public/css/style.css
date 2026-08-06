@@ -240,7 +240,7 @@ html, body {
 .share-menu .share-name-row { margin-bottom: 0; }
 .share-menu .share-name-row label { font-size: 12.5px; color: var(--text-dim); flex-shrink: 0; }
 
-.share-menu input[type="text"] {
+.share-menu input[type="text"], .share-menu input[type="password"] {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border);
@@ -254,9 +254,21 @@ html, body {
 .share-menu .primary-btn, .share-menu .secondary-btn { width: 100%; margin-bottom: 4px; }
 
 /* ...except a button sitting inline in a flex .share-row (e.g. the "Copy"
-   button next to the link field) — width: 100% there would claim the
-   whole row as its flex-basis and crush its sibling input. */
+   and "Connect" buttons next to their input) — width: 100% there would
+   claim the whole row as its flex-basis and crush its sibling input. */
 .share-menu .share-row .secondary-btn { width: auto; flex-shrink: 0; margin-bottom: 0; }
+
+.menu-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--accent);
+  text-decoration: none;
+  margin: 0 0 10px;
+}
+.menu-link:hover { text-decoration: underline; }
+.menu-link .icon { width: 0.9em; height: 0.9em; }
 
 .secondary-btn {
   background: var(--bg-alt);

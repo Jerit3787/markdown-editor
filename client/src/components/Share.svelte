@@ -6,6 +6,7 @@
     closeShareModal,
     setAccessMode,
     setRole,
+    setInviteRole,
     buildShareLink,
     addPerson,
     removeInvite,
@@ -55,21 +56,9 @@
         : "Only people with access can open with the link"
   );
 
-  interface PersonRow {
-    name: string;
-    color: string | null;
-    roleLabel: string;
-    removable: string | null;
+  function onInviteRoleChange(username: string, e: Event) {
+    setInviteRole(username, (e.target as HTMLSelectElement).value);
   }
-
-  // "People with access" means explicitly invited usernames only — NOT
-  // whoever happens to be currently connected via "anyone with an
-  // account"/"anyone with the link" general access, which isn't a
-  // per-person grant and shouldn't read as one. Who's actually online
-  // right now is the topbar presence bar's job, not this list's.
-  const peopleRows = $derived.by((): PersonRow[] =>
-    access.invited.map((username) => ({ name: username, color: null, roleLabel: "Invited", removable: username }))
-  );
 
   function initial(name: string) {
     return (name || "?").trim().charAt(0).toUpperCase();
@@ -144,16 +133,23 @@
           <span class="share-person-name">{$githubUsername || "Not signed in"}</span>
           <span class="share-person-role">Owner</span>
         </div>
-        {#each peopleRows as row (row.removable || row.name)}
+        {#each access.invited as person (person.username)}
           <div class="share-person">
-            <span class="presence-avatar" style:background={row.color || "var(--text-dim)"}>{initial(row.name)}</span>
-            <span class="share-person-name">{row.name}</span>
-            {#if row.removable}
-              <button type="button" class="share-person-remove" aria-label={`Remove ${row.removable}`} onclick={() => row.removable && removeInvite(row.removable)}>
-                <svg class="icon"><use href="#icon-x"></use></svg>
-              </button>
-            {/if}
-            <span class="share-person-role">{row.roleLabel}</span>
+            <span class="presence-avatar" style:background="var(--text-dim)">{initial(person.username)}</span>
+            <span class="share-person-name">{person.username}</span>
+            <select
+              class="share-role-select"
+              aria-label={`Access level for ${person.username}`}
+              value={person.role}
+              onchange={(e) => onInviteRoleChange(person.username, e)}
+            >
+              <option value="viewer">Viewer</option>
+              <option value="reviewer">Reviewer</option>
+              <option value="editor">Editor</option>
+            </select>
+            <button type="button" class="share-person-remove" aria-label={`Remove ${person.username}`} onclick={() => removeInvite(person.username)}>
+              <svg class="icon"><use href="#icon-x"></use></svg>
+            </button>
           </div>
         {/each}
       </div>

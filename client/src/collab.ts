@@ -118,8 +118,8 @@ function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): 
     return access.role;
   }
   if (!username) return null;
-  if (access.invited.includes(username)) return "editor";
-  return null;
+  const invited = access.invited.find((p) => p.username === username);
+  return invited ? invited.role : null;
 }
 
 // ---------- Room lifecycle ----------
@@ -603,7 +603,9 @@ export async function addPerson(rawUsername: string) {
   if (!username) return;
   const doc = window.MDE.getActiveDoc();
   if (!doc) return;
-  const invited = [...new Set([...(currentAccess ? currentAccess.invited : []), username])];
+  const existing = currentAccess ? currentAccess.invited : [];
+  if (existing.some((p) => p.username === username)) return;
+  const invited = [...existing, { username, role: "editor" }];
   const access = await putAccess(doc.id, {
     generalAccess: currentAccess ? currentAccess.generalAccess : "restricted",
     requireAccount: currentAccess ? currentAccess.requireAccount : false,
@@ -613,6 +615,13 @@ export async function addPerson(rawUsername: string) {
   if (access) {
     currentAccess = access;
     window.MDE.markActiveDocShared(true);
+    // Restricted access never otherwise triggers joinRoom (only switching
+    // to "anyone" does, see setAccessMode) — without this, an invited
+    // person could join and authorize successfully but find the room's
+    // Y.doc completely empty, since the owner's content was never seeded
+    // into it. First invite on a still-unconnected doc needs to seed it,
+    // same as opening general access does.
+    if (!room.id) joinRoom(doc.id, { seedFromLocal: true, role: "editor" });
     syncShareStores();
     showToast(`Invited @${username}`, "success");
   } else {
@@ -620,10 +629,29 @@ export async function addPerson(rawUsername: string) {
   }
 }
 
+export async function setInviteRole(username: string, role: string) {
+  const doc = window.MDE.getActiveDoc();
+  if (!doc || !currentAccess) return;
+  const invited = currentAccess.invited.map((p) => (p.username === username ? { ...p, role } : p));
+  const access = await putAccess(doc.id, {
+    generalAccess: currentAccess.generalAccess,
+    requireAccount: currentAccess.requireAccount,
+    role: currentAccess.role,
+    invited,
+  });
+  if (access) {
+    currentAccess = access;
+    syncShareStores();
+    showToast(`@${username}'s access set to ${ROLE_LABELS[role] || role}`, "info");
+  } else {
+    showToast("Couldn't update that person's access", "error");
+  }
+}
+
 export async function removeInvite(username: string) {
   const doc = window.MDE.getActiveDoc();
   if (!doc || !currentAccess) return;
-  const invited = currentAccess.invited.filter((u) => u !== username);
+  const invited = currentAccess.invited.filter((p) => p.username !== username);
   const access = await putAccess(doc.id, {
     generalAccess: currentAccess.generalAccess,
     requireAccount: currentAccess.requireAccount,

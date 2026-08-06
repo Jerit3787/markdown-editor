@@ -179,6 +179,25 @@
     <path d="M21 12H9" />
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
   </symbol>
+  <symbol id="icon-images" viewBox="0 0 24 24">
+    <path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16" />
+    <path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2" />
+    <circle cx="13" cy="7" r="1" fill="currentColor" />
+    <rect x="8" y="2" width="14" height="14" rx="2" />
+  </symbol>
+  <symbol id="icon-trash-2" viewBox="0 0 24 24">
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+    <path d="M3 6h18" />
+    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </symbol>
+  <symbol id="icon-rocket" viewBox="0 0 24 24">
+    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09" />
+    <path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" />
+    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" />
+  </symbol>
 </svg>
 
 <div id="app">
@@ -307,6 +326,7 @@
           <span class="sep"></span>
           <button data-cmd="link" title="Link (Ctrl+K)"><svg class="icon"><use href="#icon-link"></use></svg></button>
           <button data-cmd="image" title="Image"><svg class="icon"><use href="#icon-image"></use></svg></button>
+          <button id="imagesManagerBtn" type="button" title="Manage images"><svg class="icon"><use href="#icon-images"></use></svg></button>
           <button data-cmd="table" title="Table"><svg class="icon"><use href="#icon-table"></use></svg></button>
           <button data-cmd="hr" title="Horizontal rule">―</button>
         </div>
@@ -328,6 +348,70 @@
     <span id="cursorPos">Ln 1, Col 1</span>
     <a href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener" class="statusbar-link" title="View source on GitHub" aria-label="View source on GitHub"><svg class="icon"><use href="#icon-github"></use></svg></a>
   </footer>
+</div>
+
+<!-- Welcome -->
+<div id="welcomeModal" class="modal-backdrop" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+    <h2 id="welcomeTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> Welcome to Markdown Editor</h2>
+    <p>A fast, distraction-free markdown editor that runs entirely in your browser. How do you want to start?</p>
+
+    <div class="welcome-actions">
+      <button id="welcomeNewBtn" class="welcome-action" type="button">
+        <svg class="icon"><use href="#icon-plus"></use></svg>
+        <span>New document</span>
+      </button>
+      <button id="welcomeImportBtn" class="welcome-action" type="button">
+        <svg class="icon"><use href="#icon-upload"></use></svg>
+        <span>Import a file</span>
+      </button>
+      <button id="welcomeContinueBtn" class="welcome-action" type="button">
+        <svg class="icon"><use href="#icon-check"></use></svg>
+        <span>Continue where I left off</span>
+      </button>
+    </div>
+
+    <ul class="modal-feature-list">
+      <li><svg class="icon"><use href="#icon-check"></use></svg> Real-time collaboration — click 👥 Collaborate to share a document</li>
+      <li><svg class="icon"><use href="#icon-check"></use></svg> Open/publish to a GitHub Gist, or export to Markdown, HTML, PDF, or plain text</li>
+      <li><svg class="icon"><use href="#icon-check"></use></svg> Paste or drop images right into the editor</li>
+    </ul>
+    <p class="modal-hint">Everything is saved locally in your browser — no account needed unless you connect GitHub.</p>
+    <div class="modal-actions">
+      <button id="welcomeDismissBtn" class="secondary-btn" type="button">Don't show this again</button>
+    </div>
+  </div>
+</div>
+
+<!-- Insert link -->
+<div id="linkModal" class="modal-backdrop" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="linkModalTitle">
+    <h2 id="linkModalTitle"><svg class="icon"><use href="#icon-link"></use></svg> Insert link</h2>
+    <label class="modal-field">
+      <span>Text</span>
+      <input id="linkTextInput" type="text" placeholder="Link text">
+    </label>
+    <label class="modal-field">
+      <span>URL</span>
+      <input id="linkUrlInput" type="text" placeholder="https://example.com">
+    </label>
+    <div class="modal-actions">
+      <button id="linkCancelBtn" class="secondary-btn" type="button">Cancel</button>
+      <button id="linkInsertBtn" class="primary-btn" type="button">Insert</button>
+    </div>
+  </div>
+</div>
+
+<!-- Images manager -->
+<div id="imagesModal" class="modal-backdrop" hidden>
+  <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="imagesModalTitle">
+    <h2 id="imagesModalTitle"><svg class="icon"><use href="#icon-images"></use></svg> Images in this document</h2>
+    <div id="imagesList" class="images-list"></div>
+    <p id="imagesEmptyHint" class="modal-hint">No images in this document yet. Paste, drop, or use the toolbar 🖼 button to add one.</p>
+    <div class="modal-actions">
+      <button id="imagesCloseBtn" class="secondary-btn" type="button">Close</button>
+    </div>
+  </div>
 </div>
 
 <script src="js/app.js"></script>

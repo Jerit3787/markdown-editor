@@ -18,6 +18,7 @@ const room = {
   ws: null,
   ydoc: null,
   ytext: null,
+  imagesMap: null,
   awareness: null,
   reconnectTimer: null,
   reconnectDelay: 1000,
@@ -37,6 +38,12 @@ function init() {
   cm = window.MDE.getEditor();
   window.MDE.onBeforeDocLoad = teardown;
   window.MDE.onActiveDocChanged = handleDocChanged;
+  // Local image inserts (see app.js's insertImageWithUpload) get mirrored
+  // into the room's Yjs map so collaborators receive the image too — same
+  // Y.Doc as the text, just a separate top-level type.
+  window.MDE.onImageAdded = (key, dataUrl) => {
+    if (room.imagesMap) room.ydoc.transact(() => room.imagesMap.set(key, dataUrl), "local");
+  };
 
   setupShareUI();
 
@@ -68,10 +75,20 @@ function joinRoom(roomId, { seedFromLocal }) {
   room.id = roomId;
   room.ydoc = new Y.Doc();
   room.ytext = room.ydoc.getText("content");
+  room.imagesMap = room.ydoc.getMap("images");
+  room.imagesMap.observe((event, tr) => {
+    if (tr.origin === "local") return;
+    event.changes.keys.forEach((change, key) => {
+      if (change.action === "delete") return;
+      const dataUrl = room.imagesMap.get(key);
+      if (dataUrl) window.MDE.setDocImage(key, dataUrl);
+    });
+  });
   room.awareness = new awarenessProtocol.Awareness(room.ydoc);
 
   bindEditor();
   if (seedFromLocal) pushLocalContentIntoYText(cm.getValue());
+  if (seedFromLocal) seedImagesIntoRoom();
 
   room.awareness.setLocalState({ user, cursor: cursorFieldFromCm() });
   room.awareness.on("update", onLocalAwarenessUpdate);
@@ -101,6 +118,7 @@ function teardown() {
   room.ws = null;
   room.ydoc = null;
   room.ytext = null;
+  room.imagesMap = null;
   room.awareness = null;
   room.reconnectDelay = 1000;
   room.lastKnownValue = "";
@@ -147,6 +165,14 @@ function bindEditor() {
 function pushLocalContentIntoYText(value) {
   applyDiffToYText(room.lastKnownValue, value);
   room.lastKnownValue = value;
+}
+
+function seedImagesIntoRoom() {
+  const doc = window.MDE.getActiveDoc();
+  if (!doc || !doc.images) return;
+  room.ydoc.transact(() => {
+    Object.entries(doc.images).forEach(([key, dataUrl]) => room.imagesMap.set(key, dataUrl));
+  }, "local");
 }
 
 function applyDiffToYText(oldVal, newVal) {
@@ -321,12 +347,7 @@ function setupShareUI() {
 
   nameInput.value = user.name;
 
-  shareBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    shareMenu.classList.toggle("open");
-  });
-  document.addEventListener("click", () => shareMenu.classList.remove("open"));
-  shareMenu.addEventListener("click", (e) => e.stopPropagation());
+  window.MDE.toggleDropdown(shareBtn, shareMenu);
 
   startBtn.addEventListener("click", () => {
     const roomId = genRoomId();

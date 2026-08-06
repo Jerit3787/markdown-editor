@@ -87,11 +87,51 @@ function hello() {
     initImport();
     initShortStatus();
     initMoreMenu();
+    initImagesManager();
+    initLinkModal();
+    initWelcomeModal();
+    initModalEscapeKey();
 
     renderDocList();
     loadDocIntoEditor(getActiveDoc());
     updatePreview();
     updateCounts();
+  }
+
+  // ---------- Welcome modal ----------
+  const STORAGE_HIDE_WELCOME = "mde:hideWelcome";
+
+  function initWelcomeModal() {
+    const modal = document.getElementById("welcomeModal");
+
+    document.getElementById("welcomeNewBtn").addEventListener("click", () => {
+      modal.hidden = true;
+      document.getElementById("newDocBtn").click();
+    });
+    document.getElementById("welcomeImportBtn").addEventListener("click", () => {
+      modal.hidden = true;
+      document.getElementById("importInput").click();
+    });
+    document.getElementById("welcomeContinueBtn").addEventListener("click", () => {
+      modal.hidden = true;
+    });
+    document.getElementById("welcomeDismissBtn").addEventListener("click", () => {
+      localStorage.setItem(STORAGE_HIDE_WELCOME, "1");
+      modal.hidden = true;
+    });
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.hidden = true;
+    });
+    if (!localStorage.getItem(STORAGE_HIDE_WELCOME)) modal.hidden = false;
+  }
+
+  function initModalEscapeKey() {
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      document.querySelectorAll(".modal-backdrop:not([hidden])").forEach((m) => {
+        m.hidden = true;
+      });
+    });
   }
 
   // ---------- Theme ----------
@@ -193,7 +233,15 @@ function hello() {
       .then((dataUrl) => {
         const range = marker.find();
         marker.clear();
-        if (range) cm.replaceRange(`![${altTextFromFilename(file.name)}](${dataUrl})`, range.from, range.to);
+        if (!range) return; // doc was switched away mid-read; drop it
+        const doc = getActiveDoc();
+        doc.images = doc.images || {};
+        const key = imageKey(file.name, doc.images);
+        doc.images[key] = dataUrl;
+        persistDocs();
+        window.MDE.onImageAdded && window.MDE.onImageAdded(key, dataUrl);
+        cm.replaceRange(`![${altTextFromFilename(file.name)}](${key})`, range.from, range.to);
+        updatePreview();
       })
       .catch((err) => {
         const range = marker.find();
@@ -213,6 +261,84 @@ function hello() {
       reader.onerror = () => reject(reader.error || new Error("read failed"));
       reader.readAsDataURL(file);
     });
+  }
+
+  // Short reference name instead of the full base64 blob living inline in
+  // the editor text — e.g. "screenshot.png" or "screenshot-2.png" if that
+  // name's taken. The preview/export resolve it back to the real data URI
+  // (see the marked image renderer in updatePreview and resolveImageRefs).
+  function imageKey(filename, images) {
+    const match = (filename || "image").match(/^(.*?)(\.[^.]+)?$/);
+    const base = (match[1] || "image").trim().replace(/[^a-zA-Z0-9-_ ]+/g, "").trim() || "image";
+    const ext = match[2] || ".png";
+    let key = `${base}${ext}`;
+    let n = 2;
+    while (images[key]) {
+      key = `${base}-${n}${ext}`;
+      n++;
+    }
+    return key;
+  }
+
+  function resolveImageRefs(text, doc) {
+    if (!doc || !doc.images) return text;
+    return text.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, alt, ref) => {
+      const dataUrl = doc.images[ref];
+      return dataUrl ? `![${alt}](${dataUrl})` : match;
+    });
+  }
+
+  // ---------- Images manager ----------
+  function initImagesManager() {
+    const btn = document.getElementById("imagesManagerBtn");
+    const modal = document.getElementById("imagesModal");
+    const closeBtn = document.getElementById("imagesCloseBtn");
+
+    btn.addEventListener("click", () => {
+      renderImagesList();
+      modal.hidden = false;
+    });
+    closeBtn.addEventListener("click", () => { modal.hidden = true; });
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.hidden = true; });
+  }
+
+  function renderImagesList() {
+    const doc = getActiveDoc();
+    const images = (doc && doc.images) || {};
+    const keys = Object.keys(images);
+    const list = document.getElementById("imagesList");
+    const emptyHint = document.getElementById("imagesEmptyHint");
+    list.innerHTML = "";
+    emptyHint.hidden = keys.length > 0;
+
+    keys.forEach((key) => {
+      const dataUrl = images[key];
+      const item = document.createElement("div");
+      item.className = "image-item";
+      item.innerHTML = `
+        <img src="${dataUrl}" alt="">
+        <div class="image-meta">
+          <div class="image-name">${escapeHtml(key)}</div>
+          <div class="image-size">${formatBytes(dataUrl.length)}</div>
+        </div>
+        <button class="icon-btn" title="Delete image" aria-label="Delete ${escapeHtml(key)}"><svg class="icon"><use href="#icon-trash-2"></use></svg></button>
+      `;
+      item.querySelector("button").addEventListener("click", () => {
+        if (!confirm(`Delete "${key}"? Any reference to it in the text will show as a broken image.`)) return;
+        delete doc.images[key];
+        persistDocs();
+        updatePreview();
+        renderImagesList();
+      });
+      list.appendChild(item);
+    });
+  }
+
+  function formatBytes(base64Length) {
+    const bytes = Math.round(base64Length * 0.75);
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 
   function loadDocIntoEditor(doc) {
@@ -255,7 +381,19 @@ function hello() {
   // ---------- Preview ----------
   function updatePreview() {
     const raw = cm.getValue();
-    const html = marked.parse(raw, { gfm: true, breaks: false });
+    const doc = getActiveDoc();
+    const renderer = new marked.Renderer();
+    // ![alt](refName) resolves against doc.images; anything not a known
+    // ref (a real URL, or an old doc predating this feature that still has
+    // the full data URI inline) passes through untouched. marked 12's
+    // built-in image renderer takes positional (href, title, text), not a
+    // token object — verified against the actual loaded version.
+    renderer.image = (href, title, text) => {
+      const resolved = doc && doc.images && doc.images[href] ? doc.images[href] : href;
+      const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+      return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || "")}"${titleAttr}>`;
+    };
+    const html = marked.parse(raw, { gfm: true, breaks: false, renderer });
     const clean = DOMPurify.sanitize(html, { ADD_ATTR: ["target"] });
     document.getElementById("preview").innerHTML = clean;
   }
@@ -339,10 +477,42 @@ function hello() {
     }
   }
 
+  // A popup instead of dropping raw `[text](https://)` markdown into the
+  // editor — friendlier for anyone not already fluent in markdown syntax.
   function insertLink() {
     const sel = cm.getSelection();
-    const label = sel || "link text";
-    cm.replaceSelection(`[${label}](https://)`);
+    document.getElementById("linkTextInput").value = sel || "";
+    document.getElementById("linkUrlInput").value = "";
+    document.getElementById("linkModal").hidden = false;
+    document.getElementById(sel ? "linkUrlInput" : "linkTextInput").focus();
+  }
+
+  function initLinkModal() {
+    const modal = document.getElementById("linkModal");
+    const textInput = document.getElementById("linkTextInput");
+    const urlInput = document.getElementById("linkUrlInput");
+
+    function close() {
+      modal.hidden = true;
+    }
+    function confirmInsert() {
+      const text = textInput.value.trim() || "link text";
+      const url = urlInput.value.trim() || "https://";
+      cm.replaceSelection(`[${text}](${url})`);
+      close();
+      cm.focus();
+    }
+
+    document.getElementById("linkCancelBtn").addEventListener("click", close);
+    document.getElementById("linkInsertBtn").addEventListener("click", confirmInsert);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) close();
+    });
+    [textInput, urlInput].forEach((input) => {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") confirmInsert();
+      });
+    });
   }
 
   function insertImage() {
@@ -465,16 +635,30 @@ function hello() {
   }
 
   // ---------- Open (local file / Gist) ----------
-  function initOpenMenu() {
-    const btn = document.getElementById("openBtn");
-    const menu = document.getElementById("openMenu");
+  // Shared by every dropdown (Open/Export/Collaborate/GitHub — the latter
+  // two live in collab.js/gist.js and call this via window.MDE) so opening
+  // one closes any other that's already open, instead of them stacking.
+  function closeAllDropdowns(exceptMenu) {
+    document.querySelectorAll(".dropdown-menu.open").forEach((m) => {
+      if (m !== exceptMenu) m.classList.remove("open");
+    });
+  }
 
+  function toggleDropdown(btn, menu) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      menu.classList.toggle("open");
+      const willOpen = !menu.classList.contains("open");
+      closeAllDropdowns(menu);
+      if (willOpen) menu.classList.add("open");
     });
     document.addEventListener("click", () => menu.classList.remove("open"));
     menu.addEventListener("click", (e) => e.stopPropagation());
+  }
+
+  function initOpenMenu() {
+    const btn = document.getElementById("openBtn");
+    const menu = document.getElementById("openMenu");
+    toggleDropdown(btn, menu);
 
     document.getElementById("openLocalBtn").addEventListener("click", () => {
       document.getElementById("importInput").click();
@@ -526,12 +710,7 @@ function hello() {
   function initExport() {
     const btn = document.getElementById("exportBtn");
     const menu = document.getElementById("exportMenu");
-
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      menu.classList.toggle("open");
-    });
-    document.addEventListener("click", () => menu.classList.remove("open"));
+    toggleDropdown(btn, menu);
 
     menu.addEventListener("click", (e) => {
       const item = e.target.closest("button[data-export]");
@@ -553,7 +732,8 @@ function hello() {
     const raw = cm.getValue();
 
     if (format === "md") {
-      downloadBlob(new Blob([raw], { type: "text/markdown;charset=utf-8" }), `${base}.md`);
+      const resolved = resolveImageRefs(raw, getActiveDoc());
+      downloadBlob(new Blob([resolved], { type: "text/markdown;charset=utf-8" }), `${base}.md`);
       return;
     }
 
@@ -653,6 +833,23 @@ ${bodyHtml}
     refreshSaveStatus() {
       setSaveStatus(savedLabel(getActiveDoc()));
     },
+    // Editor text with any ![](refName) image references inlined back to
+    // their real data URIs — what gets published to a Gist, since a Gist
+    // needs to stand on its own outside this app.
+    getResolvedContent() {
+      return resolveImageRefs(cm.getValue(), getActiveDoc());
+    },
+    setDocImage(key, dataUrl) {
+      const doc = getActiveDoc();
+      if (!doc) return;
+      doc.images = doc.images || {};
+      doc.images[key] = dataUrl;
+      persistDocs();
+      updatePreview();
+    },
+    onImageAdded: null,
+    toggleDropdown,
+    closeAllDropdowns,
     findDocByRoomId(roomId) {
       return docs.find((d) => d.roomId === roomId);
     },

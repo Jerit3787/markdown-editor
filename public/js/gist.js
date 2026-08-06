@@ -37,14 +37,7 @@ function init() {
 }
 
 function initDropdown(btnId, menuId) {
-  const btn = document.getElementById(btnId);
-  const menu = document.getElementById(menuId);
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    menu.classList.toggle("open");
-  });
-  document.addEventListener("click", () => menu.classList.remove("open"));
-  menu.addEventListener("click", (e) => e.stopPropagation());
+  window.MDE.toggleDropdown(document.getElementById(btnId), document.getElementById(menuId));
 }
 
 async function checkSession() {
@@ -86,7 +79,7 @@ async function publish() {
   }
   const doc = window.MDE.getActiveDoc();
   if (!doc) return;
-  const content = window.MDE.getEditor().getValue();
+  const content = window.MDE.getResolvedContent();
   const filename = gistFilename(doc);
   const btn = document.getElementById("exportGistBtn");
   const label = document.getElementById("exportGistLabel");

@@ -867,8 +867,21 @@ html, body {
 /* Responsive */
 @media (max-width: 780px) {
   /* A flyout extending further right would overflow a phone screen —
-     flow it inline (pushes the rest of the menu down) instead. */
-  .menu-submenu-panel { position: static; margin-left: 0; box-shadow: none; border: none; background: var(--bg-alt); border-radius: 6px; margin: 4px 0 4px 16px; }
+     flow it inline (pushes the rest of the menu down) instead. The
+     trigger + its panel share one background box (set on .menu-submenu
+     itself) so the expanded section reads as a single continuous block
+     rather than a highlighted row sitting above a disconnected white
+     panel; the trigger's own .active accent-dim tint (see base rule)
+     still shows through on top of it. */
+  .menu-submenu.open { background: var(--bg-alt); border-radius: 6px; }
+  .menu-submenu-panel { position: static; margin: 0 0 4px 16px; box-shadow: none; border: none; background: transparent; border-radius: 0; }
+
+  /* Desktop's chevron points right, toward where the flyout appears.
+     On mobile the panel instead expands inline below the trigger, so
+     rotate the same icon to point down (collapsed) / up (open) —
+     standard accordion affordance — rather than swapping icons. */
+  .menu-chevron { transform: rotate(90deg); }
+  .menu-submenu-trigger.active .menu-chevron { transform: rotate(-90deg); }
 
   /* Anchored to #body (its own positioning context, already sized to
      exclude the topbar/footer by the flex layout) instead of a hardcoded

@@ -13,12 +13,14 @@ import { mount } from "svelte";
 import Settings from "./components/Settings.svelte";
 import Share from "./components/Share.svelte";
 import DocList from "./components/DocList.svelte";
+import Toast from "./components/Toast.svelte";
 
-// #settings-mount / #share-mount / #doclist-mount already exist by the
-// time this runs — main.ts's own <script type="module"> tag sits at the
-// end of <body>, after them, and module scripts only execute once the
-// document up to that point is parsed. No need to wait for
+// #settings-mount / #share-mount / #doclist-mount / #toast-mount already
+// exist by the time this runs — main.ts's own <script type="module"> tag
+// sits at the end of <body>, after them, and module scripts only execute
+// once the document up to that point is parsed. No need to wait for
 // DOMContentLoaded here.
 mount(Settings, { target: document.getElementById("settings-mount")! });
 mount(Share, { target: document.getElementById("share-mount")! });
 mount(DocList, { target: document.getElementById("doclist-mount")! });
+mount(Toast, { target: document.getElementById("toast-mount")! });

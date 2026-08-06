@@ -13,6 +13,7 @@
     ROLE_LABELS,
     DEFAULT_ACCESS,
   } from "../collab";
+  import { showToast } from "../stores/toast";
 
   const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment", editor: "edit" };
 
@@ -77,10 +78,13 @@
   function copyLink() {
     const link = buildShareLink();
     if (!link) return;
-    navigator.clipboard.writeText(link).then(() => {
-      copied = true;
-      setTimeout(() => (copied = false), 1200);
-    });
+    navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        copied = true;
+        setTimeout(() => (copied = false), 1200);
+      })
+      .catch(() => showToast("Couldn't copy the link", "error"));
   }
 
   function backdropClick(e: MouseEvent) {

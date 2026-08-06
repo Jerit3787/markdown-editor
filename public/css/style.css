@@ -540,7 +540,13 @@ html, body {
 
   /* Comfortable touch targets (~44px is the platform-recommended minimum). */
   .icon-btn { width: 40px; height: 40px; font-size: 17px; }
-  #toolbar button { min-width: 36px; padding: 7px 10px; }
+
+  /* The formatting toolbar doesn't fit one line on a phone either — scroll
+     it horizontally instead of wrapping to a 2nd row (flex-wrap:wrap is
+     the desktop/tablet default, set in the base #toolbar rule above). */
+  #toolbar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  #toolbar::-webkit-scrollbar { display: none; }
+  #toolbar button, #toolbar .sep { flex-shrink: 0; min-width: 36px; padding: 7px 10px; }
 
   .share-menu { width: min(280px, 84vw); }
 }

@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 function init() {
   document.getElementById("gistSignInBtn").addEventListener("click", () => {
-    location.href = "/api/auth/github/login";
+    window.MDE.openGithubSignInPopup();
   });
   document.getElementById("gistDisconnectBtn").addEventListener("click", () => {
     location.href = "/api/auth/github/logout";
@@ -42,6 +42,12 @@ function init() {
   window.MDE.onActiveDocChanged = (doc) => {
     if (existing) existing(doc);
     render();
+  };
+
+  // Fired by app.js's message listener once the sign-in popup reports
+  // success — re-check the session in place instead of reloading the page.
+  window.MDE.onGithubAuthComplete = () => {
+    window.MDE.githubSessionReady = checkSession();
   };
 }
 

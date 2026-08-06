@@ -594,22 +594,23 @@ html, body {
 
 #sidebar.collapsed { margin-left: -231px; }
 
-/* Floats at the sidebar's trailing edge and slides with it (Google-Docs
-   style) instead of staying fixed in the topbar. #body is the positioning
-   parent (position:relative, set above). */
-#sidebarToggle {
+/* #sidebarToggleIn is a normal flex child inside #sidebarHeader (see
+   #sidebarHeaderLeft below) — no positioning needed, it slides off-screen
+   with the rest of #sidebar automatically. #sidebarToggleOut only exists
+   for the collapsed state, floating over the space the sidebar vacated;
+   #toolbar's reserved left gutter (below) keeps it clear of the first tool
+   button there. #body is the positioning parent (position:relative). */
+#sidebarToggleOut {
   position: absolute;
   top: 6px;
-  left: 236px;
+  left: 6px;
   z-index: 45;
   border-radius: 50%;
   background: var(--bg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
-  transition: left 0.15s ease;
 }
-#sidebarToggle:hover { background: var(--bg-alt); }
-#sidebar.collapsed ~ #sidebarToggle { left: 6px; }
+#sidebarToggleOut:hover { background: var(--bg-alt); }
 
 #sidebarHeader {
   display: flex;
@@ -622,6 +623,10 @@ html, body {
   letter-spacing: 0.04em;
   color: var(--text-dim);
 }
+
+#sidebarHeaderLeft { display: flex; align-items: center; gap: 6px; min-width: 0; }
+#sidebarHeaderLeft #sidebarToggleIn { flex-shrink: 0; }
+#sidebarHeaderLeft span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 #docList {
   list-style: none;
@@ -700,9 +705,9 @@ html, body {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  /* Extra left inset reserves room for the floating #sidebarToggle circle,
-     which sits at this same vertical band regardless of sidebar state. */
-  padding: 6px 8px 6px 44px;
+  /* Extra left inset reserves room for #sidebarToggleOut, shown only when
+     the sidebar is collapsed. */
+  padding: 6px 8px 6px 50px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-alt);
   flex-shrink: 0;

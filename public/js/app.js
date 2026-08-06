@@ -574,26 +574,25 @@ function hello() {
   // ---------- Sidebar / documents ----------
   const isMobile = () => window.matchMedia("(max-width: 780px)").matches;
 
-  function updateSidebarToggleIcon() {
-    const collapsed = document.getElementById("sidebar").classList.contains("collapsed");
-    const btn = document.getElementById("sidebarToggle");
-    document.getElementById("sidebarToggleIcon").setAttribute("href", collapsed ? "#icon-menu" : "#icon-chevron-left");
-    const label = collapsed ? "Show documents panel" : "Hide documents panel";
-    btn.title = label;
-    btn.setAttribute("aria-label", label);
+  function toggleSidebar() {
+    const collapsed = document.getElementById("sidebar").classList.toggle("collapsed");
+    // #sidebarToggleIn lives inside #sidebar and slides off-screen with it
+    // automatically — only the outside floating button needs manual
+    // show/hide, since it has nothing else to hide it while expanded.
+    document.getElementById("sidebarToggleOut").hidden = !collapsed;
+    setTimeout(() => cm && cm.refresh(), 150);
   }
 
   function initSidebar() {
     // On a phone-width screen the sidebar is a full-height overlay (see
     // css), so starting it open covers the whole editor on first load.
-    if (isMobile()) document.getElementById("sidebar").classList.add("collapsed");
-    updateSidebarToggleIcon();
+    if (isMobile()) {
+      document.getElementById("sidebar").classList.add("collapsed");
+      document.getElementById("sidebarToggleOut").hidden = false;
+    }
 
-    document.getElementById("sidebarToggle").addEventListener("click", () => {
-      document.getElementById("sidebar").classList.toggle("collapsed");
-      updateSidebarToggleIcon();
-      setTimeout(() => cm && cm.refresh(), 150);
-    });
+    document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);
+    document.getElementById("sidebarToggleOut").addEventListener("click", toggleSidebar);
 
     document.getElementById("newDocBtn").addEventListener("click", () => {
       saveNow();
@@ -799,7 +798,7 @@ function hello() {
     });
 
     document.getElementById("menuToggleSidebar").addEventListener("click", () => {
-      document.getElementById("sidebarToggle").click();
+      toggleSidebar();
       document.getElementById("viewMenu").classList.remove("open");
     });
 
@@ -865,11 +864,32 @@ function hello() {
       modal.hidden = true;
     });
     document.getElementById("githubSignInModalSignInBtn").addEventListener("click", () => {
-      location.href = "/api/auth/github/login";
+      openGithubSignInPopup();
     });
     modal.addEventListener("click", (e) => {
       if (e.target === modal) modal.hidden = true;
     });
+
+    // Sign-in happens in a popup (src/github-auth.js's callback page posts
+    // the result here and closes itself) instead of a full-page redirect,
+    // so the app never has to reload — just re-check the session in place.
+    window.addEventListener("message", (e) => {
+      if (e.origin !== location.origin || !e.data || e.data.type !== "mde-github-auth") return;
+      if (e.data.ok) {
+        modal.hidden = true;
+        window.MDE.onGithubAuthComplete && window.MDE.onGithubAuthComplete();
+      } else {
+        alert(`GitHub sign-in failed: ${e.data.message || "unknown error"}`);
+      }
+    });
+  }
+
+  function openGithubSignInPopup() {
+    const width = 600;
+    const height = 700;
+    const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
+    window.open("/api/auth/github/login", "github-oauth", `width=${width},height=${height},left=${left},top=${top}`);
   }
 
   function currentFileBase() {
@@ -1010,6 +1030,7 @@ ${bodyHtml}
       if (hint) document.getElementById("githubSignInModalHint").textContent = hint;
       modal.hidden = false;
     },
+    openGithubSignInPopup,
     githubUsername: null, // kept in sync by gist.js's checkSession()
     createDoc(partial) {
       saveNow();

@@ -99,7 +99,16 @@ async function publish() {
   }
   const doc = window.MDE.getActiveDoc();
   if (!doc) return;
+  // getResolvedContent() inlines images as base64 data URIs — that's the
+  // only thing the plain REST API can store (files[name].content is a JSON
+  // string), and it's what actually gets published as the gist's text. If
+  // the doc has any images we then separately push them as real git blobs
+  // (see pushImagesAndRewrite below) and PATCH the gist a second time with
+  // real gist.githubusercontent.com URLs in place of the base64 data, since
+  // GitHub's gist viewer can't render an <img> whose src is a huge base64
+  // string embedded in the markdown text.
   const content = window.MDE.getResolvedContent();
+  const rawContent = window.MDE.getEditor().getValue();
   const filename = gistFilename(doc);
   const btn = document.getElementById("menuPublishGist") as HTMLButtonElement;
   const label = document.getElementById("menuGistLabel");
@@ -127,6 +136,21 @@ async function publish() {
       gistId = data.id;
       window.MDE.setActiveDocGistId(gistId);
     }
+
+    try {
+      const rewritten = await pushImagesAndRewrite(gistId, rawContent, doc.images, label);
+      if (rewritten) {
+        const res = await fetch(`/api/gist/${gistId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: { [filename]: { content: rewritten } } }),
+        });
+        if (!res.ok) throw new Error(await errorMessage(res));
+      }
+    } catch (imgErr: any) {
+      showToast(`Gist published, but pushing images failed: ${imgErr.message || "unknown error"}`, "error");
+    }
+
     label.textContent = wasUpdate ? "Updated ✓" : "Published ✓";
     window.MDE.refreshSaveStatus();
     showToast(wasUpdate ? "Gist updated" : "Published to Gist", "success");
@@ -137,6 +161,63 @@ async function publish() {
     btn.disabled = false;
     setTimeout(render, 2000);
   }
+}
+
+const MARKDOWN_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+
+function extFromMime(mime: string): string {
+  const sub = mime.split("+")[0].toLowerCase();
+  return sub === "jpeg" ? "jpg" : sub;
+}
+
+function gistImageFilename(ref: string, ext: string): string {
+  return /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(ref) ? ref : `${ref}.${ext}`;
+}
+
+// Pushes every image referenced in rawContent (that's actually in
+// doc.images — plain refs like "screenshot.png") to the gist's git repo as
+// a real binary file (see src/gist-images.ts), then returns rawContent
+// with those refs rewritten to the real returned URLs. Pushed one at a
+// time — parallel pushes to the same gist repo could race against each
+// other. Returns null if there was nothing to push, so the caller can skip
+// the follow-up PATCH entirely.
+async function pushImagesAndRewrite(
+  gistId: string,
+  rawContent: string,
+  images: Record<string, string> | undefined,
+  label: HTMLElement
+): Promise<string | null> {
+  if (!images) return null;
+
+  const refs = new Set<string>();
+  for (const match of rawContent.matchAll(MARKDOWN_IMAGE_RE)) {
+    if (images[match[2]]) refs.add(match[2]);
+  }
+  if (refs.size === 0) return null;
+
+  const urlByRef: Record<string, string> = {};
+  let done = 0;
+  for (const ref of refs) {
+    done++;
+    label.textContent = `Publishing images (${done}/${refs.size})…`;
+    const dataUrl = images[ref];
+    const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.*)$/);
+    if (!match) continue;
+    const [, mime, contentBase64] = match;
+    const res = await fetch(`/api/gist/${gistId}/image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: gistImageFilename(ref, extFromMime(mime)), contentBase64 }),
+    });
+    if (!res.ok) throw new Error(await errorMessage(res));
+    const data = await res.json();
+    urlByRef[ref] = data.url;
+  }
+
+  return rawContent.replace(MARKDOWN_IMAGE_RE, (match, alt, ref) => {
+    const url = urlByRef[ref];
+    return url ? `![${alt}](${url})` : match;
+  });
 }
 
 function initOpenGistModal() {

@@ -9,11 +9,13 @@ import {
   handleGistGet,
   handleGistList,
 } from "./github-auth.js";
+import { handleGistImageUpload } from "./gist-images.js";
 import type { Env } from "./env";
 
 const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
 const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
 const GIST_PATH = /^\/api\/gist\/([0-9a-f]+)$/i;
+const GIST_IMAGE_PATH = /^\/api\/gist\/([0-9a-f]+)\/image$/i;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -41,6 +43,9 @@ export default {
 
     if (url.pathname === "/api/gist" && request.method === "POST") return handleGistCreate(request, env);
     if (url.pathname === "/api/gists" && request.method === "GET") return handleGistList(request, env);
+    const gistImageMatch = url.pathname.match(GIST_IMAGE_PATH);
+    if (gistImageMatch && request.method === "POST") return handleGistImageUpload(request, env, gistImageMatch[1]!);
+
     const gistMatch = url.pathname.match(GIST_PATH);
     if (gistMatch && request.method === "PATCH") return handleGistUpdate(request, env, gistMatch[1]!);
     if (gistMatch && request.method === "GET") return handleGistGet(request, env, gistMatch[1]!);

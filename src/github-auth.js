@@ -30,7 +30,7 @@ export async function handleCallback(request, env) {
   const expectedState = getCookie(request, STATE_COOKIE);
 
   if (!code || !state || state !== expectedState) {
-    return new Response("GitHub sign-in failed: invalid state.", { status: 400 });
+    return popupResponse(false, "Invalid state.");
   }
 
   const tokenRes = await fetch(TOKEN_URL, {
@@ -46,26 +46,52 @@ export async function handleCallback(request, env) {
   const tokenData = await safeJson(tokenRes);
   if (!tokenData || !tokenData.access_token) {
     const detail = (tokenData && (tokenData.error_description || tokenData.error)) || `HTTP ${tokenRes.status}`;
-    return new Response(`GitHub sign-in failed: ${detail}`, { status: 400 });
+    return popupResponse(false, detail);
   }
 
   const userRes = await fetch(`${API}/user`, { headers: ghHeaders(tokenData.access_token) });
   const userData = await safeJson(userRes);
   if (!userData || !userData.login) {
-    return new Response("GitHub sign-in failed: could not read profile.", { status: 400 });
+    return popupResponse(false, "Could not read GitHub profile.");
   }
 
   const session = await encryptSession(env, { token: tokenData.access_token, username: userData.login });
-  const headers = new Headers({ Location: "/" });
+  const headers = new Headers({ "Content-Type": "text/html; charset=utf-8" });
   headers.append("Set-Cookie", cookieHeader(SESSION_COOKIE, session, { maxAge: 60 * 60 * 24 * 30 }));
   headers.append("Set-Cookie", cookieHeader(STATE_COOKIE, "", { maxAge: 0 }));
-  return new Response(null, { status: 302, headers });
+  return new Response(popupHtml(true, null), { headers });
 }
 
 export async function handleLogout(request) {
   const headers = new Headers({ Location: "/" });
   headers.append("Set-Cookie", cookieHeader(SESSION_COOKIE, "", { maxAge: 0 }));
   return new Response(null, { status: 302, headers });
+}
+
+// The login/callback round trip happens in a popup window (see
+// window.MDE.openGithubSignIn in app.js), not a full-page redirect — this
+// is what the popup's final page renders. It hands the result back to the
+// opener via postMessage and closes itself: success closes immediately,
+// failure shows the reason for a couple seconds first so it's not just a
+// window vanishing with no explanation.
+function popupHtml(ok, message) {
+  const payload = JSON.stringify({ type: "mde-github-auth", ok, message: message || null });
+  const body = ok
+    ? "Signed in — this window will close automatically."
+    : `Sign-in failed: ${escapeHtml(message || "unknown error")}`;
+  const closeDelay = ok ? 0 : 2500;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>GitHub sign-in</title></head><body style="font:14px system-ui;padding:24px;color:${ok ? "#333" : "#c0392b"}">${body}<script>
+    if (window.opener) window.opener.postMessage(${payload}, window.location.origin);
+    setTimeout(function () { window.close(); }, ${closeDelay});
+  </script></body></html>`;
+}
+
+function popupResponse(ok, message) {
+  return new Response(popupHtml(ok, message), { status: ok ? 200 : 400, headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 export async function handleMe(request, env) {

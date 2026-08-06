@@ -390,17 +390,23 @@
     <!-- Sidebar: document list -->
     <aside id="sidebar">
       <div id="sidebarHeader">
-        <span>Documents</span>
+        <div id="sidebarHeaderLeft">
+          <!-- Naturally laid out inside the panel (Google-Docs style) —
+               collapses off-screen along with the rest of #sidebar, no
+               manual positioning needed. -->
+          <button id="sidebarToggleIn" class="icon-btn" title="Hide documents panel" aria-label="Hide documents panel"><svg class="icon"><use href="#icon-chevron-left"></use></svg></button>
+          <span>Documents</span>
+        </div>
         <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document"><svg class="icon"><use href="#icon-plus"></use></svg></button>
       </div>
       <ul id="docList"></ul>
       <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden>
     </aside>
 
-    <!-- Floating toggle, Google-Docs style: sits at the sidebar's trailing
-         edge and slides with it, flipping between hamburger (collapsed)
-         and back-arrow (expanded) instead of staying fixed in the topbar. -->
-    <button id="sidebarToggle" class="icon-btn" title="Toggle documents panel" aria-label="Toggle documents panel"><svg class="icon"><use id="sidebarToggleIcon" href="#icon-chevron-left"></use></svg></button>
+    <!-- Shown only while the sidebar is collapsed — floats over the space
+         it vacated. #toolbar reserves a left gutter so this never sits on
+         top of the first formatting button. -->
+    <button id="sidebarToggleOut" class="icon-btn" title="Show documents panel" aria-label="Show documents panel" hidden><svg class="icon"><use href="#icon-menu"></use></svg></button>
 
     <!-- Editor + Preview -->
     <main id="main">

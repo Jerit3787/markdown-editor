@@ -19,13 +19,22 @@
   },
 
   // Serves the static site (public/) for any request the Worker doesn't
-  // explicitly handle itself (i.e. everything except /api/collab/*).
-  // single-page-application fallback serves index.html for pretty share
-  // URLs like /d/<docId>/edit that aren't real files (see js/collab.js).
+  // explicitly handle itself. single-page-application fallback serves
+  // index.html for pretty share URLs like /d/<docId>/edit that aren't real
+  // files (see js/collab.js). run_worker_first is required alongside it:
+  // without it, Cloudflare's asset layer treats ANY extensionless
+  // page-navigation request (not just unmatched ones) as an SPA route and
+  // serves index.html before src/worker.js's own routing ever runs — which
+  // silently broke full-page-navigation endpoints like
+  // /api/auth/github/login (fetch()-based /api calls were unaffected,
+  // since only real navigations hit this). With run_worker_first, the
+  // Worker's own routing (which already checks /api/* before falling
+  // through to env.ASSETS.fetch()) always runs first.
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
   },
 
   // One Durable Object instance per collaboration room, holding that room's

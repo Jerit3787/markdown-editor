@@ -369,7 +369,13 @@ function hello() {
   }
 
   // ---------- Sidebar / documents ----------
+  const isMobile = () => window.matchMedia("(max-width: 780px)").matches;
+
   function initSidebar() {
+    // On a phone-width screen the sidebar is a full-height overlay (see
+    // css), so starting it open covers the whole editor on first load.
+    if (isMobile()) document.getElementById("sidebar").classList.add("collapsed");
+
     document.getElementById("sidebarToggle").addEventListener("click", () => {
       document.getElementById("sidebar").classList.toggle("collapsed");
       setTimeout(() => cm && cm.refresh(), 150);
@@ -400,6 +406,7 @@ function hello() {
     loadDocIntoEditor(getActiveDoc());
     updatePreview();
     updateCounts();
+    if (isMobile()) document.getElementById("sidebar").classList.add("collapsed");
   }
 
   function deleteDoc(id) {

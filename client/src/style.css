@@ -292,6 +292,13 @@ html, body {
 }
 
 .icon-btn:hover { background: var(--border); }
+.icon-btn.active { background: var(--accent-dim); color: var(--accent); }
+
+/* #menuBar's own .icon-btn (expandPreviewBtn) sits in a shorter, tighter
+   row than topbarRow1's — shrink it down to match .menubar-btn's height
+   instead of the topbar's full 32px so it doesn't stretch the row. */
+#menuBar .icon-btn { width: 26px; height: 26px; }
+#menuBar .icon-btn .icon { width: 15px; height: 15px; }
 
 .primary-btn {
   background: var(--accent);
@@ -1027,6 +1034,7 @@ html, body {
      down to real phone widths anyway (verified at 390px). */
   .topbar-row { flex-wrap: wrap; row-gap: 4px; padding-left: 10px; padding-right: 10px; }
   .share-pill, .menubar-btn, #settingsBtn { flex-shrink: 0; }
+  #menuBar .icon-btn { width: 40px; height: 40px; flex-shrink: 0; }
 
   /* Icon-only on phone widths — the topbar row is already tight there
      (brand, title, save status, presence avatars, share, settings all

@@ -23,6 +23,11 @@ const PERSIST_DELAY_MS = 1000;
 
 type Role = "viewer" | "reviewer" | "editor";
 
+interface InvitedPerson {
+  username: string;
+  role: Role;
+}
+
 interface AccessRecord {
   owner: string | null;
   generalAccess: "restricted" | "anyone";
@@ -31,7 +36,7 @@ interface AccessRecord {
   // -in GitHub account works without being individually invited.
   requireAccount: boolean;
   role: Role;
-  invited: string[];
+  invited: InvitedPerson[];
 }
 
 // username is null for anonymous sessions — only possible when the room's
@@ -47,6 +52,25 @@ interface SessionInfo {
 }
 
 const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] };
+
+// PUT /access's invited field — accepts either the old string[] shape
+// (client always sending {username, role} now, but kept for robustness
+// against stale clients) or the new {username, role}[] shape, and
+// produces a deduped, capped, role-validated InvitedPerson[] either way.
+function normalizeInvited(raw: unknown[]): InvitedPerson[] {
+  const seen = new Set<string>();
+  const result: InvitedPerson[] = [];
+  for (const entry of raw) {
+    const username = typeof entry === "string" ? entry.trim() : String((entry as any)?.username || "").trim();
+    if (!username || seen.has(username)) continue;
+    const rawRole = typeof entry === "string" ? "editor" : (entry as any)?.role;
+    const role: Role = (["viewer", "reviewer", "editor"] as const).includes(rawRole) ? rawRole : "editor";
+    seen.add(username);
+    result.push({ username, role });
+    if (result.length >= 100) break;
+  }
+  return result;
+}
 
 // One CollabRoom instance == one shared document, addressed by the
 // document's own client-generated id (so a share link is stable from the
@@ -109,8 +133,18 @@ export class CollabRoom {
   // ---------- Access control ----------
 
   async getAccess(): Promise<AccessRecord> {
-    const stored = await this.state.storage.get<AccessRecord>(ACCESS_KEY);
-    return stored ? { ...DEFAULT_ACCESS, ...stored } : { ...DEFAULT_ACCESS };
+    const stored = await this.state.storage.get<Record<string, unknown>>(ACCESS_KEY);
+    if (!stored) return { ...DEFAULT_ACCESS };
+    // invited used to be string[] (before per-person roles) — normalize
+    // any leftover plain-string entries from rooms shared before this
+    // field existed. They previously always resolved to "editor" (see the
+    // old authorize()), so that's the role that preserves their existing
+    // access exactly.
+    const rawInvited = Array.isArray(stored.invited) ? stored.invited : [];
+    const invited: InvitedPerson[] = rawInvited.map((entry) =>
+      typeof entry === "string" ? { username: entry, role: "editor" } : (entry as InvitedPerson)
+    );
+    return { ...DEFAULT_ACCESS, ...stored, invited } as AccessRecord;
   }
 
   async getSession(request: Request) {
@@ -149,8 +183,9 @@ export class CollabRoom {
     if (!session || !session.username) {
       return { ok: false, status: 401, message: "Sign in with GitHub to join this document." };
     }
-    if (access.invited.includes(session.username)) {
-      return { ok: true, username: session.username, role: "editor" };
+    const invited = access.invited.find((p) => p.username === session.username);
+    if (invited) {
+      return { ok: true, username: session.username, role: invited.role };
     }
     return { ok: false, status: 403, message: "You don't have access to this document." };
   }
@@ -185,9 +220,7 @@ export class CollabRoom {
         generalAccess: body.generalAccess === "anyone" ? "anyone" : "restricted",
         requireAccount: body.requireAccount === true,
         role: (["viewer", "reviewer", "editor"] as const).includes(body.role as Role) ? (body.role as Role) : "viewer",
-        invited: Array.isArray(body.invited)
-          ? [...new Set(body.invited.map((u) => String(u).trim()).filter(Boolean))].slice(0, 100)
-          : access.invited,
+        invited: Array.isArray(body.invited) ? normalizeInvited(body.invited) : access.invited,
       };
       await this.state.storage.put(ACCESS_KEY, next);
       return Response.json(next);

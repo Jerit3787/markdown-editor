@@ -1,3 +1,8 @@
+export interface InvitedPerson {
+  username: string;
+  role: string;
+}
+
 export interface AccessRecord {
   owner: string | null;
   generalAccess: "restricted" | "anyone";
@@ -6,7 +11,7 @@ export interface AccessRecord {
   // -in GitHub account works without being individually invited.
   requireAccount: boolean;
   role: string;
-  invited: string[];
+  invited: InvitedPerson[];
 }
 
 export interface PresenceEntry {

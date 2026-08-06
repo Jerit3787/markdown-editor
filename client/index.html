@@ -245,6 +245,14 @@
     <path d="M9 15h6" />
     <path d="M12 18v-6" />
   </symbol>
+  <symbol id="icon-file" viewBox="0 0 24 24">
+    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+  </symbol>
+  <symbol id="icon-pencil" viewBox="0 0 24 24">
+    <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+    <path d="m15 5 4 4" />
+  </symbol>
   <symbol id="icon-chevron-right" viewBox="0 0 24 24">
     <path d="m9 18 6-6-6-6" />
   </symbol>
@@ -387,16 +395,15 @@
                collapses off-screen along with the rest of #sidebar, no
                manual positioning needed. -->
           <button id="sidebarToggleIn" class="icon-btn" title="Hide documents panel" aria-label="Hide documents panel"><svg class="icon"><use href="#icon-chevron-left"></use></svg></button>
-          <div class="tab-switch" id="sidebarTabs" role="tablist" aria-label="Sidebar panel">
-            <button type="button" class="tab-switch-btn active" id="sidebarTabDocs" role="tab" aria-selected="true">Documents</button>
-            <button type="button" class="tab-switch-btn" id="sidebarTabOutline" role="tab" aria-selected="false">Outline</button>
-          </div>
+          <span>Documents</span>
         </div>
         <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document"><svg class="icon"><use href="#icon-plus"></use></svg></button>
       </div>
-      <ul id="docList"></ul>
-      <div id="outlineList" class="outline-list" hidden></div>
-      <p id="outlineEmptyHint" class="modal-hint outline-empty-hint" hidden>No headings yet — add "# Heading" lines to build an outline.</p>
+      <!-- DocList Svelte component mounts its own <ul id="docList"> here,
+           each row individually collapsible to its own heading outline
+           (Google-Docs "Document tabs" style) — see
+           client/src/components/DocList.svelte -->
+      <div id="doclist-mount"></div>
       <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden>
     </aside>
 

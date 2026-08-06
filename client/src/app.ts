@@ -12,6 +12,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import html2pdf from "html2pdf.js";
 import type { Doc, MDEBridge } from "./types";
+import { docsStore, activeIdStore, activeDocContent } from "./stores/docs";
 
 (function () {
   "use strict";
@@ -100,7 +101,6 @@ function hello() {
     initToolbar();
     initSaveStatus();
     initSidebar();
-    initSidebarTabs();
     initViewToggle();
     initImport();
     initShortStatus();
@@ -170,7 +170,10 @@ function hello() {
       scheduleSave();
       updatePreview();
       updateCounts();
-      renderOutline();
+      // Undebounced (unlike doc.content, which only syncs on the debounced
+      // save) — DocList.svelte's outline for whichever doc is active reads
+      // this so it stays live as-you-type, same as the old behavior.
+      activeDocContent.set(cm.getValue());
     });
 
     cm.on("cursorActivity", updateCursorPos);
@@ -488,62 +491,6 @@ function hello() {
     document.getElementById("cursorPos").textContent = `Ln ${pos.line + 1}, Col ${pos.ch + 1}`;
   }
 
-  // ---------- Outline (list of headings, Google-Docs style) ----------
-  const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
-
-  function initSidebarTabs() {
-    const docsTab = document.getElementById("sidebarTabDocs");
-    const outlineTab = document.getElementById("sidebarTabOutline");
-    const docList = document.getElementById("docList");
-    const outlineList = document.getElementById("outlineList");
-
-    function show(which: "docs" | "outline") {
-      const showOutline = which === "outline";
-      docsTab.classList.toggle("active", !showOutline);
-      docsTab.setAttribute("aria-selected", String(!showOutline));
-      outlineTab.classList.toggle("active", showOutline);
-      outlineTab.setAttribute("aria-selected", String(showOutline));
-      docList.hidden = showOutline;
-      outlineList.hidden = !showOutline;
-      document.getElementById("outlineEmptyHint").hidden = !showOutline || outlineList.children.length > 0;
-    }
-
-    docsTab.addEventListener("click", () => show("docs"));
-    outlineTab.addEventListener("click", () => show("outline"));
-  }
-
-  // Rebuilt on every editor change (see cm.on("change") in initEditor) —
-  // cheap enough (one regex pass over the document's lines) not to need
-  // debouncing, same as updatePreview/updateCounts on the same hook.
-  function renderOutline() {
-    const list = document.getElementById("outlineList");
-    const emptyHint = document.getElementById("outlineEmptyHint");
-    list.innerHTML = "";
-
-    const lines = cm.getValue().split("\n");
-    let count = 0;
-    lines.forEach((line, i) => {
-      const match = line.match(HEADING_RE);
-      if (!match) return;
-      count++;
-      const level = match[1].length;
-      const text = match[2];
-      const item = document.createElement("div");
-      item.className = "outline-item";
-      item.dataset.level = String(level);
-      item.textContent = text;
-      item.title = text;
-      item.addEventListener("click", () => {
-        cm.setCursor({ line: i, ch: 0 });
-        cm.scrollIntoView({ line: i, ch: 0 }, 100);
-        cm.focus();
-      });
-      list.appendChild(item);
-    });
-
-    if (!list.hidden) emptyHint.hidden = count > 0;
-  }
-
   function initShortStatus() {
     updateCursorPos();
   }
@@ -769,24 +716,53 @@ function hello() {
     renderDocList();
   }
 
+  // Doc-row "..." menu action (DocList.svelte) — not a rename/edit, a full
+  // copy, same as Google Docs' tab context menu's "Duplicate".
+  function duplicateDoc(id: string) {
+    const doc = docs.find((d) => d.id === id);
+    if (!doc) return;
+    saveNow();
+    const copy: Doc = { ...doc, id: uid(), name: `${doc.name || "Untitled"} (copy)`, updatedAt: Date.now() };
+    // A duplicate is a fresh, unshared, unpublished document — it must not
+    // carry over the room/gist identity of the doc it was copied from.
+    delete copy.shared;
+    delete copy.gistId;
+    docs.unshift(copy);
+    activeId = copy.id;
+    persistDocs();
+    localStorage.setItem(STORAGE_ACTIVE, activeId);
+    renderDocList();
+    loadDocIntoEditor(copy);
+    updatePreview();
+    updateCounts();
+  }
+
+  // Clicking a heading in a doc-row's outline (DocList.svelte) — switches
+  // to that doc first if it isn't already active, since CodeMirror only
+  // ever holds one buffer.
+  function jumpToLine(id: string, line: number) {
+    if (id !== activeId) switchDoc(id);
+    cm.setCursor({ line, ch: 0 });
+    cm.scrollIntoView({ line, ch: 0 }, 100);
+    cm.focus();
+  }
+
+  // The actual <ul id="docList"> markup is DocList.svelte now (mounted at
+  // #doclist-mount in main.ts) — this just pushes current state into the
+  // stores it reads, same as every other renderDocList() call site already
+  // did for the old DOM-rebuilding version.
+  //
+  // docs.map(d => ({...d})) rather than docs (or even [...docs]): doc
+  // objects are mutated in place elsewhere (e.g. doc.name on rename), not
+  // reassigned, so a keyed {#each doc.id} in DocList.svelte sees the same
+  // object reference at that key across renders and skips re-rendering its
+  // bound content — Svelte's reuse optimization assumes "same reference"
+  // means "same content". A fresh shallow clone of every doc on every push
+  // guarantees each render is actually a distinct object, however it was
+  // mutated underneath.
   function renderDocList() {
-    const list = document.getElementById("docList");
-    list.innerHTML = "";
-    const sorted = [...docs].sort((a, b) => b.updatedAt - a.updatedAt);
-    sorted.forEach((doc) => {
-      const li = document.createElement("li");
-      li.className = doc.id === activeId ? "active" : "";
-      li.innerHTML = `<span class="doc-name">${escapeHtml(doc.name || "Untitled")}</span><button class="doc-delete" title="Delete"><svg class="icon"><use href="#icon-x"></use></svg></button>`;
-      li.addEventListener("click", (e) => {
-        if ((e.target as HTMLElement).closest(".doc-delete")) return;
-        switchDoc(doc.id);
-      });
-      li.querySelector(".doc-delete").addEventListener("click", (e) => {
-        e.stopPropagation();
-        deleteDoc(doc.id);
-      });
-      list.appendChild(li);
-    });
+    docsStore.set(docs.map((d) => ({ ...d })));
+    activeIdStore.set(activeId);
   }
 
   function escapeHtml(str: string) {
@@ -1115,6 +1091,9 @@ ${bodyHtml}
     getEditor: () => cm,
     getActiveDoc,
     switchDoc,
+    deleteDoc,
+    duplicateDoc,
+    jumpToLine,
     persistDocs,
     renderDocList,
     refreshSaveStatus() {

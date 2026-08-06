@@ -115,7 +115,8 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle">
-      <h2 id="shareModalTitle"><span>Share "<span>{$shareDocName}</span>"</span></h2>
+      <h2 id="shareModalTitle"><span>Share "<span>{$shareDocName}</span>"</span><button class="hint-toggle-btn" type="button" aria-label="What is this?">?</button></h2>
+      <p class="modal-hint hint-text" hidden>Invite specific people by GitHub username, or turn on general access to share one link with anyone. Viewer and Reviewer can look but not change anything; Editor can.</p>
 
       <input
         type="text"

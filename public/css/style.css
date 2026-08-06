@@ -594,6 +594,23 @@ html, body {
 
 #sidebar.collapsed { margin-left: -231px; }
 
+/* Floats at the sidebar's trailing edge and slides with it (Google-Docs
+   style) instead of staying fixed in the topbar. #body is the positioning
+   parent (position:relative, set above). */
+#sidebarToggle {
+  position: absolute;
+  top: 6px;
+  left: 236px;
+  z-index: 45;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: left 0.15s ease;
+}
+#sidebarToggle:hover { background: var(--bg-alt); }
+#sidebar.collapsed ~ #sidebarToggle { left: 6px; }
+
 #sidebarHeader {
   display: flex;
   align-items: center;
@@ -683,7 +700,9 @@ html, body {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  padding: 6px 8px;
+  /* Extra left inset reserves room for the floating #sidebarToggle circle,
+     which sits at this same vertical band regardless of sidebar state. */
+  padding: 6px 8px 6px 44px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-alt);
   flex-shrink: 0;
@@ -801,7 +820,7 @@ html, body {
      Wrapping can't clip anything, and in practice nothing needs to wrap
      down to real phone widths anyway (verified at 390px). */
   .topbar-row { flex-wrap: wrap; row-gap: 4px; padding-left: 10px; padding-right: 10px; }
-  .share-pill, .menubar-btn, #sidebarToggle, #settingsBtn { flex-shrink: 0; }
+  .share-pill, .menubar-btn, #settingsBtn { flex-shrink: 0; }
 
   /* Comfortable touch targets (~44px is the platform-recommended minimum). */
   .icon-btn { width: 40px; height: 40px; font-size: 17px; }

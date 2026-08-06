@@ -11,6 +11,7 @@
 import type { Doc } from "./types";
 import "./types";
 import { githubUsername as githubUsernameStore } from "./stores/github";
+import { showToast } from "./stores/toast";
 
 let connectedUsername: string | null = null;
 
@@ -128,8 +129,10 @@ async function publish() {
     }
     label.textContent = wasUpdate ? "Updated ✓" : "Published ✓";
     window.MDE.refreshSaveStatus();
+    showToast(wasUpdate ? "Gist updated" : "Published to Gist", "success");
   } catch (err: any) {
     label.textContent = `Failed: ${err.message || "unknown error"}`;
+    showToast(`Failed to publish: ${err.message || "unknown error"}`, "error");
   } finally {
     btn.disabled = false;
     setTimeout(render, 2000);
@@ -181,14 +184,17 @@ async function openGistById(id: string, btn: HTMLButtonElement) {
     const file = files.find((f) => /\.(md|markdown)$/i.test(f.filename)) || files[0];
     if (!file) throw new Error("Gist has no files");
     const content = file.truncated ? await fetchRaw(file.raw_url) : file.content;
-    window.MDE.createDoc({ name: file.filename.replace(/\.(md|markdown)$/i, ""), content, gistId: data.id });
+    const name = file.filename.replace(/\.(md|markdown)$/i, "");
+    window.MDE.createDoc({ name, content, gistId: data.id });
     document.getElementById("openGistModal").hidden = true;
     btn.textContent = original;
+    showToast(`Opened "${name}" from Gist`, "success");
   } catch (err) {
     btn.textContent = "Failed";
     setTimeout(() => {
       btn.textContent = original;
     }, 2000);
+    showToast("Couldn't open that Gist", "error");
   } finally {
     btn.disabled = false;
   }

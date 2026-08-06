@@ -17,6 +17,7 @@ import * as decoding from "lib0/decoding";
 import "./types";
 import type { AccessRecord } from "./types";
 import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "./stores/share";
+import { showToast } from "./stores/toast";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -473,12 +474,16 @@ export async function setGeneralAccess(wantAnyone: boolean, fallbackRole: string
     role: fallbackRole || (currentAccess && currentAccess.role) || "viewer",
     invited: currentAccess ? currentAccess.invited : [],
   });
-  if (!access) return false;
+  if (!access) {
+    showToast("Couldn't update sharing settings", "error");
+    return false;
+  }
   currentAccess = access;
   window.MDE.markActiveDocShared(wantAnyone || access.invited.length > 0);
   if (wantAnyone && !room.id) joinRoom(doc.id, { seedFromLocal: true, role: "editor" });
   if (!wantAnyone) teardown();
   syncShareStores();
+  showToast(wantAnyone ? "Anyone with the link can now access this document" : "Access restricted to invited people", "info");
   return true;
 }
 
@@ -493,6 +498,9 @@ export async function setRole(role: string) {
   if (access) {
     currentAccess = access;
     syncShareStores();
+    showToast(`Link access set to ${ROLE_LABELS[role] || role}`, "info");
+  } else {
+    showToast("Couldn't update the link's access level", "error");
   }
 }
 
@@ -526,6 +534,9 @@ export async function addPerson(rawUsername: string) {
     currentAccess = access;
     window.MDE.markActiveDocShared(true);
     syncShareStores();
+    showToast(`Invited @${username}`, "success");
+  } else {
+    showToast("Couldn't invite that person", "error");
   }
 }
 
@@ -541,6 +552,9 @@ export async function removeInvite(username: string) {
   if (access) {
     currentAccess = access;
     syncShareStores();
+    showToast(`Removed @${username}`, "info");
+  } else {
+    showToast("Couldn't remove that person", "error");
   }
 }
 

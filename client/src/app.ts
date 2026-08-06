@@ -13,6 +13,7 @@ import DOMPurify from "dompurify";
 import html2pdf from "html2pdf.js";
 import type { Doc, MDEBridge } from "./types";
 import { docsStore, activeIdStore, activeDocContent } from "./stores/docs";
+import { showToast } from "./stores/toast";
 
 (function () {
   "use strict";
@@ -77,7 +78,15 @@ function hello() {
   }
 
   function persistDocs() {
-    localStorage.setItem(STORAGE_DOCS, JSON.stringify(docs));
+    try {
+      localStorage.setItem(STORAGE_DOCS, JSON.stringify(docs));
+    } catch (e) {
+      // Most commonly a full storage quota (large embedded images) — this
+      // used to fail silently, leaving the in-memory doc looking "saved"
+      // (the status pill doesn't know the write itself failed) while
+      // nothing actually persisted.
+      showToast("Couldn't save — your browser's local storage may be full", "error");
+    }
   }
 
   function uid() {
@@ -714,6 +723,7 @@ function hello() {
     localStorage.setItem(STORAGE_ACTIVE, activeId);
     persistDocs();
     renderDocList();
+    showToast(`Deleted "${doc.name || "Untitled"}"`, "success");
   }
 
   // Doc-row "..." menu action (DocList.svelte) — not a rename/edit, a full
@@ -735,6 +745,7 @@ function hello() {
     loadDocIntoEditor(copy);
     updatePreview();
     updateCounts();
+    showToast(`Duplicated as "${copy.name}"`, "success");
   }
 
   // Clicking a heading in a doc-row's outline (DocList.svelte) — switches
@@ -997,12 +1008,14 @@ function hello() {
     if (format === "md") {
       const resolved = resolveImageRefs(raw, getActiveDoc());
       downloadBlob(new Blob([resolved], { type: "text/markdown;charset=utf-8" }), `${base}.md`);
+      showToast(`Exported ${base}.md`, "success");
       return;
     }
 
     if (format === "txt") {
       const text = (document.getElementById("preview") as HTMLElement).innerText;
       downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), `${base}.txt`);
+      showToast(`Exported ${base}.txt`, "success");
       return;
     }
 
@@ -1010,6 +1023,7 @@ function hello() {
       const bodyHtml = document.getElementById("preview").innerHTML;
       const doc = buildStandaloneHtml(base, bodyHtml);
       downloadBlob(new Blob([doc], { type: "text/html;charset=utf-8" }), `${base}.html`);
+      showToast(`Exported ${base}.html`, "success");
       return;
     }
 
@@ -1067,7 +1081,18 @@ ${bodyHtml}
     };
 
     setSaveStatus("Generating PDF…");
-    html2pdf().set(opt).from(wrapper).save().then(() => setSaveStatus("Saved"));
+    html2pdf()
+      .set(opt)
+      .from(wrapper)
+      .save()
+      .then(() => {
+        setSaveStatus("Saved");
+        showToast(`Exported ${base}.pdf`, "success");
+      })
+      .catch(() => {
+        setSaveStatus("Saved");
+        showToast("Couldn't generate the PDF", "error");
+      });
   }
 
   function downloadBlob(blob: Blob, filename: string) {

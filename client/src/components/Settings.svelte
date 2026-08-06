@@ -67,11 +67,11 @@
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
       <h2 id="settingsModalTitle"><svg class="icon"><use href="#icon-settings"></use></svg> Settings</h2>
       <div class="menu-section-label">Appearance</div>
-      <div class="theme-switch" role="tablist" aria-label="Theme">
-        <button type="button" class="theme-switch-btn" class:active={theme === "light"} role="tab" aria-selected={theme === "light"} onclick={() => applyTheme("light")}>
+      <div class="tab-switch" role="tablist" aria-label="Theme">
+        <button type="button" class="tab-switch-btn" class:active={theme === "light"} role="tab" aria-selected={theme === "light"} onclick={() => applyTheme("light")}>
           <svg class="icon"><use href="#icon-sun"></use></svg> Light
         </button>
-        <button type="button" class="theme-switch-btn" class:active={theme === "dark"} role="tab" aria-selected={theme === "dark"} onclick={() => applyTheme("dark")}>
+        <button type="button" class="tab-switch-btn" class:active={theme === "dark"} role="tab" aria-selected={theme === "dark"} onclick={() => applyTheme("dark")}>
           <svg class="icon"><use href="#icon-moon"></use></svg> Dark
         </button>
       </div>

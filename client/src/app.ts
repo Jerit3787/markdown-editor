@@ -100,6 +100,7 @@ function hello() {
     initToolbar();
     initSaveStatus();
     initSidebar();
+    initSidebarTabs();
     initViewToggle();
     initImport();
     initShortStatus();
@@ -169,6 +170,7 @@ function hello() {
       scheduleSave();
       updatePreview();
       updateCounts();
+      renderOutline();
     });
 
     cm.on("cursorActivity", updateCursorPos);
@@ -484,6 +486,62 @@ function hello() {
   function updateCursorPos() {
     const pos = cm.getCursor();
     document.getElementById("cursorPos").textContent = `Ln ${pos.line + 1}, Col ${pos.ch + 1}`;
+  }
+
+  // ---------- Outline (list of headings, Google-Docs style) ----------
+  const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
+
+  function initSidebarTabs() {
+    const docsTab = document.getElementById("sidebarTabDocs");
+    const outlineTab = document.getElementById("sidebarTabOutline");
+    const docList = document.getElementById("docList");
+    const outlineList = document.getElementById("outlineList");
+
+    function show(which: "docs" | "outline") {
+      const showOutline = which === "outline";
+      docsTab.classList.toggle("active", !showOutline);
+      docsTab.setAttribute("aria-selected", String(!showOutline));
+      outlineTab.classList.toggle("active", showOutline);
+      outlineTab.setAttribute("aria-selected", String(showOutline));
+      docList.hidden = showOutline;
+      outlineList.hidden = !showOutline;
+      document.getElementById("outlineEmptyHint").hidden = !showOutline || outlineList.children.length > 0;
+    }
+
+    docsTab.addEventListener("click", () => show("docs"));
+    outlineTab.addEventListener("click", () => show("outline"));
+  }
+
+  // Rebuilt on every editor change (see cm.on("change") in initEditor) —
+  // cheap enough (one regex pass over the document's lines) not to need
+  // debouncing, same as updatePreview/updateCounts on the same hook.
+  function renderOutline() {
+    const list = document.getElementById("outlineList");
+    const emptyHint = document.getElementById("outlineEmptyHint");
+    list.innerHTML = "";
+
+    const lines = cm.getValue().split("\n");
+    let count = 0;
+    lines.forEach((line, i) => {
+      const match = line.match(HEADING_RE);
+      if (!match) return;
+      count++;
+      const level = match[1].length;
+      const text = match[2];
+      const item = document.createElement("div");
+      item.className = "outline-item";
+      item.dataset.level = String(level);
+      item.textContent = text;
+      item.title = text;
+      item.addEventListener("click", () => {
+        cm.setCursor({ line: i, ch: 0 });
+        cm.scrollIntoView({ line: i, ch: 0 }, 100);
+        cm.focus();
+      });
+      list.appendChild(item);
+    });
+
+    if (!list.hidden) emptyHint.hidden = count > 0;
   }
 
   function initShortStatus() {

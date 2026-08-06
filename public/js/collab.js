@@ -44,6 +44,15 @@ function init() {
   window.MDE.onImageAdded = (key, dataUrl) => {
     if (room.imagesMap) room.ydoc.transact(() => room.imagesMap.set(key, dataUrl), "local");
   };
+  // gist.js calls this once it knows the signed-in GitHub username. Only
+  // adopts it if the user hasn't already picked their own name in the Share
+  // modal, so we don't clobber a deliberate choice on every page load.
+  window.MDE.applyGithubUsername = (username) => {
+    if (!username || !/^Guest \d+$/.test(user.name)) return;
+    setUserName(username);
+    const nameInput = document.getElementById("collabNameInput");
+    if (nameInput) nameInput.value = user.name;
+  };
 
   setupShareUI();
 
@@ -422,15 +431,17 @@ function renderPresence() {
     bar.innerHTML = "";
     return;
   }
-  const states = Array.from(room.awareness.getStates().entries()).filter(([, s]) => s && s.user);
+  // Only show OTHER people currently in the room — the local user already
+  // sees their own cursor and doesn't need a self-avatar next to Share.
+  const states = Array.from(room.awareness.getStates().entries())
+    .filter(([clientID, s]) => s && s.user && clientID !== room.awareness.clientID);
   bar.hidden = states.length === 0;
   bar.innerHTML = "";
-  states.forEach(([clientID, state]) => {
-    const isMe = clientID === room.awareness.clientID;
+  states.forEach(([, state]) => {
     const avatar = document.createElement("span");
     avatar.className = "presence-avatar";
     avatar.style.background = state.user.color;
-    avatar.title = isMe ? `${state.user.name} (you)` : state.user.name;
+    avatar.title = state.user.name;
     avatar.textContent = (state.user.name || "?").trim().charAt(0).toUpperCase();
     bar.appendChild(avatar);
   });

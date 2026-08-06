@@ -139,8 +139,12 @@ function hello() {
     cm.on("cursorActivity", updateCursorPos);
   }
 
-  // ---------- Image upload (paste / drop / toolbar) ----------
-  const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+  // ---------- Image embedding (paste / drop / toolbar) ----------
+  // Images are embedded directly as base64 data URIs in the markdown — no
+  // upload, no server involved. Kept fairly small since it counts against
+  // both localStorage's ~5-10MB quota and, for shared documents, the size
+  // of every Yjs sync payload sent to collaborators.
+  const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
   function initImageUploads() {
     cm.on("paste", (instance, e) => {
@@ -173,27 +177,27 @@ function hello() {
   function insertImageWithUpload(file, pos) {
     const from = pos || cm.getCursor();
     if (file.size > MAX_IMAGE_BYTES) {
-      cm.replaceRange(`![${file.name}: image too large, 8MB max]()`, from);
+      cm.replaceRange(`![${file.name}: image too large, 2MB max]()`, from);
       return;
     }
 
-    const placeholder = `![Uploading ${file.name}…]()`;
+    const placeholder = `![Encoding ${file.name}…]()`;
     cm.replaceRange(placeholder, from);
     const to = cm.posFromIndex(cm.indexFromPos(from) + placeholder.length);
     // markText tracks the placeholder's position live as other edits (local
-    // typing, or a collaborator's) land while the upload is in flight.
+    // typing, or a collaborator's) land while the file is being read.
     const marker = cm.markText(from, to, { className: "cm-image-uploading" });
 
-    uploadImage(file)
-      .then((url) => {
+    readImageAsDataURL(file)
+      .then((dataUrl) => {
         const range = marker.find();
         marker.clear();
-        if (range) cm.replaceRange(`![${altTextFromFilename(file.name)}](${url})`, range.from, range.to);
+        if (range) cm.replaceRange(`![${altTextFromFilename(file.name)}](${dataUrl})`, range.from, range.to);
       })
       .catch((err) => {
         const range = marker.find();
         marker.clear();
-        if (range) cm.replaceRange(`![upload failed: ${err.message}]()`, range.from, range.to);
+        if (range) cm.replaceRange(`![image failed to load: ${err.message}]()`, range.from, range.to);
       });
   }
 
@@ -201,18 +205,13 @@ function hello() {
     return name.replace(/\.[^.]+$/, "") || "image";
   }
 
-  async function uploadImage(file) {
-    const res = await fetch("/api/images", {
-      method: "POST",
-      headers: { "Content-Type": file.type },
-      body: file,
+  function readImageAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error || new Error("read failed"));
+      reader.readAsDataURL(file);
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(text || `HTTP ${res.status}`);
-    }
-    const data = await res.json();
-    return data.url;
   }
 
   function loadDocIntoEditor(doc) {

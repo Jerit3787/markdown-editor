@@ -78,6 +78,7 @@ function hello() {
 
     initTheme();
     initEditor();
+    initImageUploads();
     initToolbar();
     initSidebar();
     initExport();
@@ -134,6 +135,82 @@ function hello() {
     });
 
     cm.on("cursorActivity", updateCursorPos);
+  }
+
+  // ---------- Image upload (paste / drop / toolbar) ----------
+  const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+  function initImageUploads() {
+    cm.on("paste", (instance, e) => {
+      const files = imageFilesFrom(e.clipboardData);
+      if (files.length === 0) return;
+      e.preventDefault();
+      files.forEach((file) => insertImageWithUpload(file));
+    });
+
+    cm.on("drop", (instance, e) => {
+      const files = imageFilesFrom(e.dataTransfer);
+      if (files.length === 0) return;
+      e.preventDefault();
+      const pos = cm.coordsChar({ left: e.clientX, top: e.clientY });
+      files.forEach((file) => insertImageWithUpload(file, pos));
+    });
+
+    document.getElementById("imageFileInput").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) insertImageWithUpload(file);
+      e.target.value = "";
+    });
+  }
+
+  function imageFilesFrom(dataTransfer) {
+    if (!dataTransfer || !dataTransfer.files) return [];
+    return Array.from(dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+  }
+
+  function insertImageWithUpload(file, pos) {
+    const from = pos || cm.getCursor();
+    if (file.size > MAX_IMAGE_BYTES) {
+      cm.replaceRange(`![${file.name}: image too large, 8MB max]()`, from);
+      return;
+    }
+
+    const placeholder = `![Uploading ${file.name}…]()`;
+    cm.replaceRange(placeholder, from);
+    const to = cm.posFromIndex(cm.indexFromPos(from) + placeholder.length);
+    // markText tracks the placeholder's position live as other edits (local
+    // typing, or a collaborator's) land while the upload is in flight.
+    const marker = cm.markText(from, to, { className: "cm-image-uploading" });
+
+    uploadImage(file)
+      .then((url) => {
+        const range = marker.find();
+        marker.clear();
+        if (range) cm.replaceRange(`![${altTextFromFilename(file.name)}](${url})`, range.from, range.to);
+      })
+      .catch((err) => {
+        const range = marker.find();
+        marker.clear();
+        if (range) cm.replaceRange(`![upload failed: ${err.message}]()`, range.from, range.to);
+      });
+  }
+
+  function altTextFromFilename(name) {
+    return name.replace(/\.[^.]+$/, "") || "image";
+  }
+
+  async function uploadImage(file) {
+    const res = await fetch("/api/images", {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return data.url;
   }
 
   function loadDocIntoEditor(doc) {
@@ -259,9 +336,7 @@ function hello() {
   }
 
   function insertImage() {
-    const sel = cm.getSelection();
-    const label = sel || "alt text";
-    cm.replaceSelection(`![${label}](https://)`);
+    document.getElementById("imageFileInput").click();
   }
 
   function insertTable() {

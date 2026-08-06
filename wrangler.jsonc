@@ -16,15 +16,24 @@
     "binding": "ASSETS"
   },
 
-  // One Durable Object instance per collaboration room. Each instance holds
-  // the room's Yjs document in memory (and checkpoints it to its own
-  // built-in storage) — no external database involved.
+  // R2 bucket for images pasted/dropped into documents. Uploads are gated
+  // by ImageQuota (below) so this can never run past the R2 free tier.
+  "r2_buckets": [
+    { "binding": "IMAGES", "bucket_name": "markdown-editor-images" }
+  ],
+
+  // One Durable Object instance per collaboration room, holding that room's
+  // Yjs document in memory and checkpointing it to its own built-in storage
+  // — no external database involved. ImageQuota is a single global instance
+  // that enforces a hard total-storage cap and a per-IP upload rate limit.
   "durable_objects": {
     "bindings": [
-      { "name": "COLLAB_ROOM", "class_name": "CollabRoom" }
+      { "name": "COLLAB_ROOM", "class_name": "CollabRoom" },
+      { "name": "IMAGE_QUOTA", "class_name": "ImageQuota" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["CollabRoom"] }
+    { "tag": "v1", "new_sqlite_classes": ["CollabRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["ImageQuota"] }
   ]
 }

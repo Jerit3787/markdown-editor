@@ -18,10 +18,11 @@
     "GITHUB_CLIENT_ID": "Ov23liV4lb0YiRtTwpm9"
   },
 
-  // Serves the static site (public/) for any request the Worker doesn't
-  // explicitly handle itself. single-page-application fallback serves
-  // index.html for pretty share URLs like /d/<docId>/edit that aren't real
-  // files (see js/collab.js). run_worker_first is required alongside it:
+  // Serves the built client (client/dist/, produced by `npm run build` —
+  // see client/) for any request the Worker doesn't explicitly handle
+  // itself. single-page-application fallback serves index.html for pretty
+  // share URLs like /d/<docId>/edit that aren't real files (see
+  // client/src/collab.ts). run_worker_first is required alongside it:
   // without it, Cloudflare's asset layer treats ANY extensionless
   // page-navigation request (not just unmatched ones) as an SPA route and
   // serves index.html before src/worker.ts's own routing ever runs — which
@@ -31,7 +32,7 @@
   // Worker's own routing (which already checks /api/* before falling
   // through to env.ASSETS.fetch()) always runs first.
   "assets": {
-    "directory": "./public",
+    "directory": "./client/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": true

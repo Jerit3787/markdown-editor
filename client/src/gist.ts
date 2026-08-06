@@ -2,14 +2,17 @@
 //  - #settingsMenu (behind the gear icon): just sign in/out.
 //  - #fileMenu's "Publish/Update Gist" row: publish the current doc.
 //  - #fileMenu's "From GitHub Gist" row: open one by URL/ID.
-// Sign-in is real GitHub OAuth handled by the Worker (src/github-auth.js)
+// Sign-in is real GitHub OAuth handled by the Worker (src/github-auth.ts)
 // — the access token is encrypted and kept in an HttpOnly cookie
 // server-side; this script never sees it, it just calls our own
 // /api/gist/* + /api/auth/github/* endpoints.
-let connectedUsername = null;
+import type { Doc } from "./types";
+import "./types";
+
+let connectedUsername: string | null = null;
 
 // Kicked off here at module top-level — not inside init()/DOMContentLoaded
-// — specifically so it's guaranteed to exist before collab.js's own
+// — specifically so it's guaranteed to exist before collab.ts's own
 // DOMContentLoaded handler (which awaits it) runs. Deferred module scripts
 // always finish their top-level code before ANY DOMContentLoaded listener
 // fires, regardless of which script registered its listener first, so this
@@ -36,7 +39,7 @@ function init() {
     window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue.");
   });
 
-  // collab.js already claims onActiveDocChanged — chain onto it rather than
+  // collab.ts already claims onActiveDocChanged — chain onto it rather than
   // clobber it, since both need to react to the active doc switching.
   const existing = window.MDE.onActiveDocChanged;
   window.MDE.onActiveDocChanged = (doc) => {
@@ -44,7 +47,7 @@ function init() {
     render();
   };
 
-  // Fired by app.js's message listener once the sign-in popup reports
+  // Fired by app.ts's message listener once the sign-in popup reports
   // success — re-check the session in place instead of reloading the page.
   window.MDE.onGithubAuthComplete = () => {
     window.MDE.githubSessionReady = checkSession();
@@ -81,7 +84,7 @@ function render() {
   document.getElementById("publishSubmenu").hidden = !connected;
 
   const label = document.getElementById("menuGistLabel");
-  const viewLink = document.getElementById("gistViewLink");
+  const viewLink = document.getElementById("gistViewLink") as HTMLAnchorElement;
   const doc = window.MDE.getActiveDoc();
   const hasGist = doc && doc.gistId;
   label.textContent = hasGist ? "Update Gist" : "Publish to Gist";
@@ -107,7 +110,7 @@ async function publish() {
   if (!doc) return;
   const content = window.MDE.getResolvedContent();
   const filename = gistFilename(doc);
-  const btn = document.getElementById("menuPublishGist");
+  const btn = document.getElementById("menuPublishGist") as HTMLButtonElement;
   const label = document.getElementById("menuGistLabel");
   const wasUpdate = !!doc.gistId;
   btn.disabled = true;
@@ -135,7 +138,7 @@ async function publish() {
     }
     label.textContent = wasUpdate ? "Updated ✓" : "Published ✓";
     window.MDE.refreshSaveStatus();
-  } catch (err) {
+  } catch (err: any) {
     label.textContent = `Failed: ${err.message || "unknown error"}`;
   } finally {
     btn.disabled = false;
@@ -144,11 +147,11 @@ async function publish() {
 }
 
 async function openGist() {
-  const input = document.getElementById("gistOpenInput");
+  const input = document.getElementById("gistOpenInput") as HTMLInputElement;
   const id = parseGistId(input.value.trim());
   if (!id) return;
 
-  const btn = document.getElementById("gistOpenBtn");
+  const btn = document.getElementById("gistOpenBtn") as HTMLButtonElement;
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = "Opening…";
@@ -157,7 +160,7 @@ async function openGist() {
     const res = await fetch(`/api/gist/${id}`);
     if (!res.ok) throw new Error(await errorMessage(res));
     const data = await res.json();
-    const files = Object.values(data.files || {});
+    const files: any[] = Object.values(data.files || {});
     const file = files.find((f) => /\.(md|markdown)$/i.test(f.filename)) || files[0];
     if (!file) throw new Error("Gist has no files");
     const content = file.truncated ? await fetchRaw(file.raw_url) : file.content;
@@ -175,12 +178,12 @@ async function openGist() {
   }
 }
 
-async function fetchRaw(url) {
+async function fetchRaw(url: string) {
   const res = await fetch(url);
   return res.text();
 }
 
-async function errorMessage(res) {
+async function errorMessage(res: Response) {
   try {
     const data = await res.json();
     return data.message || `HTTP ${res.status}`;
@@ -189,12 +192,12 @@ async function errorMessage(res) {
   }
 }
 
-function parseGistId(raw) {
+function parseGistId(raw: string) {
   const match = raw.match(/([0-9a-f]{20,32})/i);
   return match ? match[1] : null;
 }
 
-function gistFilename(doc) {
+function gistFilename(doc: Doc) {
   const base = (doc.name || "document").trim().replace(/[\\/:*?"<>|]+/g, "-") || "document";
   return `${base}.md`;
 }

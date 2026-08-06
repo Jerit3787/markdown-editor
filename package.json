@@ -2,18 +2,27 @@
   "name": "markdown-editor",
   "private": true,
   "version": "1.0.0",
+  "type": "module",
   "description": "A fast, static markdown editor with live preview and real-time multi-user collaboration.",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "dev:client": "vite dev --config client/vite.config.ts",
+    "build": "vite build --config client/vite.config.ts",
+    "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260804.1",
+    "@types/codemirror": "^5.60.18",
     "typescript": "^7.0.2",
+    "vite": "^8.2.1",
     "wrangler": "^4.19.1"
   },
   "dependencies": {
+    "codemirror": "^5.65.16",
+    "dompurify": "^3.4.13",
+    "html2pdf.js": "^0.14.0",
     "lib0": "^0.2.99",
+    "marked": "^12.0.2",
     "y-protocols": "^1.0.6",
     "yjs": "^13.6.18"
   }

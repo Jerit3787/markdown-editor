@@ -1,48 +1,49 @@
 // Real-time multi-user editing. Loaded as a module (deferred like `defer`,
-// runs after app.js has finished its own DOMContentLoaded init) so
+// runs after app.ts has finished its own DOMContentLoaded init) so
 // window.MDE is fully populated by the time we touch it.
 //
-// Sharing requires a connected GitHub account (see gist.js / src/auth.js).
+// Sharing requires a connected GitHub account (see gist.ts / src/auth.ts).
 // Access control (owner / general access / invited usernames) is stored
-// server-side per room (src/collab-room.js) and enforced there — this file
+// server-side per room (src/collab-room.ts) and enforced there — this file
 // mirrors that state into the UI and does its own best-effort read-only
 // enforcement (disabling CodeMirror) for a clean UX, but the server is the
 // real authority: it silently drops write messages from any session that
 // wasn't actually granted an editor role.
-import * as Y from "https://esm.sh/yjs@13.6.18";
-import * as syncProtocol from "https://esm.sh/y-protocols@1.0.6/sync?deps=yjs@13.6.18";
-import * as awarenessProtocol from "https://esm.sh/y-protocols@1.0.6/awareness?deps=yjs@13.6.18";
-import * as encoding from "https://esm.sh/lib0@0.2.99/encoding";
-import * as decoding from "https://esm.sh/lib0@0.2.99/decoding";
+import * as Y from "yjs";
+import * as syncProtocol from "y-protocols/sync";
+import * as awarenessProtocol from "y-protocols/awareness";
+import * as encoding from "lib0/encoding";
+import * as decoding from "lib0/decoding";
+import "./types";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 
 const COLORS = ["#e64980", "#f76707", "#f59f00", "#40c057", "#12b886", "#228be6", "#7950f2", "#e8590c"];
-const ROLE_LABELS = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
-const ROLE_VERBS = { viewer: "view", reviewer: "comment", editor: "edit" };
-const DEFAULT_ACCESS = { owner: null, generalAccess: "restricted", role: "viewer", invited: [] };
+const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
+const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment", editor: "edit" };
+const DEFAULT_ACCESS = { owner: null as string | null, generalAccess: "restricted", role: "viewer", invited: [] as string[] };
 
 const room = {
-  id: null,
-  ws: null,
-  ydoc: null,
-  ytext: null,
-  imagesMap: null,
-  awareness: null,
-  reconnectTimer: null,
+  id: null as string | null,
+  ws: null as WebSocket | null,
+  ydoc: null as Y.Doc | null,
+  ytext: null as Y.Text | null,
+  imagesMap: null as Y.Map<string> | null,
+  awareness: null as awarenessProtocol.Awareness | null,
+  reconnectTimer: null as ReturnType<typeof setTimeout> | null,
   reconnectDelay: 1000,
   lastKnownValue: "",
   applyingRemote: false,
-  cursorWidgets: new Map(),
-  cmChangeHandler: null,
-  cmCursorHandler: null,
+  cursorWidgets: new Map<number, { el: HTMLElement; widget: any }>(),
+  cmChangeHandler: null as any,
+  cmCursorHandler: null as any,
 };
 
-let cm = null;
+let cm: CodeMirror.Editor;
 // The server-side access record for the room currently shown in the Share
 // modal, refreshed on open and after every change. Null until first fetched.
-let currentAccess = null;
+let currentAccess: typeof DEFAULT_ACCESS | null = null;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -50,7 +51,7 @@ function init() {
   cm = window.MDE.getEditor();
   window.MDE.onBeforeDocLoad = teardown;
   window.MDE.onActiveDocChanged = handleDocChanged;
-  // Local image inserts (see app.js's insertImageWithUpload) get mirrored
+  // Local image inserts (see app.ts's insertImageWithUpload) get mirrored
   // into the room's Yjs map so collaborators receive the image too — same
   // Y.Doc as the text, just a separate top-level type.
   window.MDE.onImageAdded = (key, dataUrl) => {
@@ -73,12 +74,12 @@ function init() {
 // reading the link — actual access is always resolved server-side from the
 // room's access record (see computeMyRole), never trusted from the URL.
 const SHARE_PATH = /^\/d\/([A-Za-z0-9_-]{1,128})\/(?:view|review|edit)$/;
-const ROLE_TO_SEGMENT = { viewer: "view", reviewer: "review", editor: "edit" };
+const ROLE_TO_SEGMENT: Record<string, string> = { viewer: "view", reviewer: "review", editor: "edit" };
 
-// A doc's own id doubles as its room id (see src/collab-room.js) — a share
+// A doc's own id doubles as its room id (see src/collab-room.ts) — a share
 // link is stable the moment the doc exists, not a fresh id minted only once
 // sharing is turned on.
-async function joinSharedLink(roomId) {
+async function joinSharedLink(roomId: string) {
   const existing = window.MDE.findDocById(roomId);
   // createDoc() already activates the new doc; switchDoc() only needed to
   // bring an already-known local copy back into view.
@@ -100,7 +101,7 @@ async function joinSharedLink(roomId) {
   joinRoom(roomId, { seedFromLocal: false, role });
 }
 
-function computeMyRole(access, username) {
+function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): string | null {
   if (!username) return null;
   if (access.owner === username) return "editor";
   if (access.generalAccess === "anyone") return access.role;
@@ -110,13 +111,13 @@ function computeMyRole(access, username) {
 
 // ---------- Room lifecycle ----------
 
-function handleDocChanged(doc) {
+function handleDocChanged(doc: any) {
   teardown();
   if (doc && doc.shared) rejoinKnownRoom(doc);
   else renderShareUI();
 }
 
-async function rejoinKnownRoom(doc) {
+async function rejoinKnownRoom(doc: any) {
   await window.MDE.githubSessionReady;
   if (!window.MDE.githubUsername) return; // can't reconnect without a session; modal will prompt if they try to share
   const access = await fetchAccess(doc.id);
@@ -125,7 +126,7 @@ async function rejoinKnownRoom(doc) {
   joinRoom(doc.id, { seedFromLocal: false, role });
 }
 
-function joinRoom(roomId, { seedFromLocal, role }) {
+function joinRoom(roomId: string, { seedFromLocal, role }: { seedFromLocal: boolean; role: string }) {
   teardown();
   room.id = roomId;
   room.ydoc = new Y.Doc();
@@ -207,7 +208,7 @@ function bindEditor() {
     renderRemoteCursors();
   });
 
-  room.cmChangeHandler = (instance, changeObj) => {
+  room.cmChangeHandler = (instance: CodeMirror.Editor, changeObj: CodeMirror.EditorChange) => {
     if (room.applyingRemote || changeObj.origin === "setValue") return;
     const newValue = cm.getValue();
     if (newValue === room.lastKnownValue) return;
@@ -222,7 +223,7 @@ function bindEditor() {
   cm.on("cursorActivity", room.cmCursorHandler);
 }
 
-function pushLocalContentIntoYText(value) {
+function pushLocalContentIntoYText(value: string) {
   applyDiffToYText(room.lastKnownValue, value);
   room.lastKnownValue = value;
 }
@@ -235,7 +236,7 @@ function seedImagesIntoRoom() {
   }, "local");
 }
 
-function applyDiffToYText(oldVal, newVal) {
+function applyDiffToYText(oldVal: string, newVal: string) {
   const [start, oldEnd, newEnd] = diffRange(oldVal, newVal);
   room.ydoc.transact(() => {
     if (oldEnd > start) room.ytext.delete(start, oldEnd - start);
@@ -243,14 +244,14 @@ function applyDiffToYText(oldVal, newVal) {
   }, "local");
 }
 
-function applyDiffToCm(oldVal, newVal) {
+function applyDiffToCm(oldVal: string, newVal: string) {
   const [start, oldEnd, newEnd] = diffRange(oldVal, newVal);
   const from = cm.posFromIndex(start);
   const to = cm.posFromIndex(oldEnd);
   cm.replaceRange(newVal.slice(start, newEnd), from, to, "yjs");
 }
 
-function diffRange(a, b) {
+function diffRange(a: string, b: string): [number, number, number] {
   let start = 0;
   const minLen = Math.min(a.length, b.length);
   while (start < minLen && a.charCodeAt(start) === b.charCodeAt(start)) start++;
@@ -273,7 +274,7 @@ function renderRemoteCursors() {
   if (!room.awareness) return;
   const states = room.awareness.getStates();
   const seen = new Set();
-  states.forEach((state, clientID) => {
+  states.forEach((state: any, clientID: number) => {
     if (clientID === room.awareness.clientID) return;
     if (!state || !state.cursor || !state.user) return;
     seen.add(clientID);
@@ -296,7 +297,7 @@ function renderRemoteCursors() {
   }
 }
 
-function buildCursorEl(remoteUser) {
+function buildCursorEl(remoteUser: { name: string; color: string }) {
   const el = document.createElement("span");
   el.className = "remote-cursor";
   el.style.borderColor = remoteUser.color;
@@ -333,7 +334,7 @@ function connect() {
     }
   };
 
-  ws.onmessage = (event) => handleServerMessage(new Uint8Array(event.data));
+  ws.onmessage = (event) => handleServerMessage(new Uint8Array(event.data as ArrayBuffer));
 
   ws.onclose = () => {
     scheduleReconnect();
@@ -350,7 +351,7 @@ function scheduleReconnect() {
   room.reconnectDelay = Math.min(room.reconnectDelay * 1.6, 10000);
 }
 
-function handleServerMessage(data) {
+function handleServerMessage(data: Uint8Array) {
   const decoder = decoding.createDecoder(data);
   const messageType = decoding.readVarUint(decoder);
 
@@ -367,13 +368,13 @@ function handleServerMessage(data) {
   }
 }
 
-function onLocalAwarenessUpdate({ added, updated, removed }) {
+function onLocalAwarenessUpdate({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) {
   sendAwareness(added.concat(updated, removed));
   renderPresence();
   renderRemoteCursors();
 }
 
-function sendAwareness(clientIDs) {
+function sendAwareness(clientIDs: number[]) {
   if (!room.awareness || clientIDs.length === 0) return;
   const encoder = encoding.createEncoder();
   encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
@@ -381,8 +382,12 @@ function sendAwareness(clientIDs) {
   send(encoding.toUint8Array(encoder));
 }
 
-function send(bytes) {
-  if (room.ws && room.ws.readyState === WebSocket.OPEN) room.ws.send(bytes);
+function send(bytes: Uint8Array) {
+  // lib0's encoding.toUint8Array() types its result as Uint8Array<ArrayBufferLike>
+  // (could theoretically be SharedArrayBuffer-backed); WebSocket.send()'s DOM
+  // lib type wants the narrower ArrayBuffer-backed variant specifically. It's
+  // always a plain ArrayBuffer at runtime here — this cast doesn't change that.
+  if (room.ws && room.ws.readyState === WebSocket.OPEN) room.ws.send(bytes as Uint8Array<ArrayBuffer>);
 }
 
 // ---------- User identity ----------
@@ -390,7 +395,7 @@ function send(bytes) {
 // -in username with a color hashed from it (stable across devices/sessions
 // — no per-browser random guest name to manage anymore).
 
-function colorForUsername(name) {
+function colorForUsername(name: string) {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   return COLORS[hash % COLORS.length];
@@ -398,7 +403,7 @@ function colorForUsername(name) {
 
 // ---------- Server access-control API ----------
 
-async function fetchAccess(roomId) {
+async function fetchAccess(roomId: string): Promise<typeof DEFAULT_ACCESS> {
   try {
     const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/access`);
     if (!res.ok) return { ...DEFAULT_ACCESS };
@@ -408,7 +413,7 @@ async function fetchAccess(roomId) {
   }
 }
 
-async function putAccess(roomId, body) {
+async function putAccess(roomId: string, body: unknown): Promise<typeof DEFAULT_ACCESS | null> {
   try {
     const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/access`, {
       method: "PUT",
@@ -427,10 +432,10 @@ async function putAccess(roomId, body) {
 function setupShareUI() {
   const shareBtn = document.getElementById("shareBtn");
   const shareModal = document.getElementById("shareModal");
-  const accessSelect = document.getElementById("shareAccessSelect");
-  const roleSelect = document.getElementById("shareRoleSelect");
+  const accessSelect = document.getElementById("shareAccessSelect") as HTMLSelectElement;
+  const roleSelect = document.getElementById("shareRoleSelect") as HTMLSelectElement;
   const copyBtn = document.getElementById("copyShareLink");
-  const addPeopleInput = document.getElementById("shareAddPeopleInput");
+  const addPeopleInput = document.getElementById("shareAddPeopleInput") as HTMLInputElement;
 
   shareBtn.addEventListener("click", async () => {
     await window.MDE.githubSessionReady;
@@ -528,8 +533,8 @@ function setupShareUI() {
 }
 
 function renderShareUI() {
-  const accessSelect = document.getElementById("shareAccessSelect");
-  const roleSelect = document.getElementById("shareRoleSelect");
+  const accessSelect = document.getElementById("shareAccessSelect") as HTMLSelectElement;
+  const roleSelect = document.getElementById("shareRoleSelect") as HTMLSelectElement;
   const copyBtn = document.getElementById("copyShareLink");
   const shareBtn = document.getElementById("shareBtn");
   const docNameSpan = document.getElementById("shareModalDocName");
@@ -568,18 +573,18 @@ function renderPresence() {
   if (list) list.querySelectorAll(".share-person:not(.share-person-owner)").forEach((el) => el.remove());
 
   const connected = room.awareness
-    ? Array.from(room.awareness.getStates().entries()).filter(([id, s]) => s && s.user && id !== room.awareness.clientID)
+    ? Array.from(room.awareness.getStates().entries()).filter(([id, s]: [number, any]) => s && s.user && id !== room.awareness.clientID)
     : [];
-  const connectedUsernames = new Set(connected.map(([, s]) => s.username).filter(Boolean));
+  const connectedUsernames = new Set(connected.map(([, s]: [number, any]) => s.username).filter(Boolean));
 
   if (bar) {
     bar.hidden = connected.length === 0;
     bar.innerHTML = "";
-    connected.forEach(([, s]) => bar.appendChild(buildAvatarEl(s.user)));
+    connected.forEach(([, s]: [number, any]) => bar.appendChild(buildAvatarEl(s.user)));
   }
 
   if (!list) return;
-  connected.forEach(([, s]) => {
+  connected.forEach(([, s]: [number, any]) => {
     list.appendChild(buildPersonRow(s.user.name, s.user.color, ROLE_LABELS[s.role] || "Editor"));
   });
   const access = currentAccess || DEFAULT_ACCESS;
@@ -589,7 +594,7 @@ function renderPresence() {
   });
 }
 
-function buildPersonRow(name, color, roleLabel, removableUsername) {
+function buildPersonRow(name: string, color: string | null, roleLabel: string, removableUsername?: string) {
   const row = document.createElement("div");
   row.className = "share-person";
   const avatar = document.createElement("span");
@@ -617,7 +622,7 @@ function buildPersonRow(name, color, roleLabel, removableUsername) {
   return row;
 }
 
-async function removeInvite(username) {
+async function removeInvite(username: string) {
   const doc = window.MDE.getActiveDoc();
   if (!doc || !currentAccess) return;
   const invited = currentAccess.invited.filter((u) => u !== username);
@@ -642,7 +647,7 @@ function updateOwnerAvatar() {
   if (nameEl) nameEl.textContent = username || "Not signed in";
 }
 
-function buildAvatarEl(remoteUser) {
+function buildAvatarEl(remoteUser: { name: string; color: string }) {
   const avatar = document.createElement("span");
   avatar.className = "presence-avatar";
   avatar.style.background = remoteUser.color;

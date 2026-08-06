@@ -792,6 +792,14 @@ function hello() {
   function closeAllDropdowns() {
     document.querySelectorAll(".dropdown-menu.open").forEach((m) => m.classList.remove("open"));
     document.querySelectorAll(".dropdown-trigger.active").forEach((b) => b.classList.remove("active"));
+    // Nested flyouts (File > Open/Export/etc) aren't part of the
+    // .dropdown-menu/.dropdown-trigger pair above, so closing the parent
+    // menu left them marked .open — reopening File later showed whichever
+    // submenu had been expanded before, still expanded. Close those too.
+    document.querySelectorAll(".menu-submenu.open").forEach((sub) => {
+      sub.classList.remove("open");
+      sub.querySelector(".menu-submenu-trigger")?.classList.remove("active");
+    });
   }
 
   function toggleDropdown(btn: HTMLElement, menu: HTMLElement) {

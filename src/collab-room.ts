@@ -30,10 +30,13 @@ interface AccessRecord {
   invited: string[];
 }
 
-type AuthResult = { ok: true; username: string; role: Role } | { ok: false; status: number; message: string };
+// username is null for anonymous sessions — only possible when the room's
+// generalAccess is "anyone" (see authorize()); restricted rooms always
+// require a real signed-in identity to check against owner/invited.
+type AuthResult = { ok: true; username: string | null; role: Role } | { ok: false; status: number; message: string };
 
 interface SessionInfo {
-  username: string;
+  username: string | null;
   role: Role;
   awarenessIds: Set<number>;
 }
@@ -116,9 +119,6 @@ export class CollabRoom {
   // the general-access setting.
   async authorize(request: Request): Promise<AuthResult> {
     const session = await this.getSession(request);
-    if (!session || !session.username) {
-      return { ok: false, status: 401, message: "Sign in with GitHub to join this document." };
-    }
     const access = await this.getAccess();
     if (!access.owner) {
       // Nobody has ever configured this room — treat it as private and
@@ -128,11 +128,18 @@ export class CollabRoom {
       // "the owner".)
       return { ok: false, status: 403, message: "This document hasn't been shared." };
     }
-    if (session.username === access.owner) {
+    if (session && session.username === access.owner) {
       return { ok: true, username: session.username, role: "editor" };
     }
     if (access.generalAccess === "anyone") {
-      return { ok: true, username: session.username, role: access.role };
+      // A public link needs no account at all — session may be null here.
+      // Restricted (invite-only) rooms below this still require a real
+      // signed-in identity, since that's the only way to check the
+      // invited list.
+      return { ok: true, username: session ? session.username : null, role: access.role };
+    }
+    if (!session || !session.username) {
+      return { ok: false, status: 401, message: "Sign in with GitHub to join this document." };
     }
     if (access.invited.includes(session.username)) {
       return { ok: true, username: session.username, role: "editor" };
@@ -181,7 +188,7 @@ export class CollabRoom {
 
   // ---------- WebSocket session ----------
 
-  handleSession(ws: WebSocket, username: string, role: Role): void {
+  handleSession(ws: WebSocket, username: string | null, role: Role): void {
     ws.accept();
     this.sessions.set(ws, { username, role, awarenessIds: new Set() });
 

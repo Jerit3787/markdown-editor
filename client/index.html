@@ -19,34 +19,14 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://editor.danplace.tech/">
 <meta property="og:title" content="Markdown Editor — Live Preview & Real-Time Collaboration">
-<meta property="og:description" content="A fast, free markdown editor with live preview, multiple documents, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text.">
+<meta property="og:description" content="A fast, free markdown editor with live preview, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text.">
 <meta property="og:image" content="https://editor.danplace.tech/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Markdown Editor — Live Preview & Real-Time Collaboration">
-<meta name="twitter:description" content="A fast, free markdown editor with live preview, multiple documents, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text.">
+<meta name="twitter:description" content="A fast, free markdown editor with live preview, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text.">
 <meta name="twitter:image" content="https://editor.danplace.tech/og-image.png">
-
-<!-- CodeMirror 5 (editor) -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/gfm/gfm.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/continuelist.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/display/placeholder.min.js"></script>
-
-<!-- Markdown rendering + sanitizing -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.11/purify.min.js"></script>
-
-<!-- PDF export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
-<link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
@@ -334,7 +314,7 @@
           <div class="menu-divider"></div>
           <!-- Signed out: plain button, click opens a sign-in prompt. Signed
                in: submenu with the publish action + a link to the live gist.
-               gist.js toggles which of these two is hidden. -->
+               gist.ts toggles which of these two is hidden. -->
           <button id="menuPublishSignedOut" type="button"><svg class="icon"><use href="#icon-rocket"></use></svg> Publish to Gist</button>
           <div class="menu-submenu" id="publishSubmenu" hidden>
             <button class="menu-submenu-trigger" type="button"><svg class="icon"><use href="#icon-rocket"></use></svg> Publish <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg></button>
@@ -593,8 +573,6 @@
   </div>
 </div>
 
-<script src="/js/app.js"></script>
-<script type="module" src="/js/collab.js"></script>
-<script type="module" src="/js/gist.js"></script>
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>

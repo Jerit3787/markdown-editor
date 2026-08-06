@@ -1,4 +1,18 @@
 /* Markdown Editor — static, client-side, localStorage-backed */
+import CodeMirror from "codemirror";
+import "codemirror/mode/markdown/markdown";
+import "codemirror/mode/xml/xml";
+import "codemirror/addon/mode/overlay";
+import "codemirror/mode/gfm/gfm";
+import "codemirror/addon/edit/continuelist";
+import "codemirror/addon/display/placeholder";
+import "codemirror/lib/codemirror.css";
+import "codemirror/theme/material-darker.css";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+import html2pdf from "html2pdf.js";
+import type { Doc, MDEBridge } from "./types";
+
 (function () {
   "use strict";
 
@@ -41,13 +55,13 @@ function hello() {
 `;
 
   // ---------- State ----------
-  let docs = [];
-  let activeId = null;
-  let cm = null;
-  let saveTimer = null;
+  let docs: Doc[] = [];
+  let activeId: string | null = null;
+  let cm: CodeMirror.Editor = null as unknown as CodeMirror.Editor;
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   // ---------- Storage helpers ----------
-  function loadDocs() {
+  function loadDocs(): Doc[] {
     try {
       const raw = localStorage.getItem(STORAGE_DOCS);
       if (raw) return JSON.parse(raw);
@@ -64,7 +78,7 @@ function hello() {
     return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   }
 
-  function getActiveDoc() {
+  function getActiveDoc(): Doc | undefined {
     return docs.find((d) => d.id === activeId) || docs[0];
   }
 
@@ -99,7 +113,7 @@ function hello() {
     updateCounts();
   }
 
-  function formatRelativeTime(ts) {
+  function formatRelativeTime(ts: number) {
     const diff = Date.now() - ts;
     const day = 86400000;
     if (diff < day) return "Today";
@@ -111,7 +125,7 @@ function hello() {
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       document.querySelectorAll(".modal-backdrop:not([hidden])").forEach((m) => {
-        m.hidden = true;
+        (m as HTMLElement & { hidden: boolean }).hidden = true;
       });
     });
   }
@@ -126,7 +140,7 @@ function hello() {
     });
   }
 
-  function setTheme(theme) {
+  function setTheme(theme: string) {
     document.documentElement.setAttribute("data-theme", theme);
     document.getElementById("themeIconUse").setAttribute("href", theme === "dark" ? "#icon-sun" : "#icon-moon");
     document.getElementById("themeToggleLabel").textContent = theme === "dark" ? "Light mode" : "Dark mode";
@@ -136,7 +150,7 @@ function hello() {
 
   // ---------- Editor (CodeMirror) ----------
   function initEditor() {
-    const textarea = document.getElementById("editor");
+    const textarea = document.getElementById("editor") as HTMLTextAreaElement;
     cm = CodeMirror.fromTextArea(textarea, {
       mode: "gfm",
       lineWrapping: true,
@@ -225,18 +239,18 @@ function hello() {
     });
 
     document.getElementById("imageFileInput").addEventListener("change", (e) => {
-      const file = e.target.files[0];
+      const file = (e.target as HTMLInputElement).files[0];
       if (file) insertImageWithUpload(file);
-      e.target.value = "";
+      (e.target as HTMLInputElement).value = "";
     });
   }
 
-  function imageFilesFrom(dataTransfer) {
+  function imageFilesFrom(dataTransfer: DataTransfer | null) {
     if (!dataTransfer || !dataTransfer.files) return [];
     return Array.from(dataTransfer.files).filter((f) => f.type.startsWith("image/"));
   }
 
-  function insertImageWithUpload(file, pos) {
+  function insertImageWithUpload(file: File, pos?: CodeMirror.Position) {
     const from = pos || cm.getCursor();
     if (file.size > MAX_IMAGE_BYTES) {
       cm.replaceRange(`![${file.name}: image too large, 2MB max]()`, from);
@@ -261,24 +275,24 @@ function hello() {
         doc.images[key] = dataUrl;
         persistDocs();
         window.MDE.onImageAdded && window.MDE.onImageAdded(key, dataUrl);
-        cm.replaceRange(`![${altTextFromFilename(file.name)}](${key})`, range.from, range.to);
+        cm.replaceRange(`![${altTextFromFilename(file.name)}](${key})`, (range as any).from, (range as any).to);
         updatePreview();
       })
       .catch((err) => {
         const range = marker.find();
         marker.clear();
-        if (range) cm.replaceRange(`![image failed to load: ${err.message}]()`, range.from, range.to);
+        if (range) cm.replaceRange(`![image failed to load: ${err.message}]()`, (range as any).from, (range as any).to);
       });
   }
 
-  function altTextFromFilename(name) {
+  function altTextFromFilename(name: string) {
     return name.replace(/\.[^.]+$/, "") || "image";
   }
 
-  function readImageAsDataURL(file) {
+  function readImageAsDataURL(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
+      reader.onload = () => resolve(reader.result as string);
       reader.onerror = () => reject(reader.error || new Error("read failed"));
       reader.readAsDataURL(file);
     });
@@ -288,7 +302,7 @@ function hello() {
   // the editor text — e.g. "screenshot.png" or "screenshot-2.png" if that
   // name's taken. The preview/export resolve it back to the real data URI
   // (see the marked image renderer in updatePreview and resolveImageRefs).
-  function imageKey(filename, images) {
+  function imageKey(filename: string, images: Record<string, string>) {
     const match = (filename || "image").match(/^(.*?)(\.[^.]+)?$/);
     const base = (match[1] || "image").trim().replace(/[^a-zA-Z0-9-_ ]+/g, "").trim() || "image";
     const ext = match[2] || ".png";
@@ -301,7 +315,7 @@ function hello() {
     return key;
   }
 
-  function resolveImageRefs(text, doc) {
+  function resolveImageRefs(text: string, doc: Doc | undefined) {
     if (!doc || !doc.images) return text;
     return text.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, alt, ref) => {
       const dataUrl = doc.images[ref];
@@ -355,17 +369,17 @@ function hello() {
     });
   }
 
-  function formatBytes(base64Length) {
+  function formatBytes(base64Length: number) {
     const bytes = Math.round(base64Length * 0.75);
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 
-  function loadDocIntoEditor(doc) {
+  function loadDocIntoEditor(doc: Doc) {
     window.MDE.onBeforeDocLoad && window.MDE.onBeforeDocLoad();
     cm.setValue(doc.content || "");
-    document.getElementById("docTitle").value = doc.name || "Untitled";
+    (document.getElementById("docTitle") as HTMLInputElement).value = doc.name || "Untitled";
     resizeDocTitle();
     cm.clearHistory();
     setTimeout(() => cm.refresh(), 0);
@@ -392,11 +406,11 @@ function hello() {
   // Everything always lives in this browser's localStorage first; the
   // status text just also surfaces whether it's *also* linked elsewhere,
   // since that's the part that's easy to lose track of.
-  function savedLabel(doc) {
+  function savedLabel(doc: Doc | undefined) {
     return doc && doc.gistId ? "Saved locally · linked to Gist" : "Saved locally";
   }
 
-  function setSaveStatus(text) {
+  function setSaveStatus(text: string) {
     const btn = document.getElementById("saveStatusBtn");
     const saving = /ing…$/.test(text);
     btn.classList.toggle("saving", saving);
@@ -406,7 +420,7 @@ function hello() {
     renderSaveStatusPopup(saving);
   }
 
-  function relativeTime(ts) {
+  function relativeTime(ts: number) {
     const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
     if (sec < 5) return "just now";
     if (sec < 60) return `${sec}s ago`;
@@ -427,14 +441,14 @@ function hello() {
     toggleDropdown(btn, popup);
   }
 
-  function renderSaveStatusPopup(saving) {
+  function renderSaveStatusPopup(saving: boolean) {
     const doc = getActiveDoc();
     document.getElementById("saveStatusHeadline").textContent = saving ? "Saving…" : "Saved";
     document.getElementById("saveStatusDetail").textContent =
       doc && doc.updatedAt && !saving
         ? `Last saved ${relativeTime(doc.updatedAt)}, to this browser's local storage.`
         : "Saved to this browser's local storage.";
-    const gistLink = document.getElementById("saveStatusGistLink");
+    const gistLink = document.getElementById("saveStatusGistLink") as HTMLAnchorElement;
     const hasGist = doc && doc.gistId;
     gistLink.hidden = !hasGist;
     if (hasGist) gistLink.href = `https://gist.github.com/${doc.gistId}`;
@@ -450,12 +464,12 @@ function hello() {
     // the full data URI inline) passes through untouched. marked 12's
     // built-in image renderer takes positional (href, title, text), not a
     // token object — verified against the actual loaded version.
-    renderer.image = (href, title, text) => {
+    renderer.image = (href: string, title: string | null, text: string) => {
       const resolved = doc && doc.images && doc.images[href] ? doc.images[href] : href;
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
       return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || "")}"${titleAttr}>`;
     };
-    const html = marked.parse(raw, { gfm: true, breaks: false, renderer });
+    const html = marked.parse(raw, { gfm: true, breaks: false, renderer }) as string;
     const clean = DOMPurify.sanitize(html, { ADD_ATTR: ["target"] });
     document.getElementById("preview").innerHTML = clean;
   }
@@ -480,7 +494,7 @@ function hello() {
   // ---------- Toolbar formatting ----------
   function initToolbar() {
     document.getElementById("toolbar").addEventListener("click", (e) => {
-      const btn = e.target.closest("button[data-cmd]");
+      const btn = (e.target as HTMLElement).closest("button[data-cmd]") as HTMLElement;
       if (!btn) return;
       runCmd(btn.dataset.cmd);
       cm.focus();
@@ -489,7 +503,7 @@ function hello() {
     document.getElementById("docTitle").addEventListener("input", (e) => {
       const doc = getActiveDoc();
       if (!doc) return;
-      doc.name = e.target.value || "Untitled";
+      doc.name = (e.target as HTMLInputElement).value || "Untitled";
       renderDocList();
       scheduleSave();
       resizeDocTitle();
@@ -501,13 +515,13 @@ function hello() {
   // css) instead of staying a fixed size — measured via an identically
   // styled, invisible mirror span since inputs don't size to their value.
   function resizeDocTitle() {
-    const input = document.getElementById("docTitle");
+    const input = document.getElementById("docTitle") as HTMLInputElement;
     const mirror = document.getElementById("docTitleMirror");
     mirror.textContent = input.value || input.placeholder || "";
     input.style.width = mirror.offsetWidth + "px";
   }
 
-  function runCmd(cmd) {
+  function runCmd(cmd: string) {
     switch (cmd) {
       case "bold": return wrapSelection("**", "**", "bold text");
       case "italic": return wrapSelection("_", "_", "italic text");
@@ -528,7 +542,7 @@ function hello() {
     }
   }
 
-  function wrapSelection(before, after, placeholder) {
+  function wrapSelection(before: string, after: string, placeholder?: string) {
     const sel = cm.getSelection();
     const text = sel || placeholder || "";
     cm.replaceSelection(before + text + after);
@@ -541,7 +555,7 @@ function hello() {
     }
   }
 
-  function prefixLine(prefix) {
+  function prefixLine(prefix: string) {
     const cursor = cm.getCursor();
     const line = cm.getLine(cursor.line);
     if (line.startsWith(prefix)) {
@@ -555,16 +569,16 @@ function hello() {
   // editor — friendlier for anyone not already fluent in markdown syntax.
   function insertLink() {
     const sel = cm.getSelection();
-    document.getElementById("linkTextInput").value = sel || "";
-    document.getElementById("linkUrlInput").value = "";
+    (document.getElementById("linkTextInput") as HTMLInputElement).value = sel || "";
+    (document.getElementById("linkUrlInput") as HTMLInputElement).value = "";
     document.getElementById("linkModal").hidden = false;
     document.getElementById(sel ? "linkUrlInput" : "linkTextInput").focus();
   }
 
   function initLinkModal() {
     const modal = document.getElementById("linkModal");
-    const textInput = document.getElementById("linkTextInput");
-    const urlInput = document.getElementById("linkUrlInput");
+    const textInput = document.getElementById("linkTextInput") as HTMLInputElement;
+    const urlInput = document.getElementById("linkUrlInput") as HTMLInputElement;
 
     function close() {
       modal.hidden = true;
@@ -599,7 +613,7 @@ function hello() {
     );
   }
 
-  function insertBlock(block) {
+  function insertBlock(block: string) {
     const cursor = cm.getCursor();
     cm.replaceRange(block, cursor);
   }
@@ -612,14 +626,14 @@ function hello() {
 
     document.querySelectorAll(".menu-view-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        setView(btn.dataset.view);
+        setView((btn as HTMLElement).dataset.view);
         document.getElementById("viewMenu").classList.remove("open");
       });
     });
 
-    function setView(view) {
+    function setView(view: string) {
       main.className = `mode-${view}`;
-      document.querySelectorAll(".menu-view-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+      document.querySelectorAll(".menu-view-btn").forEach((b) => b.classList.toggle("active", (b as HTMLElement).dataset.view === view));
       localStorage.setItem(STORAGE_VIEW, view);
       setTimeout(() => cm && cm.refresh(), 0);
     }
@@ -650,7 +664,7 @@ function hello() {
 
     document.getElementById("newDocBtn").addEventListener("click", () => {
       saveNow();
-      const doc = { id: uid(), name: "Untitled", content: "", updatedAt: Date.now() };
+      const doc: Doc = { id: uid(), name: "Untitled", content: "", updatedAt: Date.now() };
       docs.unshift(doc);
       activeId = doc.id;
       persistDocs();
@@ -659,12 +673,12 @@ function hello() {
       loadDocIntoEditor(doc);
       updatePreview();
       updateCounts();
-      document.getElementById("docTitle").focus();
-      document.getElementById("docTitle").select();
+      (document.getElementById("docTitle") as HTMLInputElement).focus();
+      (document.getElementById("docTitle") as HTMLInputElement).select();
     });
   }
 
-  function switchDoc(id) {
+  function switchDoc(id: string) {
     if (id === activeId) return;
     saveNow();
     activeId = id;
@@ -676,7 +690,7 @@ function hello() {
     if (isMobile()) document.getElementById("sidebar").classList.add("collapsed");
   }
 
-  function deleteDoc(id) {
+  function deleteDoc(id: string) {
     const doc = docs.find((d) => d.id === id);
     if (!doc) return;
     if (!confirm(`Delete "${doc.name}"? This can't be undone.`)) return;
@@ -704,7 +718,7 @@ function hello() {
       li.className = doc.id === activeId ? "active" : "";
       li.innerHTML = `<span class="doc-name">${escapeHtml(doc.name || "Untitled")}</span><button class="doc-delete" title="Delete"><svg class="icon"><use href="#icon-x"></use></svg></button>`;
       li.addEventListener("click", (e) => {
-        if (e.target.closest(".doc-delete")) return;
+        if ((e.target as HTMLElement).closest(".doc-delete")) return;
         switchDoc(doc.id);
       });
       li.querySelector(".doc-delete").addEventListener("click", (e) => {
@@ -715,7 +729,7 @@ function hello() {
     });
   }
 
-  function escapeHtml(str) {
+  function escapeHtml(str: string) {
     const div = document.createElement("div");
     div.textContent = str;
     return div.innerHTML;
@@ -723,7 +737,7 @@ function hello() {
 
   // ---------- Dropdowns ----------
   // Shared by every dropdown (File/Edit/View/Help menus, Share, Settings —
-  // the latter two also used from collab.js/gist.js via window.MDE) so
+  // the latter two also used from collab.ts/gist.ts via window.MDE) so
   // opening one closes any other that's already open instead of them
   // stacking. closeAllDropdowns() clears everything unconditionally; the
   // triggering button then re-opens/re-activates itself right after, which
@@ -733,7 +747,7 @@ function hello() {
     document.querySelectorAll(".dropdown-trigger.active").forEach((b) => b.classList.remove("active"));
   }
 
-  function toggleDropdown(btn, menu) {
+  function toggleDropdown(btn: HTMLElement, menu: HTMLElement) {
     btn.classList.add("dropdown-trigger");
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -752,7 +766,7 @@ function hello() {
   // Recent, Export). The parent menu already stops outside clicks from
   // closing it (see toggleDropdown), so this only needs to manage which
   // submenu, if any, is open within that one parent at a time.
-  function initSubmenus(root) {
+  function initSubmenus(root: HTMLElement) {
     root.querySelectorAll(".menu-submenu").forEach((sub) => {
       const trigger = sub.querySelector(".menu-submenu-trigger");
       trigger.addEventListener("click", (e) => {
@@ -767,7 +781,7 @@ function hello() {
     });
   }
 
-  function closeSubmenus(root) {
+  function closeSubmenus(root: HTMLElement) {
     root.querySelectorAll(".menu-submenu.open").forEach((sub) => {
       sub.classList.remove("open");
       sub.querySelector(".menu-submenu-trigger").classList.remove("active");
@@ -777,13 +791,13 @@ function hello() {
   // ---------- Import ----------
   function initImport() {
     document.getElementById("importInput").addEventListener("change", (e) => {
-      const file = e.target.files[0];
+      const file = (e.target as HTMLInputElement).files[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
         saveNow();
         const name = file.name.replace(/\.(md|markdown|txt)$/i, "");
-        const doc = { id: uid(), name: name || "Imported", content: String(reader.result), updatedAt: Date.now() };
+        const doc: Doc = { id: uid(), name: name || "Imported", content: String(reader.result), updatedAt: Date.now() };
         docs.unshift(doc);
         activeId = doc.id;
         persistDocs();
@@ -794,7 +808,7 @@ function hello() {
         updateCounts();
       };
       reader.readAsText(file);
-      e.target.value = "";
+      (e.target as HTMLInputElement).value = "";
     });
   }
 
@@ -826,7 +840,7 @@ function hello() {
     });
 
     fileMenu.addEventListener("click", (e) => {
-      const item = e.target.closest("button[data-export]");
+      const item = (e.target as HTMLElement).closest("button[data-export]") as HTMLElement;
       if (!item) return;
       exportAs(item.dataset.export);
       closeFileMenu();
@@ -910,7 +924,7 @@ function hello() {
     });
   }
 
-  // Shared by gist.js (Publish to Gist) and collab.js (Share) — both gate a
+  // Shared by gist.ts (Publish to Gist) and collab.ts (Share) — both gate a
   // feature behind GitHub sign-in and pop this same modal when signed out.
   function initGithubSignInModal() {
     const modal = document.getElementById("githubSignInModal");
@@ -924,7 +938,7 @@ function hello() {
       if (e.target === modal) modal.hidden = true;
     });
 
-    // Sign-in happens in a popup (src/github-auth.js's callback page posts
+    // Sign-in happens in a popup (src/github-auth.ts's callback page posts
     // the result here and closes itself) instead of a full-page redirect,
     // so the app never has to reload — just re-check the session in place.
     window.addEventListener("message", (e) => {
@@ -952,7 +966,7 @@ function hello() {
     return name.replace(/[\\/:*?"<>|]+/g, "-") || "document";
   }
 
-  function exportAs(format) {
+  function exportAs(format: string) {
     saveNow();
     const base = currentFileBase();
     const raw = cm.getValue();
@@ -964,7 +978,7 @@ function hello() {
     }
 
     if (format === "txt") {
-      const text = document.getElementById("preview").innerText;
+      const text = (document.getElementById("preview") as HTMLElement).innerText;
       downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), `${base}.txt`);
       return;
     }
@@ -982,7 +996,7 @@ function hello() {
     }
   }
 
-  function buildStandaloneHtml(title, bodyHtml) {
+  function buildStandaloneHtml(title: string, bodyHtml: string) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1012,9 +1026,9 @@ ${bodyHtml}
 </html>`;
   }
 
-  function exportPdf(base) {
+  function exportPdf(base: string) {
     const source = document.getElementById("preview");
-    const clone = source.cloneNode(true);
+    const clone = source.cloneNode(true) as HTMLElement;
     clone.style.padding = "0";
     const wrapper = document.createElement("div");
     wrapper.style.padding = "20px 30px";
@@ -1023,9 +1037,9 @@ ${bodyHtml}
     const opt = {
       margin: 12,
       filename: `${base}.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
+      image: { type: "jpeg" as const, quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" as const },
       pagebreak: { mode: ["css", "legacy"] },
     };
 
@@ -1033,7 +1047,7 @@ ${bodyHtml}
     html2pdf().set(opt).from(wrapper).save().then(() => setSaveStatus("Saved"));
   }
 
-  function downloadBlob(blob, filename) {
+  function downloadBlob(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1046,11 +1060,11 @@ ${bodyHtml}
 
   window.addEventListener("beforeunload", saveNow);
 
-  // ---------- Bridge for js/collab.js (live collaboration) ----------
-  // collab.js runs as a separate module with no access to this closure, so
+  // ---------- Bridge for js/collab.ts (live collaboration) ----------
+  // collab.ts runs as a separate module with no access to this closure, so
   // it drives doc switching/creation and reads the CodeMirror instance
   // through this small surface instead of reaching into internals directly.
-  window.MDE = {
+  const bridge: MDEBridge = {
     getEditor: () => cm,
     getActiveDoc,
     switchDoc,
@@ -1085,10 +1099,10 @@ ${bodyHtml}
       modal.hidden = false;
     },
     openGithubSignInPopup,
-    githubUsername: null, // kept in sync by gist.js's checkSession()
+    githubUsername: null, // kept in sync by gist.ts's checkSession()
     createDoc(partial) {
       saveNow();
-      const doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now() }, partial);
+      const doc: Doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now() }, partial);
       docs.unshift(doc);
       activeId = doc.id;
       persistDocs();
@@ -1099,7 +1113,7 @@ ${bodyHtml}
       updateCounts();
       return doc;
     },
-    // The doc's own id doubles as its collab room id (see collab.js) — this
+    // The doc's own id doubles as its collab room id (see collab.ts) — this
     // just tracks locally whether the doc has ever been shared, so
     // switching to/loading it knows whether to attempt rejoining the room.
     markActiveDocShared(shared) {
@@ -1120,10 +1134,11 @@ ${bodyHtml}
       persistDocs();
       return doc;
     },
-    // Set by collab.js. Called by loadDocIntoEditor() right before/after the
-    // editor content is swapped, so collab.js can unbind the outgoing doc's
+    // Set by collab.ts. Called by loadDocIntoEditor() right before/after the
+    // editor content is swapped, so collab.ts can unbind the outgoing doc's
     // room before CodeMirror's setValue() fires a bogus "edit".
     onBeforeDocLoad: null,
     onActiveDocChanged: null,
   };
+  window.MDE = bridge;
 })();

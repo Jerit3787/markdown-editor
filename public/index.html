@@ -198,36 +198,64 @@
     <path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" />
     <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" />
   </symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24">
+    <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+    <circle cx="12" cy="12" r="3" />
+  </symbol>
+  <symbol id="icon-share-2" viewBox="0 0 24 24">
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
+    <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
+  </symbol>
+  <symbol id="icon-undo-2" viewBox="0 0 24 24">
+    <path d="M9 14 4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+  </symbol>
+  <symbol id="icon-redo-2" viewBox="0 0 24 24">
+    <path d="m15 14 5-5-5-5" />
+    <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" />
+  </symbol>
+  <symbol id="icon-keyboard" viewBox="0 0 24 24">
+    <path d="M10 8h.01" />
+    <path d="M12 12h.01" />
+    <path d="M14 8h.01" />
+    <path d="M16 12h.01" />
+    <path d="M18 8h.01" />
+    <path d="M6 8h.01" />
+    <path d="M7 16h10" />
+    <path d="M8 12h.01" />
+    <rect width="20" height="16" x="2" y="4" rx="2" />
+  </symbol>
+  <symbol id="icon-panel-left" viewBox="0 0 24 24">
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 3v18" />
+  </symbol>
+  <symbol id="icon-file-plus" viewBox="0 0 24 24">
+    <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
+    <path d="M14 2v5a1 1 0 0 0 1 1h5" />
+    <path d="M9 15h6" />
+    <path d="M12 18v-6" />
+  </symbol>
 </svg>
 
 <div id="app">
 
-  <!-- Top bar -->
+  <!-- Top bar: identity/actions row, then a File/Edit/View/Help menu bar -->
   <header id="topbar">
-    <button id="sidebarToggle" class="icon-btn" title="Toggle documents panel" aria-label="Toggle documents panel"><svg class="icon"><use href="#icon-menu"></use></svg></button>
-    <div id="brand"><img src="/logo.svg" width="18" height="18" alt=""> Markdown Editor</div>
+    <div id="topbarRow1" class="topbar-row">
+      <button id="sidebarToggle" class="icon-btn" title="Toggle documents panel" aria-label="Toggle documents panel"><svg class="icon"><use href="#icon-menu"></use></svg></button>
+      <div id="brand"><img src="/logo.svg" width="18" height="18" alt=""> Markdown Editor</div>
 
-    <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title">
+      <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title">
+      <div id="saveStatus">Saved locally</div>
+      <div id="presenceBar" class="presence-bar" hidden></div>
 
-    <div id="saveStatus">Saved locally</div>
-
-    <div id="presenceBar" class="presence-bar" hidden></div>
-
-    <div class="spacer"></div>
-
-    <!-- On mobile this whole cluster becomes a right-side slide-in panel
-         (see #moreBtn below) instead of wrapping the topbar to a 2nd row. -->
-    <div id="topbarTools" class="topbar-tools">
-      <div class="view-toggle" role="group" aria-label="View mode">
-        <button class="view-btn" data-view="editor" title="Editor only">Editor</button>
-        <button class="view-btn active" data-view="split" title="Split view">Split</button>
-        <button class="view-btn" data-view="preview" title="Preview only">Preview</button>
-      </div>
-
-      <button id="themeToggle" class="icon-btn" title="Toggle dark/light theme" aria-label="Toggle theme"><svg class="icon"><use id="themeIconUse" href="#icon-moon"></use></svg><span class="tool-label">Dark mode</span></button>
+      <div class="spacer"></div>
 
       <div class="dropdown">
-        <button id="shareBtn" class="icon-btn" title="Live collaboration" aria-label="Share for live collaboration"><svg class="icon"><use href="#icon-users"></use></svg><span class="tool-label">Collaborate</span></button>
+        <button id="shareBtn" class="share-pill" type="button"><svg class="icon"><use href="#icon-share-2"></use></svg> Share</button>
         <div id="shareMenu" class="dropdown-menu share-menu">
           <div class="share-row">
             <span id="collabStatusDot" class="status-dot status-idle"></span>
@@ -246,39 +274,13 @@
         </div>
       </div>
 
-      <!-- Bring a document in, regardless of where it lives. -->
       <div class="dropdown">
-        <button id="openBtn" class="secondary-btn" type="button">Open <svg class="icon"><use href="#icon-chevron-down"></use></svg></button>
-        <div id="openMenu" class="dropdown-menu share-menu">
-          <button id="openLocalBtn" type="button"><svg class="icon"><use href="#icon-upload"></use></svg> From this device</button>
-          <input id="importInput" type="file" accept=".md,.markdown,.txt" hidden>
+        <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
+        <div id="settingsMenu" class="dropdown-menu share-menu">
+          <div class="menu-section-label">Appearance</div>
+          <button id="themeToggle" type="button"><svg class="icon"><use id="themeIconUse" href="#icon-moon"></use></svg> <span id="themeToggleLabel">Dark mode</span></button>
           <div class="menu-divider"></div>
-          <div class="menu-section-label">From GitHub Gist</div>
-          <div class="share-row">
-            <input id="gistOpenInput" type="text" placeholder="URL or ID" aria-label="Gist URL or ID">
-            <button id="gistOpenBtn" class="secondary-btn" type="button">Open</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Send a document out — download, or publish to a Gist. -->
-      <div class="dropdown">
-        <button id="exportBtn" class="primary-btn">Export <svg class="icon"><use href="#icon-chevron-down"></use></svg></button>
-        <div id="exportMenu" class="dropdown-menu">
-          <button data-export="md"><svg class="icon"><use href="#icon-download"></use></svg> Markdown (.md)</button>
-          <button data-export="html"><svg class="icon"><use href="#icon-download"></use></svg> HTML (.html)</button>
-          <button data-export="pdf"><svg class="icon"><use href="#icon-download"></use></svg> PDF (.pdf)</button>
-          <button data-export="txt"><svg class="icon"><use href="#icon-download"></use></svg> Plain text (.txt)</button>
-          <div class="menu-divider"></div>
-          <button id="exportGistBtn" type="button"><svg class="icon"><use href="#icon-github"></use></svg> <span id="exportGistLabel">Publish to Gist</span></button>
-          <a id="gistViewLink" class="menu-link" href="#" target="_blank" rel="noopener" hidden>View Gist <svg class="icon"><use href="#icon-external-link"></use></svg></a>
-        </div>
-      </div>
-
-      <!-- Just the account: connect/disconnect GitHub. -->
-      <div class="dropdown">
-        <button id="gistBtn" class="icon-btn" title="GitHub account" aria-label="GitHub account"><svg class="icon"><use href="#icon-github"></use></svg><span class="tool-label">GitHub</span></button>
-        <div id="gistMenu" class="dropdown-menu share-menu">
+          <div class="menu-section-label">GitHub</div>
           <div class="share-row">
             <span id="gistStatusDot" class="status-dot status-idle"></span>
             <span id="gistStatusText">Not connected</span>
@@ -289,7 +291,71 @@
       </div>
     </div>
 
-    <button id="moreBtn" class="icon-btn" title="More options" aria-label="More options"><svg class="icon"><use href="#icon-ellipsis-vertical"></use></svg></button>
+    <nav id="menuBar" class="topbar-row" aria-label="Main menu">
+      <div class="dropdown">
+        <button id="fileMenuBtn" class="menubar-btn" type="button">File</button>
+        <div id="fileMenu" class="dropdown-menu menubar-menu">
+          <button id="menuNewDoc" type="button"><svg class="icon"><use href="#icon-file-plus"></use></svg> New document</button>
+          <button id="menuOpenLocal" type="button"><svg class="icon"><use href="#icon-upload"></use></svg> Open File...</button>
+          <input id="importInput" type="file" accept=".md,.markdown,.txt" hidden>
+          <div class="menu-divider"></div>
+          <div class="menu-section-label">From GitHub Gist</div>
+          <div class="share-row">
+            <input id="gistOpenInput" type="text" placeholder="URL or ID" aria-label="Gist URL or ID">
+            <button id="gistOpenBtn" class="secondary-btn" type="button">Open</button>
+          </div>
+          <div class="menu-divider"></div>
+          <div class="menu-section-label">Open Recent</div>
+          <div id="menuRecentList"></div>
+          <div class="menu-divider"></div>
+          <button id="menuPublishGist" type="button"><svg class="icon"><use href="#icon-github"></use></svg> <span id="menuGistLabel">Publish to Gist</span></button>
+          <a id="gistViewLink" class="menu-link" href="#" target="_blank" rel="noopener" hidden>View Gist <svg class="icon"><use href="#icon-external-link"></use></svg></a>
+          <div class="menu-divider"></div>
+          <div class="menu-section-label">Export</div>
+          <button data-export="md" type="button"><svg class="icon"><use href="#icon-download"></use></svg> Markdown (.md)</button>
+          <button data-export="html" type="button"><svg class="icon"><use href="#icon-download"></use></svg> HTML (.html)</button>
+          <button data-export="pdf" type="button"><svg class="icon"><use href="#icon-download"></use></svg> PDF (.pdf)</button>
+          <button data-export="txt" type="button"><svg class="icon"><use href="#icon-download"></use></svg> Plain text (.txt)</button>
+          <div class="menu-divider"></div>
+          <button id="menuDeleteDoc" type="button"><svg class="icon"><use href="#icon-trash-2"></use></svg> Delete document</button>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <button id="editMenuBtn" class="menubar-btn" type="button">Edit</button>
+        <div id="editMenu" class="dropdown-menu menubar-menu">
+          <button id="menuUndo" type="button"><svg class="icon"><use href="#icon-undo-2"></use></svg> Undo <kbd>Ctrl+Z</kbd></button>
+          <button id="menuRedo" type="button"><svg class="icon"><use href="#icon-redo-2"></use></svg> Redo <kbd>Ctrl+Shift+Z</kbd></button>
+          <div class="menu-divider"></div>
+          <button id="menuBold" type="button" class="menu-glyph-btn"><b>B</b> Bold <kbd>Ctrl+B</kbd></button>
+          <button id="menuItalic" type="button" class="menu-glyph-btn"><i>I</i> Italic <kbd>Ctrl+I</kbd></button>
+          <button id="menuStrike" type="button"><svg class="icon"><use href="#icon-strikethrough"></use></svg> Strikethrough</button>
+          <div class="menu-divider"></div>
+          <button id="menuLink" type="button"><svg class="icon"><use href="#icon-link"></use></svg> Insert Link... <kbd>Ctrl+K</kbd></button>
+          <button id="menuImage" type="button"><svg class="icon"><use href="#icon-image"></use></svg> Insert Image...</button>
+          <button id="menuManageImages" type="button"><svg class="icon"><use href="#icon-images"></use></svg> Manage Images...</button>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <button id="viewMenuBtn" class="menubar-btn" type="button">View</button>
+        <div id="viewMenu" class="dropdown-menu menubar-menu">
+          <button class="menu-view-btn" data-view="editor" type="button"><svg class="icon menu-check"><use href="#icon-check"></use></svg> Editor</button>
+          <button class="menu-view-btn" data-view="split" type="button"><svg class="icon menu-check"><use href="#icon-check"></use></svg> Split</button>
+          <button class="menu-view-btn" data-view="preview" type="button"><svg class="icon menu-check"><use href="#icon-check"></use></svg> Preview</button>
+          <div class="menu-divider"></div>
+          <button id="menuToggleSidebar" type="button"><svg class="icon"><use href="#icon-panel-left"></use></svg> Toggle Sidebar</button>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <button id="helpMenuBtn" class="menubar-btn" type="button">Help</button>
+        <div id="helpMenu" class="dropdown-menu menubar-menu">
+          <button id="menuShortcuts" type="button"><svg class="icon"><use href="#icon-keyboard"></use></svg> Keyboard Shortcuts</button>
+          <a class="menu-link-item" href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-github"></use></svg> View Source on GitHub</a>
+        </div>
+      </div>
+    </nav>
   </header>
 
   <div id="body">
@@ -350,41 +416,6 @@
   </footer>
 </div>
 
-<!-- Welcome -->
-<div id="welcomeModal" class="modal-backdrop" hidden>
-  <div class="modal-box modal-box-welcome" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
-    <h2 id="welcomeTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> Welcome to Markdown Editor</h2>
-
-    <div class="welcome-columns">
-      <div class="welcome-col">
-        <div class="welcome-col-label">Recent</div>
-        <div id="welcomeRecentList" class="welcome-recent-list"></div>
-      </div>
-      <div class="welcome-col">
-        <div class="welcome-col-label">Quick Start</div>
-        <button id="welcomeNewBtn" class="welcome-row" type="button">
-          <svg class="icon"><use href="#icon-plus"></use></svg>
-          <span>New document</span>
-        </button>
-        <button id="welcomeImportBtn" class="welcome-row" type="button">
-          <svg class="icon"><use href="#icon-upload"></use></svg>
-          <span>Import a file</span>
-        </button>
-        <button id="welcomeGistBtn" class="welcome-row" type="button">
-          <svg class="icon"><use href="#icon-github"></use></svg>
-          <span>Open from GitHub Gist</span>
-        </button>
-      </div>
-    </div>
-
-    <p class="modal-hint">Everything is saved locally in your browser — no account needed unless you connect GitHub.</p>
-    <div class="modal-actions">
-      <button id="welcomeDismissBtn" class="secondary-btn" type="button">Don't show this again</button>
-      <button id="welcomeCloseBtn" class="primary-btn" type="button">Close</button>
-    </div>
-  </div>
-</div>
-
 <!-- Insert link -->
 <div id="linkModal" class="modal-backdrop" hidden>
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="linkModalTitle">
@@ -412,6 +443,24 @@
     <p id="imagesEmptyHint" class="modal-hint">No images in this document yet. Paste, drop, or use the toolbar 🖼 button to add one.</p>
     <div class="modal-actions">
       <button id="imagesCloseBtn" class="secondary-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Keyboard shortcuts -->
+<div id="shortcutsModal" class="modal-backdrop" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="shortcutsModalTitle">
+    <h2 id="shortcutsModalTitle"><svg class="icon"><use href="#icon-keyboard"></use></svg> Keyboard Shortcuts</h2>
+    <div class="shortcuts-list">
+      <div class="shortcuts-row"><span>Bold</span><kbd>Ctrl/Cmd+B</kbd></div>
+      <div class="shortcuts-row"><span>Italic</span><kbd>Ctrl/Cmd+I</kbd></div>
+      <div class="shortcuts-row"><span>Insert link</span><kbd>Ctrl/Cmd+K</kbd></div>
+      <div class="shortcuts-row"><span>Undo</span><kbd>Ctrl/Cmd+Z</kbd></div>
+      <div class="shortcuts-row"><span>Redo</span><kbd>Ctrl/Cmd+Shift+Z</kbd></div>
+      <div class="shortcuts-row"><span>Continue list on new line</span><kbd>Enter</kbd></div>
+    </div>
+    <div class="modal-actions">
+      <button id="shortcutsCloseBtn" class="secondary-btn" type="button">Close</button>
     </div>
   </div>
 </div>

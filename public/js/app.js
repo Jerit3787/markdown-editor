@@ -81,77 +81,20 @@ function hello() {
     initImageUploads();
     initToolbar();
     initSidebar();
-    initExport();
-    initOpenMenu();
     initViewToggle();
     initImport();
     initShortStatus();
-    initMoreMenu();
     initImagesManager();
     initLinkModal();
-    initWelcomeModal();
+    initMenuBar();
+    initSettingsMenu();
+    initShortcutsModal();
     initModalEscapeKey();
 
     renderDocList();
     loadDocIntoEditor(getActiveDoc());
     updatePreview();
     updateCounts();
-  }
-
-  // ---------- Welcome modal ----------
-  const STORAGE_HIDE_WELCOME = "mde:hideWelcome";
-
-  function initWelcomeModal() {
-    const modal = document.getElementById("welcomeModal");
-
-    document.getElementById("welcomeNewBtn").addEventListener("click", () => {
-      modal.hidden = true;
-      document.getElementById("newDocBtn").click();
-    });
-    document.getElementById("welcomeImportBtn").addEventListener("click", () => {
-      modal.hidden = true;
-      document.getElementById("importInput").click();
-    });
-    document.getElementById("welcomeGistBtn").addEventListener("click", () => {
-      modal.hidden = true;
-      document.getElementById("openBtn").click();
-    });
-    document.getElementById("welcomeCloseBtn").addEventListener("click", () => {
-      modal.hidden = true;
-    });
-    document.getElementById("welcomeDismissBtn").addEventListener("click", () => {
-      localStorage.setItem(STORAGE_HIDE_WELCOME, "1");
-      modal.hidden = true;
-    });
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.hidden = true;
-    });
-
-    if (!localStorage.getItem(STORAGE_HIDE_WELCOME)) {
-      renderWelcomeRecent();
-      modal.hidden = false;
-    }
-  }
-
-  function renderWelcomeRecent() {
-    const list = document.getElementById("welcomeRecentList");
-    list.innerHTML = "";
-    const sorted = [...docs].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
-    if (sorted.length === 0) {
-      list.innerHTML = `<div class="welcome-recent-empty">No documents yet.</div>`;
-      return;
-    }
-    sorted.forEach((doc) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "welcome-recent-item";
-      item.innerHTML = `<span class="welcome-recent-name">${escapeHtml(doc.name || "Untitled")}</span><span class="welcome-recent-time">${formatRelativeTime(doc.updatedAt)}</span>`;
-      item.addEventListener("click", () => {
-        switchDoc(doc.id);
-        document.getElementById("welcomeModal").hidden = true;
-      });
-      list.appendChild(item);
-    });
   }
 
   function formatRelativeTime(ts) {
@@ -184,7 +127,7 @@ function hello() {
   function setTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
     document.getElementById("themeIconUse").setAttribute("href", theme === "dark" ? "#icon-sun" : "#icon-moon");
-    document.querySelector("#themeToggle .tool-label").textContent = theme === "dark" ? "Light mode" : "Dark mode";
+    document.getElementById("themeToggleLabel").textContent = theme === "dark" ? "Light mode" : "Dark mode";
     localStorage.setItem(STORAGE_THEME, theme);
     if (cm) cm.setOption("theme", theme === "dark" ? "material-darker" : "default");
   }
@@ -573,13 +516,16 @@ function hello() {
     const saved = localStorage.getItem(STORAGE_VIEW) || "split";
     setView(saved);
 
-    document.querySelectorAll(".view-btn").forEach((btn) => {
-      btn.addEventListener("click", () => setView(btn.dataset.view));
+    document.querySelectorAll(".menu-view-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setView(btn.dataset.view);
+        document.getElementById("viewMenu").classList.remove("open");
+      });
     });
 
     function setView(view) {
       main.className = `mode-${view}`;
-      document.querySelectorAll(".view-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+      document.querySelectorAll(".menu-view-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
       localStorage.setItem(STORAGE_VIEW, view);
       setTimeout(() => cm && cm.refresh(), 0);
     }
@@ -671,36 +617,31 @@ function hello() {
     return div.innerHTML;
   }
 
-  // ---------- Open (local file / Gist) ----------
-  // Shared by every dropdown (Open/Export/Collaborate/GitHub — the latter
-  // two live in collab.js/gist.js and call this via window.MDE) so opening
-  // one closes any other that's already open, instead of them stacking.
-  function closeAllDropdowns(exceptMenu) {
-    document.querySelectorAll(".dropdown-menu.open").forEach((m) => {
-      if (m !== exceptMenu) m.classList.remove("open");
-    });
+  // ---------- Dropdowns ----------
+  // Shared by every dropdown (File/Edit/View/Help menus, Share, Settings —
+  // the latter two also used from collab.js/gist.js via window.MDE) so
+  // opening one closes any other that's already open instead of them
+  // stacking. closeAllDropdowns() clears everything unconditionally; the
+  // triggering button then re-opens/re-activates itself right after, which
+  // is simpler than threading an "except" argument through every caller.
+  function closeAllDropdowns() {
+    document.querySelectorAll(".dropdown-menu.open").forEach((m) => m.classList.remove("open"));
+    document.querySelectorAll(".dropdown-trigger.active").forEach((b) => b.classList.remove("active"));
   }
 
   function toggleDropdown(btn, menu) {
+    btn.classList.add("dropdown-trigger");
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const willOpen = !menu.classList.contains("open");
-      closeAllDropdowns(menu);
-      if (willOpen) menu.classList.add("open");
+      closeAllDropdowns();
+      if (willOpen) {
+        menu.classList.add("open");
+        btn.classList.add("active");
+      }
     });
-    document.addEventListener("click", () => menu.classList.remove("open"));
+    document.addEventListener("click", closeAllDropdowns);
     menu.addEventListener("click", (e) => e.stopPropagation());
-  }
-
-  function initOpenMenu() {
-    const btn = document.getElementById("openBtn");
-    const menu = document.getElementById("openMenu");
-    toggleDropdown(btn, menu);
-
-    document.getElementById("openLocalBtn").addEventListener("click", () => {
-      document.getElementById("importInput").click();
-      menu.classList.remove("open");
-    });
   }
 
   // ---------- Import ----------
@@ -727,34 +668,98 @@ function hello() {
     });
   }
 
-  // ---------- Export ----------
-  // Mobile-only "⋮" panel holding view-toggle/theme/share/export (see
-  // .topbar-tools in css) — a persistent side panel, not a fleeting
-  // popover, so clicks inside it (switching view/theme, opening the
-  // nested share/export menus) shouldn't dismiss it; only tapping ⋮
-  // again or tapping outside the panel should.
-  function initMoreMenu() {
-    const btn = document.getElementById("moreBtn");
-    const tools = document.getElementById("topbarTools");
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      tools.classList.toggle("open");
+  // ---------- Menu bar (File / Edit / View / Help) ----------
+  function initMenuBar() {
+    toggleDropdown(document.getElementById("fileMenuBtn"), document.getElementById("fileMenu"));
+    toggleDropdown(document.getElementById("editMenuBtn"), document.getElementById("editMenu"));
+    toggleDropdown(document.getElementById("viewMenuBtn"), document.getElementById("viewMenu"));
+    toggleDropdown(document.getElementById("helpMenuBtn"), document.getElementById("helpMenu"));
+
+    const fileMenu = document.getElementById("fileMenu");
+    const closeFileMenu = () => fileMenu.classList.remove("open");
+
+    document.getElementById("menuNewDoc").addEventListener("click", () => {
+      document.getElementById("newDocBtn").click();
+      closeFileMenu();
     });
-    tools.addEventListener("click", (e) => e.stopPropagation());
-    document.addEventListener("click", () => tools.classList.remove("open"));
-  }
+    document.getElementById("menuOpenLocal").addEventListener("click", () => {
+      document.getElementById("importInput").click();
+      closeFileMenu();
+    });
+    document.getElementById("menuDeleteDoc").addEventListener("click", () => {
+      deleteDoc(activeId);
+      closeFileMenu();
+    });
 
-  function initExport() {
-    const btn = document.getElementById("exportBtn");
-    const menu = document.getElementById("exportMenu");
-    toggleDropdown(btn, menu);
-
-    menu.addEventListener("click", (e) => {
+    fileMenu.addEventListener("click", (e) => {
       const item = e.target.closest("button[data-export]");
       if (!item) return;
       exportAs(item.dataset.export);
-      menu.classList.remove("open");
+      closeFileMenu();
     });
+
+    renderRecentMenu();
+
+    const editMenu = document.getElementById("editMenu");
+    const closeEditMenu = () => editMenu.classList.remove("open");
+    document.getElementById("menuUndo").addEventListener("click", () => { cm.undo(); cm.focus(); closeEditMenu(); });
+    document.getElementById("menuRedo").addEventListener("click", () => { cm.redo(); cm.focus(); closeEditMenu(); });
+    document.getElementById("menuBold").addEventListener("click", () => { runCmd("bold"); cm.focus(); closeEditMenu(); });
+    document.getElementById("menuItalic").addEventListener("click", () => { runCmd("italic"); cm.focus(); closeEditMenu(); });
+    document.getElementById("menuStrike").addEventListener("click", () => { runCmd("strike"); cm.focus(); closeEditMenu(); });
+    document.getElementById("menuLink").addEventListener("click", () => { closeEditMenu(); runCmd("link"); });
+    document.getElementById("menuImage").addEventListener("click", () => { closeEditMenu(); runCmd("image"); });
+    document.getElementById("menuManageImages").addEventListener("click", () => {
+      closeEditMenu();
+      document.getElementById("imagesManagerBtn").click();
+    });
+
+    document.getElementById("menuToggleSidebar").addEventListener("click", () => {
+      document.getElementById("sidebarToggle").click();
+      document.getElementById("viewMenu").classList.remove("open");
+    });
+
+    const helpMenu = document.getElementById("helpMenu");
+    document.getElementById("menuShortcuts").addEventListener("click", () => {
+      helpMenu.classList.remove("open");
+      document.getElementById("shortcutsModal").hidden = false;
+    });
+  }
+
+  function initShortcutsModal() {
+    const modal = document.getElementById("shortcutsModal");
+    document.getElementById("shortcutsCloseBtn").addEventListener("click", () => {
+      modal.hidden = true;
+    });
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.hidden = true;
+    });
+  }
+
+  function renderRecentMenu() {
+    const list = document.getElementById("menuRecentList");
+    list.innerHTML = "";
+    const sorted = [...docs].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
+    if (sorted.length === 0) {
+      list.innerHTML = `<div class="menu-recent-empty">No documents yet.</div>`;
+      return;
+    }
+    sorted.forEach((doc) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "menu-recent-item";
+      item.innerHTML = `<span class="menu-recent-name">${escapeHtml(doc.name || "Untitled")}</span><span class="menu-recent-time">${formatRelativeTime(doc.updatedAt)}</span>`;
+      item.addEventListener("click", () => {
+        switchDoc(doc.id);
+        document.getElementById("fileMenu").classList.remove("open");
+      });
+      list.appendChild(item);
+    });
+  }
+
+  // ---------- Settings (theme + GitHub account) ----------
+  function initSettingsMenu() {
+    toggleDropdown(document.getElementById("settingsBtn"), document.getElementById("settingsMenu"));
   }
 
   function currentFileBase() {

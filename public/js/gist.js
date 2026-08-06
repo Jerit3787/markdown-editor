@@ -1,7 +1,7 @@
 // GitHub integration, split across three places in the UI:
-//  - #gistMenu (behind the account icon): just sign in/out.
-//  - #exportMenu's "Publish/Update Gist" row: publish the current doc.
-//  - #openMenu's "From GitHub Gist" row: open one by URL/ID.
+//  - #settingsMenu (behind the gear icon): just sign in/out.
+//  - #fileMenu's "Publish/Update Gist" row: publish the current doc.
+//  - #fileMenu's "From GitHub Gist" row: open one by URL/ID.
 // Sign-in is real GitHub OAuth handled by the Worker (src/github-auth.js)
 // — the access token is encrypted and kept in an HttpOnly cookie
 // server-side; this script never sees it, it just calls our own
@@ -11,15 +11,13 @@ let connectedUsername = null;
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
-  initDropdown("gistBtn", "gistMenu");
-
   document.getElementById("gistSignInBtn").addEventListener("click", () => {
     location.href = "/api/auth/github/login";
   });
   document.getElementById("gistDisconnectBtn").addEventListener("click", () => {
     location.href = "/api/auth/github/logout";
   });
-  document.getElementById("exportGistBtn").addEventListener("click", publish);
+  document.getElementById("menuPublishGist").addEventListener("click", publish);
   document.getElementById("gistOpenBtn").addEventListener("click", openGist);
   document.getElementById("gistOpenInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") openGist();
@@ -34,10 +32,6 @@ function init() {
   };
 
   checkSession();
-}
-
-function initDropdown(btnId, menuId) {
-  window.MDE.toggleDropdown(document.getElementById(btnId), document.getElementById(menuId));
 }
 
 async function checkSession() {
@@ -63,7 +57,7 @@ function render() {
   dot.className = `status-dot status-${connected ? "shared" : "idle"}`;
   text.textContent = connected ? `Signed in as ${connectedUsername}` : "Not connected";
 
-  const label = document.getElementById("exportGistLabel");
+  const label = document.getElementById("menuGistLabel");
   const viewLink = document.getElementById("gistViewLink");
   const doc = window.MDE.getActiveDoc();
   const hasGist = doc && doc.gistId;
@@ -81,8 +75,8 @@ async function publish() {
   if (!doc) return;
   const content = window.MDE.getResolvedContent();
   const filename = gistFilename(doc);
-  const btn = document.getElementById("exportGistBtn");
-  const label = document.getElementById("exportGistLabel");
+  const btn = document.getElementById("menuPublishGist");
+  const label = document.getElementById("menuGistLabel");
   const wasUpdate = !!doc.gistId;
   btn.disabled = true;
   label.textContent = wasUpdate ? "Updating…" : "Publishing…";
@@ -137,7 +131,7 @@ async function openGist() {
     const content = file.truncated ? await fetchRaw(file.raw_url) : file.content;
     window.MDE.createDoc({ name: file.filename.replace(/\.(md|markdown)$/i, ""), content, gistId: data.id });
     input.value = "";
-    document.getElementById("openMenu").classList.remove("open");
+    document.getElementById("fileMenu").classList.remove("open");
     btn.textContent = original;
   } catch (err) {
     btn.textContent = "Failed";

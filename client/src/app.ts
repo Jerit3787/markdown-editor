@@ -643,7 +643,12 @@ import { showToast } from "./stores/toast";
   // ---------- View toggle ----------
   function initViewToggle() {
     const main = document.getElementById("main");
+    const expandBtn = document.getElementById("expandPreviewBtn") as HTMLButtonElement;
     const saved = localStorage.getItem(STORAGE_VIEW) || "split";
+    // Remembered so the expand-preview button can restore whichever mode
+    // the user was actually in (editor or split) rather than always
+    // snapping back to split.
+    let lastNonPreviewView = saved === "preview" ? "split" : saved;
     setView(saved);
 
     document.querySelectorAll(".menu-view-btn").forEach((btn) => {
@@ -653,9 +658,20 @@ import { showToast } from "./stores/toast";
       });
     });
 
+    // A one-click shortcut for the same "Preview" mode already reachable
+    // via View > Preview — sits right next to the menu bar instead of
+    // requiring that menu to be opened first (item #21).
+    expandBtn.addEventListener("click", () => {
+      setView(main.classList.contains("mode-preview") ? lastNonPreviewView : "preview");
+    });
+
     function setView(view: string) {
+      if (view !== "preview") lastNonPreviewView = view;
       main.className = `mode-${view}`;
       document.querySelectorAll(".menu-view-btn").forEach((b) => b.classList.toggle("active", (b as HTMLElement).dataset.view === view));
+      expandBtn.classList.toggle("active", view === "preview");
+      expandBtn.setAttribute("aria-pressed", String(view === "preview"));
+      expandBtn.title = view === "preview" ? "Collapse preview" : "Expand preview";
       localStorage.setItem(STORAGE_VIEW, view);
       setTimeout(() => cm && cm.refresh(), 0);
     }

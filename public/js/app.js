@@ -112,7 +112,11 @@ function hello() {
       modal.hidden = true;
       document.getElementById("importInput").click();
     });
-    document.getElementById("welcomeContinueBtn").addEventListener("click", () => {
+    document.getElementById("welcomeGistBtn").addEventListener("click", () => {
+      modal.hidden = true;
+      document.getElementById("openBtn").click();
+    });
+    document.getElementById("welcomeCloseBtn").addEventListener("click", () => {
       modal.hidden = true;
     });
     document.getElementById("welcomeDismissBtn").addEventListener("click", () => {
@@ -122,7 +126,40 @@ function hello() {
     modal.addEventListener("click", (e) => {
       if (e.target === modal) modal.hidden = true;
     });
-    if (!localStorage.getItem(STORAGE_HIDE_WELCOME)) modal.hidden = false;
+
+    if (!localStorage.getItem(STORAGE_HIDE_WELCOME)) {
+      renderWelcomeRecent();
+      modal.hidden = false;
+    }
+  }
+
+  function renderWelcomeRecent() {
+    const list = document.getElementById("welcomeRecentList");
+    list.innerHTML = "";
+    const sorted = [...docs].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
+    if (sorted.length === 0) {
+      list.innerHTML = `<div class="welcome-recent-empty">No documents yet.</div>`;
+      return;
+    }
+    sorted.forEach((doc) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "welcome-recent-item";
+      item.innerHTML = `<span class="welcome-recent-name">${escapeHtml(doc.name || "Untitled")}</span><span class="welcome-recent-time">${formatRelativeTime(doc.updatedAt)}</span>`;
+      item.addEventListener("click", () => {
+        switchDoc(doc.id);
+        document.getElementById("welcomeModal").hidden = true;
+      });
+      list.appendChild(item);
+    });
+  }
+
+  function formatRelativeTime(ts) {
+    const diff = Date.now() - ts;
+    const day = 86400000;
+    if (diff < day) return "Today";
+    if (diff < day * 2) return "Yesterday";
+    return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
 
   function initModalEscapeKey() {

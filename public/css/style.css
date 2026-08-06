@@ -318,28 +318,64 @@ html, body {
 .modal-box p { margin: 0 0 12px; color: var(--text-dim); font-size: 13.5px; line-height: 1.5; }
 .modal-hint { font-size: 12.5px; color: var(--text-dim); }
 
-.modal-feature-list { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.modal-feature-list li { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; color: var(--text); }
-.modal-feature-list .icon { width: 15px; height: 15px; color: #12b886; flex-shrink: 0; margin-top: 2px; }
+.modal-box-welcome { max-width: 640px; }
 
-.welcome-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin: 16px 0; }
-.welcome-action {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-alt);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 600;
-  text-align: center;
+.welcome-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 16px 0; }
+
+.welcome-col-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
 }
-.welcome-action:hover { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
-.welcome-action .icon { width: 22px; height: 22px; }
+
+.welcome-recent-list { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+
+.welcome-recent-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+}
+.welcome-recent-item:hover { background: var(--accent-dim); color: var(--accent); }
+.welcome-recent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.welcome-recent-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+.welcome-recent-empty { font-size: 12.5px; color: var(--text-dim); padding: 7px 8px; }
+
+.welcome-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.welcome-row:hover { background: var(--accent-dim); color: var(--accent); }
+.welcome-row .icon { width: 17px; height: 17px; flex-shrink: 0; }
+
+@media (max-width: 560px) {
+  .welcome-columns { grid-template-columns: 1fr; }
+}
 
 .modal-field { display: block; margin-bottom: 12px; }
 .modal-field span { display: block; font-size: 12.5px; color: var(--text-dim); margin-bottom: 4px; }

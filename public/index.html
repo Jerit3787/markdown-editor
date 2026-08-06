@@ -352,33 +352,35 @@
 
 <!-- Welcome -->
 <div id="welcomeModal" class="modal-backdrop" hidden>
-  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+  <div class="modal-box modal-box-welcome" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
     <h2 id="welcomeTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> Welcome to Markdown Editor</h2>
-    <p>A fast, distraction-free markdown editor that runs entirely in your browser. How do you want to start?</p>
 
-    <div class="welcome-actions">
-      <button id="welcomeNewBtn" class="welcome-action" type="button">
-        <svg class="icon"><use href="#icon-plus"></use></svg>
-        <span>New document</span>
-      </button>
-      <button id="welcomeImportBtn" class="welcome-action" type="button">
-        <svg class="icon"><use href="#icon-upload"></use></svg>
-        <span>Import a file</span>
-      </button>
-      <button id="welcomeContinueBtn" class="welcome-action" type="button">
-        <svg class="icon"><use href="#icon-check"></use></svg>
-        <span>Continue where I left off</span>
-      </button>
+    <div class="welcome-columns">
+      <div class="welcome-col">
+        <div class="welcome-col-label">Recent</div>
+        <div id="welcomeRecentList" class="welcome-recent-list"></div>
+      </div>
+      <div class="welcome-col">
+        <div class="welcome-col-label">Quick Start</div>
+        <button id="welcomeNewBtn" class="welcome-row" type="button">
+          <svg class="icon"><use href="#icon-plus"></use></svg>
+          <span>New document</span>
+        </button>
+        <button id="welcomeImportBtn" class="welcome-row" type="button">
+          <svg class="icon"><use href="#icon-upload"></use></svg>
+          <span>Import a file</span>
+        </button>
+        <button id="welcomeGistBtn" class="welcome-row" type="button">
+          <svg class="icon"><use href="#icon-github"></use></svg>
+          <span>Open from GitHub Gist</span>
+        </button>
+      </div>
     </div>
 
-    <ul class="modal-feature-list">
-      <li><svg class="icon"><use href="#icon-check"></use></svg> Real-time collaboration — click 👥 Collaborate to share a document</li>
-      <li><svg class="icon"><use href="#icon-check"></use></svg> Open/publish to a GitHub Gist, or export to Markdown, HTML, PDF, or plain text</li>
-      <li><svg class="icon"><use href="#icon-check"></use></svg> Paste or drop images right into the editor</li>
-    </ul>
     <p class="modal-hint">Everything is saved locally in your browser — no account needed unless you connect GitHub.</p>
     <div class="modal-actions">
       <button id="welcomeDismissBtn" class="secondary-btn" type="button">Don't show this again</button>
+      <button id="welcomeCloseBtn" class="primary-btn" type="button">Close</button>
     </div>
   </div>
 </div>

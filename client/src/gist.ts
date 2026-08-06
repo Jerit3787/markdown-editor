@@ -183,9 +183,10 @@ async function openGistById(id: string, btn: HTMLButtonElement) {
     const files: any[] = Object.values(data.files || {});
     const file = files.find((f) => /\.(md|markdown)$/i.test(f.filename)) || files[0];
     if (!file) throw new Error("Gist has no files");
-    const content = file.truncated ? await fetchRaw(file.raw_url) : file.content;
+    const rawContent = file.truncated ? await fetchRaw(file.raw_url) : file.content;
     const name = file.filename.replace(/\.(md|markdown)$/i, "");
-    window.MDE.createDoc({ name, content, gistId: data.id });
+    const { content, images } = extractInlineImages(rawContent);
+    window.MDE.createDoc({ name, content, images: Object.keys(images).length ? images : undefined, gistId: data.id });
     document.getElementById("openGistModal").hidden = true;
     btn.textContent = original;
     showToast(`Opened "${name}" from Gist`, "success");
@@ -291,4 +292,25 @@ function parseGistId(raw: string) {
 function gistFilename(doc: Doc) {
   const base = (doc.name || "document").trim().replace(/[\\/:*?"<>|]+/g, "-") || "document";
   return `${base}.md`;
+}
+
+// A gist opened here might carry full base64 data URIs inline (e.g. it
+// was published from a doc created before the image-ref system existed,
+// or just pasted in by hand) — every other document in this app keeps
+// image data out of the markdown text itself, referencing it by a short
+// key resolved against doc.images instead (see resolveImageRefs in
+// app.ts). Reconvert on the way in so newly-opened gists match that
+// convention rather than carrying raw base64 in the editor buffer.
+const INLINE_IMAGE_RE = /!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)/g;
+
+function extractInlineImages(content: string): { content: string; images: Record<string, string> } {
+  const images: Record<string, string> = {};
+  let counter = 0;
+  const newContent = content.replace(INLINE_IMAGE_RE, (match, alt, dataUrl) => {
+    counter++;
+    const ref = `img-${Date.now().toString(36)}-${counter}`;
+    images[ref] = dataUrl;
+    return `![${alt}](${ref})`;
+  });
+  return { content: newContent, images };
 }

@@ -199,12 +199,35 @@ html, body {
   color: var(--text);
   min-width: 80px;
   max-width: 260px;
+  /* Actual width is set in JS (see app.js resizeDocTitle) by measuring
+     #docTitleMirror — min/max-width above still clamp it either way.
+     border-box so the width JS sets (mirror.offsetWidth, which already
+     includes padding+border) lines up directly with this element's own
+     offsetWidth instead of needing padding/border math on both sides. */
+  box-sizing: border-box;
 }
 
 #docTitle:hover, #docTitle:focus {
   border-color: var(--border);
   background: var(--bg);
   outline: none;
+}
+
+/* Invisible twin of #docTitle used purely to measure text width — must
+   match its font/padding exactly (border included, since content-box
+   sizing makes width JS sets apply to content only, but the mirror is
+   measured including padding via its own box). */
+#docTitleMirror {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+  top: -9999px;
+  left: -9999px;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border: 1px solid transparent;
 }
 
 #saveStatus {

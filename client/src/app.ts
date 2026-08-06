@@ -90,7 +90,6 @@ function hello() {
     activeId = localStorage.getItem(STORAGE_ACTIVE) || docs[0].id;
     if (!docs.find((d) => d.id === activeId)) activeId = docs[0].id;
 
-    initTheme();
     initEditor();
     initImageUploads();
     initToolbar();
@@ -102,7 +101,6 @@ function hello() {
     initImagesManager();
     initLinkModal();
     initMenuBar();
-    initSettingsMenu();
     initShortcutsModal();
     initGithubSignInModal();
     initModalEscapeKey();
@@ -124,29 +122,24 @@ function hello() {
   function initModalEscapeKey() {
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
-      document.querySelectorAll(".modal-backdrop:not([hidden])").forEach((m) => {
+      // [data-svelte-modal] backdrops (e.g. Settings) manage their own
+      // `hidden`-equivalent as reactive component state, not the DOM
+      // `hidden` attribute — mutating that attribute directly from outside
+      // wouldn't tell the component anything changed, leaving its state
+      // out of sync with the DOM. Those components listen for Escape
+      // themselves instead (see Settings.svelte).
+      document.querySelectorAll(".modal-backdrop:not([hidden]):not([data-svelte-modal])").forEach((m) => {
         (m as HTMLElement & { hidden: boolean }).hidden = true;
       });
     });
   }
 
-  // ---------- Theme ----------
-  function initTheme() {
-    const saved = localStorage.getItem(STORAGE_THEME) || "light";
-    setTheme(saved);
-    document.getElementById("themeToggle").addEventListener("click", () => {
-      const cur = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-      setTheme(cur);
-    });
-  }
-
-  function setTheme(theme: string) {
-    document.documentElement.setAttribute("data-theme", theme);
-    document.getElementById("themeIconUse").setAttribute("href", theme === "dark" ? "#icon-sun" : "#icon-moon");
-    document.getElementById("themeToggleLabel").textContent = theme === "dark" ? "Light mode" : "Dark mode";
-    localStorage.setItem(STORAGE_THEME, theme);
-    if (cm) cm.setOption("theme", theme === "dark" ? "material-darker" : "default");
-  }
+  // Theme is now owned by the Settings Svelte component (see
+  // client/src/components/Settings.svelte) — it applies the saved theme to
+  // <html> on mount, which happens before this module's own init() runs
+  // (Settings mounts eagerly in main.ts, not gated behind
+  // DOMContentLoaded). initEditor() below still reads localStorage
+  // directly for CodeMirror's own initial theme option.
 
   // ---------- Editor (CodeMirror) ----------
   function initEditor() {
@@ -910,19 +903,6 @@ function hello() {
     });
   }
 
-  // ---------- Settings (theme + GitHub account) ----------
-  function initSettingsMenu() {
-    const modal = document.getElementById("settingsModal");
-    document.getElementById("settingsBtn").addEventListener("click", () => {
-      modal.hidden = false;
-    });
-    document.getElementById("settingsModalCloseBtn").addEventListener("click", () => {
-      modal.hidden = true;
-    });
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.hidden = true;
-    });
-  }
 
   // Shared by gist.ts (Publish to Gist) and collab.ts (Share) — both gate a
   // feature behind GitHub sign-in and pop this same modal when signed out.

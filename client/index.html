@@ -492,25 +492,9 @@
   </div>
 </div>
 
-<!-- Settings -->
-<div id="settingsModal" class="modal-backdrop" hidden>
-  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
-    <h2 id="settingsModalTitle"><svg class="icon"><use href="#icon-settings"></use></svg> Settings</h2>
-    <div class="menu-section-label">Appearance</div>
-    <button id="themeToggle" type="button" class="settings-row"><svg class="icon"><use id="themeIconUse" href="#icon-moon"></use></svg> <span id="themeToggleLabel">Dark mode</span></button>
-    <div class="menu-divider"></div>
-    <div class="menu-section-label">GitHub</div>
-    <div class="share-row">
-      <span id="gistStatusDot" class="status-dot status-idle"></span>
-      <span id="gistStatusText">Not connected</span>
-    </div>
-    <button id="gistSignInBtn" class="secondary-btn" type="button"><svg class="icon"><use href="#icon-github"></use></svg> Sign in with GitHub</button>
-    <button id="gistDisconnectBtn" class="secondary-btn" type="button" hidden><svg class="icon"><use href="#icon-log-out"></use></svg> Disconnect</button>
-    <div class="modal-actions">
-      <button id="settingsModalCloseBtn" class="secondary-btn" type="button">Close</button>
-    </div>
-  </div>
-</div>
+<!-- Settings — Svelte component, mounted in main.ts (first component of the
+     phase-3 migration; see client/src/components/Settings.svelte) -->
+<div id="settings-mount"></div>
 
 <!-- Generic GitHub sign-in gate, reused by Publish-to-Gist and Share -->
 <div id="githubSignInModal" class="modal-backdrop" hidden>

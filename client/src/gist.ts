@@ -8,6 +8,7 @@
 // /api/gist/* + /api/auth/github/* endpoints.
 import type { Doc } from "./types";
 import "./types";
+import { githubUsername as githubUsernameStore } from "./stores/github";
 
 let connectedUsername: string | null = null;
 
@@ -22,12 +23,10 @@ window.MDE.githubSessionReady = checkSession();
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
-  document.getElementById("gistSignInBtn").addEventListener("click", () => {
-    window.MDE.openGithubSignInPopup();
-  });
-  document.getElementById("gistDisconnectBtn").addEventListener("click", () => {
-    location.href = "/api/auth/github/logout";
-  });
+  // Sign-in/disconnect buttons live in Settings.svelte now, which drives
+  // them itself (window.MDE.openGithubSignInPopup() / the logout redirect)
+  // — this file only needs to keep the underlying session state (below)
+  // in sync via the githubUsername store, which Settings subscribes to.
   document.getElementById("menuPublishGist").addEventListener("click", publish);
   document.getElementById("gistOpenBtn").addEventListener("click", openGist);
   document.getElementById("gistOpenInput").addEventListener("keydown", (e) => {
@@ -67,16 +66,8 @@ async function checkSession() {
 
 function render() {
   window.MDE.githubUsername = connectedUsername;
-  const signInBtn = document.getElementById("gistSignInBtn");
-  const disconnectBtn = document.getElementById("gistDisconnectBtn");
+  githubUsernameStore.set(connectedUsername); // Settings.svelte's status display
   const connected = !!connectedUsername;
-  signInBtn.hidden = connected;
-  disconnectBtn.hidden = !connected;
-
-  const dot = document.getElementById("gistStatusDot");
-  const text = document.getElementById("gistStatusText");
-  dot.className = `status-dot status-${connected ? "shared" : "idle"}`;
-  text.textContent = connected ? `Signed in as ${connectedUsername}` : "Not connected";
 
   // Signed out: File menu shows a plain "Publish to Gist" row that opens a
   // sign-in prompt. Signed in: swap to the real Publish submenu.

@@ -26,7 +26,7 @@ const COLORS = ["#e64980", "#f76707", "#f59f00", "#40c057", "#12b886", "#228be6"
 export const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
 const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment", editor: "edit" };
 export const ROLE_TO_SEGMENT: Record<string, string> = { viewer: "view", reviewer: "review", editor: "edit" };
-export const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted", role: "viewer", invited: [] };
+export const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] };
 
 const room = {
   id: null as string | null,
@@ -113,7 +113,10 @@ async function joinSharedLink(roomId: string) {
 
 function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): string | null {
   if (username && access.owner === username) return "editor";
-  if (access.generalAccess === "anyone") return access.role;
+  if (access.generalAccess === "anyone") {
+    if (access.requireAccount && !username) return null;
+    return access.role;
+  }
   if (!username) return null;
   if (access.invited.includes(username)) return "editor";
   return null;
@@ -529,13 +532,23 @@ export function closeShareModal() {
   shareModalOpen.set(false);
 }
 
+export type AccessMode = "restricted" | "anyone-account" | "anyone-link";
+
+const ACCESS_MODE_TOAST: Record<AccessMode, string> = {
+  restricted: "Access restricted to invited people",
+  "anyone-account": "Anyone with a GitHub account and the link can now access",
+  "anyone-link": "Anyone with the link can now access, no account needed",
+};
+
 // Returns false on failure so the component can revert its own optimistic
-// <select> value (mirrors the old accessSelect change handler's behavior).
-export async function setGeneralAccess(wantAnyone: boolean, fallbackRole: string): Promise<boolean> {
+// <select> value.
+export async function setAccessMode(mode: AccessMode, fallbackRole: string): Promise<boolean> {
   const doc = window.MDE.getActiveDoc();
   if (!doc) return false;
+  const wantAnyone = mode !== "restricted";
   const access = await putAccess(doc.id, {
     generalAccess: wantAnyone ? "anyone" : "restricted",
+    requireAccount: mode === "anyone-account",
     role: fallbackRole || (currentAccess && currentAccess.role) || "viewer",
     invited: currentAccess ? currentAccess.invited : [],
   });
@@ -548,7 +561,7 @@ export async function setGeneralAccess(wantAnyone: boolean, fallbackRole: string
   if (wantAnyone && !room.id) joinRoom(doc.id, { seedFromLocal: true, role: "editor" });
   if (!wantAnyone) teardown();
   syncShareStores();
-  showToast(wantAnyone ? "Anyone with the link can now access this document" : "Access restricted to invited people", "info");
+  showToast(ACCESS_MODE_TOAST[mode], "info");
   return true;
 }
 
@@ -557,6 +570,7 @@ export async function setRole(role: string) {
   if (!doc || !currentAccess) return;
   const access = await putAccess(doc.id, {
     generalAccess: "anyone",
+    requireAccount: currentAccess.requireAccount,
     role,
     invited: currentAccess.invited,
   });
@@ -592,6 +606,7 @@ export async function addPerson(rawUsername: string) {
   const invited = [...new Set([...(currentAccess ? currentAccess.invited : []), username])];
   const access = await putAccess(doc.id, {
     generalAccess: currentAccess ? currentAccess.generalAccess : "restricted",
+    requireAccount: currentAccess ? currentAccess.requireAccount : false,
     role: currentAccess ? currentAccess.role : "viewer",
     invited,
   });
@@ -611,6 +626,7 @@ export async function removeInvite(username: string) {
   const invited = currentAccess.invited.filter((u) => u !== username);
   const access = await putAccess(doc.id, {
     generalAccess: currentAccess.generalAccess,
+    requireAccount: currentAccess.requireAccount,
     role: currentAccess.role,
     invited,
   });

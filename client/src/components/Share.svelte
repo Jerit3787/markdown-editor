@@ -4,7 +4,7 @@
   import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "../stores/share";
   import {
     closeShareModal,
-    setGeneralAccess,
+    setAccessMode,
     setRole,
     buildShareLink,
     addPerson,
@@ -12,6 +12,7 @@
     colorForUsername,
     ROLE_LABELS,
     DEFAULT_ACCESS,
+    type AccessMode,
   } from "../collab";
   import { showToast } from "../stores/toast";
 
@@ -22,11 +23,16 @@
 
   const access = $derived($shareAccess || DEFAULT_ACCESS);
   const isAnyone = $derived(access.generalAccess === "anyone");
+  const accessMode: AccessMode = $derived(
+    !isAnyone ? "restricted" : access.requireAccount ? "anyone-account" : "anyone-link"
+  );
   const linkDisabled = $derived(!isAnyone && access.invited.length === 0);
   const hint = $derived(
-    isAnyone
-      ? `Anyone on the internet with this link can ${ROLE_VERBS[access.role] || "edit"}`
-      : "Only people with access can open with the link"
+    accessMode === "anyone-link"
+      ? `Anyone with this link can ${ROLE_VERBS[access.role] || "edit"}, no account needed`
+      : accessMode === "anyone-account"
+        ? `Anyone with a GitHub account and this link can ${ROLE_VERBS[access.role] || "edit"}`
+        : "Only people with access can open with the link"
   );
 
   interface PersonRow {
@@ -58,11 +64,11 @@
     return (name || "?").trim().charAt(0).toUpperCase();
   }
 
-  async function onAccessChange(e: Event) {
+  async function onAccessModeChange(e: Event) {
     const select = e.target as HTMLSelectElement;
-    const wantAnyone = select.value === "anyone";
-    const ok = await setGeneralAccess(wantAnyone, access.role);
-    if (!ok) select.value = wantAnyone ? "restricted" : "anyone"; // revert on failure
+    const mode = select.value as AccessMode;
+    const ok = await setAccessMode(mode, access.role);
+    if (!ok) select.value = accessMode; // revert on failure
   }
 
   function onRoleChange(e: Event) {
@@ -146,9 +152,10 @@
       <div class="share-access-row" class:active={isAnyone}>
         <span class="share-access-icon"><svg class="icon"><use href={isAnyone ? "#icon-globe" : "#icon-lock"}></use></svg></span>
         <div class="share-access-text">
-          <select class="share-access-select" aria-label="General access" value={isAnyone ? "anyone" : "restricted"} onchange={onAccessChange}>
+          <select class="share-access-select" aria-label="General access" value={accessMode} onchange={onAccessModeChange}>
             <option value="restricted">Restricted</option>
-            <option value="anyone">Anyone with the link</option>
+            <option value="anyone-account">Anyone with an account</option>
+            <option value="anyone-link">Anyone with the link</option>
           </select>
           <span class="modal-hint">{hint}</span>
         </div>

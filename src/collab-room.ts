@@ -26,13 +26,18 @@ type Role = "viewer" | "reviewer" | "editor";
 interface AccessRecord {
   owner: string | null;
   generalAccess: "restricted" | "anyone";
+  // Only meaningful when generalAccess is "anyone" — false (default)
+  // means a fully public link, no account needed; true means any signed
+  // -in GitHub account works without being individually invited.
+  requireAccount: boolean;
   role: Role;
   invited: string[];
 }
 
 // username is null for anonymous sessions — only possible when the room's
-// generalAccess is "anyone" (see authorize()); restricted rooms always
-// require a real signed-in identity to check against owner/invited.
+// generalAccess is "anyone" and requireAccount is false (see authorize());
+// restricted rooms, and "anyone" rooms with requireAccount set, always
+// require a real signed-in identity.
 type AuthResult = { ok: true; username: string | null; role: Role } | { ok: false; status: number; message: string };
 
 interface SessionInfo {
@@ -41,7 +46,7 @@ interface SessionInfo {
   awarenessIds: Set<number>;
 }
 
-const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted", role: "viewer", invited: [] };
+const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] };
 
 // One CollabRoom instance == one shared document, addressed by the
 // document's own client-generated id (so a share link is stable from the
@@ -132,10 +137,13 @@ export class CollabRoom {
       return { ok: true, username: session.username, role: "editor" };
     }
     if (access.generalAccess === "anyone") {
-      // A public link needs no account at all — session may be null here.
-      // Restricted (invite-only) rooms below this still require a real
-      // signed-in identity, since that's the only way to check the
-      // invited list.
+      if (access.requireAccount && (!session || !session.username)) {
+        return { ok: false, status: 401, message: "Sign in with GitHub to join this document." };
+      }
+      // A public link (requireAccount false) needs no account at all —
+      // session may be null here. Restricted (invite-only) rooms below
+      // this still require a real signed-in identity, since that's the
+      // only way to check the invited list.
       return { ok: true, username: session ? session.username : null, role: access.role };
     }
     if (!session || !session.username) {
@@ -157,7 +165,7 @@ export class CollabRoom {
       // request stream's lifetime to the incoming fetch call and it can go
       // away once other async work (cookie decryption, storage reads) has
       // run first.
-      let body: { generalAccess?: unknown; role?: unknown; invited?: unknown };
+      let body: { generalAccess?: unknown; requireAccount?: unknown; role?: unknown; invited?: unknown };
       try {
         body = await request.json();
       } catch (err) {
@@ -175,6 +183,7 @@ export class CollabRoom {
       const next: AccessRecord = {
         owner: access.owner || session.username,
         generalAccess: body.generalAccess === "anyone" ? "anyone" : "restricted",
+        requireAccount: body.requireAccount === true,
         role: (["viewer", "reviewer", "editor"] as const).includes(body.role as Role) ? (body.role as Role) : "viewer",
         invited: Array.isArray(body.invited)
           ? [...new Set(body.invited.map((u) => String(u).trim()).filter(Boolean))].slice(0, 100)

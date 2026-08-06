@@ -1,6 +1,10 @@
 export interface AccessRecord {
   owner: string | null;
   generalAccess: "restricted" | "anyone";
+  // Only meaningful when generalAccess is "anyone" — false (default)
+  // means a fully public link, no account needed; true means any signed
+  // -in GitHub account works without being individually invited.
+  requireAccount: boolean;
   role: string;
   invited: string[];
 }

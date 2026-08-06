@@ -4,3 +4,4 @@ node_modules/
 *.log
 .claude/
 docs/
+.dev.vars

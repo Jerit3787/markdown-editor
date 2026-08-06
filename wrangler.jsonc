@@ -20,9 +20,12 @@
 
   // Serves the static site (public/) for any request the Worker doesn't
   // explicitly handle itself (i.e. everything except /api/collab/*).
+  // single-page-application fallback serves index.html for pretty share
+  // URLs like /d/<docId>/edit that aren't real files (see js/collab.js).
   "assets": {
     "directory": "./public",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
   },
 
   // One Durable Object instance per collaboration room, holding that room's

@@ -8,6 +8,14 @@
 // /api/gist/* + /api/auth/github/* endpoints.
 let connectedUsername = null;
 
+// Kicked off here at module top-level — not inside init()/DOMContentLoaded
+// — specifically so it's guaranteed to exist before collab.js's own
+// DOMContentLoaded handler (which awaits it) runs. Deferred module scripts
+// always finish their top-level code before ANY DOMContentLoaded listener
+// fires, regardless of which script registered its listener first, so this
+// ordering is safe where doing it inside init() was not.
+window.MDE.githubSessionReady = checkSession();
+
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
@@ -25,16 +33,7 @@ function init() {
 
   document.getElementById("menuPublishSignedOut").addEventListener("click", () => {
     closeFileMenu();
-    document.getElementById("gistLoginModal").hidden = false;
-  });
-  document.getElementById("gistLoginModalCancelBtn").addEventListener("click", () => {
-    document.getElementById("gistLoginModal").hidden = true;
-  });
-  document.getElementById("gistLoginModalSignInBtn").addEventListener("click", () => {
-    location.href = "/api/auth/github/login";
-  });
-  document.getElementById("gistLoginModal").addEventListener("click", (e) => {
-    if (e.target.id === "gistLoginModal") e.target.hidden = true;
+    window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue.");
   });
 
   // collab.js already claims onActiveDocChanged — chain onto it rather than
@@ -44,8 +43,6 @@ function init() {
     if (existing) existing(doc);
     render();
   };
-
-  checkSession();
 }
 
 async function checkSession() {
@@ -56,13 +53,11 @@ async function checkSession() {
   } catch (err) {
     connectedUsername = null;
   }
-  if (connectedUsername && window.MDE.applyGithubUsername) {
-    window.MDE.applyGithubUsername(connectedUsername);
-  }
   render();
 }
 
 function render() {
+  window.MDE.githubUsername = connectedUsername;
   const signInBtn = document.getElementById("gistSignInBtn");
   const disconnectBtn = document.getElementById("gistDisconnectBtn");
   const connected = !!connectedUsername;
@@ -99,7 +94,7 @@ function closeFileMenu() {
 async function publish() {
   if (!connectedUsername) {
     closeFileMenu();
-    document.getElementById("gistLoginModal").hidden = false;
+    window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue.");
     return;
   }
   const doc = window.MDE.getActiveDoc();

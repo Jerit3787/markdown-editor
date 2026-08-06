@@ -102,8 +102,9 @@ html, body {
    but would push these menus off-screen to the left). */
 #menuBar .dropdown-menu { left: 0; right: auto; }
 
-/* :not(...) excludes gistOpenBtn (.secondary-btn) — that one keeps its
-   real button styling, same reasoning as the base .dropdown-menu rule. */
+/* :not(...) leaves any .secondary-btn menu items with their own real
+   button styling instead of the flattened menu-row look, same reasoning
+   as the base .dropdown-menu rule. */
 #menuBar .dropdown-menu button:not(.secondary-btn),
 #menuBar .dropdown-menu a.menu-link-item {
   display: flex;
@@ -523,6 +524,12 @@ html, body {
 .image-item .image-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .image-item .image-size { font-size: 11.5px; color: var(--text-dim); }
 .image-item .icon-btn { flex-shrink: 0; }
+
+.gist-item { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
+.gist-item .gist-meta { flex: 1; min-width: 0; }
+.gist-item .gist-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gist-item .gist-date { font-size: 11.5px; color: var(--text-dim); }
+.gist-item .secondary-btn { flex-shrink: 0; width: auto; margin-bottom: 0; }
 
 .secondary-btn {
   background: var(--bg-alt);

@@ -7,6 +7,7 @@ import {
   handleGistCreate,
   handleGistUpdate,
   handleGistGet,
+  handleGistList,
 } from "./github-auth.js";
 import type { Env } from "./env";
 
@@ -39,6 +40,7 @@ export default {
     if (url.pathname === "/api/auth/github/me") return handleMe(request, env);
 
     if (url.pathname === "/api/gist" && request.method === "POST") return handleGistCreate(request, env);
+    if (url.pathname === "/api/gists" && request.method === "GET") return handleGistList(request, env);
     const gistMatch = url.pathname.match(GIST_PATH);
     if (gistMatch && request.method === "PATCH") return handleGistUpdate(request, env, gistMatch[1]!);
     if (gistMatch && request.method === "GET") return handleGistGet(request, env, gistMatch[1]!);

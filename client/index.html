@@ -296,11 +296,7 @@
               <button id="menuOpenLocal" type="button"><svg class="icon"><use href="#icon-upload"></use></svg> From this device</button>
               <input id="importInput" type="file" accept=".md,.markdown,.txt" hidden>
               <div class="menu-divider"></div>
-              <div class="menu-section-label">From GitHub Gist</div>
-              <div class="share-row">
-                <input id="gistOpenInput" type="text" placeholder="URL or ID" aria-label="Gist URL or ID">
-                <button id="gistOpenBtn" class="secondary-btn" type="button">Open</button>
-              </div>
+              <button id="menuOpenGist" type="button"><svg class="icon"><use href="#icon-github"></use></svg> From GitHub Gist...</button>
             </div>
           </div>
 
@@ -534,6 +530,30 @@
     <p id="imagesEmptyHint" class="modal-hint">No images in this document yet. Paste, drop, or use the toolbar 🖼 button to add one.</p>
     <div class="modal-actions">
       <button id="imagesCloseBtn" class="secondary-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Open from GitHub Gist -->
+<div id="openGistModal" class="modal-backdrop" hidden>
+  <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="openGistModalTitle">
+    <h2 id="openGistModalTitle"><svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Gist</h2>
+
+    <label class="modal-field">
+      <span>Gist URL or ID</span>
+      <div class="share-row">
+        <input id="gistOpenInput" type="text" placeholder="https://gist.github.com/... or ID" aria-label="Gist URL or ID">
+        <button id="gistOpenBtn" class="secondary-btn" type="button">Open</button>
+      </div>
+    </label>
+
+    <div class="menu-divider"></div>
+    <div class="menu-section-label">Your Gists</div>
+    <p id="gistListHint" class="modal-hint">Sign in with GitHub to see your own gists here.</p>
+    <div id="gistList" class="images-list"></div>
+
+    <div class="modal-actions">
+      <button id="openGistModalCloseBtn" class="secondary-btn" type="button">Close</button>
     </div>
   </div>
 </div>

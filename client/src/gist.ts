@@ -1,7 +1,9 @@
 // GitHub integration, split across three places in the UI:
 //  - #settingsMenu (behind the gear icon): just sign in/out.
 //  - #fileMenu's "Publish/Update Gist" row: publish the current doc.
-//  - #fileMenu's "From GitHub Gist" row: open one by URL/ID.
+//  - #fileMenu's "From GitHub Gist..." row: opens #openGistModal, which
+//    offers both a URL/ID paste field and (when signed in) a list of the
+//    user's own gists to open with one click.
 // Sign-in is real GitHub OAuth handled by the Worker (src/github-auth.ts)
 // — the access token is encrypted and kept in an HttpOnly cookie
 // server-side; this script never sees it, it just calls our own
@@ -28,10 +30,7 @@ function init() {
   // — this file only needs to keep the underlying session state (below)
   // in sync via the githubUsername store, which Settings subscribes to.
   document.getElementById("menuPublishGist").addEventListener("click", publish);
-  document.getElementById("gistOpenBtn").addEventListener("click", openGist);
-  document.getElementById("gistOpenInput").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") openGist();
-  });
+  initOpenGistModal();
 
   document.getElementById("menuPublishSignedOut").addEventListener("click", () => {
     closeFileMenu();
@@ -137,12 +136,39 @@ async function publish() {
   }
 }
 
-async function openGist() {
+function initOpenGistModal() {
+  const modal = document.getElementById("openGistModal");
+  const closeBtn = document.getElementById("openGistModalCloseBtn");
+  const openBtn = document.getElementById("gistOpenBtn") as HTMLButtonElement;
+  const input = document.getElementById("gistOpenInput") as HTMLInputElement;
+
+  document.getElementById("menuOpenGist").addEventListener("click", () => {
+    closeFileMenu();
+    input.value = "";
+    modal.hidden = false;
+    input.focus();
+    loadGistList();
+  });
+  closeBtn.addEventListener("click", () => { modal.hidden = true; });
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.hidden = true; });
+
+  openBtn.addEventListener("click", () => openGistFromInput());
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") openGistFromInput();
+  });
+}
+
+function openGistFromInput() {
   const input = document.getElementById("gistOpenInput") as HTMLInputElement;
   const id = parseGistId(input.value.trim());
   if (!id) return;
+  openGistById(id, document.getElementById("gistOpenBtn") as HTMLButtonElement);
+}
 
-  const btn = document.getElementById("gistOpenBtn") as HTMLButtonElement;
+// Shared by both the URL/ID field and clicking a row in "Your Gists" — btn
+// is whichever control triggered it, so each entry point gets its own
+// Opening…/Failed busy indicator without duplicating that logic.
+async function openGistById(id: string, btn: HTMLButtonElement) {
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = "Opening…";
@@ -156,8 +182,7 @@ async function openGist() {
     if (!file) throw new Error("Gist has no files");
     const content = file.truncated ? await fetchRaw(file.raw_url) : file.content;
     window.MDE.createDoc({ name: file.filename.replace(/\.(md|markdown)$/i, ""), content, gistId: data.id });
-    input.value = "";
-    closeFileMenu();
+    document.getElementById("openGistModal").hidden = true;
     btn.textContent = original;
   } catch (err) {
     btn.textContent = "Failed";
@@ -167,6 +192,75 @@ async function openGist() {
   } finally {
     btn.disabled = false;
   }
+}
+
+// The user's own gists, fetched fresh every time the modal opens (not
+// cached — could go stale between opens, e.g. after publishing a new one
+// from this same session) and filtered down to markdown-containing ones
+// since a gist can hold any file type.
+async function loadGistList() {
+  const hint = document.getElementById("gistListHint");
+  const list = document.getElementById("gistList");
+  list.innerHTML = "";
+
+  if (!connectedUsername) {
+    hint.textContent = "Sign in with GitHub to see your own gists here.";
+    hint.hidden = false;
+    return;
+  }
+
+  hint.textContent = "Loading your gists…";
+  hint.hidden = false;
+
+  try {
+    const res = await fetch("/api/gists");
+    if (!res.ok) throw new Error(await errorMessage(res));
+    const gists: any[] = await res.json();
+    const withMd = gists.filter((g) => Object.keys(g.files || {}).some((name) => /\.(md|markdown)$/i.test(name)));
+    if (withMd.length === 0) {
+      hint.textContent = "No markdown gists found.";
+      return;
+    }
+    hint.hidden = true;
+    renderGistList(withMd);
+  } catch (err) {
+    hint.textContent = "Couldn't load your gists.";
+  }
+}
+
+function renderGistList(gists: any[]) {
+  const list = document.getElementById("gistList");
+  list.innerHTML = "";
+  gists.forEach((gist) => {
+    const filenames = Object.keys(gist.files || {});
+    const mdName = filenames.find((name) => /\.(md|markdown)$/i.test(name)) || filenames[0];
+    const item = document.createElement("div");
+    item.className = "gist-item";
+    item.innerHTML = `
+      <div class="gist-meta">
+        <div class="gist-name">${escapeHtml(gist.description || mdName || "Untitled gist")}</div>
+        <div class="gist-date">Updated ${escapeHtml(formatGistDate(gist.updated_at))}</div>
+      </div>
+      <button class="secondary-btn" type="button">Open</button>
+    `;
+    const openRowBtn = item.querySelector("button") as HTMLButtonElement;
+    openRowBtn.addEventListener("click", () => openGistById(gist.id, openRowBtn));
+    list.appendChild(item);
+  });
+}
+
+function formatGistDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  } catch (err) {
+    return "";
+  }
+}
+
+function escapeHtml(str: string) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 async function fetchRaw(url: string) {

@@ -365,6 +365,7 @@ function hello() {
     window.MDE.onBeforeDocLoad && window.MDE.onBeforeDocLoad();
     cm.setValue(doc.content || "");
     document.getElementById("docTitle").value = doc.name || "Untitled";
+    resizeDocTitle();
     cm.clearHistory();
     setTimeout(() => cm.refresh(), 0);
     setSaveStatus(savedLabel(doc));
@@ -450,7 +451,19 @@ function hello() {
       doc.name = e.target.value || "Untitled";
       renderDocList();
       scheduleSave();
+      resizeDocTitle();
     });
+    resizeDocTitle();
+  }
+
+  // #docTitle grows with its content (min/max-width still clamp it, see
+  // css) instead of staying a fixed size — measured via an identically
+  // styled, invisible mirror span since inputs don't size to their value.
+  function resizeDocTitle() {
+    const input = document.getElementById("docTitle");
+    const mirror = document.getElementById("docTitleMirror");
+    mirror.textContent = input.value || input.placeholder || "";
+    input.style.width = mirror.offsetWidth + "px";
   }
 
   function runCmd(cmd) {

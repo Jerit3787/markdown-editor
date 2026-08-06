@@ -17,15 +17,36 @@
   import { showToast } from "../stores/toast";
 
   const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment", editor: "edit" };
+  const ACCESS_MODE_LABEL: Record<AccessMode, string> = {
+    restricted: "Restricted",
+    "anyone-account": "Anyone with an account",
+    "anyone-link": "Anyone with the link",
+  };
 
   let addPeopleValue = $state("");
   let copied = $state(false);
+  let accessSelectEl: HTMLSelectElement | undefined = $state();
+  let accessMirrorEl: HTMLSpanElement | undefined = $state();
 
   const access = $derived($shareAccess || DEFAULT_ACCESS);
   const isAnyone = $derived(access.generalAccess === "anyone");
   const accessMode: AccessMode = $derived(
     !isAnyone ? "restricted" : access.requireAccount ? "anyone-account" : "anyone-link"
   );
+
+  // Native <select> sizes to its widest <option> regardless of which one
+  // is selected — same auto-width-via-hidden-mirror technique app.ts uses
+  // for #docTitle, so the control visually matches whichever of the three
+  // access-mode labels is actually showing instead of always reserving
+  // room for "Anyone with an account" (the longest).
+  $effect(() => {
+    if (!accessMirrorEl || !accessSelectEl) return;
+    accessMirrorEl.textContent = ACCESS_MODE_LABEL[accessMode];
+    // +22px reserves room for the native dropdown arrow, which the mirror
+    // itself doesn't render (appearance:auto draws it inside the select's
+    // own box, not as separate content the text-only mirror would count).
+    accessSelectEl.style.width = `${accessMirrorEl.offsetWidth + 22}px`;
+  });
   const linkDisabled = $derived(!isAnyone && access.invited.length === 0);
   const hint = $derived(
     accessMode === "anyone-link"
@@ -152,11 +173,12 @@
       <div class="share-access-row" class:active={isAnyone}>
         <span class="share-access-icon"><svg class="icon"><use href={isAnyone ? "#icon-globe" : "#icon-lock"}></use></svg></span>
         <div class="share-access-text">
-          <select class="share-access-select" aria-label="General access" value={accessMode} onchange={onAccessModeChange}>
+          <select bind:this={accessSelectEl} class="share-access-select" aria-label="General access" value={accessMode} onchange={onAccessModeChange}>
             <option value="restricted">Restricted</option>
             <option value="anyone-account">Anyone with an account</option>
             <option value="anyone-link">Anyone with the link</option>
           </select>
+          <span bind:this={accessMirrorEl} class="share-access-mirror" aria-hidden="true"></span>
           <span class="modal-hint">{hint}</span>
         </div>
         <select class="share-role-select" aria-label="Access level for people with the link" hidden={!isAnyone} value={access.role} onchange={onRoleChange}>

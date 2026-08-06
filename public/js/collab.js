@@ -339,7 +339,7 @@ function setUserName(name) {
 
 function setupShareUI() {
   const shareBtn = document.getElementById("shareBtn");
-  const shareMenu = document.getElementById("shareMenu");
+  const shareModal = document.getElementById("shareModal");
   const startBtn = document.getElementById("startShareBtn");
   const stopBtn = document.getElementById("stopShareBtn");
   const copyBtn = document.getElementById("copyShareLink");
@@ -347,7 +347,15 @@ function setupShareUI() {
 
   nameInput.value = user.name;
 
-  window.MDE.toggleDropdown(shareBtn, shareMenu);
+  shareBtn.addEventListener("click", () => {
+    shareModal.hidden = false;
+  });
+  document.getElementById("shareModalCloseBtn").addEventListener("click", () => {
+    shareModal.hidden = true;
+  });
+  shareModal.addEventListener("click", (e) => {
+    if (e.target === shareModal) shareModal.hidden = true;
+  });
 
   startBtn.addEventListener("click", () => {
     const roomId = genRoomId();

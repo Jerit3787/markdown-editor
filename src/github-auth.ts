@@ -135,6 +135,13 @@ export async function handleGistUpdate(request: Request, env: Env, id: string): 
   return proxyJson(res);
 }
 
+export async function handleGistList(request: Request, env: Env): Promise<Response> {
+  const session = await getSession(request, env);
+  if (!session) return new Response("Not signed in", { status: 401 });
+  const res = await fetch(`${API}/gists?per_page=100`, { headers: ghHeaders(session.token) });
+  return proxyJson(res);
+}
+
 export async function handleGistGet(request: Request, env: Env, id: string): Promise<Response> {
   const session = await getSession(request, env);
   const headers = session ? ghHeaders(session.token) : { Accept: "application/vnd.github+json", "User-Agent": USER_AGENT };

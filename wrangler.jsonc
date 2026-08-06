@@ -3,6 +3,11 @@
   "name": "markdown-editor",
   "main": "src/worker.js",
   "compatibility_date": "2025-08-01",
+  "workers_dev": false,
+
+  "routes": [
+    { "pattern": "editor.danplace.tech", "custom_domain": true }
+  ],
 
   // Serves the static site (public/) for any request the Worker doesn't
   // explicitly handle itself (i.e. everything except /api/collab/*).

@@ -64,6 +64,8 @@ html, body {
 
 #moreBtn { display: none; }
 
+.tool-label { display: none; }
+
 #brand {
   font-weight: 600;
   font-size: 14px;
@@ -101,6 +103,22 @@ html, body {
 }
 
 .spacer { flex: 1; }
+
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.2em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.icon-btn .icon { width: 18px; height: 18px; vertical-align: middle; }
+#toolbar .icon { width: 15px; height: 15px; }
+#brand img { width: 16px; height: 16px; vertical-align: -3px; margin-right: 2px; }
 
 .icon-btn {
   border: none;
@@ -548,7 +566,6 @@ html, body {
     border-radius: 8px;
     font-size: 16px;
   }
-  .tool-label { display: none; }
   .topbar-tools .tool-label { display: inline; font-size: 14px; font-weight: 600; }
 
   /* Nested share/export menus flow inline in the panel instead of

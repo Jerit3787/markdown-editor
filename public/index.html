@@ -50,12 +50,126 @@
 </head>
 <body>
 
+<!-- Icon sprite (Lucide, ISC license: https://lucide.dev) — inlined once,
+     referenced everywhere via <svg class="icon"><use href="#icon-name"/></svg>
+     so every icon renders as a crisp, theme-colored vector instead of a
+     platform-dependent emoji glyph. -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="icon-braces" viewBox="0 0 24 24">
+    <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1" />
+    <path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1" />
+  </symbol>
+  <symbol id="icon-chevron-down" viewBox="0 0 24 24">
+    <path d="m6 9 6 6 6-6" />
+  </symbol>
+  <symbol id="icon-code" viewBox="0 0 24 24">
+    <path d="m16 18 6-6-6-6" />
+    <path d="m8 6-6 6 6 6" />
+  </symbol>
+  <symbol id="icon-copy" viewBox="0 0 24 24">
+    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24">
+    <path d="M12 15V3" />
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <path d="m7 10 5 5 5-5" />
+  </symbol>
+  <symbol id="icon-ellipsis-vertical" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="12" cy="5" r="1" />
+    <circle cx="12" cy="19" r="1" />
+  </symbol>
+  <symbol id="icon-image" viewBox="0 0 24 24">
+    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+    <circle cx="9" cy="9" r="2" />
+    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+  </symbol>
+  <symbol id="icon-link" viewBox="0 0 24 24">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </symbol>
+  <symbol id="icon-list-ordered" viewBox="0 0 24 24">
+    <path d="M11 5h10" />
+    <path d="M11 12h10" />
+    <path d="M11 19h10" />
+    <path d="M4 4h1v5" />
+    <path d="M4 9h2" />
+    <path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" />
+  </symbol>
+  <symbol id="icon-list" viewBox="0 0 24 24">
+    <path d="M3 5h.01" />
+    <path d="M3 12h.01" />
+    <path d="M3 19h.01" />
+    <path d="M8 5h13" />
+    <path d="M8 12h13" />
+    <path d="M8 19h13" />
+  </symbol>
+  <symbol id="icon-menu" viewBox="0 0 24 24">
+    <path d="M4 5h16" />
+    <path d="M4 12h16" />
+    <path d="M4 19h16" />
+  </symbol>
+  <symbol id="icon-moon" viewBox="0 0 24 24">
+    <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+  </symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24">
+    <path d="M5 12h14" />
+    <path d="M12 5v14" />
+  </symbol>
+  <symbol id="icon-quote" viewBox="0 0 24 24">
+    <path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
+    <path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
+  </symbol>
+  <symbol id="icon-square-check" viewBox="0 0 24 24">
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="m9 12 2 2 4-4" />
+  </symbol>
+  <symbol id="icon-strikethrough" viewBox="0 0 24 24">
+    <path d="M16 4H9a3 3 0 0 0-2.83 4" />
+    <path d="M14 12a4 4 0 0 1 0 8H6" />
+    <line x1="4" x2="20" y1="12" y2="12" />
+  </symbol>
+  <symbol id="icon-sun" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2" />
+    <path d="M12 20v2" />
+    <path d="m4.93 4.93 1.41 1.41" />
+    <path d="m17.66 17.66 1.41 1.41" />
+    <path d="M2 12h2" />
+    <path d="M20 12h2" />
+    <path d="m6.34 17.66-1.41 1.41" />
+    <path d="m19.07 4.93-1.41 1.41" />
+  </symbol>
+  <symbol id="icon-table" viewBox="0 0 24 24">
+    <path d="M12 3v18" />
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M3 9h18" />
+    <path d="M3 15h18" />
+  </symbol>
+  <symbol id="icon-upload" viewBox="0 0 24 24">
+    <path d="M12 3v12" />
+    <path d="m17 8-5-5-5 5" />
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+  </symbol>
+  <symbol id="icon-users" viewBox="0 0 24 24">
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <path d="M16 3.128a4 4 0 0 1 0 7.744" />
+    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+    <circle cx="9" cy="7" r="4" />
+  </symbol>
+  <symbol id="icon-x" viewBox="0 0 24 24">
+    <path d="M18 6 6 18" />
+    <path d="m6 6 12 12" />
+  </symbol>
+</svg>
+
 <div id="app">
 
   <!-- Top bar -->
   <header id="topbar">
-    <button id="sidebarToggle" class="icon-btn" title="Toggle documents panel" aria-label="Toggle documents panel">☰</button>
-    <div id="brand">📝 Markdown Editor</div>
+    <button id="sidebarToggle" class="icon-btn" title="Toggle documents panel" aria-label="Toggle documents panel"><svg class="icon"><use href="#icon-menu"></use></svg></button>
+    <div id="brand"><img src="/logo.svg" width="18" height="18" alt=""> Markdown Editor</div>
 
     <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title">
 
@@ -74,10 +188,10 @@
         <button class="view-btn" data-view="preview" title="Preview only">Preview</button>
       </div>
 
-      <button id="themeToggle" class="icon-btn" title="Toggle dark/light theme" aria-label="Toggle theme"><span id="themeIcon">🌙</span><span class="tool-label">Dark mode</span></button>
+      <button id="themeToggle" class="icon-btn" title="Toggle dark/light theme" aria-label="Toggle theme"><svg class="icon"><use id="themeIconUse" href="#icon-moon"></use></svg><span class="tool-label">Dark mode</span></button>
 
       <div class="dropdown">
-        <button id="shareBtn" class="icon-btn" title="Live collaboration" aria-label="Share for live collaboration"><span>👥</span><span class="tool-label">Collaborate</span></button>
+        <button id="shareBtn" class="icon-btn" title="Live collaboration" aria-label="Share for live collaboration"><svg class="icon"><use href="#icon-users"></use></svg><span class="tool-label">Collaborate</span></button>
         <div id="shareMenu" class="dropdown-menu share-menu">
           <div class="share-row">
             <span id="collabStatusDot" class="status-dot status-idle"></span>
@@ -85,7 +199,7 @@
           </div>
           <div class="share-row" id="shareLinkRow" hidden>
             <input id="shareLinkInput" type="text" readonly aria-label="Share link">
-            <button id="copyShareLink" class="secondary-btn" type="button">Copy</button>
+            <button id="copyShareLink" class="secondary-btn" type="button"><svg class="icon"><use href="#icon-copy"></use></svg> <span>Copy</span></button>
           </div>
           <button id="startShareBtn" class="primary-btn" type="button">Start collaborating</button>
           <button id="stopShareBtn" class="secondary-btn" type="button" hidden>Stop sharing</button>
@@ -97,17 +211,17 @@
       </div>
 
       <div class="dropdown">
-        <button id="exportBtn" class="primary-btn">Export ▾</button>
+        <button id="exportBtn" class="primary-btn">Export <svg class="icon"><use href="#icon-chevron-down"></use></svg></button>
         <div id="exportMenu" class="dropdown-menu">
-          <button data-export="md">⬇ Markdown (.md)</button>
-          <button data-export="html">⬇ HTML (.html)</button>
-          <button data-export="pdf">⬇ PDF (.pdf)</button>
-          <button data-export="txt">⬇ Plain text (.txt)</button>
+          <button data-export="md"><svg class="icon"><use href="#icon-download"></use></svg> Markdown (.md)</button>
+          <button data-export="html"><svg class="icon"><use href="#icon-download"></use></svg> HTML (.html)</button>
+          <button data-export="pdf"><svg class="icon"><use href="#icon-download"></use></svg> PDF (.pdf)</button>
+          <button data-export="txt"><svg class="icon"><use href="#icon-download"></use></svg> Plain text (.txt)</button>
         </div>
       </div>
     </div>
 
-    <button id="moreBtn" class="icon-btn" title="More options" aria-label="More options">⋮</button>
+    <button id="moreBtn" class="icon-btn" title="More options" aria-label="More options"><svg class="icon"><use href="#icon-ellipsis-vertical"></use></svg></button>
   </header>
 
   <div id="body">
@@ -116,12 +230,12 @@
     <aside id="sidebar">
       <div id="sidebarHeader">
         <span>Documents</span>
-        <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document">＋</button>
+        <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document"><svg class="icon"><use href="#icon-plus"></use></svg></button>
       </div>
       <ul id="docList"></ul>
       <div id="sidebarFooter">
         <label class="file-import-label">
-          📁 Import .md
+          <svg class="icon"><use href="#icon-upload"></use></svg> Import .md
           <input id="importInput" type="file" accept=".md,.markdown,.txt" hidden>
         </label>
       </div>
@@ -134,23 +248,23 @@
         <div id="toolbar">
           <button data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
           <button data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
-          <button data-cmd="strike" title="Strikethrough">S̶</button>
+          <button data-cmd="strike" title="Strikethrough"><svg class="icon"><use href="#icon-strikethrough"></use></svg></button>
           <span class="sep"></span>
           <button data-cmd="h1" title="Heading 1">H1</button>
           <button data-cmd="h2" title="Heading 2">H2</button>
           <button data-cmd="h3" title="Heading 3">H3</button>
           <span class="sep"></span>
-          <button data-cmd="quote" title="Blockquote">❝</button>
-          <button data-cmd="code" title="Inline code">&lt;/&gt;</button>
-          <button data-cmd="codeblock" title="Code block">{ }</button>
+          <button data-cmd="quote" title="Blockquote"><svg class="icon"><use href="#icon-quote"></use></svg></button>
+          <button data-cmd="code" title="Inline code"><svg class="icon"><use href="#icon-code"></use></svg></button>
+          <button data-cmd="codeblock" title="Code block"><svg class="icon"><use href="#icon-braces"></use></svg></button>
           <span class="sep"></span>
-          <button data-cmd="ul" title="Bullet list">• ―</button>
-          <button data-cmd="ol" title="Numbered list">1. ―</button>
-          <button data-cmd="task" title="Task list">☑</button>
+          <button data-cmd="ul" title="Bullet list"><svg class="icon"><use href="#icon-list"></use></svg></button>
+          <button data-cmd="ol" title="Numbered list"><svg class="icon"><use href="#icon-list-ordered"></use></svg></button>
+          <button data-cmd="task" title="Task list"><svg class="icon"><use href="#icon-square-check"></use></svg></button>
           <span class="sep"></span>
-          <button data-cmd="link" title="Link (Ctrl+K)">🔗</button>
-          <button data-cmd="image" title="Image">🖼</button>
-          <button data-cmd="table" title="Table">▦</button>
+          <button data-cmd="link" title="Link (Ctrl+K)"><svg class="icon"><use href="#icon-link"></use></svg></button>
+          <button data-cmd="image" title="Image"><svg class="icon"><use href="#icon-image"></use></svg></button>
+          <button data-cmd="table" title="Table"><svg class="icon"><use href="#icon-table"></use></svg></button>
           <button data-cmd="hr" title="Horizontal rule">―</button>
         </div>
         <div id="editorWrap"><textarea id="editor"></textarea></div>

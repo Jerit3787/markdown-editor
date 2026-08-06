@@ -105,7 +105,7 @@ function hello() {
 
   function setTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
-    document.getElementById("themeIcon").textContent = theme === "dark" ? "☀️" : "🌙";
+    document.getElementById("themeIconUse").setAttribute("href", theme === "dark" ? "#icon-sun" : "#icon-moon");
     document.querySelector("#themeToggle .tool-label").textContent = theme === "dark" ? "Light mode" : "Dark mode";
     localStorage.setItem(STORAGE_THEME, theme);
     if (cm) cm.setOption("theme", theme === "dark" ? "material-darker" : "default");
@@ -437,7 +437,7 @@ function hello() {
     sorted.forEach((doc) => {
       const li = document.createElement("li");
       li.className = doc.id === activeId ? "active" : "";
-      li.innerHTML = `<span class="doc-name">${escapeHtml(doc.name || "Untitled")}</span><button class="doc-delete" title="Delete">✕</button>`;
+      li.innerHTML = `<span class="doc-name">${escapeHtml(doc.name || "Untitled")}</span><button class="doc-delete" title="Delete"><svg class="icon"><use href="#icon-x"></use></svg></button>`;
       li.addEventListener("click", (e) => {
         if (e.target.closest(".doc-delete")) return;
         switchDoc(doc.id);

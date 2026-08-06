@@ -340,12 +340,13 @@ function setupShareUI() {
     renderShareUI();
   });
 
+  const copyBtnLabel = copyBtn.querySelector("span");
   copyBtn.addEventListener("click", () => {
     const input = document.getElementById("shareLinkInput");
     input.select();
     navigator.clipboard.writeText(input.value).then(() => {
-      copyBtn.textContent = "Copied!";
-      setTimeout(() => (copyBtn.textContent = "Copy"), 1200);
+      copyBtnLabel.textContent = "Copied!";
+      setTimeout(() => (copyBtnLabel.textContent = "Copy"), 1200);
     });
   });
 

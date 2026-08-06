@@ -131,7 +131,12 @@ async function openGist() {
     const content = file.truncated ? await fetchRaw(file.raw_url) : file.content;
     window.MDE.createDoc({ name: file.filename.replace(/\.(md|markdown)$/i, ""), content, gistId: data.id });
     input.value = "";
+    // Close the whole File menu, not just the Open submenu this lives in.
     document.getElementById("fileMenu").classList.remove("open");
+    document.querySelectorAll("#fileMenu .menu-submenu.open").forEach((sub) => {
+      sub.classList.remove("open");
+      sub.querySelector(".menu-submenu-trigger").classList.remove("active");
+    });
     btn.textContent = original;
   } catch (err) {
     btn.textContent = "Failed";

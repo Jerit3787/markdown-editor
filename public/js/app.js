@@ -644,6 +644,32 @@ function hello() {
     menu.addEventListener("click", (e) => e.stopPropagation());
   }
 
+  // Nested flyouts within a single dropdown-menu (e.g. File > Open, Open
+  // Recent, Export). The parent menu already stops outside clicks from
+  // closing it (see toggleDropdown), so this only needs to manage which
+  // submenu, if any, is open within that one parent at a time.
+  function initSubmenus(root) {
+    root.querySelectorAll(".menu-submenu").forEach((sub) => {
+      const trigger = sub.querySelector(".menu-submenu-trigger");
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const willOpen = !sub.classList.contains("open");
+        closeSubmenus(root);
+        if (willOpen) {
+          sub.classList.add("open");
+          trigger.classList.add("active");
+        }
+      });
+    });
+  }
+
+  function closeSubmenus(root) {
+    root.querySelectorAll(".menu-submenu.open").forEach((sub) => {
+      sub.classList.remove("open");
+      sub.querySelector(".menu-submenu-trigger").classList.remove("active");
+    });
+  }
+
   // ---------- Import ----------
   function initImport() {
     document.getElementById("importInput").addEventListener("change", (e) => {
@@ -676,7 +702,11 @@ function hello() {
     toggleDropdown(document.getElementById("helpMenuBtn"), document.getElementById("helpMenu"));
 
     const fileMenu = document.getElementById("fileMenu");
-    const closeFileMenu = () => fileMenu.classList.remove("open");
+    const closeFileMenu = () => {
+      fileMenu.classList.remove("open");
+      closeSubmenus(fileMenu);
+    };
+    initSubmenus(fileMenu);
 
     document.getElementById("menuNewDoc").addEventListener("click", () => {
       document.getElementById("newDocBtn").click();
@@ -751,7 +781,9 @@ function hello() {
       item.innerHTML = `<span class="menu-recent-name">${escapeHtml(doc.name || "Untitled")}</span><span class="menu-recent-time">${formatRelativeTime(doc.updatedAt)}</span>`;
       item.addEventListener("click", () => {
         switchDoc(doc.id);
-        document.getElementById("fileMenu").classList.remove("open");
+        const fileMenu = document.getElementById("fileMenu");
+        fileMenu.classList.remove("open");
+        closeSubmenus(fileMenu);
       });
       list.appendChild(item);
     });
@@ -759,7 +791,16 @@ function hello() {
 
   // ---------- Settings (theme + GitHub account) ----------
   function initSettingsMenu() {
-    toggleDropdown(document.getElementById("settingsBtn"), document.getElementById("settingsMenu"));
+    const modal = document.getElementById("settingsModal");
+    document.getElementById("settingsBtn").addEventListener("click", () => {
+      modal.hidden = false;
+    });
+    document.getElementById("settingsModalCloseBtn").addEventListener("click", () => {
+      modal.hidden = true;
+    });
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.hidden = true;
+    });
   }
 
   function currentFileBase() {

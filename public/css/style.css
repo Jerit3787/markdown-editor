@@ -90,7 +90,11 @@ html, body {
 }
 .menubar-btn:hover, .menubar-btn.active { background: var(--border); }
 
-.menubar-menu { min-width: 250px; }
+/* overflow:visible here (overriding the base .dropdown-menu clip/scroll,
+   which .menu-submenu-panel's own flyouts need to escape via left:100%)
+   is safe: submenus now keep this menu's own content short enough that
+   it never needed the scroll safety net to begin with. */
+.dropdown-menu.menubar-menu { min-width: 250px; max-height: none; overflow: visible; }
 
 /* File/Edit/View/Help sit near the left edge — anchor their menus to the
    trigger's left edge (extending rightward) instead of the default
@@ -118,20 +122,33 @@ html, body {
 #menuBar .dropdown-menu button:not(.secondary-btn):hover,
 #menuBar .dropdown-menu a.menu-link-item:hover { background: var(--accent-dim); color: var(--accent); }
 
-/* The gist-open row (input + button) isn't a menu-item button, and
-   .share-row/.share-menu's input styling is scoped to .share-menu, which
-   the File menu isn't — so it needs its own equivalent here. */
-#menuBar .share-row { display: flex; align-items: center; gap: 8px; padding: 0 14px 8px; }
-#menuBar .share-row input[type="text"] {
-  flex: 1;
-  min-width: 0;
+/* The gist-open row (input + button) isn't a menu-item button — .share-row
+   already handles its layout/input styling generically; this just adds
+   the horizontal inset to line it up with the sibling menu-item buttons. */
+#menuBar .share-row { padding: 0 14px 8px; margin-bottom: 0; }
+
+/* Flyout submenus (File > Open / Open Recent / Export) */
+.menu-submenu { position: relative; }
+.menu-chevron { margin-left: auto; width: 12px; height: 12px; opacity: 0.55; }
+.menu-submenu-trigger.active { background: var(--accent-dim); color: var(--accent); }
+
+.menu-submenu-panel {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -8px;
+  margin-left: 4px;
+  background: var(--bg);
   border: 1px solid var(--border);
-  background: var(--bg-alt);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 12.5px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 230px;
+  max-height: 60vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  z-index: 60;
 }
+.menu-submenu.open .menu-submenu-panel { display: block; }
 
 .menubar-menu kbd {
   margin-left: auto;
@@ -169,17 +186,8 @@ html, body {
 .menu-recent-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
 .menu-recent-empty { font-size: 12.5px; color: var(--text-dim); padding: 6px 14px; }
 
-#brand {
-  font-weight: 600;
-  font-size: 14px;
-  white-space: nowrap;
-  color: var(--text-dim);
-  display: none;
-}
-
-@media (min-width: 700px) {
-  #brand { display: block; }
-}
+#brand { display: flex; align-items: center; flex-shrink: 0; }
+#brand img { display: block; }
 
 #docTitle {
   border: 1px solid transparent;
@@ -221,7 +229,6 @@ html, body {
 
 .icon-btn .icon { width: 18px; height: 18px; vertical-align: middle; }
 #toolbar .icon { width: 15px; height: 15px; }
-#brand img { width: 16px; height: 16px; vertical-align: -3px; margin-right: 2px; }
 
 .icon-btn {
   border: none;
@@ -308,19 +315,17 @@ html, body {
 
 .presence-avatar:first-child { margin-left: 0; }
 
-.share-menu { padding: 12px; width: 260px; }
-
-.share-menu .share-row {
+.share-row {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
 }
 
-.share-menu .share-name-row { margin-bottom: 0; }
-.share-menu .share-name-row label { font-size: 12.5px; color: var(--text-dim); flex-shrink: 0; }
+.share-name-row { margin-bottom: 0; }
+.share-name-row label { font-size: 12.5px; color: var(--text-dim); flex-shrink: 0; }
 
-.share-menu input[type="text"], .share-menu input[type="password"] {
+.share-row input[type="text"], .share-row input[type="password"] {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border);
@@ -331,12 +336,33 @@ html, body {
   font-size: 12.5px;
 }
 
-.share-menu .primary-btn, .share-menu .secondary-btn { width: 100%; margin-bottom: 4px; }
+/* Direct children only — Share/Settings modals have standalone full-width
+   action buttons (Start collaborating, Sign in with GitHub), but this
+   must NOT reach the Cancel/Insert/Close pairs nested one level deeper
+   inside every modal's .modal-actions row. */
+.modal-box > .primary-btn, .modal-box > .secondary-btn { width: 100%; margin-bottom: 4px; }
 
 /* ...except a button sitting inline in a flex .share-row (e.g. the "Copy"
    and "Connect" buttons next to their input) — width: 100% there would
    claim the whole row as its flex-basis and crush its sibling input. */
-.share-menu .share-row .secondary-btn { width: auto; flex-shrink: 0; margin-bottom: 0; }
+.share-row .secondary-btn { width: auto; flex-shrink: 0; margin-bottom: 0; }
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-alt);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+.settings-row:hover { border-color: var(--accent); color: var(--accent); }
 
 .menu-link {
   display: flex;
@@ -676,6 +702,10 @@ html, body {
 
 /* Responsive */
 @media (max-width: 780px) {
+  /* A flyout extending further right would overflow a phone screen —
+     flow it inline (pushes the rest of the menu down) instead. */
+  .menu-submenu-panel { position: static; margin-left: 0; box-shadow: none; border: none; background: var(--bg-alt); border-radius: 6px; margin: 4px 0 4px 16px; }
+
   /* Anchored to #body (its own positioning context, already sized to
      exclude the topbar/footer by the flex layout) instead of a hardcoded
      pixel offset from the viewport, which would break if the topbar's
@@ -706,6 +736,4 @@ html, body {
   #toolbar::-webkit-scrollbar { display: none; }
   #toolbar button { flex-shrink: 0; min-width: 36px; padding: 7px 10px; }
   #toolbar .sep { flex-shrink: 0; }
-
-  .share-menu { width: min(280px, 84vw); }
 }

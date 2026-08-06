@@ -20,6 +20,11 @@ import type { Doc, MDEBridge } from "./types";
   const STORAGE_ACTIVE = "mde:active";
   const STORAGE_THEME = "mde:theme";
   const STORAGE_VIEW = "mde:view";
+  const APP_NAME = "Markdown Editor";
+
+  function updatePageTitle(docName: string) {
+    document.title = docName ? `${APP_NAME} - ${docName}` : APP_NAME;
+  }
 
   const WELCOME = `# Welcome to Markdown Editor
 
@@ -374,6 +379,7 @@ function hello() {
     cm.setValue(doc.content || "");
     (document.getElementById("docTitle") as HTMLInputElement).value = doc.name || "Untitled";
     resizeDocTitle();
+    updatePageTitle(doc.name || "Untitled");
     cm.clearHistory();
     setTimeout(() => cm.refresh(), 0);
     setSaveStatus(savedLabel(doc));
@@ -500,6 +506,7 @@ function hello() {
       renderDocList();
       scheduleSave();
       resizeDocTitle();
+      updatePageTitle(doc.name);
     });
     resizeDocTitle();
   }

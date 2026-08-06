@@ -42,6 +42,7 @@ const room = {
   cursorWidgets: new Map<number, { el: HTMLElement; widget: any }>(),
   cmChangeHandler: null as any,
   cmCursorHandler: null as any,
+  ydocUpdateHandler: null as ((update: Uint8Array, origin: unknown) => void) | null,
 };
 
 let cm: CodeMirror.Editor;
@@ -146,8 +147,26 @@ function joinRoom(roomId: string, { seedFromLocal, role }: { seedFromLocal: bool
   room.awareness = new awarenessProtocol.Awareness(room.ydoc);
 
   bindEditor();
-  if (seedFromLocal) pushLocalContentIntoYText(cm.getValue());
-  if (seedFromLocal) seedImagesIntoRoom();
+  if (seedFromLocal) {
+    pushLocalContentIntoYText(cm.getValue());
+    seedImagesIntoRoom();
+  } else {
+    // Joining an existing room: bindEditor() just set room.lastKnownValue
+    // from the brand-new empty room.ytext, but CodeMirror's actual buffer
+    // may already hold this doc's content (re-opening a share link you've
+    // already visited, reloading the page while on one, or the owner
+    // opening their own link — findDocById in joinSharedLink finds the
+    // cached local copy and loads it before this ever runs). The
+    // upcoming sync response will deliver the room's real content via
+    // applyDiffToCm(room.lastKnownValue, syncedContent) — if the baseline
+    // still says "" while CodeMirror already shows that same content,
+    // the diff inserts a second copy on top instead of a no-op, and the
+    // document doubles in size. Re-baselining against what's actually in
+    // the editor right now (whatever that is) makes the diff correct
+    // either way: a no-op if it already matches, or the real patch if it
+    // doesn't.
+    room.lastKnownValue = cm.getValue();
+  }
 
   cm.setOption("readOnly", role !== "editor");
 
@@ -172,6 +191,7 @@ function teardown() {
     try { room.ws.close(); } catch (e) { /* already closed */ }
   }
   if (room.awareness) room.awareness.destroy();
+  if (room.ydoc && room.ydocUpdateHandler) room.ydoc.off("update", room.ydocUpdateHandler);
   if (room.ydoc) room.ydoc.destroy();
   if (room.ytext && room.cmChangeHandler) cm.off("change", room.cmChangeHandler);
   if (room.cmCursorHandler) cm.off("cursorActivity", room.cmCursorHandler);
@@ -188,6 +208,7 @@ function teardown() {
   room.lastKnownValue = "";
   room.cmChangeHandler = null;
   room.cmCursorHandler = null;
+  room.ydocUpdateHandler = null;
 }
 
 // ---------- CodeMirror <-> Y.Text binding ----------
@@ -200,6 +221,24 @@ function teardown() {
 
 function bindEditor() {
   room.lastKnownValue = room.ytext.toString();
+
+  // Mutating room.ydoc (applyDiffToYText, seedImagesIntoRoom, the
+  // onImageAdded bridge — all "local"-origin transactions) only updates
+  // this client's own in-memory copy. Nothing else ever constructed and
+  // sent a sync message carrying that update afterward, so collaborators
+  // never received any edit made after the initial join/seed — presence
+  // (awareness) broadcasts correctly (see room.awareness.on("update", ...)
+  // below), but actual content never did. The server already has full
+  // broadcast support for this (see handleDocUpdate in collab-room.ts) —
+  // it was purely a missing client-side send.
+  room.ydocUpdateHandler = (update: Uint8Array, origin: unknown) => {
+    if (origin === "server") return; // don't echo back what the server just sent us
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    syncProtocol.writeUpdate(encoder, update);
+    send(encoding.toUint8Array(encoder));
+  };
+  room.ydoc.on("update", room.ydocUpdateHandler);
 
   room.ytext.observe((event, tr) => {
     if (tr.origin === "local") return;

@@ -33,6 +33,9 @@ export interface MDEBridge {
   getEditor(): CodeMirror.Editor;
   getActiveDoc(): Doc | undefined;
   switchDoc(id: string): void;
+  deleteDoc(id: string): void;
+  duplicateDoc(id: string): void;
+  jumpToLine(id: string, line: number): void;
   persistDocs(): void;
   renderDocList(): void;
   refreshSaveStatus(): void;

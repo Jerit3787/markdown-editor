@@ -261,6 +261,9 @@
   <symbol id="icon-chevron-right" viewBox="0 0 24 24">
     <path d="m9 18 6-6-6-6" />
   </symbol>
+  <symbol id="icon-chevron-left" viewBox="0 0 24 24">
+    <path d="m15 18-6-6 6-6" />
+  </symbol>
   <symbol id="icon-history" viewBox="0 0 24 24">
     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
     <path d="M3 3v5h5" />
@@ -273,7 +276,6 @@
   <!-- Top bar: identity/actions row, then a File/Edit/View/Help menu bar -->
   <header id="topbar">
     <div id="topbarRow1" class="topbar-row">
-      <button id="sidebarToggle" class="icon-btn" title="Toggle documents panel" aria-label="Toggle documents panel"><svg class="icon"><use href="#icon-menu"></use></svg></button>
       <div id="brand"><img src="/logo.svg" width="22" height="22" alt="Markdown Editor"></div>
 
       <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title">
@@ -394,6 +396,11 @@
       <ul id="docList"></ul>
       <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden>
     </aside>
+
+    <!-- Floating toggle, Google-Docs style: sits at the sidebar's trailing
+         edge and slides with it, flipping between hamburger (collapsed)
+         and back-arrow (expanded) instead of staying fixed in the topbar. -->
+    <button id="sidebarToggle" class="icon-btn" title="Toggle documents panel" aria-label="Toggle documents panel"><svg class="icon"><use id="sidebarToggleIcon" href="#icon-chevron-left"></use></svg></button>
 
     <!-- Editor + Preview -->
     <main id="main">

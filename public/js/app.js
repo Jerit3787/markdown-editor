@@ -574,13 +574,24 @@ function hello() {
   // ---------- Sidebar / documents ----------
   const isMobile = () => window.matchMedia("(max-width: 780px)").matches;
 
+  function updateSidebarToggleIcon() {
+    const collapsed = document.getElementById("sidebar").classList.contains("collapsed");
+    const btn = document.getElementById("sidebarToggle");
+    document.getElementById("sidebarToggleIcon").setAttribute("href", collapsed ? "#icon-menu" : "#icon-chevron-left");
+    const label = collapsed ? "Show documents panel" : "Hide documents panel";
+    btn.title = label;
+    btn.setAttribute("aria-label", label);
+  }
+
   function initSidebar() {
     // On a phone-width screen the sidebar is a full-height overlay (see
     // css), so starting it open covers the whole editor on first load.
     if (isMobile()) document.getElementById("sidebar").classList.add("collapsed");
+    updateSidebarToggleIcon();
 
     document.getElementById("sidebarToggle").addEventListener("click", () => {
       document.getElementById("sidebar").classList.toggle("collapsed");
+      updateSidebarToggleIcon();
       setTimeout(() => cm && cm.refresh(), 150);
     });
 

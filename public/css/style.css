@@ -508,35 +508,54 @@ html, body {
 
   /* #app has overflow:hidden, so the view-toggle/theme/share/export cluster
      can't just sit inline like on desktop — it collapses behind a single
-     "more" button instead, opening as a popover (Google Docs-style) rather
-     than wrapping the topbar to a taller 2nd row or scrolling sideways. */
+     "more" button instead, which slides it in as a right-side panel that
+     mirrors the existing left #sidebar (Documents) drawer, rather than
+     wrapping the topbar to a taller 2nd row or scrolling sideways. */
   #moreBtn { display: inline-flex; }
 
   .topbar-tools {
-    display: none;
-    position: absolute;
-    top: 100%;
-    right: 10px;
-    margin-top: 6px;
+    display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
+    gap: 10px;
+    position: fixed;
+    top: 49px;
+    bottom: 0;
+    right: 0;
+    width: min(280px, 80vw);
+    margin-right: -100%;
     background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-left: 1px solid var(--border);
     box-shadow: var(--shadow);
-    padding: 10px;
-    min-width: 230px;
-    z-index: 55;
+    padding: 16px 14px;
+    overflow-y: auto;
+    z-index: 45;
+    transition: margin-right 0.18s ease;
   }
-  .topbar-tools.open { display: flex; }
+  .topbar-tools.open { margin-right: 0; }
 
   .topbar-tools .view-toggle { width: 100%; }
-  .topbar-tools .view-btn { flex: 1; }
+  .topbar-tools .view-btn { flex: 1; padding: 8px; font-size: 13px; }
   .topbar-tools .dropdown,
   .topbar-tools #exportBtn { width: 100%; }
-  .topbar-tools .icon-btn { width: 100%; justify-content: flex-start; padding-left: 12px; background: var(--bg-alt); border-radius: 6px; }
-  .topbar-tools .dropdown-menu { z-index: 65; }
+  .topbar-tools .icon-btn {
+    width: 100%;
+    height: 44px;
+    justify-content: flex-start;
+    gap: 10px;
+    padding-left: 12px;
+    background: var(--bg-alt);
+    border-radius: 8px;
+    font-size: 16px;
+  }
+  .tool-label { display: none; }
+  .topbar-tools .tool-label { display: inline; font-size: 14px; font-weight: 600; }
+
+  /* Nested share/export menus flow inline in the panel instead of
+     floating — position:absolute would get clipped by the panel's own
+     overflow-y:auto once it's scrolled. */
+  .topbar-tools .dropdown-menu { position: static; width: 100%; box-shadow: none; margin-top: 6px; }
+  .topbar-tools .share-menu { width: 100%; }
 
   /* Comfortable touch targets (~44px is the platform-recommended minimum). */
   .icon-btn { width: 40px; height: 40px; font-size: 17px; }
@@ -546,7 +565,8 @@ html, body {
      the desktop/tablet default, set in the base #toolbar rule above). */
   #toolbar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   #toolbar::-webkit-scrollbar { display: none; }
-  #toolbar button, #toolbar .sep { flex-shrink: 0; min-width: 36px; padding: 7px 10px; }
+  #toolbar button { flex-shrink: 0; min-width: 36px; padding: 7px 10px; }
+  #toolbar .sep { flex-shrink: 0; }
 
   .share-menu { width: min(280px, 84vw); }
 }

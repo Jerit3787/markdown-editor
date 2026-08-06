@@ -105,7 +105,8 @@ function hello() {
 
   function setTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
-    document.getElementById("themeToggle").textContent = theme === "dark" ? "☀️" : "🌙";
+    document.getElementById("themeIcon").textContent = theme === "dark" ? "☀️" : "🌙";
+    document.querySelector("#themeToggle .tool-label").textContent = theme === "dark" ? "Light mode" : "Dark mode";
     localStorage.setItem(STORAGE_THEME, theme);
     if (cm) cm.setOption("theme", theme === "dark" ? "material-darker" : "default");
   }
@@ -480,10 +481,11 @@ function hello() {
   }
 
   // ---------- Export ----------
-  // Mobile-only "⋮" popover holding view-toggle/theme/share/export (see
-  // .topbar-tools in css). Its trigger and children already stop
-  // propagation on their own clicks (same pattern as the share/export
-  // dropdowns), so this only needs to open it and close on outside clicks.
+  // Mobile-only "⋮" panel holding view-toggle/theme/share/export (see
+  // .topbar-tools in css) — a persistent side panel, not a fleeting
+  // popover, so clicks inside it (switching view/theme, opening the
+  // nested share/export menus) shouldn't dismiss it; only tapping ⋮
+  // again or tapping outside the panel should.
   function initMoreMenu() {
     const btn = document.getElementById("moreBtn");
     const tools = document.getElementById("topbarTools");
@@ -491,6 +493,7 @@ function hello() {
       e.stopPropagation();
       tools.classList.toggle("open");
     });
+    tools.addEventListener("click", (e) => e.stopPropagation());
     document.addEventListener("click", () => tools.classList.remove("open"));
   }
 

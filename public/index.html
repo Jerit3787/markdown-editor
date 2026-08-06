@@ -65,7 +65,7 @@
 
     <div class="spacer"></div>
 
-    <!-- On mobile this whole cluster collapses into a "more" popover
+    <!-- On mobile this whole cluster becomes a right-side slide-in panel
          (see #moreBtn below) instead of wrapping the topbar to a 2nd row. -->
     <div id="topbarTools" class="topbar-tools">
       <div class="view-toggle" role="group" aria-label="View mode">
@@ -74,10 +74,10 @@
         <button class="view-btn" data-view="preview" title="Preview only">Preview</button>
       </div>
 
-      <button id="themeToggle" class="icon-btn" title="Toggle dark/light theme" aria-label="Toggle theme">🌙</button>
+      <button id="themeToggle" class="icon-btn" title="Toggle dark/light theme" aria-label="Toggle theme"><span id="themeIcon">🌙</span><span class="tool-label">Dark mode</span></button>
 
       <div class="dropdown">
-        <button id="shareBtn" class="icon-btn" title="Live collaboration" aria-label="Share for live collaboration">👥</button>
+        <button id="shareBtn" class="icon-btn" title="Live collaboration" aria-label="Share for live collaboration"><span>👥</span><span class="tool-label">Collaborate</span></button>
         <div id="shareMenu" class="dropdown-menu share-menu">
           <div class="share-row">
             <span id="collabStatusDot" class="status-dot status-idle"></span>

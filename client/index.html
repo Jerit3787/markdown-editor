@@ -268,6 +268,11 @@
     <path d="M3 3v5h5" />
     <path d="M12 7v5l4 2" />
   </symbol>
+  <symbol id="icon-info" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4" />
+    <path d="M12 8h.01" />
+  </symbol>
 </svg>
 
 <div id="app">
@@ -383,6 +388,7 @@
         <button id="helpMenuBtn" class="menubar-btn" type="button">Help</button>
         <div id="helpMenu" class="dropdown-menu menubar-menu">
           <button id="menuShortcuts" type="button"><svg class="icon"><use href="#icon-keyboard"></use></svg> Keyboard Shortcuts</button>
+          <button id="menuInfo" type="button"><svg class="icon"><use href="#icon-info"></use></svg> About &amp; Privacy</button>
           <a class="menu-link-item" href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-github"></use></svg> View Source on GitHub</a>
         </div>
       </div>
@@ -574,6 +580,47 @@
     </div>
     <div class="modal-actions">
       <button id="shortcutsCloseBtn" class="secondary-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="infoModal" class="modal-backdrop" hidden>
+  <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
+    <h2 id="infoModalTitle"><svg class="icon"><use href="#icon-info"></use></svg> About Markdown Editor</h2>
+
+    <div class="tab-switch" id="infoTabs">
+      <button class="tab-switch-btn active" data-info-tab="hints" type="button">Hints</button>
+      <button class="tab-switch-btn" data-info-tab="terms" type="button">Terms</button>
+      <button class="tab-switch-btn" data-info-tab="privacy" type="button">Privacy</button>
+    </div>
+
+    <div class="info-panel" data-info-panel="hints">
+      <ul class="info-list">
+        <li>Everything you write autosaves to this browser's local storage as you type — no account needed to use the editor.</li>
+        <li>File &gt; Publish to Gist saves a copy to a GitHub Gist and gives you a link anyone can view.</li>
+        <li>Share (top right) starts real-time collaboration — everyone with access edits the same document at once.</li>
+        <li>Click the chevron next to a document in the sidebar to jump straight to any heading in it.</li>
+        <li>Paste or drag an image straight into the editor; <kbd>Ctrl/Cmd+K</kbd> inserts a link.</li>
+        <li>The cloud icon next to the document title shows where the document is saved and when.</li>
+      </ul>
+    </div>
+
+    <div class="info-panel" data-info-panel="terms" hidden>
+      <p>Markdown Editor is provided as-is, free to use, with no warranty of any kind — use it at your own risk, the same as any other free tool.</p>
+      <p>Don't use the sharing or collaboration features to distribute content you don't have the right to share, or to do anything unlawful.</p>
+      <p>The service can change, be interrupted, or shut down at any time. Documents you haven't shared live only in your browser's local storage, so nothing on our end is lost if that happens — but nothing on our end is backed up for you either.</p>
+      <p>It's open source — read the code or self-host your own copy from the link in this menu.</p>
+    </div>
+
+    <div class="info-panel" data-info-panel="privacy" hidden>
+      <p>Documents are stored only in your own browser's local storage, on your device — never on our servers — unless you explicitly Publish to Gist or Share a document.</p>
+      <p>Signing in with GitHub (for Publish to Gist) sends your GitHub access token to this app's server, which encrypts it into an HttpOnly cookie your browser holds — it's never exposed to this page's own JavaScript, and is only used to call GitHub's API on your behalf.</p>
+      <p>Sharing a document creates a temporary collaboration room that holds that document's content (via Cloudflare Durable Objects) for as long as the room exists, visible to whoever the room's access settings allow.</p>
+      <p>No analytics, tracking, or advertising scripts run in this app. Cloudflare, which hosts it, keeps standard request logs briefly to operate the service — the same as any web host.</p>
+    </div>
+
+    <div class="modal-actions">
+      <button id="infoCloseBtn" class="secondary-btn" type="button">Close</button>
     </div>
   </div>
 </div>

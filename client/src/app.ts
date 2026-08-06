@@ -87,6 +87,7 @@ import { showToast } from "./stores/toast";
     initLinkModal();
     initMenuBar();
     initShortcutsModal();
+    initInfoModal();
     initGithubSignInModal();
     initModalEscapeKey();
     initEmptyState();
@@ -1012,6 +1013,10 @@ import { showToast } from "./stores/toast";
       helpMenu.classList.remove("open");
       document.getElementById("shortcutsModal").hidden = false;
     });
+    document.getElementById("menuInfo").addEventListener("click", () => {
+      helpMenu.classList.remove("open");
+      document.getElementById("infoModal").hidden = false;
+    });
   }
 
   function initShortcutsModal() {
@@ -1021,6 +1026,26 @@ import { showToast } from "./stores/toast";
     });
     modal.addEventListener("click", (e) => {
       if (e.target === modal) modal.hidden = true;
+    });
+  }
+
+  function initInfoModal() {
+    const modal = document.getElementById("infoModal");
+    document.getElementById("infoCloseBtn").addEventListener("click", () => {
+      modal.hidden = true;
+    });
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.hidden = true;
+    });
+
+    document.querySelectorAll("#infoTabs .tab-switch-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = (btn as HTMLElement).dataset.infoTab;
+        document.querySelectorAll("#infoTabs .tab-switch-btn").forEach((b) => b.classList.toggle("active", b === btn));
+        document.querySelectorAll(".info-panel").forEach((panel) => {
+          (panel as HTMLElement).hidden = (panel as HTMLElement).dataset.infoPanel !== tab;
+        });
+      });
     });
   }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { githubUsername } from "../stores/github";
-  import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "../stores/share";
+  import { shareModalOpen, shareAccess, shareDocName } from "../stores/share";
   import {
     closeShareModal,
     setAccessMode,
@@ -10,7 +10,6 @@
     addPerson,
     removeInvite,
     colorForUsername,
-    ROLE_LABELS,
     DEFAULT_ACCESS,
     type AccessMode,
   } from "../collab";
@@ -63,23 +62,14 @@
     removable: string | null;
   }
 
-  // Connected collaborators first (sharePresence, from Yjs awareness), then
-  // anyone invited-but-not-currently-connected — same combining rule the
-  // old vanilla renderPresence() used.
-  const peopleRows = $derived.by((): PersonRow[] => {
-    const connectedUsernames = new Set($sharePresence.map((p) => p.username).filter(Boolean));
-    const rows: PersonRow[] = $sharePresence.map((p) => ({
-      name: p.name,
-      color: p.color,
-      roleLabel: ROLE_LABELS[p.role || ""] || "Editor",
-      removable: null,
-    }));
-    access.invited.forEach((username) => {
-      if (connectedUsernames.has(username)) return;
-      rows.push({ name: username, color: null, roleLabel: "Invited", removable: username });
-    });
-    return rows;
-  });
+  // "People with access" means explicitly invited usernames only — NOT
+  // whoever happens to be currently connected via "anyone with an
+  // account"/"anyone with the link" general access, which isn't a
+  // per-person grant and shouldn't read as one. Who's actually online
+  // right now is the topbar presence bar's job, not this list's.
+  const peopleRows = $derived.by((): PersonRow[] =>
+    access.invited.map((username) => ({ name: username, color: null, roleLabel: "Invited", removable: username }))
+  );
 
   function initial(name: string) {
     return (name || "?").trim().charAt(0).toUpperCase();

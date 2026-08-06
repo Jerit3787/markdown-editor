@@ -80,6 +80,7 @@ function hello() {
     initEditor();
     initImageUploads();
     initToolbar();
+    initSaveStatus();
     initSidebar();
     initViewToggle();
     initImport();
@@ -396,7 +397,47 @@ function hello() {
   }
 
   function setSaveStatus(text) {
-    document.getElementById("saveStatus").textContent = text;
+    const btn = document.getElementById("saveStatusBtn");
+    const saving = /ing…$/.test(text);
+    btn.classList.toggle("saving", saving);
+    btn.title = text;
+    btn.setAttribute("aria-label", text);
+    document.getElementById("saveStatusIcon").setAttribute("href", saving ? "#icon-cloud" : "#icon-cloud-check");
+    renderSaveStatusPopup(saving);
+  }
+
+  function relativeTime(ts) {
+    const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (sec < 5) return "just now";
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.round(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.round(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    return `${Math.round(hr / 24)}d ago`;
+  }
+
+  function initSaveStatus() {
+    const btn = document.getElementById("saveStatusBtn");
+    const popup = document.getElementById("saveStatusPopup");
+    // Refresh the "last saved Xs ago" text right before it's shown, not
+    // just whenever a save happens — otherwise it goes stale the longer
+    // the popup sits closed between saves.
+    btn.addEventListener("click", () => renderSaveStatusPopup(btn.classList.contains("saving")));
+    toggleDropdown(btn, popup);
+  }
+
+  function renderSaveStatusPopup(saving) {
+    const doc = getActiveDoc();
+    document.getElementById("saveStatusHeadline").textContent = saving ? "Saving…" : "Saved";
+    document.getElementById("saveStatusDetail").textContent =
+      doc && doc.updatedAt && !saving
+        ? `Last saved ${relativeTime(doc.updatedAt)}, to this browser's local storage.`
+        : "Saved to this browser's local storage.";
+    const gistLink = document.getElementById("saveStatusGistLink");
+    const hasGist = doc && doc.gistId;
+    gistLink.hidden = !hasGist;
+    if (hasGist) gistLink.href = `https://gist.github.com/${doc.gistId}`;
   }
 
   // ---------- Preview ----------

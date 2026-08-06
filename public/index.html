@@ -185,6 +185,13 @@
   <symbol id="icon-check" viewBox="0 0 24 24">
     <path d="M20 6 9 17l-5-5" />
   </symbol>
+  <symbol id="icon-cloud" viewBox="0 0 24 24">
+    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h.79a4.5 4.5 0 1 1 0 9Z" />
+  </symbol>
+  <symbol id="icon-cloud-check" viewBox="0 0 24 24">
+    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h.79a4.5 4.5 0 1 1 0 9Z" />
+    <path d="m9 13 2 2 4-4" />
+  </symbol>
   <symbol id="icon-external-link" viewBox="0 0 24 24">
     <path d="M15 3h6v6" />
     <path d="M10 14 21 3" />
@@ -280,7 +287,15 @@
 
       <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title">
       <span id="docTitleMirror" aria-hidden="true"></span>
-      <div id="saveStatus">Saved locally</div>
+
+      <div class="dropdown">
+        <button id="saveStatusBtn" class="icon-btn" type="button" title="Saved locally" aria-label="Save status"><svg class="icon"><use id="saveStatusIcon" href="#icon-cloud-check"></use></svg></button>
+        <div id="saveStatusPopup" class="dropdown-menu save-status-popup">
+          <div class="menu-section-label" id="saveStatusHeadline">Saved</div>
+          <p id="saveStatusDetail" class="modal-hint">Last saved just now, to this browser's local storage.</p>
+          <a id="saveStatusGistLink" class="menu-link-item" href="#" target="_blank" rel="noopener" hidden><svg class="icon"><use href="#icon-github"></use></svg> Also linked to a GitHub Gist</a>
+        </div>
+      </div>
 
       <div class="spacer"></div>
 

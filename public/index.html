@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown Editor</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📝</text></svg>">
+
+<!-- CodeMirror 5 (editor) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/gfm/gfm.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/continuelist.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/display/placeholder.min.js"></script>
+
+<!-- Markdown rendering + sanitizing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.11/purify.min.js"></script>
+
+<!-- PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Top bar -->
+  <header id="topbar">
+    <button id="sidebarToggle" class="icon-btn" title="Toggle documents panel" aria-label="Toggle documents panel">☰</button>
+    <div id="brand">📝 Markdown Editor</div>
+
+    <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title">
+
+    <div id="saveStatus">Saved</div>
+
+    <div id="presenceBar" class="presence-bar" hidden></div>
+
+    <div class="spacer"></div>
+
+    <div class="view-toggle" role="group" aria-label="View mode">
+      <button class="view-btn" data-view="editor" title="Editor only">Editor</button>
+      <button class="view-btn active" data-view="split" title="Split view">Split</button>
+      <button class="view-btn" data-view="preview" title="Preview only">Preview</button>
+    </div>
+
+    <button id="themeToggle" class="icon-btn" title="Toggle dark/light theme" aria-label="Toggle theme">🌙</button>
+
+    <div class="dropdown">
+      <button id="shareBtn" class="icon-btn" title="Live collaboration" aria-label="Share for live collaboration">👥</button>
+      <div id="shareMenu" class="dropdown-menu share-menu">
+        <div class="share-row">
+          <span id="collabStatusDot" class="status-dot status-idle"></span>
+          <span id="collabStatusText">Not shared</span>
+        </div>
+        <div class="share-row" id="shareLinkRow" hidden>
+          <input id="shareLinkInput" type="text" readonly aria-label="Share link">
+          <button id="copyShareLink" class="secondary-btn" type="button">Copy</button>
+        </div>
+        <button id="startShareBtn" class="primary-btn" type="button">Start collaborating</button>
+        <button id="stopShareBtn" class="secondary-btn" type="button" hidden>Stop sharing</button>
+        <div class="share-row share-name-row">
+          <label for="collabNameInput">Your name</label>
+          <input id="collabNameInput" type="text" maxlength="24">
+        </div>
+      </div>
+    </div>
+
+    <div class="dropdown">
+      <button id="exportBtn" class="primary-btn">Export ▾</button>
+      <div id="exportMenu" class="dropdown-menu">
+        <button data-export="md">⬇ Markdown (.md)</button>
+        <button data-export="html">⬇ HTML (.html)</button>
+        <button data-export="pdf">⬇ PDF (.pdf)</button>
+        <button data-export="txt">⬇ Plain text (.txt)</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="body">
+
+    <!-- Sidebar: document list -->
+    <aside id="sidebar">
+      <div id="sidebarHeader">
+        <span>Documents</span>
+        <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document">＋</button>
+      </div>
+      <ul id="docList"></ul>
+      <div id="sidebarFooter">
+        <label class="file-import-label">
+          📁 Import .md
+          <input id="importInput" type="file" accept=".md,.markdown,.txt" hidden>
+        </label>
+      </div>
+    </aside>
+
+    <!-- Editor + Preview -->
+    <main id="main">
+      <section id="editorPane" class="pane">
+        <div id="toolbar">
+          <button data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+          <button data-cmd="strike" title="Strikethrough">S̶</button>
+          <span class="sep"></span>
+          <button data-cmd="h1" title="Heading 1">H1</button>
+          <button data-cmd="h2" title="Heading 2">H2</button>
+          <button data-cmd="h3" title="Heading 3">H3</button>
+          <span class="sep"></span>
+          <button data-cmd="quote" title="Blockquote">❝</button>
+          <button data-cmd="code" title="Inline code">&lt;/&gt;</button>
+          <button data-cmd="codeblock" title="Code block">{ }</button>
+          <span class="sep"></span>
+          <button data-cmd="ul" title="Bullet list">• ―</button>
+          <button data-cmd="ol" title="Numbered list">1. ―</button>
+          <button data-cmd="task" title="Task list">☑</button>
+          <span class="sep"></span>
+          <button data-cmd="link" title="Link (Ctrl+K)">🔗</button>
+          <button data-cmd="image" title="Image">🖼</button>
+          <button data-cmd="table" title="Table">▦</button>
+          <button data-cmd="hr" title="Horizontal rule">―</button>
+        </div>
+        <div id="editorWrap"><textarea id="editor"></textarea></div>
+      </section>
+
+      <div id="divider"></div>
+
+      <section id="previewPane" class="pane">
+        <div id="preview"></div>
+      </section>
+    </main>
+  </div>
+
+  <footer id="statusbar">
+    <span id="wordCount">0 words</span>
+    <span id="charCount">0 characters</span>
+    <span class="spacer"></span>
+    <span id="cursorPos">Ln 1, Col 1</span>
+  </footer>
+</div>
+
+<script src="js/app.js"></script>
+<script type="module" src="js/collab.js"></script>
+</body>
+</html>

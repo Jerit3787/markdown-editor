@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "markdown-editor",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-08-01",
+
+  // Serves the static site (public/) for any request the Worker doesn't
+  // explicitly handle itself (i.e. everything except /api/collab/*).
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+
+  // One Durable Object instance per collaboration room. Each instance holds
+  // the room's Yjs document in memory (and checkpoints it to its own
+  // built-in storage) — no external database involved.
+  "durable_objects": {
+    "bindings": [
+      { "name": "COLLAB_ROOM", "class_name": "CollabRoom" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["CollabRoom"] }
+  ]
+}

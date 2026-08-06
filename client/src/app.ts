@@ -826,6 +826,25 @@ import { showToast } from "./stores/toast";
     menu.addEventListener("click", (e) => e.stopPropagation());
   }
 
+  // Native-menu-bar-style behavior: once one of File/Edit/View/Help is
+  // open (via a real click), hovering a sibling switches straight to it
+  // without needing another click — matches how OS/desktop-app menu bars
+  // behave. Scoped to just this sibling group (via the explicit pairs
+  // list), not a generic property of every toggleDropdown() consumer —
+  // the save-status popup has no siblings to switch between.
+  function enableMenuBarHoverSwitch(pairs: { btn: HTMLElement; menu: HTMLElement }[]) {
+    pairs.forEach(({ btn, menu }) => {
+      btn.addEventListener("mouseenter", () => {
+        if (btn.classList.contains("active")) return;
+        const anyOpen = pairs.some(({ btn: b }) => b.classList.contains("active"));
+        if (!anyOpen) return;
+        closeAllDropdowns();
+        menu.classList.add("open");
+        btn.classList.add("active");
+      });
+    });
+  }
+
   // Nested flyouts within a single dropdown-menu (e.g. File > Open, Open
   // Recent, Export). The parent menu already stops outside clicks from
   // closing it (see toggleDropdown), so this only needs to manage which
@@ -878,10 +897,14 @@ import { showToast } from "./stores/toast";
 
   // ---------- Menu bar (File / Edit / View / Help) ----------
   function initMenuBar() {
-    toggleDropdown(document.getElementById("fileMenuBtn"), document.getElementById("fileMenu"));
-    toggleDropdown(document.getElementById("editMenuBtn"), document.getElementById("editMenu"));
-    toggleDropdown(document.getElementById("viewMenuBtn"), document.getElementById("viewMenu"));
-    toggleDropdown(document.getElementById("helpMenuBtn"), document.getElementById("helpMenu"));
+    const menuBarPairs = [
+      { btn: document.getElementById("fileMenuBtn"), menu: document.getElementById("fileMenu") },
+      { btn: document.getElementById("editMenuBtn"), menu: document.getElementById("editMenu") },
+      { btn: document.getElementById("viewMenuBtn"), menu: document.getElementById("viewMenu") },
+      { btn: document.getElementById("helpMenuBtn"), menu: document.getElementById("helpMenu") },
+    ];
+    menuBarPairs.forEach(({ btn, menu }) => toggleDropdown(btn, menu));
+    enableMenuBarHoverSwitch(menuBarPairs);
 
     const fileMenu = document.getElementById("fileMenu");
     const closeFileMenu = () => {

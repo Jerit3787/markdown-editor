@@ -644,21 +644,10 @@ html, body {
 
 /* #sidebarToggleIn is a normal flex child inside #sidebarHeader (see
    #sidebarHeaderLeft below) — no positioning needed, it slides off-screen
-   with the rest of #sidebar automatically. #sidebarToggleOut only exists
-   for the collapsed state, floating over the space the sidebar vacated;
-   #toolbar's reserved left gutter (below) keeps it clear of the first tool
-   button there. #body is the positioning parent (position:relative). */
-#sidebarToggleOut {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  z-index: 45;
-  border-radius: 50%;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-}
-#sidebarToggleOut:hover { background: var(--bg-alt); }
+   with the rest of #sidebar automatically. #sidebarToggleOut lives inline
+   as the first item in #toolbar instead, shown only while the sidebar is
+   collapsed (see app.ts's toggleSidebar/initSidebar). */
+#sidebarToggleOut { flex-shrink: 0; }
 
 #sidebarHeader {
   display: flex;
@@ -752,10 +741,9 @@ html, body {
 #toolbar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 2px;
-  /* Extra left inset reserves room for #sidebarToggleOut, shown only when
-     the sidebar is collapsed. */
-  padding: 6px 8px 6px 50px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-alt);
   flex-shrink: 0;

@@ -399,15 +399,14 @@
       <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden>
     </aside>
 
-    <!-- Shown only while the sidebar is collapsed — floats over the space
-         it vacated. #toolbar reserves a left gutter so this never sits on
-         top of the first formatting button. -->
-    <button id="sidebarToggleOut" class="icon-btn" title="Show documents panel" aria-label="Show documents panel" hidden><svg class="icon"><use href="#icon-menu"></use></svg></button>
-
     <!-- Editor + Preview -->
     <main id="main">
       <section id="editorPane" class="pane">
         <div id="toolbar">
+          <!-- Shown only while the sidebar is collapsed — sits inline with
+               the formatting tools instead of floating over the editor. -->
+          <button id="sidebarToggleOut" class="icon-btn" title="Show documents panel" aria-label="Show documents panel" hidden><svg class="icon"><use href="#icon-menu"></use></svg></button>
+          <span class="sep" id="sidebarToggleOutSep" hidden></span>
           <button data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
           <button data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
           <button data-cmd="strike" title="Strikethrough"><svg class="icon"><use href="#icon-strikethrough"></use></svg></button>

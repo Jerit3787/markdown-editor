@@ -50,6 +50,7 @@ html, body {
 
 /* Top bar */
 #topbar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -58,6 +59,10 @@ html, body {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
+
+.topbar-tools { display: flex; align-items: center; gap: 10px; }
+
+#moreBtn { display: none; }
 
 #brand {
   font-weight: 600;
@@ -499,16 +504,39 @@ html, body {
   #main.mode-split #divider { display: none; }
   #docTitle { max-width: 120px; }
 
-  /* #app has overflow:hidden, so without this the theme/share/export
-     controls at the end of #topbar silently clip off-screen instead of
-     wrapping — on a touch device they become entirely unreachable. The
-     .spacer's flex-basis:100% forces a line break right after it, so
-     row 1 stays title/save-status and row 2 is view-toggle + actions. */
-  #topbar { flex-wrap: wrap; row-gap: 8px; gap: 8px; padding: 8px 10px; }
-  #topbar .spacer { flex-basis: 100%; height: 0; }
-  .view-toggle { flex-shrink: 0; }
-  .view-btn { padding: 6px 8px; font-size: 12px; }
-  #exportBtn { padding: 6px 12px; }
+  #topbar { padding: 8px 10px; }
+
+  /* #app has overflow:hidden, so the view-toggle/theme/share/export cluster
+     can't just sit inline like on desktop — it collapses behind a single
+     "more" button instead, opening as a popover (Google Docs-style) rather
+     than wrapping the topbar to a taller 2nd row or scrolling sideways. */
+  #moreBtn { display: inline-flex; }
+
+  .topbar-tools {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 10px;
+    margin-top: 6px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 10px;
+    min-width: 230px;
+    z-index: 55;
+  }
+  .topbar-tools.open { display: flex; }
+
+  .topbar-tools .view-toggle { width: 100%; }
+  .topbar-tools .view-btn { flex: 1; }
+  .topbar-tools .dropdown,
+  .topbar-tools #exportBtn { width: 100%; }
+  .topbar-tools .icon-btn { width: 100%; justify-content: flex-start; padding-left: 12px; background: var(--bg-alt); border-radius: 6px; }
+  .topbar-tools .dropdown-menu { z-index: 65; }
 
   /* Comfortable touch targets (~44px is the platform-recommended minimum). */
   .icon-btn { width: 40px; height: 40px; font-size: 17px; }

@@ -85,6 +85,7 @@ function hello() {
     initViewToggle();
     initImport();
     initShortStatus();
+    initMoreMenu();
 
     renderDocList();
     loadDocIntoEditor(getActiveDoc());
@@ -479,6 +480,20 @@ function hello() {
   }
 
   // ---------- Export ----------
+  // Mobile-only "⋮" popover holding view-toggle/theme/share/export (see
+  // .topbar-tools in css). Its trigger and children already stop
+  // propagation on their own clicks (same pattern as the share/export
+  // dropdowns), so this only needs to open it and close on outside clicks.
+  function initMoreMenu() {
+    const btn = document.getElementById("moreBtn");
+    const tools = document.getElementById("topbarTools");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      tools.classList.toggle("open");
+    });
+    document.addEventListener("click", () => tools.classList.remove("open"));
+  }
+
   function initExport() {
     const btn = document.getElementById("exportBtn");
     const menu = document.getElementById("exportMenu");

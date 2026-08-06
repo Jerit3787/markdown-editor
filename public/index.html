@@ -65,43 +65,49 @@
 
     <div class="spacer"></div>
 
-    <div class="view-toggle" role="group" aria-label="View mode">
-      <button class="view-btn" data-view="editor" title="Editor only">Editor</button>
-      <button class="view-btn active" data-view="split" title="Split view">Split</button>
-      <button class="view-btn" data-view="preview" title="Preview only">Preview</button>
-    </div>
+    <!-- On mobile this whole cluster collapses into a "more" popover
+         (see #moreBtn below) instead of wrapping the topbar to a 2nd row. -->
+    <div id="topbarTools" class="topbar-tools">
+      <div class="view-toggle" role="group" aria-label="View mode">
+        <button class="view-btn" data-view="editor" title="Editor only">Editor</button>
+        <button class="view-btn active" data-view="split" title="Split view">Split</button>
+        <button class="view-btn" data-view="preview" title="Preview only">Preview</button>
+      </div>
 
-    <button id="themeToggle" class="icon-btn" title="Toggle dark/light theme" aria-label="Toggle theme">🌙</button>
+      <button id="themeToggle" class="icon-btn" title="Toggle dark/light theme" aria-label="Toggle theme">🌙</button>
 
-    <div class="dropdown">
-      <button id="shareBtn" class="icon-btn" title="Live collaboration" aria-label="Share for live collaboration">👥</button>
-      <div id="shareMenu" class="dropdown-menu share-menu">
-        <div class="share-row">
-          <span id="collabStatusDot" class="status-dot status-idle"></span>
-          <span id="collabStatusText">Not shared</span>
+      <div class="dropdown">
+        <button id="shareBtn" class="icon-btn" title="Live collaboration" aria-label="Share for live collaboration">👥</button>
+        <div id="shareMenu" class="dropdown-menu share-menu">
+          <div class="share-row">
+            <span id="collabStatusDot" class="status-dot status-idle"></span>
+            <span id="collabStatusText">Not shared</span>
+          </div>
+          <div class="share-row" id="shareLinkRow" hidden>
+            <input id="shareLinkInput" type="text" readonly aria-label="Share link">
+            <button id="copyShareLink" class="secondary-btn" type="button">Copy</button>
+          </div>
+          <button id="startShareBtn" class="primary-btn" type="button">Start collaborating</button>
+          <button id="stopShareBtn" class="secondary-btn" type="button" hidden>Stop sharing</button>
+          <div class="share-row share-name-row">
+            <label for="collabNameInput">Your name</label>
+            <input id="collabNameInput" type="text" maxlength="24">
+          </div>
         </div>
-        <div class="share-row" id="shareLinkRow" hidden>
-          <input id="shareLinkInput" type="text" readonly aria-label="Share link">
-          <button id="copyShareLink" class="secondary-btn" type="button">Copy</button>
-        </div>
-        <button id="startShareBtn" class="primary-btn" type="button">Start collaborating</button>
-        <button id="stopShareBtn" class="secondary-btn" type="button" hidden>Stop sharing</button>
-        <div class="share-row share-name-row">
-          <label for="collabNameInput">Your name</label>
-          <input id="collabNameInput" type="text" maxlength="24">
+      </div>
+
+      <div class="dropdown">
+        <button id="exportBtn" class="primary-btn">Export ▾</button>
+        <div id="exportMenu" class="dropdown-menu">
+          <button data-export="md">⬇ Markdown (.md)</button>
+          <button data-export="html">⬇ HTML (.html)</button>
+          <button data-export="pdf">⬇ PDF (.pdf)</button>
+          <button data-export="txt">⬇ Plain text (.txt)</button>
         </div>
       </div>
     </div>
 
-    <div class="dropdown">
-      <button id="exportBtn" class="primary-btn">Export ▾</button>
-      <div id="exportMenu" class="dropdown-menu">
-        <button data-export="md">⬇ Markdown (.md)</button>
-        <button data-export="html">⬇ HTML (.html)</button>
-        <button data-export="pdf">⬇ PDF (.pdf)</button>
-        <button data-export="txt">⬇ Plain text (.txt)</button>
-      </div>
-    </div>
+    <button id="moreBtn" class="icon-btn" title="More options" aria-label="More options">⋮</button>
   </header>
 
   <div id="body">

@@ -88,6 +88,7 @@ import { showToast } from "./stores/toast";
     initMenuBar();
     initShortcutsModal();
     initInfoModal();
+    initModalHints();
     initGithubSignInModal();
     initModalEscapeKey();
     initEmptyState();
@@ -1031,21 +1032,42 @@ import { showToast } from "./stores/toast";
 
   function initInfoModal() {
     const modal = document.getElementById("infoModal");
-    document.getElementById("infoCloseBtn").addEventListener("click", () => {
-      modal.hidden = true;
-    });
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.hidden = true;
-    });
+    const termsModal = document.getElementById("termsModal");
+    const privacyModal = document.getElementById("privacyModal");
 
-    document.querySelectorAll("#infoTabs .tab-switch-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const tab = (btn as HTMLElement).dataset.infoTab;
-        document.querySelectorAll("#infoTabs .tab-switch-btn").forEach((b) => b.classList.toggle("active", b === btn));
-        document.querySelectorAll(".info-panel").forEach((panel) => {
-          (panel as HTMLElement).hidden = (panel as HTMLElement).dataset.infoPanel !== tab;
-        });
-      });
+    document.getElementById("infoCloseBtn").addEventListener("click", () => { modal.hidden = true; });
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.hidden = true; });
+
+    document.getElementById("termsCloseBtn").addEventListener("click", () => { termsModal.hidden = true; });
+    termsModal.addEventListener("click", (e) => { if (e.target === termsModal) termsModal.hidden = true; });
+
+    document.getElementById("privacyCloseBtn").addEventListener("click", () => { privacyModal.hidden = true; });
+    privacyModal.addEventListener("click", (e) => { if (e.target === privacyModal) privacyModal.hidden = true; });
+
+    document.getElementById("menuTerms").addEventListener("click", () => {
+      modal.hidden = true;
+      termsModal.hidden = false;
+    });
+    document.getElementById("menuPrivacy").addEventListener("click", () => {
+      modal.hidden = true;
+      privacyModal.hidden = false;
+    });
+  }
+
+  // A small "?" toggle in a modal's own header, next to its title — reveals
+  // a one-line explanation of what that modal is for. Delegated on
+  // document so it works for both the plain HTML modals here and the
+  // Svelte-rendered ones (Share, Settings), whose markup doesn't exist in
+  // the DOM until they're first opened.
+  function initModalHints() {
+    document.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest(".hint-toggle-btn") as HTMLElement | null;
+      if (!btn) return;
+      const box = btn.closest(".modal-box");
+      const hint = box?.querySelector(".hint-text") as HTMLElement | null;
+      if (!hint) return;
+      hint.hidden = !hint.hidden;
+      btn.classList.toggle("active", !hint.hidden);
     });
   }
 

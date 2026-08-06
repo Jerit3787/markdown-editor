@@ -65,7 +65,8 @@
        role="dialog"/aria-modal; this div is just the click-catcher. -->
   <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
-      <h2 id="settingsModalTitle"><svg class="icon"><use href="#icon-settings"></use></svg> Settings</h2>
+      <h2 id="settingsModalTitle"><svg class="icon"><use href="#icon-settings"></use></svg> Settings<button class="hint-toggle-btn" type="button" aria-label="What is this?">?</button></h2>
+      <p class="modal-hint hint-text" hidden>Theme applies instantly and remembers your choice. Connecting GitHub only affects Publish to Gist — it's optional otherwise.</p>
       <div class="menu-section-label">Appearance</div>
       <div class="tab-switch" role="tablist" aria-label="Theme">
         <button type="button" class="tab-switch-btn" class:active={theme === "light"} role="tab" aria-selected={theme === "light"} onclick={() => applyTheme("light")}>

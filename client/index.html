@@ -514,7 +514,8 @@
 <!-- Insert link -->
 <div id="linkModal" class="modal-backdrop" hidden>
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="linkModalTitle">
-    <h2 id="linkModalTitle"><svg class="icon"><use href="#icon-link"></use></svg> Insert link</h2>
+    <h2 id="linkModalTitle"><svg class="icon"><use href="#icon-link"></use></svg> Insert link<button class="hint-toggle-btn" type="button" aria-label="What is this?">?</button></h2>
+    <p class="modal-hint hint-text" hidden>Select text first to turn it into a link, or leave Text blank to insert the URL on its own.</p>
     <label class="modal-field">
       <span>Text</span>
       <input id="linkTextInput" type="text" placeholder="Link text">
@@ -533,7 +534,8 @@
 <!-- Images manager -->
 <div id="imagesModal" class="modal-backdrop" hidden>
   <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="imagesModalTitle">
-    <h2 id="imagesModalTitle"><svg class="icon"><use href="#icon-images"></use></svg> Images in this document</h2>
+    <h2 id="imagesModalTitle"><svg class="icon"><use href="#icon-images"></use></svg> Images in this document<button class="hint-toggle-btn" type="button" aria-label="What is this?">?</button></h2>
+    <p class="modal-hint hint-text" hidden>Images are stored inside this document, not uploaded anywhere, unless you publish it to a Gist.</p>
     <div id="imagesList" class="images-list"></div>
     <p id="imagesEmptyHint" class="modal-hint">No images in this document yet. Paste, drop, or use the toolbar 🖼 button to add one.</p>
     <div class="modal-actions">
@@ -545,7 +547,8 @@
 <!-- Open from GitHub Gist -->
 <div id="openGistModal" class="modal-backdrop" hidden>
   <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="openGistModalTitle">
-    <h2 id="openGistModalTitle"><svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Gist</h2>
+    <h2 id="openGistModalTitle"><svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Gist<button class="hint-toggle-btn" type="button" aria-label="What is this?">?</button></h2>
+    <p class="modal-hint hint-text" hidden>Works with any public Gist, or your own private ones once you're signed in — paste its URL/ID, or pick it from the list below.</p>
 
     <label class="modal-field">
       <span>Gist URL or ID</span>
@@ -585,42 +588,49 @@
 </div>
 
 <div id="infoModal" class="modal-backdrop" hidden>
-  <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
-    <h2 id="infoModalTitle"><svg class="icon"><use href="#icon-info"></use></svg> About Markdown Editor</h2>
-
-    <div class="tab-switch" id="infoTabs">
-      <button class="tab-switch-btn active" data-info-tab="hints" type="button">Hints</button>
-      <button class="tab-switch-btn" data-info-tab="terms" type="button">Terms</button>
-      <button class="tab-switch-btn" data-info-tab="privacy" type="button">Privacy</button>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
+    <div class="about-brand">
+      <img src="/logo.svg" width="40" height="40" alt="">
+      <div>
+        <h2 id="infoModalTitle">Markdown Editor</h2>
+        <p class="modal-hint">A fast, free markdown editor with live preview and real-time collaboration.</p>
+      </div>
     </div>
 
-    <div class="info-panel" data-info-panel="hints">
-      <ul class="info-list">
-        <li>Everything you write autosaves to this browser's local storage as you type — no account needed to use the editor.</li>
-        <li>File &gt; Publish to Gist saves a copy to a GitHub Gist and gives you a link anyone can view.</li>
-        <li>Share (top right) starts real-time collaboration — everyone with access edits the same document at once.</li>
-        <li>Click the chevron next to a document in the sidebar to jump straight to any heading in it.</li>
-        <li>Paste or drag an image straight into the editor; <kbd>Ctrl/Cmd+K</kbd> inserts a link.</li>
-        <li>The cloud icon next to the document title shows where the document is saved and when.</li>
-      </ul>
-    </div>
-
-    <div class="info-panel" data-info-panel="terms" hidden>
-      <p>Markdown Editor is provided as-is, free to use, with no warranty of any kind — use it at your own risk, the same as any other free tool.</p>
-      <p>Don't use the sharing or collaboration features to distribute content you don't have the right to share, or to do anything unlawful.</p>
-      <p>The service can change, be interrupted, or shut down at any time. Documents you haven't shared live only in your browser's local storage, so nothing on our end is lost if that happens — but nothing on our end is backed up for you either.</p>
-      <p>It's open source — read the code or self-host your own copy from the link in this menu.</p>
-    </div>
-
-    <div class="info-panel" data-info-panel="privacy" hidden>
-      <p>Documents are stored only in your own browser's local storage, on your device — never on our servers — unless you explicitly Publish to Gist or Share a document.</p>
-      <p>Signing in with GitHub (for Publish to Gist) sends your GitHub access token to this app's server, which encrypts it into an HttpOnly cookie your browser holds — it's never exposed to this page's own JavaScript, and is only used to call GitHub's API on your behalf.</p>
-      <p>Sharing a document creates a temporary collaboration room that holds that document's content (via Cloudflare Durable Objects) for as long as the room exists, visible to whoever the room's access settings allow.</p>
-      <p>No analytics, tracking, or advertising scripts run in this app. Cloudflare, which hosts it, keeps standard request logs briefly to operate the service — the same as any web host.</p>
+    <div class="about-links">
+      <button id="menuTerms" class="menu-link-item" type="button"><svg class="icon"><use href="#icon-file"></use></svg> Terms of Service</button>
+      <button id="menuPrivacy" class="menu-link-item" type="button"><svg class="icon"><use href="#icon-lock"></use></svg> Privacy Policy</button>
+      <a class="menu-link-item" href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-github"></use></svg> View Source on GitHub</a>
     </div>
 
     <div class="modal-actions">
       <button id="infoCloseBtn" class="secondary-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="termsModal" class="modal-backdrop" hidden>
+  <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="termsModalTitle">
+    <h2 id="termsModalTitle"><svg class="icon"><use href="#icon-file"></use></svg> Terms of Service</h2>
+    <p>Markdown Editor is provided as-is, free to use, with no warranty of any kind — use it at your own risk, the same as any other free tool.</p>
+    <p>Don't use the sharing or collaboration features to distribute content you don't have the right to share, or to do anything unlawful.</p>
+    <p>The service can change, be interrupted, or shut down at any time. Documents you haven't shared live only in your browser's local storage, so nothing on our end is lost if that happens — but nothing on our end is backed up for you either.</p>
+    <p>It's open source — read the code or self-host your own copy from the link in About.</p>
+    <div class="modal-actions">
+      <button id="termsCloseBtn" class="secondary-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="privacyModal" class="modal-backdrop" hidden>
+  <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="privacyModalTitle">
+    <h2 id="privacyModalTitle"><svg class="icon"><use href="#icon-lock"></use></svg> Privacy Policy</h2>
+    <p>Documents are stored only in your own browser's local storage, on your device — never on our servers — unless you explicitly Publish to Gist or Share a document.</p>
+    <p>Signing in with GitHub (for Publish to Gist) sends your GitHub access token to this app's server, which encrypts it into an HttpOnly cookie your browser holds — it's never exposed to this page's own JavaScript, and is only used to call GitHub's API on your behalf.</p>
+    <p>Sharing a document creates a temporary collaboration room that holds that document's content (via Cloudflare Durable Objects) for as long as the room exists, visible to whoever the room's access settings allow.</p>
+    <p>No analytics, tracking, or advertising scripts run in this app. Cloudflare, which hosts it, keeps standard request logs briefly to operate the service — the same as any web host.</p>
+    <div class="modal-actions">
+      <button id="privacyCloseBtn" class="secondary-btn" type="button">Close</button>
     </div>
   </div>
 </div>

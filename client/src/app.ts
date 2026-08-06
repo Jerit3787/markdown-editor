@@ -75,6 +75,7 @@ import { showToast } from "./stores/toast";
     if (activeId && !docs.find((d) => d.id === activeId)) activeId = docs[0] ? docs[0].id : null;
 
     initEditor();
+    initSyncScroll();
     initImageUploads();
     initToolbar();
     initSaveStatus();
@@ -172,6 +173,39 @@ import { showToast } from "./stores/toast";
     });
 
     cm.on("cursorActivity", updateCursorPos);
+  }
+
+  // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
+  // Proportional (scroll-percentage) sync rather than line-mapped — the
+  // rendered preview's DOM has no reliable 1:1 correspondence to source
+  // lines (headings collapse whitespace, tables/images change height,
+  // etc.), so matching "how far down the document" each pane is reads as
+  // closely in sync as this app's editor/renderer pairing can support.
+  function initSyncScroll() {
+    const main = document.getElementById("main") as HTMLElement;
+    const preview = document.getElementById("preview") as HTMLElement;
+    let syncing = false;
+
+    cm.on("scroll", () => {
+      if (syncing || !main.classList.contains("mode-split")) return;
+      const info = cm.getScrollInfo();
+      const max = info.height - info.clientHeight;
+      if (max <= 0) return;
+      const previewMax = preview.scrollHeight - preview.clientHeight;
+      syncing = true;
+      preview.scrollTop = (info.top / max) * previewMax;
+      requestAnimationFrame(() => { syncing = false; });
+    });
+
+    preview.addEventListener("scroll", () => {
+      if (syncing || !main.classList.contains("mode-split")) return;
+      const max = preview.scrollHeight - preview.clientHeight;
+      if (max <= 0) return;
+      const info = cm.getScrollInfo();
+      syncing = true;
+      cm.scrollTo(null, (preview.scrollTop / max) * (info.height - info.clientHeight));
+      requestAnimationFrame(() => { syncing = false; });
+    });
   }
 
   // ---------- Edit menu clipboard commands ----------

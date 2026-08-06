@@ -4,6 +4,7 @@ import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
+import type { Env } from "./env";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -20,7 +21,24 @@ const PERSIST_KEY = "update";
 const ACCESS_KEY = "access";
 const PERSIST_DELAY_MS = 1000;
 
-const DEFAULT_ACCESS = { owner: null, generalAccess: "restricted", role: "viewer", invited: [] };
+type Role = "viewer" | "reviewer" | "editor";
+
+interface AccessRecord {
+  owner: string | null;
+  generalAccess: "restricted" | "anyone";
+  role: Role;
+  invited: string[];
+}
+
+type AuthResult = { ok: true; username: string; role: Role } | { ok: false; status: number; message: string };
+
+interface SessionInfo {
+  username: string;
+  role: Role;
+  awarenessIds: Set<number>;
+}
+
+const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted", role: "viewer", invited: [] };
 
 // One CollabRoom instance == one shared document, addressed by the
 // document's own client-generated id (so a share link is stable from the
@@ -31,28 +49,39 @@ const DEFAULT_ACCESS = { owner: null, generalAccess: "restricted", role: "viewer
 // both checkpointed to the Durable Object's own built-in storage, no
 // separate database involved.
 export class CollabRoom {
-  constructor(state, env) {
+  state: DurableObjectState;
+  env: Env;
+  sessions: Map<WebSocket, SessionInfo>;
+  persistScheduled: boolean;
+  doc: Y.Doc;
+  awareness: awarenessProtocol.Awareness;
+
+  constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
-    this.sessions = new Map(); // WebSocket -> { username, role, awarenessIds: Set<number> }
+    this.sessions = new Map();
     this.persistScheduled = false;
 
     this.doc = new Y.Doc();
     this.awareness = new awarenessProtocol.Awareness(this.doc);
     this.awareness.setLocalState(null);
 
-    this.doc.on("update", (update, origin) => this.handleDocUpdate(update, origin));
-    this.awareness.on("update", ({ added, updated, removed }, origin) =>
-      this.handleAwarenessUpdate(added, updated, removed, origin)
+    this.doc.on("update", (update: Uint8Array, origin: unknown) => this.handleDocUpdate(update, origin));
+    this.awareness.on(
+      "update",
+      (
+        { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
+        origin: unknown
+      ) => this.handleAwarenessUpdate(added, updated, removed, origin)
     );
 
     this.state.blockConcurrencyWhile(async () => {
-      const stored = await this.state.storage.get(PERSIST_KEY);
+      const stored = await this.state.storage.get<ArrayBuffer>(PERSIST_KEY);
       if (stored) Y.applyUpdate(this.doc, new Uint8Array(stored), "storage");
     });
   }
 
-  async fetch(request) {
+  async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
 
@@ -63,19 +92,20 @@ export class CollabRoom {
     if (!auth.ok) return new Response(auth.message, { status: auth.status });
 
     const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
+    const client = pair[0];
+    const server = pair[1];
     this.handleSession(server, auth.username, auth.role);
     return new Response(null, { status: 101, webSocket: client });
   }
 
   // ---------- Access control ----------
 
-  async getAccess() {
-    const stored = await this.state.storage.get(ACCESS_KEY);
+  async getAccess(): Promise<AccessRecord> {
+    const stored = await this.state.storage.get<AccessRecord>(ACCESS_KEY);
     return stored ? { ...DEFAULT_ACCESS, ...stored } : { ...DEFAULT_ACCESS };
   }
 
-  async getSession(request) {
+  async getSession(request: Request) {
     const cookie = getCookie(request, SESSION_COOKIE);
     if (!cookie) return null;
     return decryptSession(this.env, cookie);
@@ -84,7 +114,7 @@ export class CollabRoom {
   // Who's allowed to open this room's WebSocket, and with what role. The
   // owner always gets full edit access to their own document regardless of
   // the general-access setting.
-  async authorize(request) {
+  async authorize(request: Request): Promise<AuthResult> {
     const session = await this.getSession(request);
     if (!session || !session.username) {
       return { ok: false, status: 401, message: "Sign in with GitHub to join this document." };
@@ -110,7 +140,7 @@ export class CollabRoom {
     return { ok: false, status: 403, message: "You don't have access to this document." };
   }
 
-  async handleAccessRequest(request) {
+  async handleAccessRequest(request: Request): Promise<Response> {
     if (request.method === "GET") {
       const access = await this.getAccess();
       return Response.json(access);
@@ -120,7 +150,7 @@ export class CollabRoom {
       // request stream's lifetime to the incoming fetch call and it can go
       // away once other async work (cookie decryption, storage reads) has
       // run first.
-      let body;
+      let body: { generalAccess?: unknown; role?: unknown; invited?: unknown };
       try {
         body = await request.json();
       } catch (err) {
@@ -135,10 +165,10 @@ export class CollabRoom {
         return new Response("Only the owner can change access.", { status: 403 });
       }
 
-      const next = {
+      const next: AccessRecord = {
         owner: access.owner || session.username,
         generalAccess: body.generalAccess === "anyone" ? "anyone" : "restricted",
-        role: ["viewer", "reviewer", "editor"].includes(body.role) ? body.role : "viewer",
+        role: (["viewer", "reviewer", "editor"] as const).includes(body.role as Role) ? (body.role as Role) : "viewer",
         invited: Array.isArray(body.invited)
           ? [...new Set(body.invited.map((u) => String(u).trim()).filter(Boolean))].slice(0, 100)
           : access.invited,
@@ -151,7 +181,7 @@ export class CollabRoom {
 
   // ---------- WebSocket session ----------
 
-  handleSession(ws, username, role) {
+  handleSession(ws: WebSocket, username: string, role: Role): void {
     ws.accept();
     this.sessions.set(ws, { username, role, awarenessIds: new Set() });
 
@@ -171,15 +201,15 @@ export class CollabRoom {
       ws.send(encoding.toUint8Array(awarenessEncoder));
     }
 
-    ws.addEventListener("message", (event) => this.handleMessage(ws, event.data));
+    ws.addEventListener("message", (event: MessageEvent) => this.handleMessage(ws, event.data));
     ws.addEventListener("close", () => this.handleClose(ws));
     ws.addEventListener("error", () => this.handleClose(ws));
   }
 
-  handleMessage(ws, data) {
+  handleMessage(ws: WebSocket, data: unknown): void {
     if (typeof data === "string") return;
     const session = this.sessions.get(ws);
-    const decoder = decoding.createDecoder(new Uint8Array(data));
+    const decoder = decoding.createDecoder(new Uint8Array(data as ArrayBuffer));
     const messageType = decoding.readVarUint(decoder);
 
     if (messageType === MESSAGE_SYNC) {
@@ -202,7 +232,7 @@ export class CollabRoom {
     }
   }
 
-  handleClose(ws) {
+  handleClose(ws: WebSocket): void {
     const session = this.sessions.get(ws);
     this.sessions.delete(ws);
     if (session && session.awarenessIds.size > 0) {
@@ -211,7 +241,7 @@ export class CollabRoom {
     if (this.sessions.size === 0) this.persistNow();
   }
 
-  handleDocUpdate(update, origin) {
+  handleDocUpdate(update: Uint8Array, origin: unknown): void {
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_SYNC);
     syncProtocol.writeUpdate(encoder, update);
@@ -219,9 +249,9 @@ export class CollabRoom {
     if (origin !== "storage") this.schedulePersist();
   }
 
-  handleAwarenessUpdate(added, updated, removed, origin) {
+  handleAwarenessUpdate(added: number[], updated: number[], removed: number[], origin: unknown): void {
     const changed = added.concat(updated, removed);
-    const session = this.sessions.get(origin);
+    const session = origin instanceof WebSocket ? this.sessions.get(origin) : undefined;
     if (session) {
       added.concat(updated).forEach((id) => session.awarenessIds.add(id));
       removed.forEach((id) => session.awarenessIds.delete(id));
@@ -232,7 +262,7 @@ export class CollabRoom {
     this.broadcast(encoding.toUint8Array(encoder), origin);
   }
 
-  broadcast(message, exceptWs) {
+  broadcast(message: Uint8Array, exceptWs: unknown): void {
     for (const ws of this.sessions.keys()) {
       if (ws === exceptWs) continue;
       try {
@@ -243,18 +273,18 @@ export class CollabRoom {
     }
   }
 
-  async schedulePersist() {
+  async schedulePersist(): Promise<void> {
     if (this.persistScheduled) return;
     this.persistScheduled = true;
     await this.state.storage.setAlarm(Date.now() + PERSIST_DELAY_MS);
   }
 
-  async alarm() {
+  async alarm(): Promise<void> {
     this.persistScheduled = false;
     await this.persistNow();
   }
 
-  async persistNow() {
+  async persistNow(): Promise<void> {
     await this.state.storage.put(PERSIST_KEY, Y.encodeStateAsUpdate(this.doc));
   }
 }

@@ -1,4 +1,5 @@
 import { SESSION_COOKIE, STATE_COOKIE, encryptSession, decryptSession, getCookie, cookieHeader } from "./auth.js";
+import type { Env, SessionData } from "./env";
 
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const TOKEN_URL = "https://github.com/login/oauth/access_token";
@@ -8,7 +9,17 @@ const API = "https://api.github.com";
 // fetch doesn't send one by default.
 const USER_AGENT = "markdown-editor-app (+https://editor.danplace.tech)";
 
-export async function handleLogin(request, env) {
+interface TokenResponse {
+  access_token?: string;
+  error?: string;
+  error_description?: string;
+}
+
+interface GitHubUser {
+  login?: string;
+}
+
+export async function handleLogin(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const state = crypto.randomUUID();
 
@@ -23,7 +34,7 @@ export async function handleLogin(request, env) {
   return new Response(null, { status: 302, headers });
 }
 
-export async function handleCallback(request, env) {
+export async function handleCallback(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -43,14 +54,14 @@ export async function handleCallback(request, env) {
       redirect_uri: `${url.origin}/api/auth/github/callback`,
     }),
   });
-  const tokenData = await safeJson(tokenRes);
+  const tokenData = await safeJson<TokenResponse>(tokenRes);
   if (!tokenData || !tokenData.access_token) {
     const detail = (tokenData && (tokenData.error_description || tokenData.error)) || `HTTP ${tokenRes.status}`;
     return popupResponse(false, detail);
   }
 
   const userRes = await fetch(`${API}/user`, { headers: ghHeaders(tokenData.access_token) });
-  const userData = await safeJson(userRes);
+  const userData = await safeJson<GitHubUser>(userRes);
   if (!userData || !userData.login) {
     return popupResponse(false, "Could not read GitHub profile.");
   }
@@ -62,7 +73,7 @@ export async function handleCallback(request, env) {
   return new Response(popupHtml(true, null), { headers });
 }
 
-export async function handleLogout(request) {
+export async function handleLogout(request: Request): Promise<Response> {
   const headers = new Headers({ Location: "/" });
   headers.append("Set-Cookie", cookieHeader(SESSION_COOKIE, "", { maxAge: 0 }));
   return new Response(null, { status: 302, headers });
@@ -74,7 +85,7 @@ export async function handleLogout(request) {
 // opener via postMessage and closes itself: success closes immediately,
 // failure shows the reason for a couple seconds first so it's not just a
 // window vanishing with no explanation.
-function popupHtml(ok, message) {
+function popupHtml(ok: boolean, message: string | null): string {
   const payload = JSON.stringify({ type: "mde-github-auth", ok, message: message || null });
   const body = ok
     ? "Signed in — this window will close automatically."
@@ -86,20 +97,21 @@ function popupHtml(ok, message) {
   </script></body></html>`;
 }
 
-function popupResponse(ok, message) {
+function popupResponse(ok: boolean, message: string): Response {
   return new Response(popupHtml(ok, message), { status: ok ? 200 : 400, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function escapeHtml(str: string): string {
+  const map: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  return String(str).replace(/[&<>"']/g, (c) => map[c] as string);
 }
 
-export async function handleMe(request, env) {
+export async function handleMe(request: Request, env: Env): Promise<Response> {
   const session = await getSession(request, env);
   return Response.json(session ? { connected: true, username: session.username } : { connected: false });
 }
 
-export async function handleGistCreate(request, env) {
+export async function handleGistCreate(request: Request, env: Env): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
   const body = await request.text();
@@ -111,7 +123,7 @@ export async function handleGistCreate(request, env) {
   return proxyJson(res);
 }
 
-export async function handleGistUpdate(request, env, id) {
+export async function handleGistUpdate(request: Request, env: Env, id: string): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
   const body = await request.text();
@@ -123,20 +135,20 @@ export async function handleGistUpdate(request, env, id) {
   return proxyJson(res);
 }
 
-export async function handleGistGet(request, env, id) {
+export async function handleGistGet(request: Request, env: Env, id: string): Promise<Response> {
   const session = await getSession(request, env);
   const headers = session ? ghHeaders(session.token) : { Accept: "application/vnd.github+json", "User-Agent": USER_AGENT };
   const res = await fetch(`${API}/gists/${id}`, { headers });
   return proxyJson(res);
 }
 
-async function getSession(request, env) {
+async function getSession(request: Request, env: Env): Promise<SessionData | null> {
   const cookie = getCookie(request, SESSION_COOKIE);
   if (!cookie) return null;
   return decryptSession(env, cookie);
 }
 
-function ghHeaders(token) {
+function ghHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
     Accept: "application/vnd.github+json",
@@ -145,13 +157,13 @@ function ghHeaders(token) {
   };
 }
 
-async function proxyJson(res) {
+async function proxyJson(res: Response): Promise<Response> {
   return new Response(res.body, { status: res.status, headers: { "Content-Type": "application/json" } });
 }
 
-async function safeJson(res) {
+async function safeJson<T>(res: Response): Promise<T | null> {
   try {
-    return await res.json();
+    return (await res.json()) as T;
   } catch (err) {
     return null;
   }

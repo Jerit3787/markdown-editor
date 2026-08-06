@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "markdown-editor",
-  "main": "src/worker.js",
+  "main": "src/worker.ts",
   "compatibility_date": "2025-08-01",
   "workers_dev": false,
   "observability": { "enabled": true },
@@ -24,7 +24,7 @@
   // files (see js/collab.js). run_worker_first is required alongside it:
   // without it, Cloudflare's asset layer treats ANY extensionless
   // page-navigation request (not just unmatched ones) as an SPA route and
-  // serves index.html before src/worker.js's own routing ever runs — which
+  // serves index.html before src/worker.ts's own routing ever runs — which
   // silently broke full-page-navigation endpoints like
   // /api/auth/github/login (fetch()-based /api calls were unaffected,
   // since only real navigations hit this). With run_worker_first, the

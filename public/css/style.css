@@ -28,6 +28,11 @@
 
 * { box-sizing: border-box; }
 
+/* Several rules below (.dropdown-menu button, .share-row, .presence-bar)
+   set an explicit `display`, which otherwise wins over the browser's
+   default `[hidden] { display: none }` UA rule and defeats el.hidden. */
+[hidden] { display: none !important; }
+
 html, body {
   height: 100%;
   margin: 0;

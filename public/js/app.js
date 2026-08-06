@@ -82,6 +82,7 @@ function hello() {
     initToolbar();
     initSidebar();
     initExport();
+    initOpenMenu();
     initViewToggle();
     initImport();
     initShortStatus();
@@ -220,6 +221,7 @@ function hello() {
     document.getElementById("docTitle").value = doc.name || "Untitled";
     cm.clearHistory();
     setTimeout(() => cm.refresh(), 0);
+    setSaveStatus(savedLabel(doc));
     window.MDE.onActiveDocChanged && window.MDE.onActiveDocChanged(doc);
   }
 
@@ -236,7 +238,14 @@ function hello() {
     doc.content = cm.getValue();
     doc.updatedAt = Date.now();
     persistDocs();
-    setSaveStatus("Saved");
+    setSaveStatus(savedLabel(doc));
+  }
+
+  // Everything always lives in this browser's localStorage first; the
+  // status text just also surfaces whether it's *also* linked elsewhere,
+  // since that's the part that's easy to lose track of.
+  function savedLabel(doc) {
+    return doc && doc.gistId ? "Saved locally · linked to Gist" : "Saved locally";
   }
 
   function setSaveStatus(text) {
@@ -455,6 +464,24 @@ function hello() {
     return div.innerHTML;
   }
 
+  // ---------- Open (local file / Gist) ----------
+  function initOpenMenu() {
+    const btn = document.getElementById("openBtn");
+    const menu = document.getElementById("openMenu");
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      menu.classList.toggle("open");
+    });
+    document.addEventListener("click", () => menu.classList.remove("open"));
+    menu.addEventListener("click", (e) => e.stopPropagation());
+
+    document.getElementById("openLocalBtn").addEventListener("click", () => {
+      document.getElementById("importInput").click();
+      menu.classList.remove("open");
+    });
+  }
+
   // ---------- Import ----------
   function initImport() {
     document.getElementById("importInput").addEventListener("change", (e) => {
@@ -623,6 +650,9 @@ ${bodyHtml}
     switchDoc,
     persistDocs,
     renderDocList,
+    refreshSaveStatus() {
+      setSaveStatus(savedLabel(getActiveDoc()));
+    },
     findDocByRoomId(roomId) {
       return docs.find((d) => d.roomId === roomId);
     },

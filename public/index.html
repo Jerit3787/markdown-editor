@@ -190,7 +190,7 @@
 
     <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title">
 
-    <div id="saveStatus">Saved</div>
+    <div id="saveStatus">Saved locally</div>
 
     <div id="presenceBar" class="presence-bar" hidden></div>
 
@@ -227,32 +227,22 @@
         </div>
       </div>
 
+      <!-- Bring a document in, regardless of where it lives. -->
       <div class="dropdown">
-        <button id="gistBtn" class="icon-btn" title="GitHub Gist" aria-label="GitHub Gist"><svg class="icon"><use href="#icon-github"></use></svg><span class="tool-label">GitHub Gist</span></button>
-        <div id="gistMenu" class="dropdown-menu share-menu">
+        <button id="openBtn" class="secondary-btn" type="button">Open <svg class="icon"><use href="#icon-chevron-down"></use></svg></button>
+        <div id="openMenu" class="dropdown-menu share-menu">
+          <button id="openLocalBtn" type="button"><svg class="icon"><use href="#icon-upload"></use></svg> From this device</button>
+          <input id="importInput" type="file" accept=".md,.markdown,.txt" hidden>
+          <div class="menu-divider"></div>
+          <div class="menu-section-label">From GitHub Gist</div>
           <div class="share-row">
-            <span id="gistStatusDot" class="status-dot status-idle"></span>
-            <span id="gistStatusText">Not connected</span>
+            <input id="gistOpenInput" type="text" placeholder="URL or ID" aria-label="Gist URL or ID">
+            <button id="gistOpenBtn" class="secondary-btn" type="button">Open</button>
           </div>
-
-          <div class="share-row" id="gistTokenRow">
-            <input id="gistTokenInput" type="password" placeholder="ghp_... (gist scope)" aria-label="GitHub personal access token">
-            <button id="gistConnectBtn" class="secondary-btn" type="button">Connect</button>
-          </div>
-          <a id="gistTokenLink" class="menu-link" href="https://github.com/settings/tokens/new?scopes=gist&amp;description=Markdown+Editor" target="_blank" rel="noopener">Create a token <svg class="icon"><use href="#icon-external-link"></use></svg></a>
-
-          <button id="gistPublishBtn" class="primary-btn" type="button" hidden>Publish as Gist</button>
-          <a id="gistViewLink" class="menu-link" href="#" target="_blank" rel="noopener" hidden>View Gist <svg class="icon"><use href="#icon-external-link"></use></svg></a>
-          <button id="gistDisconnectBtn" class="secondary-btn" type="button" hidden><svg class="icon"><use href="#icon-log-out"></use></svg> Disconnect</button>
-
-          <div class="share-row share-name-row">
-            <label for="gistOpenInput">Open a Gist</label>
-            <input id="gistOpenInput" type="text" placeholder="URL or ID">
-          </div>
-          <button id="gistOpenBtn" class="secondary-btn" type="button">Open</button>
         </div>
       </div>
 
+      <!-- Send a document out — download, or publish to a Gist. -->
       <div class="dropdown">
         <button id="exportBtn" class="primary-btn">Export <svg class="icon"><use href="#icon-chevron-down"></use></svg></button>
         <div id="exportMenu" class="dropdown-menu">
@@ -260,6 +250,22 @@
           <button data-export="html"><svg class="icon"><use href="#icon-download"></use></svg> HTML (.html)</button>
           <button data-export="pdf"><svg class="icon"><use href="#icon-download"></use></svg> PDF (.pdf)</button>
           <button data-export="txt"><svg class="icon"><use href="#icon-download"></use></svg> Plain text (.txt)</button>
+          <div class="menu-divider"></div>
+          <button id="exportGistBtn" type="button"><svg class="icon"><use href="#icon-github"></use></svg> <span id="exportGistLabel">Publish to Gist</span></button>
+          <a id="gistViewLink" class="menu-link" href="#" target="_blank" rel="noopener" hidden>View Gist <svg class="icon"><use href="#icon-external-link"></use></svg></a>
+        </div>
+      </div>
+
+      <!-- Just the account: connect/disconnect GitHub. -->
+      <div class="dropdown">
+        <button id="gistBtn" class="icon-btn" title="GitHub account" aria-label="GitHub account"><svg class="icon"><use href="#icon-github"></use></svg><span class="tool-label">GitHub</span></button>
+        <div id="gistMenu" class="dropdown-menu share-menu">
+          <div class="share-row">
+            <span id="gistStatusDot" class="status-dot status-idle"></span>
+            <span id="gistStatusText">Not connected</span>
+          </div>
+          <button id="gistSignInBtn" class="secondary-btn" type="button"><svg class="icon"><use href="#icon-github"></use></svg> Sign in with GitHub</button>
+          <button id="gistDisconnectBtn" class="secondary-btn" type="button" hidden><svg class="icon"><use href="#icon-log-out"></use></svg> Disconnect</button>
         </div>
       </div>
     </div>
@@ -276,12 +282,6 @@
         <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document"><svg class="icon"><use href="#icon-plus"></use></svg></button>
       </div>
       <ul id="docList"></ul>
-      <div id="sidebarFooter">
-        <label class="file-import-label">
-          <svg class="icon"><use href="#icon-upload"></use></svg> Import .md
-          <input id="importInput" type="file" accept=".md,.markdown,.txt" hidden>
-        </label>
-      </div>
       <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden>
     </aside>
 
@@ -326,6 +326,7 @@
     <span id="charCount">0 characters</span>
     <span class="spacer"></span>
     <span id="cursorPos">Ln 1, Col 1</span>
+    <a href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener" class="statusbar-link" title="View source on GitHub" aria-label="View source on GitHub"><svg class="icon"><use href="#icon-github"></use></svg></a>
   </footer>
 </div>
 

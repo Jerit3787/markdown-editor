@@ -4,10 +4,19 @@
   "main": "src/worker.js",
   "compatibility_date": "2025-08-01",
   "workers_dev": false,
+  "observability": { "enabled": true },
 
   "routes": [
     { "pattern": "editor.danplace.tech", "custom_domain": true }
   ],
+
+  // GITHUB_CLIENT_ID is the public half of the GitHub OAuth App (Settings
+  // → Developer settings → OAuth Apps) used for "Sign in with GitHub" /
+  // Gist publish. GITHUB_CLIENT_SECRET and SESSION_SECRET are Worker
+  // secrets (wrangler secret put ...), never committed.
+  "vars": {
+    "GITHUB_CLIENT_ID": "Ov23liV4lb0YiRtTwpm9"
+  },
 
   // Serves the static site (public/) for any request the Worker doesn't
   // explicitly handle itself (i.e. everything except /api/collab/*).

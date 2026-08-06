@@ -89,6 +89,7 @@ function hello() {
     initMenuBar();
     initSettingsMenu();
     initShortcutsModal();
+    initGithubSignInModal();
     initModalEscapeKey();
 
     renderDocList();
@@ -845,6 +846,21 @@ function hello() {
     });
   }
 
+  // Shared by gist.js (Publish to Gist) and collab.js (Share) — both gate a
+  // feature behind GitHub sign-in and pop this same modal when signed out.
+  function initGithubSignInModal() {
+    const modal = document.getElementById("githubSignInModal");
+    document.getElementById("githubSignInModalCancelBtn").addEventListener("click", () => {
+      modal.hidden = true;
+    });
+    document.getElementById("githubSignInModalSignInBtn").addEventListener("click", () => {
+      location.href = "/api/auth/github/login";
+    });
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.hidden = true;
+    });
+  }
+
   function currentFileBase() {
     const doc = getActiveDoc();
     const name = (doc && doc.name ? doc.name : "document").trim();
@@ -975,9 +991,15 @@ ${bodyHtml}
     onImageAdded: null,
     toggleDropdown,
     closeAllDropdowns,
-    findDocByRoomId(roomId) {
-      return docs.find((d) => d.roomId === roomId);
+    findDocById(id) {
+      return docs.find((d) => d.id === id);
     },
+    requireGithubSignIn(hint) {
+      const modal = document.getElementById("githubSignInModal");
+      if (hint) document.getElementById("githubSignInModalHint").textContent = hint;
+      modal.hidden = false;
+    },
+    githubUsername: null, // kept in sync by gist.js's checkSession()
     createDoc(partial) {
       saveNow();
       const doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now() }, partial);
@@ -991,21 +1013,18 @@ ${bodyHtml}
       updateCounts();
       return doc;
     },
-    setActiveDocRoomId(roomId) {
+    // The doc's own id doubles as its collab room id (see collab.js) — this
+    // just tracks locally whether the doc has ever been shared, so
+    // switching to/loading it knows whether to attempt rejoining the room.
+    markActiveDocShared(shared) {
       const doc = getActiveDoc();
       if (!doc) return null;
-      doc.roomId = roomId;
+      if (shared) doc.shared = true;
+      else delete doc.shared;
       doc.updatedAt = Date.now();
       persistDocs();
       renderDocList();
       return doc;
-    },
-    clearActiveDocRoomId() {
-      const doc = getActiveDoc();
-      if (!doc) return;
-      delete doc.roomId;
-      persistDocs();
-      renderDocList();
     },
     setActiveDocGistId(gistId) {
       const doc = getActiveDoc();

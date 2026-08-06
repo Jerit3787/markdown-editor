@@ -476,6 +476,83 @@ html, body {
 .status-dot.status-reconnecting { background: #f59f00; }
 .status-dot.status-idle { background: var(--text-dim); }
 
+.share-add-people-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 9px 12px;
+  font-size: 13.5px;
+  margin: 8px 0 16px;
+  box-sizing: border-box;
+}
+.share-add-people-input:focus { outline: none; border-color: var(--accent); }
+.share-add-people-input:disabled { color: var(--text-dim); cursor: not-allowed; background: var(--bg-alt); }
+
+.share-access-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0 16px; }
+.share-access-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.share-access-icon .icon { width: 18px; height: 18px; color: var(--text-dim); }
+.share-access-row.active .share-access-icon { background: var(--accent-dim); }
+.share-access-row.active .share-access-icon .icon { color: var(--accent); }
+.share-access-text { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; flex: 1; min-width: 0; }
+
+.share-access-select, .share-role-select {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 2px 0;
+  cursor: pointer;
+  appearance: auto;
+  width: fit-content;
+}
+.share-role-select {
+  align-self: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-alt);
+  padding: 5px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.share-people-list { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 4px; max-height: 160px; overflow-y: auto; }
+.share-person { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+.share-person .presence-avatar { margin-left: 0; flex-shrink: 0; width: 36px; height: 36px; font-size: 15px; }
+.share-person-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-person-role { font-size: 12px; font-weight: 600; color: var(--text-dim); flex-shrink: 0; }
+
+.share-person-remove {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.share-person-remove .icon { width: 14px; height: 14px; }
+.share-person-remove:hover { background: var(--bg-alt); color: var(--text); }
+
+.modal-actions-share { align-items: center; }
+
 .cm-image-uploading { opacity: 0.55; font-style: italic; }
 
 .remote-cursor {

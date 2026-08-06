@@ -3,23 +3,38 @@ import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
+import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 
+// Sub-types within a MESSAGE_SYNC frame (see y-protocols/sync.js). Step1 is
+// a read-only "what do you have" handshake; step2 and update both apply
+// content to the doc, so those two are what read-only roles must be
+// blocked from sending.
+const SYNC_STEP1 = 0;
+const SYNC_STEP2 = 1;
+const SYNC_UPDATE = 2;
+
 const PERSIST_KEY = "update";
+const ACCESS_KEY = "access";
 const PERSIST_DELAY_MS = 1000;
 
-// One CollabRoom instance == one shared document. Cloudflare guarantees a
-// single instance per room name, so it's the natural point to hold the
-// authoritative Yjs doc in memory and relay updates between connected
-// clients. State is checkpointed to the Durable Object's own built-in
-// storage (not a separate database) so a room survives eviction/restarts.
+const DEFAULT_ACCESS = { owner: null, generalAccess: "restricted", role: "viewer", invited: [] };
+
+// One CollabRoom instance == one shared document, addressed by the
+// document's own client-generated id (so a share link is stable from the
+// moment the doc exists, not a fresh random id minted only once sharing is
+// turned on). Cloudflare guarantees a single instance per room name, so
+// it's the natural point to hold both the authoritative Yjs doc AND the
+// access-control record (owner / general access / invited usernames) —
+// both checkpointed to the Durable Object's own built-in storage, no
+// separate database involved.
 export class CollabRoom {
   constructor(state, env) {
     this.state = state;
     this.env = env;
-    this.sessions = new Map(); // WebSocket -> { awarenessIds: Set<number> }
+    this.sessions = new Map(); // WebSocket -> { username, role, awarenessIds: Set<number> }
     this.persistScheduled = false;
 
     this.doc = new Y.Doc();
@@ -38,18 +53,107 @@ export class CollabRoom {
   }
 
   async fetch(request) {
+    const url = new URL(request.url);
+    if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected websocket", { status: 426 });
     }
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
-    this.handleSession(server);
+    this.handleSession(server, auth.username, auth.role);
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  handleSession(ws) {
+  // ---------- Access control ----------
+
+  async getAccess() {
+    const stored = await this.state.storage.get(ACCESS_KEY);
+    return stored ? { ...DEFAULT_ACCESS, ...stored } : { ...DEFAULT_ACCESS };
+  }
+
+  async getSession(request) {
+    const cookie = getCookie(request, SESSION_COOKIE);
+    if (!cookie) return null;
+    return decryptSession(this.env, cookie);
+  }
+
+  // Who's allowed to open this room's WebSocket, and with what role. The
+  // owner always gets full edit access to their own document regardless of
+  // the general-access setting.
+  async authorize(request) {
+    const session = await this.getSession(request);
+    if (!session || !session.username) {
+      return { ok: false, status: 401, message: "Sign in with GitHub to join this document." };
+    }
+    const access = await this.getAccess();
+    if (!access.owner) {
+      // Nobody has ever configured this room — treat it as private and
+      // unreachable until the owner explicitly opens access via PUT
+      // /access. (Ownership itself is claimed there, not here, so two
+      // people racing to open a fresh link can't accidentally both become
+      // "the owner".)
+      return { ok: false, status: 403, message: "This document hasn't been shared." };
+    }
+    if (session.username === access.owner) {
+      return { ok: true, username: session.username, role: "editor" };
+    }
+    if (access.generalAccess === "anyone") {
+      return { ok: true, username: session.username, role: access.role };
+    }
+    if (access.invited.includes(session.username)) {
+      return { ok: true, username: session.username, role: "editor" };
+    }
+    return { ok: false, status: 403, message: "You don't have access to this document." };
+  }
+
+  async handleAccessRequest(request) {
+    if (request.method === "GET") {
+      const access = await this.getAccess();
+      return Response.json(access);
+    }
+    if (request.method === "PUT") {
+      // Read the body before any other await — some runtimes tie the
+      // request stream's lifetime to the incoming fetch call and it can go
+      // away once other async work (cookie decryption, storage reads) has
+      // run first.
+      let body;
+      try {
+        body = await request.json();
+      } catch (err) {
+        return new Response("Invalid JSON.", { status: 400 });
+      }
+
+      const session = await this.getSession(request);
+      if (!session || !session.username) return new Response("Sign in with GitHub first.", { status: 401 });
+
+      const access = await this.getAccess();
+      if (access.owner && access.owner !== session.username) {
+        return new Response("Only the owner can change access.", { status: 403 });
+      }
+
+      const next = {
+        owner: access.owner || session.username,
+        generalAccess: body.generalAccess === "anyone" ? "anyone" : "restricted",
+        role: ["viewer", "reviewer", "editor"].includes(body.role) ? body.role : "viewer",
+        invited: Array.isArray(body.invited)
+          ? [...new Set(body.invited.map((u) => String(u).trim()).filter(Boolean))].slice(0, 100)
+          : access.invited,
+      };
+      await this.state.storage.put(ACCESS_KEY, next);
+      return Response.json(next);
+    }
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  // ---------- WebSocket session ----------
+
+  handleSession(ws, username, role) {
     ws.accept();
-    this.sessions.set(ws, { awarenessIds: new Set() });
+    this.sessions.set(ws, { username, role, awarenessIds: new Set() });
 
     const syncEncoder = encoding.createEncoder();
     encoding.writeVarUint(syncEncoder, MESSAGE_SYNC);
@@ -74,10 +178,20 @@ export class CollabRoom {
 
   handleMessage(ws, data) {
     if (typeof data === "string") return;
+    const session = this.sessions.get(ws);
     const decoder = decoding.createDecoder(new Uint8Array(data));
     const messageType = decoding.readVarUint(decoder);
 
     if (messageType === MESSAGE_SYNC) {
+      // Peek the sync sub-type without consuming it — readSyncMessage below
+      // needs to read it again itself.
+      const savedPos = decoder.pos;
+      const syncType = decoding.readVarUint(decoder);
+      decoder.pos = savedPos;
+
+      const isWrite = syncType === SYNC_STEP2 || syncType === SYNC_UPDATE;
+      if (isWrite && session && session.role !== "editor") return; // read-only: drop silently
+
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, MESSAGE_SYNC);
       syncProtocol.readSyncMessage(decoder, encoder, this.doc, ws);

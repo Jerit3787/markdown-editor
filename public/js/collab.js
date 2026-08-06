@@ -1,6 +1,14 @@
 // Real-time multi-user editing. Loaded as a module (deferred like `defer`,
 // runs after app.js has finished its own DOMContentLoaded init) so
 // window.MDE is fully populated by the time we touch it.
+//
+// Sharing requires a connected GitHub account (see gist.js / src/auth.js).
+// Access control (owner / general access / invited usernames) is stored
+// server-side per room (src/collab-room.js) and enforced there — this file
+// mirrors that state into the UI and does its own best-effort read-only
+// enforcement (disabling CodeMirror) for a clean UX, but the server is the
+// real authority: it silently drops write messages from any session that
+// wasn't actually granted an editor role.
 import * as Y from "https://esm.sh/yjs@13.6.18";
 import * as syncProtocol from "https://esm.sh/y-protocols@1.0.6/sync?deps=yjs@13.6.18";
 import * as awarenessProtocol from "https://esm.sh/y-protocols@1.0.6/awareness?deps=yjs@13.6.18";
@@ -10,8 +18,10 @@ import * as decoding from "https://esm.sh/lib0@0.2.99/decoding";
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 
-const USER_STORAGE_KEY = "mde:user";
 const COLORS = ["#e64980", "#f76707", "#f59f00", "#40c057", "#12b886", "#228be6", "#7950f2", "#e8590c"];
+const ROLE_LABELS = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
+const ROLE_VERBS = { viewer: "view", reviewer: "comment", editor: "edit" };
+const DEFAULT_ACCESS = { owner: null, generalAccess: "restricted", role: "viewer", invited: [] };
 
 const room = {
   id: null,
@@ -30,7 +40,9 @@ const room = {
 };
 
 let cm = null;
-let user = restoreUser();
+// The server-side access record for the room currently shown in the Share
+// modal, refreshed on open and after every change. Null until first fetched.
+let currentAccess = null;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -44,42 +56,76 @@ function init() {
   window.MDE.onImageAdded = (key, dataUrl) => {
     if (room.imagesMap) room.ydoc.transact(() => room.imagesMap.set(key, dataUrl), "local");
   };
-  // gist.js calls this once it knows the signed-in GitHub username. Only
-  // adopts it if the user hasn't already picked their own name in the Share
-  // modal, so we don't clobber a deliberate choice on every page load.
-  window.MDE.applyGithubUsername = (username) => {
-    if (!username || !/^Guest \d+$/.test(user.name)) return;
-    setUserName(username);
-    const nameInput = document.getElementById("collabNameInput");
-    if (nameInput) nameInput.value = user.name;
-  };
 
   setupShareUI();
 
-  const params = new URLSearchParams(location.search);
-  const urlRoom = params.get("room");
-  if (urlRoom) {
-    history.replaceState(null, "", location.pathname + location.hash);
-    const existing = window.MDE.findDocByRoomId(urlRoom);
-    if (existing) {
-      window.MDE.switchDoc(existing.id);
-    } else {
-      window.MDE.createDoc({ name: "Shared document", roomId: urlRoom });
-    }
+  const shareUrlMatch = location.pathname.match(SHARE_PATH);
+  if (shareUrlMatch) {
+    history.replaceState(null, "", "/" + location.search + location.hash);
+    joinSharedLink(shareUrlMatch[1]);
   } else {
     handleDocChanged(window.MDE.getActiveDoc());
   }
+}
+
+// Share links look like /d/<docId>/<view|review|edit> (Google-Docs-style),
+// not query params. The mode segment is purely informational for whoever's
+// reading the link — actual access is always resolved server-side from the
+// room's access record (see computeMyRole), never trusted from the URL.
+const SHARE_PATH = /^\/d\/([A-Za-z0-9_-]{1,128})\/(?:view|review|edit)$/;
+const ROLE_TO_SEGMENT = { viewer: "view", reviewer: "review", editor: "edit" };
+
+// A doc's own id doubles as its room id (see src/collab-room.js) — a share
+// link is stable the moment the doc exists, not a fresh id minted only once
+// sharing is turned on.
+async function joinSharedLink(roomId) {
+  const existing = window.MDE.findDocById(roomId);
+  // createDoc() already activates the new doc; switchDoc() only needed to
+  // bring an already-known local copy back into view.
+  if (existing) window.MDE.switchDoc(existing.id);
+  else window.MDE.createDoc({ id: roomId, name: "Shared document" });
+
+  await window.MDE.githubSessionReady;
+  if (!window.MDE.githubUsername) {
+    window.MDE.requireGithubSignIn("Sign in with GitHub to open this shared document.");
+    return;
+  }
+  const access = await fetchAccess(roomId);
+  const role = computeMyRole(access, window.MDE.githubUsername);
+  if (!role) {
+    alert("You don't have access to this document. Ask the owner to invite your GitHub username, or share a link with general access turned on.");
+    return;
+  }
+  window.MDE.markActiveDocShared(true);
+  joinRoom(roomId, { seedFromLocal: false, role });
+}
+
+function computeMyRole(access, username) {
+  if (!username) return null;
+  if (access.owner === username) return "editor";
+  if (access.generalAccess === "anyone") return access.role;
+  if (access.invited.includes(username)) return "editor";
+  return null;
 }
 
 // ---------- Room lifecycle ----------
 
 function handleDocChanged(doc) {
   teardown();
-  if (doc && doc.roomId) joinRoom(doc.roomId, { seedFromLocal: false });
+  if (doc && doc.shared) rejoinKnownRoom(doc);
   else renderShareUI();
 }
 
-function joinRoom(roomId, { seedFromLocal }) {
+async function rejoinKnownRoom(doc) {
+  await window.MDE.githubSessionReady;
+  if (!window.MDE.githubUsername) return; // can't reconnect without a session; modal will prompt if they try to share
+  const access = await fetchAccess(doc.id);
+  const role = computeMyRole(access, window.MDE.githubUsername);
+  if (!role) return;
+  joinRoom(doc.id, { seedFromLocal: false, role });
+}
+
+function joinRoom(roomId, { seedFromLocal, role }) {
   teardown();
   room.id = roomId;
   room.ydoc = new Y.Doc();
@@ -99,7 +145,11 @@ function joinRoom(roomId, { seedFromLocal }) {
   if (seedFromLocal) pushLocalContentIntoYText(cm.getValue());
   if (seedFromLocal) seedImagesIntoRoom();
 
-  room.awareness.setLocalState({ user, cursor: cursorFieldFromCm() });
+  cm.setOption("readOnly", role !== "editor");
+
+  const username = window.MDE.githubUsername;
+  const identity = { name: username, color: colorForUsername(username) };
+  room.awareness.setLocalState({ user: identity, cursor: cursorFieldFromCm(), role, username });
   room.awareness.on("update", onLocalAwarenessUpdate);
 
   connect();
@@ -107,6 +157,7 @@ function joinRoom(roomId, { seedFromLocal }) {
 }
 
 function teardown() {
+  cm.setOption("readOnly", false);
   if (room.reconnectTimer) {
     clearTimeout(room.reconnectTimer);
     room.reconnectTimer = null;
@@ -267,7 +318,16 @@ function connect() {
 
   ws.onopen = () => {
     room.reconnectDelay = 1000;
-    setStatus("connected");
+    // Replying to the server's own step1 (below, in handleServerMessage)
+    // only tells the SERVER what it's missing from us — it never delivers
+    // the server's content back to us. We have to independently request it
+    // by sending our own step1, or a freshly-joining client with an empty
+    // local doc would never receive any pre-existing room content.
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    syncProtocol.writeSyncStep1(encoder, room.ydoc);
+    send(encoding.toUint8Array(encoder));
+
     if (room.awareness.getLocalState() !== null) {
       sendAwareness([room.awareness.clientID]);
     }
@@ -276,7 +336,6 @@ function connect() {
   ws.onmessage = (event) => handleServerMessage(new Uint8Array(event.data));
 
   ws.onclose = () => {
-    setStatus("reconnecting");
     scheduleReconnect();
   };
   ws.onerror = () => ws.close();
@@ -327,21 +386,40 @@ function send(bytes) {
 }
 
 // ---------- User identity ----------
+// Sharing requires a GitHub account, so collab identity is just the signed
+// -in username with a color hashed from it (stable across devices/sessions
+// — no per-browser random guest name to manage anymore).
 
-function restoreUser() {
-  try {
-    const raw = localStorage.getItem(USER_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) { /* ignore corrupt storage */ }
-  const fresh = { name: `Guest ${Math.floor(Math.random() * 900 + 100)}`, color: COLORS[Math.floor(Math.random() * COLORS.length)] };
-  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(fresh));
-  return fresh;
+function colorForUsername(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return COLORS[hash % COLORS.length];
 }
 
-function setUserName(name) {
-  user = { ...user, name: name || user.name };
-  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-  if (room.awareness) room.awareness.setLocalStateField("user", user);
+// ---------- Server access-control API ----------
+
+async function fetchAccess(roomId) {
+  try {
+    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/access`);
+    if (!res.ok) return { ...DEFAULT_ACCESS };
+    return { ...DEFAULT_ACCESS, ...(await res.json()) };
+  } catch (err) {
+    return { ...DEFAULT_ACCESS };
+  }
+}
+
+async function putAccess(roomId, body) {
+  try {
+    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/access`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return { ...DEFAULT_ACCESS, ...(await res.json()) };
+  } catch (err) {
+    return null;
+  }
 }
 
 // ---------- UI ----------
@@ -349,15 +427,24 @@ function setUserName(name) {
 function setupShareUI() {
   const shareBtn = document.getElementById("shareBtn");
   const shareModal = document.getElementById("shareModal");
-  const startBtn = document.getElementById("startShareBtn");
-  const stopBtn = document.getElementById("stopShareBtn");
+  const accessSelect = document.getElementById("shareAccessSelect");
+  const roleSelect = document.getElementById("shareRoleSelect");
   const copyBtn = document.getElementById("copyShareLink");
-  const nameInput = document.getElementById("collabNameInput");
+  const addPeopleInput = document.getElementById("shareAddPeopleInput");
 
-  nameInput.value = user.name;
-
-  shareBtn.addEventListener("click", () => {
+  shareBtn.addEventListener("click", async () => {
+    await window.MDE.githubSessionReady;
+    if (!window.MDE.githubUsername) {
+      window.MDE.requireGithubSignIn("Sharing needs a connected GitHub account. Sign in to continue.");
+      return;
+    }
     shareModal.hidden = false;
+    updateOwnerAvatar();
+    const doc = window.MDE.getActiveDoc();
+    if (doc) {
+      currentAccess = await fetchAccess(doc.id);
+      renderShareUI();
+    }
   });
   document.getElementById("shareModalCloseBtn").addEventListener("click", () => {
     shareModal.hidden = true;
@@ -366,89 +453,200 @@ function setupShareUI() {
     if (e.target === shareModal) shareModal.hidden = true;
   });
 
-  startBtn.addEventListener("click", () => {
-    const roomId = genRoomId();
-    window.MDE.setActiveDocRoomId(roomId);
-    joinRoom(roomId, { seedFromLocal: true });
-  });
-
-  stopBtn.addEventListener("click", () => {
-    window.MDE.clearActiveDocRoomId();
-    teardown();
+  accessSelect.addEventListener("change", async () => {
+    const doc = window.MDE.getActiveDoc();
+    if (!doc) return;
+    const wantAnyone = accessSelect.value === "anyone";
+    const access = await putAccess(doc.id, {
+      generalAccess: wantAnyone ? "anyone" : "restricted",
+      role: roleSelect.value || (currentAccess && currentAccess.role) || "viewer",
+      invited: currentAccess ? currentAccess.invited : [],
+    });
+    if (!access) {
+      accessSelect.value = wantAnyone ? "restricted" : "anyone"; // revert on failure
+      return;
+    }
+    currentAccess = access;
+    window.MDE.markActiveDocShared(wantAnyone || access.invited.length > 0);
+    if (wantAnyone && !room.id) joinRoom(doc.id, { seedFromLocal: true, role: "editor" });
+    if (!wantAnyone) teardown();
     renderShareUI();
   });
 
-  const copyBtnLabel = copyBtn.querySelector("span");
+  roleSelect.addEventListener("change", async () => {
+    const doc = window.MDE.getActiveDoc();
+    if (!doc || !currentAccess) return;
+    const access = await putAccess(doc.id, {
+      generalAccess: "anyone",
+      role: roleSelect.value,
+      invited: currentAccess.invited,
+    });
+    if (access) {
+      currentAccess = access;
+      renderShareUI();
+    }
+  });
+
+  const copyBtnLabel = copyBtn.querySelector("span") || copyBtn;
   copyBtn.addEventListener("click", () => {
-    const input = document.getElementById("shareLinkInput");
-    input.select();
-    navigator.clipboard.writeText(input.value).then(() => {
+    const doc = window.MDE.getActiveDoc();
+    if (!doc || !currentAccess) return;
+    const isAnyone = currentAccess.generalAccess === "anyone";
+    if (!isAnyone && currentAccess.invited.length === 0) return;
+    // Invited-only (restricted) links always resolve to editor access per
+    // authorize() server-side; "anyone" links carry whatever role is set.
+    const segment = isAnyone ? ROLE_TO_SEGMENT[currentAccess.role] || "view" : "edit";
+    const link = `${location.origin}/d/${encodeURIComponent(doc.id)}/${segment}`;
+    navigator.clipboard.writeText(link).then(() => {
+      const original = copyBtnLabel.textContent;
       copyBtnLabel.textContent = "Copied!";
-      setTimeout(() => (copyBtnLabel.textContent = "Copy"), 1200);
+      setTimeout(() => (copyBtnLabel.textContent = original), 1200);
     });
   });
 
-  nameInput.addEventListener("change", () => setUserName(nameInput.value.trim()));
+  addPeopleInput.addEventListener("keydown", async (e) => {
+    if (e.key !== "Enter") return;
+    const username = addPeopleInput.value.trim().replace(/^@/, "");
+    if (!username) return;
+    const doc = window.MDE.getActiveDoc();
+    if (!doc) return;
+    const invited = [...new Set([...(currentAccess ? currentAccess.invited : []), username])];
+    const access = await putAccess(doc.id, {
+      generalAccess: currentAccess ? currentAccess.generalAccess : "restricted",
+      role: currentAccess ? currentAccess.role : "viewer",
+      invited,
+    });
+    if (access) {
+      currentAccess = access;
+      window.MDE.markActiveDocShared(true);
+      addPeopleInput.value = "";
+      renderShareUI();
+    }
+  });
 
   renderShareUI();
 }
 
-function setStatus(status) {
-  const dot = document.getElementById("collabStatusDot");
-  const text = document.getElementById("collabStatusText");
-  if (!dot || !text) return;
-  dot.className = `status-dot status-${status}`;
-  text.textContent = { connected: "Live", reconnecting: "Reconnecting…", shared: "Shared" }[status] || "Not shared";
-}
-
 function renderShareUI() {
-  const linkRow = document.getElementById("shareLinkRow");
-  const linkInput = document.getElementById("shareLinkInput");
-  const startBtn = document.getElementById("startShareBtn");
-  const stopBtn = document.getElementById("stopShareBtn");
+  const accessSelect = document.getElementById("shareAccessSelect");
+  const roleSelect = document.getElementById("shareRoleSelect");
+  const copyBtn = document.getElementById("copyShareLink");
   const shareBtn = document.getElementById("shareBtn");
+  const docNameSpan = document.getElementById("shareModalDocName");
+  const row = document.getElementById("shareAccessRow");
+  const iconUse = document.getElementById("shareAccessIconUse");
+  const hint = document.getElementById("shareAccessHint");
 
-  const active = !!room.id;
-  linkRow.hidden = !active;
-  startBtn.hidden = active;
-  stopBtn.hidden = !active;
-  shareBtn.classList.toggle("active", active);
+  const access = currentAccess || DEFAULT_ACCESS;
+  const isAnyone = access.generalAccess === "anyone";
 
-  if (active) {
-    linkInput.value = `${location.origin}${location.pathname}?room=${encodeURIComponent(room.id)}`;
-    setStatus("shared");
-  } else {
-    setStatus("idle");
-  }
+  accessSelect.value = isAnyone ? "anyone" : "restricted";
+  roleSelect.hidden = !isAnyone;
+  if (isAnyone) roleSelect.value = access.role;
+  // A link is meaningful once the room is shared in any capacity — either
+  // open to anyone, or restricted but with at least one invited person.
+  copyBtn.hidden = !isAnyone && access.invited.length === 0;
+  shareBtn.classList.toggle("active", !!room.id);
+
+  row.classList.toggle("active", isAnyone);
+  iconUse.setAttribute("href", isAnyone ? "#icon-globe" : "#icon-lock");
+  hint.textContent = isAnyone
+    ? `Anyone on the internet with this link can ${ROLE_VERBS[access.role] || "edit"}`
+    : "Only people with access can open with the link";
+
+  const doc = window.MDE.getActiveDoc();
+  if (docNameSpan) docNameSpan.textContent = (doc && doc.name) || "Untitled";
+
   renderPresence();
 }
 
 function renderPresence() {
   const bar = document.getElementById("presenceBar");
-  if (!bar) return;
-  if (!room.awareness) {
-    bar.hidden = true;
+  const list = document.getElementById("sharePeopleList");
+
+  updateOwnerAvatar();
+  if (list) list.querySelectorAll(".share-person:not(.share-person-owner)").forEach((el) => el.remove());
+
+  const connected = room.awareness
+    ? Array.from(room.awareness.getStates().entries()).filter(([id, s]) => s && s.user && id !== room.awareness.clientID)
+    : [];
+  const connectedUsernames = new Set(connected.map(([, s]) => s.username).filter(Boolean));
+
+  if (bar) {
+    bar.hidden = connected.length === 0;
     bar.innerHTML = "";
-    return;
+    connected.forEach(([, s]) => bar.appendChild(buildAvatarEl(s.user)));
   }
-  // Only show OTHER people currently in the room — the local user already
-  // sees their own cursor and doesn't need a self-avatar next to Share.
-  const states = Array.from(room.awareness.getStates().entries())
-    .filter(([clientID, s]) => s && s.user && clientID !== room.awareness.clientID);
-  bar.hidden = states.length === 0;
-  bar.innerHTML = "";
-  states.forEach(([, state]) => {
-    const avatar = document.createElement("span");
-    avatar.className = "presence-avatar";
-    avatar.style.background = state.user.color;
-    avatar.title = state.user.name;
-    avatar.textContent = (state.user.name || "?").trim().charAt(0).toUpperCase();
-    bar.appendChild(avatar);
+
+  if (!list) return;
+  connected.forEach(([, s]) => {
+    list.appendChild(buildPersonRow(s.user.name, s.user.color, ROLE_LABELS[s.role] || "Editor"));
+  });
+  const access = currentAccess || DEFAULT_ACCESS;
+  access.invited.forEach((username) => {
+    if (connectedUsernames.has(username)) return;
+    list.appendChild(buildPersonRow(username, null, "Invited", username));
   });
 }
 
-function genRoomId() {
-  const bytes = new Uint8Array(9);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 14);
+function buildPersonRow(name, color, roleLabel, removableUsername) {
+  const row = document.createElement("div");
+  row.className = "share-person";
+  const avatar = document.createElement("span");
+  avatar.className = "presence-avatar";
+  avatar.style.background = color || "var(--text-dim)";
+  avatar.textContent = (name || "?").trim().charAt(0).toUpperCase();
+  row.appendChild(avatar);
+  const nameEl = document.createElement("span");
+  nameEl.className = "share-person-name";
+  nameEl.textContent = name;
+  row.appendChild(nameEl);
+  if (removableUsername) {
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "share-person-remove";
+    removeBtn.setAttribute("aria-label", `Remove ${removableUsername}`);
+    removeBtn.innerHTML = '<svg class="icon"><use href="#icon-x"></use></svg>';
+    removeBtn.addEventListener("click", () => removeInvite(removableUsername));
+    row.appendChild(removeBtn);
+  }
+  const role = document.createElement("span");
+  role.className = "share-person-role";
+  role.textContent = roleLabel;
+  row.appendChild(role);
+  return row;
+}
+
+async function removeInvite(username) {
+  const doc = window.MDE.getActiveDoc();
+  if (!doc || !currentAccess) return;
+  const invited = currentAccess.invited.filter((u) => u !== username);
+  const access = await putAccess(doc.id, {
+    generalAccess: currentAccess.generalAccess,
+    role: currentAccess.role,
+    invited,
+  });
+  if (access) {
+    currentAccess = access;
+    renderShareUI();
+  }
+}
+
+function updateOwnerAvatar() {
+  const el = document.getElementById("ownerAvatar");
+  const nameEl = document.getElementById("ownerName");
+  if (!el) return;
+  const username = window.MDE.githubUsername;
+  el.style.background = username ? colorForUsername(username) : "var(--text-dim)";
+  el.textContent = username ? username.charAt(0).toUpperCase() : "?";
+  if (nameEl) nameEl.textContent = username || "Not signed in";
+}
+
+function buildAvatarEl(remoteUser) {
+  const avatar = document.createElement("span");
+  avatar.className = "presence-avatar";
+  avatar.style.background = remoteUser.color;
+  avatar.title = remoteUser.name;
+  avatar.textContent = (remoteUser.name || "?").trim().charAt(0).toUpperCase();
+  return avatar;
 }

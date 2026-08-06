@@ -10,11 +10,18 @@ import {
 } from "./github-auth.js";
 
 const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
+const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
 const GIST_PATH = /^\/api\/gist\/([0-9a-f]+)$/i;
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    const roomAccessMatch = url.pathname.match(ROOM_ACCESS_PATH);
+    if (roomAccessMatch) {
+      const id = env.COLLAB_ROOM.idFromName(roomAccessMatch[1]);
+      return env.COLLAB_ROOM.get(id).fetch(request);
+    }
 
     const roomMatch = url.pathname.match(ROOM_PATH);
     if (roomMatch) {

@@ -638,9 +638,10 @@ function hello() {
   function toggleSidebar() {
     const collapsed = document.getElementById("sidebar").classList.toggle("collapsed");
     // #sidebarToggleIn lives inside #sidebar and slides off-screen with it
-    // automatically — only the outside floating button needs manual
-    // show/hide, since it has nothing else to hide it while expanded.
+    // automatically — only the toolbar copy (and its separator) needs
+    // manual show/hide, since it has nothing else to hide it while expanded.
     document.getElementById("sidebarToggleOut").hidden = !collapsed;
+    document.getElementById("sidebarToggleOutSep").hidden = !collapsed;
     setTimeout(() => cm && cm.refresh(), 150);
   }
 
@@ -650,6 +651,7 @@ function hello() {
     if (isMobile()) {
       document.getElementById("sidebar").classList.add("collapsed");
       document.getElementById("sidebarToggleOut").hidden = false;
+      document.getElementById("sidebarToggleOutSep").hidden = false;
     }
 
     document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);

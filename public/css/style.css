@@ -227,6 +227,11 @@ html, body {
 
 .share-menu .primary-btn, .share-menu .secondary-btn { width: 100%; margin-bottom: 4px; }
 
+/* ...except a button sitting inline in a flex .share-row (e.g. the "Copy"
+   button next to the link field) — width: 100% there would claim the
+   whole row as its flex-basis and crush its sibling input. */
+.share-menu .share-row .secondary-btn { width: auto; flex-shrink: 0; margin-bottom: 0; }
+
 .secondary-btn {
   background: var(--bg-alt);
   color: var(--text);

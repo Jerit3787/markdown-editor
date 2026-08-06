@@ -450,47 +450,9 @@
   </footer>
 </div>
 
-<!-- Share / collaborate -->
-<div id="shareModal" class="modal-backdrop" hidden>
-  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle">
-    <h2 id="shareModalTitle"><span>Share "<span id="shareModalDocName">Untitled</span>"</span></h2>
-
-    <input id="shareAddPeopleInput" type="text" class="share-add-people-input" placeholder="Add people by GitHub username" aria-label="Add people by GitHub username">
-
-    <div class="menu-section-label">People with access</div>
-    <div id="sharePeopleList" class="share-people-list">
-      <div class="share-person share-person-owner">
-        <span class="presence-avatar" id="ownerAvatar"></span>
-        <span id="ownerName" class="share-person-name">Not signed in</span>
-        <span class="share-person-role">Owner</span>
-      </div>
-    </div>
-
-    <div class="menu-divider"></div>
-    <div class="menu-section-label">General access</div>
-    <div class="share-access-row" id="shareAccessRow">
-      <span class="share-access-icon"><svg class="icon"><use id="shareAccessIconUse" href="#icon-lock"></use></svg></span>
-      <div class="share-access-text">
-        <select id="shareAccessSelect" class="share-access-select" aria-label="General access">
-          <option value="restricted">Restricted</option>
-          <option value="anyone">Anyone with the link</option>
-        </select>
-        <span id="shareAccessHint" class="modal-hint">Only people with access can open with the link</span>
-      </div>
-      <select id="shareRoleSelect" class="share-role-select" aria-label="Access level for people with the link" hidden>
-        <option value="viewer">Viewer</option>
-        <option value="reviewer">Reviewer</option>
-        <option value="editor">Editor</option>
-      </select>
-    </div>
-
-    <div class="modal-actions modal-actions-share">
-      <button id="copyShareLink" class="secondary-btn" type="button" disabled><svg class="icon"><use href="#icon-link"></use></svg> <span>Copy link</span></button>
-      <span class="spacer"></span>
-      <button id="shareModalCloseBtn" class="primary-btn" type="button">Done</button>
-    </div>
-  </div>
-</div>
+<!-- Share / collaborate — Svelte component, mounted in main.ts; see
+     client/src/components/Share.svelte -->
+<div id="share-mount"></div>
 
 <!-- Settings — Svelte component, mounted in main.ts (first component of the
      phase-3 migration; see client/src/components/Settings.svelte) -->

@@ -1,3 +1,17 @@
+export interface AccessRecord {
+  owner: string | null;
+  generalAccess: "restricted" | "anyone";
+  role: string;
+  invited: string[];
+}
+
+export interface PresenceEntry {
+  name: string;
+  color: string;
+  username?: string;
+  role?: string;
+}
+
 export interface Doc {
   id: string;
   name: string;

@@ -11,9 +11,11 @@ import "./style.css";
 
 import { mount } from "svelte";
 import Settings from "./components/Settings.svelte";
+import Share from "./components/Share.svelte";
 
-// #settings-mount already exists by the time this runs — main.ts's own
-// <script type="module"> tag sits at the end of <body>, after it, and
-// module scripts only execute once the document up to that point is
-// parsed. No need to wait for DOMContentLoaded here.
+// #settings-mount / #share-mount already exist by the time this runs —
+// main.ts's own <script type="module"> tag sits at the end of <body>,
+// after them, and module scripts only execute once the document up to
+// that point is parsed. No need to wait for DOMContentLoaded here.
 mount(Settings, { target: document.getElementById("settings-mount")! });
+mount(Share, { target: document.getElementById("share-mount")! });

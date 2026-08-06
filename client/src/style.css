@@ -601,7 +601,24 @@ html, body {
   padding: 2px 0;
   cursor: pointer;
   appearance: auto;
-  width: fit-content;
+}
+
+/* Actual width of .share-access-select is set in JS (see Share.svelte's
+   $effect) by measuring this invisible twin — a native <select> sizes
+   to its widest <option> regardless of which one is selected, so without
+   this it always reserves room for "Anyone with an account" even while
+   showing "Restricted". Must match the select's font exactly, plus a
+   little extra for the dropdown arrow the mirror itself doesn't render. */
+.share-access-mirror {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+  top: -9999px;
+  left: -9999px;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 2px 0;
 }
 .share-role-select {
   align-self: center;

@@ -525,6 +525,11 @@ import { viewMode } from "./stores/view";
     (document.getElementById("previewPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("divider") as HTMLElement).style.display = empty ? "none" : "";
 
+    // On mobile the sidebar is a full-height overlay (see css) — if it was
+    // open (e.g. the user just deleted the last doc from the doc list),
+    // landing on the empty state would otherwise stay hidden behind it.
+    if (empty) collapseSidebarForMobile();
+
     // Nothing to rename/save/share/browse/preview when there's no document
     // open — lock down the topbar/sidebar/menu-bar controls that would
     // otherwise imply there is one, rather than leaving them clickable
@@ -681,7 +686,8 @@ import { viewMode } from "./stores/view";
   // #toolbar-mount) — its buttons call window.MDE.runCmd() directly
   // instead of a delegated click listener here.
   function initToolbar() {
-    document.getElementById("docTitle").addEventListener("input", (e) => {
+    const docTitleInput = document.getElementById("docTitle") as HTMLInputElement;
+    docTitleInput.addEventListener("input", (e) => {
       const doc = getActiveDoc();
       if (!doc) return;
       const name = (e.target as HTMLInputElement).value || "Untitled";
@@ -689,6 +695,26 @@ import { viewMode } from "./stores/view";
       scheduleSave();
       resizeDocTitle();
       updatePageTitle(name);
+    });
+    // "Untitled" is the real stored name for a never-renamed doc, not just
+    // a placeholder — but making the user delete it by hand before typing
+    // a real title is annoying (same reasoning as createNewDoc's own
+    // focus+select on a brand-new doc, just triggered by focus generally
+    // instead of only right after creation). Only the exact generic
+    // default gets cleared this way — an actual title the user chose
+    // (even one that happens to need a small edit) is left alone.
+    docTitleInput.addEventListener("focus", () => {
+      if (docTitleInput.value === "Untitled") docTitleInput.value = "";
+    });
+    // Left blank without typing a replacement (or typed-then-deleted, which
+    // the input handler above already renamed back to "Untitled" — this
+    // just makes the field's own display catch up) — show "Untitled" again
+    // rather than leaving the field looking empty.
+    docTitleInput.addEventListener("blur", () => {
+      if (!docTitleInput.value.trim()) {
+        docTitleInput.value = "Untitled";
+        resizeDocTitle();
+      }
     });
     resizeDocTitle();
   }
@@ -836,6 +862,19 @@ import { viewMode } from "./stores/view";
   // ---------- Sidebar / documents ----------
   const isMobile = () => window.matchMedia("(max-width: 780px)").matches;
 
+  // On a phone-width screen the sidebar is a full-height overlay (see css)
+  // — collapsing it is a one-way "get out of the way" action (as opposed
+  // to toggleSidebar()'s toggle), used wherever something just navigated
+  // the user to content the still-open sidebar would otherwise hide:
+  // initial page load, switching docs, or landing on the empty state
+  // (e.g. after deleting the last remaining document).
+  function collapseSidebarForMobile() {
+    if (!isMobile()) return;
+    document.getElementById("sidebar").classList.add("collapsed");
+    document.getElementById("sidebarToggleOut").hidden = false;
+    document.getElementById("sidebarToggleOutSep").hidden = false;
+  }
+
   function toggleSidebar() {
     const collapsed = document.getElementById("sidebar").classList.toggle("collapsed");
     // #sidebarToggleIn lives inside #sidebar and slides off-screen with it
@@ -846,13 +885,8 @@ import { viewMode } from "./stores/view";
   }
 
   function initSidebar() {
-    // On a phone-width screen the sidebar is a full-height overlay (see
-    // css), so starting it open covers the whole editor on first load.
-    if (isMobile()) {
-      document.getElementById("sidebar").classList.add("collapsed");
-      document.getElementById("sidebarToggleOut").hidden = false;
-      document.getElementById("sidebarToggleOutSep").hidden = false;
-    }
+    // Starting open on a phone-width screen would cover the whole editor.
+    collapseSidebarForMobile();
 
     document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarToggleOut").addEventListener("click", toggleSidebar);
@@ -877,7 +911,7 @@ import { viewMode } from "./stores/view";
   // `if (id === activeId) return` used to provide.
   function switchDoc(id: string) {
     if (!storeSwitchDoc(id)) return;
-    if (isMobile()) document.getElementById("sidebar").classList.add("collapsed");
+    collapseSidebarForMobile();
   }
 
   // Clicking a heading in a doc-row's outline (DocList.svelte) — switches
@@ -962,6 +996,7 @@ import { viewMode } from "./stores/view";
   // list), not a generic property of every toggleDropdown() consumer —
   // the save-status popup has no siblings to switch between.
   function enableMenuBarHoverSwitch(pairs: { btn: HTMLElement; menu: HTMLElement }[]) {
+    if (!supportsHover()) return; // see supportsHover's comment — same synthetic-mouseenter issue on touch
     pairs.forEach(({ btn, menu }) => {
       btn.addEventListener("mouseenter", () => {
         if (btn.classList.contains("active")) return;
@@ -973,6 +1008,18 @@ import { viewMode } from "./stores/view";
       });
     });
   }
+
+  // True on devices with a real, hover-capable pointer (mouse/trackpad) —
+  // false on touch. Touch browsers synthesize a mouseenter right before
+  // the click on a tapped element, so wiring hover-to-expand unconditionally
+  // made every tap open-then-immediately-close on mobile: the synthetic
+  // mouseenter opened the submenu first, then the click's own
+  // already-open check treated that same tap as a close. A second tap
+  // then "worked" only because most mobile browsers don't re-fire
+  // mouseenter for a repeat tap on the same element. Scoping the
+  // hover listeners to real hover-capable pointers avoids the synthetic
+  // event entirely instead of trying to out-guess it.
+  const supportsHover = () => window.matchMedia("(hover: hover)").matches;
 
   // Nested flyouts within a single dropdown-menu (e.g. File > Open, Open
   // Recent, Export). The parent menu already stops outside clicks from
@@ -990,6 +1037,7 @@ import { viewMode } from "./stores/view";
           trigger.classList.add("active");
         }
       });
+      if (!supportsHover()) return;
       // Native-menu-bar-style: once the parent dropdown is open, hovering
       // a row with a flyout expands it immediately, same as File > Open
       // expanding on hover in a real desktop app menu (item #38 — the
@@ -1003,6 +1051,7 @@ import { viewMode } from "./stores/view";
       });
     });
 
+    if (!supportsHover()) return;
     // Hovering any other row (not a submenu trigger) collapses whichever
     // flyout is currently open — otherwise moving the mouse from an open
     // "Export" flyout back up to "New document" would leave Export open

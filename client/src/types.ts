@@ -64,6 +64,36 @@ export interface MDEBridge {
   onBeforeDocLoad: (() => void) | null;
   onActiveDocChanged: ((doc: Doc) => void) | null;
   onGithubAuthComplete?: () => void;
+
+  // ---- Menu bar (MenuBar.svelte) — everything below drives File/Edit/
+  // View/Help actions and dropdown/submenu mechanics from the component,
+  // since it has no access to app.ts's closure. Dynamic content (recent
+  // docs, gist publish status, view mode) is store-driven instead —
+  // see stores/view.ts and stores/gist.ts.
+  enableMenuBarHoverSwitch(pairs: { btn: HTMLElement; menu: HTMLElement }[]): void;
+  initSubmenus(root: HTMLElement): void;
+  closeSubmenus(root: HTMLElement): void;
+  undo(): void;
+  redo(): void;
+  cutSelection(): void;
+  copySelection(): void;
+  pasteClipboard(): void;
+  runCmd(cmd: string): void;
+  newDoc(): void;
+  openLocalFile(): void;
+  exportAs(format: string): void;
+  toggleSidebar(): void;
+  openImagesManager(): void;
+  openShortcuts(): void;
+  openAbout(): void;
+  setView(mode: "editor" | "split" | "preview"): void;
+  toggleExpandPreview(): void;
+  formatRelativeTime(ts: number): string;
+  // Set by gist.ts at module load, same pattern as onGithubAuthComplete —
+  // optional because app.ts's own bridge literal (where every other
+  // method above lives) is typed/assigned before gist.ts's module code runs.
+  publishGist?(): void;
+  openGistPicker?(): void;
 }
 
 declare global {

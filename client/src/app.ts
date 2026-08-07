@@ -14,6 +14,7 @@ import html2pdf from "html2pdf.js";
 import type { Doc, MDEBridge } from "./types";
 import { docsStore, activeIdStore, activeDocContent } from "./stores/docs";
 import { showToast } from "./stores/toast";
+import { viewMode } from "./stores/view";
 
 (function () {
   "use strict";
@@ -85,7 +86,6 @@ import { showToast } from "./stores/toast";
     initShortStatus();
     initImagesManager();
     initLinkModal();
-    initMenuBar();
     initShortcutsModal();
     initInfoModal();
     initModalHints();
@@ -677,40 +677,34 @@ import { showToast } from "./stores/toast";
   }
 
   // ---------- View toggle ----------
+  // Remembered so the expand-preview button can restore whichever mode the
+  // user was actually in (editor or split) rather than always snapping
+  // back to split. Owned here (not MenuBar.svelte) since app.ts is the
+  // source of truth for main.className/localStorage/cm.refresh — the
+  // component only reads viewMode (stores/view.ts) and calls setView()/
+  // toggleExpandPreview() through the bridge.
+  let lastNonPreviewView: "editor" | "split" = "split";
+
   function initViewToggle() {
-    const main = document.getElementById("main");
-    const expandBtn = document.getElementById("expandPreviewBtn") as HTMLButtonElement;
-    const saved = localStorage.getItem(STORAGE_VIEW) || "split";
-    // Remembered so the expand-preview button can restore whichever mode
-    // the user was actually in (editor or split) rather than always
-    // snapping back to split.
-    let lastNonPreviewView = saved === "preview" ? "split" : saved;
+    const saved = (localStorage.getItem(STORAGE_VIEW) as "editor" | "split" | "preview") || "split";
+    lastNonPreviewView = saved === "preview" ? "split" : saved;
     setView(saved);
+  }
 
-    document.querySelectorAll(".menu-view-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        setView((btn as HTMLElement).dataset.view);
-        document.getElementById("viewMenu").classList.remove("open");
-      });
-    });
+  function setView(view: "editor" | "split" | "preview") {
+    if (view !== "preview") lastNonPreviewView = view;
+    document.getElementById("main").className = `mode-${view}`;
+    localStorage.setItem(STORAGE_VIEW, view);
+    viewMode.set(view);
+    setTimeout(() => cm && cm.refresh(), 0);
+  }
 
-    // A one-click shortcut for the same "Preview" mode already reachable
-    // via View > Preview — sits right next to the menu bar instead of
-    // requiring that menu to be opened first (item #21).
-    expandBtn.addEventListener("click", () => {
-      setView(main.classList.contains("mode-preview") ? lastNonPreviewView : "preview");
-    });
-
-    function setView(view: string) {
-      if (view !== "preview") lastNonPreviewView = view;
-      main.className = `mode-${view}`;
-      document.querySelectorAll(".menu-view-btn").forEach((b) => b.classList.toggle("active", (b as HTMLElement).dataset.view === view));
-      expandBtn.classList.toggle("active", view === "preview");
-      expandBtn.setAttribute("aria-pressed", String(view === "preview"));
-      expandBtn.title = view === "preview" ? "Collapse preview" : "Expand preview";
-      localStorage.setItem(STORAGE_VIEW, view);
-      setTimeout(() => cm && cm.refresh(), 0);
-    }
+  // A one-click shortcut for the same "Preview" mode already reachable via
+  // View > Preview — sits right next to the menu bar instead of requiring
+  // that menu to be opened first (item #21).
+  function toggleExpandPreview() {
+    const isPreview = document.getElementById("main").classList.contains("mode-preview");
+    setView(isPreview ? lastNonPreviewView : "preview");
   }
 
   // ---------- Sidebar / documents ----------
@@ -738,20 +732,24 @@ import { showToast } from "./stores/toast";
     document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarToggleOut").addEventListener("click", toggleSidebar);
 
-    document.getElementById("newDocBtn").addEventListener("click", () => {
-      saveNow();
-      const doc: Doc = { id: uid(), name: "Untitled", content: "", updatedAt: Date.now() };
-      docs.unshift(doc);
-      activeId = doc.id;
-      persistDocs();
-      localStorage.setItem(STORAGE_ACTIVE, activeId);
-      renderDocList();
-      loadDocIntoEditor(doc);
-      updatePreview();
-      updateCounts();
-      (document.getElementById("docTitle") as HTMLInputElement).focus();
-      (document.getElementById("docTitle") as HTMLInputElement).select();
-    });
+    document.getElementById("newDocBtn").addEventListener("click", createNewDoc);
+  }
+
+  // Shared by the sidebar's "+" button and File > New document (MenuBar.svelte
+  // via window.MDE.newDoc).
+  function createNewDoc() {
+    saveNow();
+    const doc: Doc = { id: uid(), name: "Untitled", content: "", updatedAt: Date.now() };
+    docs.unshift(doc);
+    activeId = doc.id;
+    persistDocs();
+    localStorage.setItem(STORAGE_ACTIVE, activeId);
+    renderDocList();
+    loadDocIntoEditor(doc);
+    updatePreview();
+    updateCounts();
+    (document.getElementById("docTitle") as HTMLInputElement).focus();
+    (document.getElementById("docTitle") as HTMLInputElement).select();
   }
 
   function switchDoc(id: string) {
@@ -863,6 +861,20 @@ import { showToast } from "./stores/toast";
     });
   }
 
+  // Closes every open dropdown/submenu, but only for a click that actually
+  // landed outside all of them — a plain document-level closeAllDropdowns
+  // listener with no such check would also fire (and close everything) for
+  // clicks ON menu items themselves as they bubble up, which is why this
+  // exists as its own named function rather than an inline arrow passed to
+  // toggleDropdown: passing the same function reference on every
+  // toggleDropdown() call (File/Edit/View/Help menus, the save-status
+  // popup) lets addEventListener's natural de-duplication keep this to one
+  // real listener instead of five identical ones.
+  function closeDropdownsOnOutsideClick(e: MouseEvent) {
+    if ((e.target as HTMLElement).closest(".dropdown-menu.open, .menu-submenu-panel")) return;
+    closeAllDropdowns();
+  }
+
   function toggleDropdown(btn: HTMLElement, menu: HTMLElement) {
     btn.classList.add("dropdown-trigger");
     btn.addEventListener("click", (e) => {
@@ -874,8 +886,18 @@ import { showToast } from "./stores/toast";
         btn.classList.add("active");
       }
     });
-    document.addEventListener("click", closeAllDropdowns);
-    menu.addEventListener("click", (e) => e.stopPropagation());
+    // Deliberately NOT menu.addEventListener("click", stopPropagation) (the
+    // old approach here) — that would stop an in-menu click from ever
+    // reaching Svelte 5's own delegated event listener. MenuBar.svelte's
+    // onclick={} buttons live inside `menu`, and Svelte delegates common
+    // events like click to a shared ancestor instead of attaching
+    // per-element, so stopping propagation partway up the tree silently
+    // kills them before Svelte ever sees the click. Every interactive
+    // element inside a dropdown already closes it explicitly itself (see
+    // MenuBar.svelte's act() helper, or this file's menu-item handlers),
+    // so closeDropdownsOnOutsideClick only needs to skip clicks that
+    // landed inside an open dropdown/submenu, not rely on stopPropagation.
+    document.addEventListener("click", closeDropdownsOnOutsideClick);
   }
 
   // Native-menu-bar-style behavior: once one of File/Edit/View/Help is
@@ -947,79 +969,6 @@ import { showToast } from "./stores/toast";
     });
   }
 
-  // ---------- Menu bar (File / Edit / View / Help) ----------
-  function initMenuBar() {
-    const menuBarPairs = [
-      { btn: document.getElementById("fileMenuBtn"), menu: document.getElementById("fileMenu") },
-      { btn: document.getElementById("editMenuBtn"), menu: document.getElementById("editMenu") },
-      { btn: document.getElementById("viewMenuBtn"), menu: document.getElementById("viewMenu") },
-      { btn: document.getElementById("helpMenuBtn"), menu: document.getElementById("helpMenu") },
-    ];
-    menuBarPairs.forEach(({ btn, menu }) => toggleDropdown(btn, menu));
-    enableMenuBarHoverSwitch(menuBarPairs);
-
-    const fileMenu = document.getElementById("fileMenu");
-    const closeFileMenu = () => {
-      fileMenu.classList.remove("open");
-      closeSubmenus(fileMenu);
-    };
-    initSubmenus(fileMenu);
-
-    document.getElementById("menuNewDoc").addEventListener("click", () => {
-      document.getElementById("newDocBtn").click();
-      closeFileMenu();
-    });
-    document.getElementById("menuOpenLocal").addEventListener("click", () => {
-      document.getElementById("importInput").click();
-      closeFileMenu();
-    });
-    document.getElementById("menuDeleteDoc").addEventListener("click", () => {
-      deleteDoc(activeId);
-      closeFileMenu();
-    });
-
-    fileMenu.addEventListener("click", (e) => {
-      const item = (e.target as HTMLElement).closest("button[data-export]") as HTMLElement;
-      if (!item) return;
-      exportAs(item.dataset.export);
-      closeFileMenu();
-    });
-
-    renderRecentMenu();
-
-    const editMenu = document.getElementById("editMenu");
-    const closeEditMenu = () => editMenu.classList.remove("open");
-    document.getElementById("menuUndo").addEventListener("click", () => { cm.undo(); cm.focus(); closeEditMenu(); });
-    document.getElementById("menuRedo").addEventListener("click", () => { cm.redo(); cm.focus(); closeEditMenu(); });
-    document.getElementById("menuCut").addEventListener("click", () => { menuClipboardCut(); closeEditMenu(); });
-    document.getElementById("menuCopy").addEventListener("click", () => { menuClipboardCopy(); closeEditMenu(); });
-    document.getElementById("menuPaste").addEventListener("click", () => { menuClipboardPaste(); closeEditMenu(); });
-    document.getElementById("menuBold").addEventListener("click", () => { runCmd("bold"); cm.focus(); closeEditMenu(); });
-    document.getElementById("menuItalic").addEventListener("click", () => { runCmd("italic"); cm.focus(); closeEditMenu(); });
-    document.getElementById("menuStrike").addEventListener("click", () => { runCmd("strike"); cm.focus(); closeEditMenu(); });
-    document.getElementById("menuLink").addEventListener("click", () => { closeEditMenu(); runCmd("link"); });
-    document.getElementById("menuImage").addEventListener("click", () => { closeEditMenu(); runCmd("image"); });
-    document.getElementById("menuManageImages").addEventListener("click", () => {
-      closeEditMenu();
-      document.getElementById("imagesManagerBtn").click();
-    });
-
-    document.getElementById("menuToggleSidebar").addEventListener("click", () => {
-      toggleSidebar();
-      document.getElementById("viewMenu").classList.remove("open");
-    });
-
-    const helpMenu = document.getElementById("helpMenu");
-    document.getElementById("menuShortcuts").addEventListener("click", () => {
-      helpMenu.classList.remove("open");
-      document.getElementById("shortcutsModal").hidden = false;
-    });
-    document.getElementById("menuInfo").addEventListener("click", () => {
-      helpMenu.classList.remove("open");
-      document.getElementById("infoModal").hidden = false;
-    });
-  }
-
   function initShortcutsModal() {
     const modal = document.getElementById("shortcutsModal");
     document.getElementById("shortcutsCloseBtn").addEventListener("click", () => {
@@ -1071,28 +1020,6 @@ import { showToast } from "./stores/toast";
     });
   }
 
-  function renderRecentMenu() {
-    const list = document.getElementById("menuRecentList");
-    list.innerHTML = "";
-    const sorted = [...docs].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
-    if (sorted.length === 0) {
-      list.innerHTML = `<div class="menu-recent-empty">No documents yet.</div>`;
-      return;
-    }
-    sorted.forEach((doc) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "menu-recent-item";
-      item.innerHTML = `<span class="menu-recent-name">${escapeHtml(doc.name || "Untitled")}</span><span class="menu-recent-time">${formatRelativeTime(doc.updatedAt)}</span>`;
-      item.addEventListener("click", () => {
-        switchDoc(doc.id);
-        const fileMenu = document.getElementById("fileMenu");
-        fileMenu.classList.remove("open");
-        closeSubmenus(fileMenu);
-      });
-      list.appendChild(item);
-    });
-  }
 
 
   // Shared by gist.ts (Publish to Gist) and collab.ts (Share) — both gate a
@@ -1320,6 +1247,7 @@ ${bodyHtml}
       doc.gistId = gistId;
       doc.updatedAt = Date.now();
       persistDocs();
+      renderDocList();
       return doc;
     },
     // Set by collab.ts. Called by loadDocIntoEditor() right before/after the
@@ -1327,6 +1255,36 @@ ${bodyHtml}
     // room before CodeMirror's setValue() fires a bogus "edit".
     onBeforeDocLoad: null,
     onActiveDocChanged: null,
+
+    // ---- Menu bar (MenuBar.svelte) ----
+    enableMenuBarHoverSwitch,
+    initSubmenus,
+    closeSubmenus,
+    undo() { cm.undo(); cm.focus(); },
+    redo() { cm.redo(); cm.focus(); },
+    cutSelection: menuClipboardCut,
+    copySelection: menuClipboardCopy,
+    pasteClipboard: menuClipboardPaste,
+    runCmd,
+    newDoc: createNewDoc,
+    openLocalFile() {
+      document.getElementById("importInput").click();
+    },
+    exportAs,
+    toggleSidebar,
+    openImagesManager() {
+      renderImagesList();
+      document.getElementById("imagesModal").hidden = false;
+    },
+    openShortcuts() {
+      document.getElementById("shortcutsModal").hidden = false;
+    },
+    openAbout() {
+      document.getElementById("infoModal").hidden = false;
+    },
+    setView,
+    toggleExpandPreview,
+    formatRelativeTime,
   };
   window.MDE = bridge;
 })();

@@ -12,6 +12,7 @@ import type { Doc } from "./types";
 import "./types";
 import { githubUsername as githubUsernameStore } from "./stores/github";
 import { showToast } from "./stores/toast";
+import { gistBusyLabel } from "./stores/gist";
 
 let connectedUsername: string | null = null;
 
@@ -22,21 +23,16 @@ let connectedUsername: string | null = null;
 // fires, regardless of which script registered its listener first, so this
 // ordering is safe where doing it inside init() was not.
 window.MDE.githubSessionReady = checkSession();
+// MenuBar.svelte calls these directly (File > Publish, File > Open >
+// From GitHub Gist) — it has no access to this module's closure, same
+// reasoning as every other window.MDE bridge method.
+window.MDE.publishGist = publish;
+window.MDE.openGistPicker = openGistPicker;
 
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
-  // Sign-in/disconnect buttons live in Settings.svelte now, which drives
-  // them itself (window.MDE.openGithubSignInPopup() / the logout redirect)
-  // — this file only needs to keep the underlying session state (below)
-  // in sync via the githubUsername store, which Settings subscribes to.
-  document.getElementById("menuPublishGist").addEventListener("click", publish);
   initOpenGistModal();
-
-  document.getElementById("menuPublishSignedOut").addEventListener("click", () => {
-    closeFileMenu();
-    window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue.");
-  });
 
   // collab.ts already claims onActiveDocChanged — chain onto it rather than
   // clobber it, since both need to react to the active doc switching.
@@ -64,36 +60,17 @@ async function checkSession() {
   render();
 }
 
+// The Publish submenu's signed-in-vs-out row, its label, and the View Gist
+// link are all MenuBar.svelte's own reactive template now (derived from
+// githubUsernameStore + the active doc's gistId) — this only needs to keep
+// the underlying session state in sync.
 function render() {
   window.MDE.githubUsername = connectedUsername;
-  githubUsernameStore.set(connectedUsername); // Settings.svelte's status display
-  const connected = !!connectedUsername;
-
-  // Signed out: File menu shows a plain "Publish to Gist" row that opens a
-  // sign-in prompt. Signed in: swap to the real Publish submenu.
-  document.getElementById("menuPublishSignedOut").hidden = connected;
-  document.getElementById("publishSubmenu").hidden = !connected;
-
-  const label = document.getElementById("menuGistLabel");
-  const viewLink = document.getElementById("gistViewLink") as HTMLAnchorElement;
-  const doc = window.MDE.getActiveDoc();
-  const hasGist = doc && doc.gistId;
-  label.textContent = hasGist ? "Update Gist" : "Publish to Gist";
-  viewLink.hidden = !hasGist;
-  if (hasGist) viewLink.href = `https://gist.github.com/${doc.gistId}`;
-}
-
-function closeFileMenu() {
-  document.getElementById("fileMenu").classList.remove("open");
-  document.querySelectorAll("#fileMenu .menu-submenu.open").forEach((sub) => {
-    sub.classList.remove("open");
-    sub.querySelector(".menu-submenu-trigger").classList.remove("active");
-  });
+  githubUsernameStore.set(connectedUsername);
 }
 
 async function publish() {
   if (!connectedUsername) {
-    closeFileMenu();
     window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue.");
     return;
   }
@@ -110,11 +87,8 @@ async function publish() {
   const content = window.MDE.getResolvedContent();
   const rawContent = window.MDE.getEditor().getValue();
   const filename = gistFilename(doc);
-  const btn = document.getElementById("menuPublishGist") as HTMLButtonElement;
-  const label = document.getElementById("menuGistLabel");
   const wasUpdate = !!doc.gistId;
-  btn.disabled = true;
-  label.textContent = wasUpdate ? "Updating…" : "Publishing…";
+  gistBusyLabel.set(wasUpdate ? "Updating…" : "Publishing…");
 
   try {
     let gistId = doc.gistId;
@@ -138,7 +112,7 @@ async function publish() {
     }
 
     try {
-      const rewritten = await pushImagesAndRewrite(gistId, rawContent, doc.images, label);
+      const rewritten = await pushImagesAndRewrite(gistId, rawContent, doc.images);
       if (rewritten) {
         const res = await fetch(`/api/gist/${gistId}`, {
           method: "PATCH",
@@ -151,15 +125,14 @@ async function publish() {
       showToast(`Gist published, but pushing images failed: ${imgErr.message || "unknown error"}`, "error");
     }
 
-    label.textContent = wasUpdate ? "Updated ✓" : "Published ✓";
+    gistBusyLabel.set(wasUpdate ? "Updated ✓" : "Published ✓");
     window.MDE.refreshSaveStatus();
     showToast(wasUpdate ? "Gist updated" : "Published to Gist", "success");
   } catch (err: any) {
-    label.textContent = `Failed: ${err.message || "unknown error"}`;
+    gistBusyLabel.set(`Failed: ${err.message || "unknown error"}`);
     showToast(`Failed to publish: ${err.message || "unknown error"}`, "error");
   } finally {
-    btn.disabled = false;
-    setTimeout(render, 2000);
+    setTimeout(() => gistBusyLabel.set(null), 2000);
   }
 }
 
@@ -190,8 +163,7 @@ function gistImageFilename(ref: string, ext: string): string {
 async function pushImagesAndRewrite(
   gistId: string,
   rawContent: string,
-  images: Record<string, string> | undefined,
-  label: HTMLElement
+  images: Record<string, string> | undefined
 ): Promise<string | null> {
   const sources = new Map<string, string>(); // markdown src text -> data URI to push
   for (const match of rawContent.matchAll(MARKDOWN_IMAGE_RE)) {
@@ -209,7 +181,7 @@ async function pushImagesAndRewrite(
   let counter = 0;
   for (const [src, dataUrl] of sources) {
     done++;
-    label.textContent = `Publishing images (${done}/${sources.size})…`;
+    gistBusyLabel.set(`Publishing images (${done}/${sources.size})…`);
     const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.*)$/);
     if (!match) continue;
     const [, mime, contentBase64] = match;
@@ -236,13 +208,6 @@ function initOpenGistModal() {
   const openBtn = document.getElementById("gistOpenBtn") as HTMLButtonElement;
   const input = document.getElementById("gistOpenInput") as HTMLInputElement;
 
-  document.getElementById("menuOpenGist").addEventListener("click", () => {
-    closeFileMenu();
-    input.value = "";
-    modal.hidden = false;
-    input.focus();
-    loadGistList();
-  });
   closeBtn.addEventListener("click", () => { modal.hidden = true; });
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.hidden = true; });
 
@@ -250,6 +215,15 @@ function initOpenGistModal() {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") openGistFromInput();
   });
+}
+
+// File > Open > From GitHub Gist... (MenuBar.svelte).
+function openGistPicker() {
+  const input = document.getElementById("gistOpenInput") as HTMLInputElement;
+  input.value = "";
+  document.getElementById("openGistModal").hidden = false;
+  input.focus();
+  loadGistList();
 }
 
 function openGistFromInput() {

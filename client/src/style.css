@@ -78,6 +78,7 @@ html, body {
 }
 .share-pill:hover, .share-pill.active { background: var(--accent); color: #fff; }
 .share-pill .icon { width: 15px; height: 15px; }
+.share-pill:disabled { opacity: 0.4; cursor: not-allowed; background: var(--accent-dim); color: var(--accent); }
 
 .menubar-btn {
   background: transparent;
@@ -214,6 +215,13 @@ html, body {
   outline: none;
 }
 
+#docTitle:disabled {
+  color: var(--text);
+  opacity: 1;
+  cursor: default;
+}
+#docTitle:disabled:hover { border-color: transparent; background: transparent; }
+
 /* Invisible twin of #docTitle used purely to measure text width — must
    match its font/padding exactly (border included, since content-box
    sizing makes width JS sets apply to content only, but the mirror is
@@ -293,6 +301,7 @@ html, body {
 
 .icon-btn:hover { background: var(--border); }
 .icon-btn.active { background: var(--accent-dim); color: var(--accent); }
+.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; background: transparent; }
 
 /* #menuBar's own .icon-btn (expandPreviewBtn) sits in a shorter, tighter
    row than topbarRow1's — shrink it down to match .menubar-btn's height

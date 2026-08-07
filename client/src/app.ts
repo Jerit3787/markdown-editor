@@ -524,6 +524,16 @@ import { viewMode } from "./stores/view";
     (document.getElementById("editorPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("previewPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("divider") as HTMLElement).style.display = empty ? "none" : "";
+
+    // Nothing to rename/save/share/browse/preview when there's no document
+    // open — lock down the topbar/sidebar/menu-bar controls that would
+    // otherwise imply there is one, rather than leaving them clickable
+    // no-ops.
+    (document.getElementById("docTitle") as HTMLInputElement).disabled = empty;
+    document.getElementById("saveStatusBtn").hidden = empty;
+    (document.getElementById("sidebarToggleIn") as HTMLButtonElement).disabled = empty;
+    (document.getElementById("shareBtn") as HTMLButtonElement).disabled = empty;
+    (document.getElementById("expandPreviewBtn") as HTMLButtonElement).disabled = empty;
   }
 
   // Replaces the whole document and resets the local (non-collab) undo
@@ -550,9 +560,9 @@ import { viewMode } from "./stores/view";
     updateMainView(!doc);
     if (!doc) {
       setEditorContent("");
-      (document.getElementById("docTitle") as HTMLInputElement).value = "";
+      (document.getElementById("docTitle") as HTMLInputElement).value = "Welcome";
       resizeDocTitle();
-      updatePageTitle("");
+      updatePageTitle("Welcome");
       setSaveStatus("");
       window.MDE.onActiveDocChanged && window.MDE.onActiveDocChanged(undefined as unknown as Doc);
       return;

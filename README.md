@@ -13,7 +13,7 @@ A fast markdown editor with live preview, multiple documents, real-time multi-us
 - Import existing `.md`/`.txt` files
 - Export the current document as Markdown, standalone HTML, PDF, or plain text
 - Light/dark theme
-- VS-Code-style empty state when no documents exist yet
+- Clean empty state (with quick actions to create/import a document) when none exist yet
 
 ## Multi-user editing — how it works (no database)
 

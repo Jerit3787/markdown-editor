@@ -784,6 +784,12 @@ html, body {
    used to carry directly for its own scrolling to work. */
 #doclist-mount { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
+/* Wraps MenuBar.svelte's rendered <nav id="menuBar"> — display:contents
+   makes the wrapper itself generate no box, so #topbar's column flex
+   layout sees that <nav> as a direct child, identical to before it was
+   Svelte-mounted. */
+#menubar-mount { display: contents; }
+
 .outline-list {
   list-style: none;
   margin: 0;

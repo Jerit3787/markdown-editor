@@ -14,13 +14,18 @@ import Settings from "./components/Settings.svelte";
 import Share from "./components/Share.svelte";
 import DocList from "./components/DocList.svelte";
 import Toast from "./components/Toast.svelte";
+import MenuBar from "./components/MenuBar.svelte";
 
-// #settings-mount / #share-mount / #doclist-mount / #toast-mount already
-// exist by the time this runs — main.ts's own <script type="module"> tag
-// sits at the end of <body>, after them, and module scripts only execute
-// once the document up to that point is parsed. No need to wait for
-// DOMContentLoaded here.
+// #settings-mount / #share-mount / #doclist-mount / #toast-mount /
+// #menubar-mount already exist by the time this runs — main.ts's own
+// <script type="module"> tag sits at the end of <body>, after them, and
+// module scripts only execute once the document up to that point is
+// parsed. No need to wait for DOMContentLoaded here — this also means
+// MenuBar's DOM (and its element ids) exists before app.ts's own
+// DOMContentLoaded-gated init() runs, which several of its handlers
+// (initImport, initEmptyState's forward-clicks) still rely on.
 mount(Settings, { target: document.getElementById("settings-mount")! });
 mount(Share, { target: document.getElementById("share-mount")! });
 mount(DocList, { target: document.getElementById("doclist-mount")! });
 mount(Toast, { target: document.getElementById("toast-mount")! });
+mount(MenuBar, { target: document.getElementById("menubar-mount")! });

@@ -10,15 +10,23 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import html2pdf from "html2pdf.js";
 import type { Doc, MDEBridge } from "./types";
-import { docsStore, activeIdStore, activeDocContent } from "./stores/docs";
+import {
+  activeIdStore,
+  activeDocContent,
+  getActiveDoc,
+  createDoc,
+  switchDoc as storeSwitchDoc,
+  renameDoc,
+  saveActiveDocContent,
+  setDocImage,
+  deleteDocImage,
+} from "./stores/docs";
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
 
 (function () {
   "use strict";
 
-  const STORAGE_DOCS = "mde:docs";
-  const STORAGE_ACTIVE = "mde:active";
   const STORAGE_THEME = "mde:theme";
   const STORAGE_VIEW = "mde:view";
   const APP_NAME = "Markdown Editor";
@@ -28,8 +36,6 @@ import { viewMode } from "./stores/view";
   }
 
   // ---------- State ----------
-  let docs: Doc[] = [];
-  let activeId: string | null = null;
   let cm: EditorView = null as unknown as EditorView;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -64,45 +70,10 @@ import { viewMode } from "./stores/view";
   let collabUndoManager: UndoManagerLike | null = null;
 
   // ---------- Storage helpers ----------
-  function loadDocs(): Doc[] {
-    try {
-      const raw = localStorage.getItem(STORAGE_DOCS);
-      if (raw) return JSON.parse(raw);
-    } catch (e) { /* ignore corrupt storage */ }
-    // No seeded Welcome doc — a brand-new visitor (or someone who deletes
-    // every document) sees the empty state instead, same as VS Code with
-    // no folder/file open.
-    return [];
-  }
-
-  function persistDocs() {
-    try {
-      localStorage.setItem(STORAGE_DOCS, JSON.stringify(docs));
-    } catch (e) {
-      // Most commonly a full storage quota (large embedded images) — this
-      // used to fail silently, leaving the in-memory doc looking "saved"
-      // (the status pill doesn't know the write itself failed) while
-      // nothing actually persisted.
-      showToast("Couldn't save — your browser's local storage may be full", "error");
-    }
-  }
-
-  function uid() {
-    return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-  }
-
-  function getActiveDoc(): Doc | undefined {
-    return docs.find((d) => d.id === activeId) || docs[0];
-  }
-
   // ---------- Init ----------
   document.addEventListener("DOMContentLoaded", init);
 
   function init() {
-    docs = loadDocs();
-    activeId = localStorage.getItem(STORAGE_ACTIVE) || (docs[0] ? docs[0].id : null);
-    if (activeId && !docs.find((d) => d.id === activeId)) activeId = docs[0] ? docs[0].id : null;
-
     // cm is already populated by this point — Editor.svelte constructs the
     // EditorView in its own onMount and hands it back via
     // window.MDE.registerEditor(), and main.ts's mount() calls (which
@@ -125,10 +96,28 @@ import { viewMode } from "./stores/view";
     initModalEscapeKey();
     initEmptyState();
 
-    renderDocList();
-    loadDocIntoEditor(getActiveDoc());
-    updatePreview();
-    updateCounts();
+    // stores/docs.ts owns docs/activeId (self-initialized from localStorage
+    // at module-evaluation time, before this ever runs) — this just reacts
+    // to it. A writable's subscriber fires immediately with the current
+    // value AND synchronously on every future .set(), so this both does
+    // the initial editor load and replaces every explicit
+    // loadDocIntoEditor()/updatePreview()/updateCounts() call that used to
+    // follow every doc-switching mutation (switchDoc/createDoc/deleteDoc/
+    // duplicateDoc all funnel through activeIdStore now). The id===last
+    // guard matters because activeIdStore.set() has no equality check of
+    // its own — e.g. markActiveDocShared/setDocImage mutate docsStore
+    // without changing which doc is active, and must not re-trigger a
+    // reload (which would reset cursor position/undo history for no reason).
+    let lastLoadedId: string | null | undefined;
+    let firstFire = true;
+    activeIdStore.subscribe((id) => {
+      if (!firstFire && id === lastLoadedId) return;
+      firstFire = false;
+      lastLoadedId = id;
+      loadDocIntoEditor(getActiveDoc());
+      updatePreview();
+      updateCounts();
+    });
   }
 
   function formatRelativeTime(ts: number) {
@@ -422,10 +411,9 @@ import { viewMode } from "./stores/view";
         removeImageMarker(markerId);
         if (!range) return; // doc was switched away mid-read; drop it
         const doc = getActiveDoc();
-        doc.images = doc.images || {};
-        const key = imageKey(file.name, doc.images);
-        doc.images[key] = dataUrl;
-        persistDocs();
+        if (!doc) return;
+        const key = imageKey(file.name, doc.images || {});
+        setDocImage(key, dataUrl);
         window.MDE.onImageAdded && window.MDE.onImageAdded(key, dataUrl);
         cm.dispatch({ changes: { from: range.from, to: range.to, insert: `![${altTextFromFilename(file.name)}](${key})` } });
         updatePreview();
@@ -512,8 +500,7 @@ import { viewMode } from "./stores/view";
       `;
       item.querySelector("button").addEventListener("click", () => {
         if (!confirm(`Delete "${key}"? Any reference to it in the text will show as a broken image.`)) return;
-        delete doc.images[key];
-        persistDocs();
+        deleteDocImage(key);
         updatePreview();
         renderImagesList();
       });
@@ -586,12 +573,8 @@ import { viewMode } from "./stores/view";
   }
 
   function saveNow() {
-    const doc = getActiveDoc();
-    if (!doc) return;
-    doc.content = cm.state.doc.toString();
-    doc.updatedAt = Date.now();
-    persistDocs();
-    setSaveStatus(savedLabel(doc));
+    saveActiveDocContent();
+    setSaveStatus(savedLabel(getActiveDoc()));
   }
 
   // Everything always lives in this browser's localStorage first; the
@@ -691,11 +674,11 @@ import { viewMode } from "./stores/view";
     document.getElementById("docTitle").addEventListener("input", (e) => {
       const doc = getActiveDoc();
       if (!doc) return;
-      doc.name = (e.target as HTMLInputElement).value || "Untitled";
-      renderDocList();
+      const name = (e.target as HTMLInputElement).value || "Untitled";
+      renameDoc(doc.id, name);
       scheduleSave();
       resizeDocTitle();
-      updatePageTitle(doc.name);
+      updatePageTitle(name);
     });
     resizeDocTitle();
   }
@@ -870,101 +853,31 @@ import { viewMode } from "./stores/view";
   // Shared by the sidebar's "+" button and File > New document (MenuBar.svelte
   // via window.MDE.newDoc).
   function createNewDoc() {
-    saveNow();
-    const doc: Doc = { id: uid(), name: "Untitled", content: "", updatedAt: Date.now() };
-    docs.unshift(doc);
-    activeId = doc.id;
-    persistDocs();
-    localStorage.setItem(STORAGE_ACTIVE, activeId);
-    renderDocList();
-    loadDocIntoEditor(doc);
-    updatePreview();
-    updateCounts();
+    createDoc();
     (document.getElementById("docTitle") as HTMLInputElement).focus();
     (document.getElementById("docTitle") as HTMLInputElement).select();
   }
 
+  // stores/docs.ts's switchDoc/deleteDoc/duplicateDoc own the actual data
+  // mutation + persistence now; the reactive activeIdStore subscription in
+  // init() handles loading the new content into the editor. This wrapper
+  // only adds the one piece of UI that's specific to this call site
+  // (collapsing the mobile sidebar) — storeSwitchDoc's return value says
+  // whether a switch actually happened, same guard the old inline
+  // `if (id === activeId) return` used to provide.
   function switchDoc(id: string) {
-    if (id === activeId) return;
-    saveNow();
-    activeId = id;
-    localStorage.setItem(STORAGE_ACTIVE, activeId);
-    renderDocList();
-    loadDocIntoEditor(getActiveDoc());
-    updatePreview();
-    updateCounts();
+    if (!storeSwitchDoc(id)) return;
     if (isMobile()) document.getElementById("sidebar").classList.add("collapsed");
-  }
-
-  function deleteDoc(id: string) {
-    const doc = docs.find((d) => d.id === id);
-    if (!doc) return;
-    if (!confirm(`Delete "${doc.name}"? This can't be undone.`)) return;
-    docs = docs.filter((d) => d.id !== id);
-    if (activeId === id) {
-      // Deleting the last remaining doc leaves docs empty and activeId
-      // null — loadDocIntoEditor(undefined) shows the empty state rather
-      // than force-creating a placeholder "Untitled" doc.
-      activeId = docs[0] ? docs[0].id : null;
-      if (activeId) localStorage.setItem(STORAGE_ACTIVE, activeId);
-      else localStorage.removeItem(STORAGE_ACTIVE);
-      loadDocIntoEditor(getActiveDoc());
-      updatePreview();
-      updateCounts();
-    }
-    persistDocs();
-    renderDocList();
-    showToast(`Deleted "${doc.name || "Untitled"}"`, "success");
-  }
-
-  // Doc-row "..." menu action (DocList.svelte) — not a rename/edit, a full
-  // copy, same as Google Docs' tab context menu's "Duplicate".
-  function duplicateDoc(id: string) {
-    const doc = docs.find((d) => d.id === id);
-    if (!doc) return;
-    saveNow();
-    const copy: Doc = { ...doc, id: uid(), name: `${doc.name || "Untitled"} (copy)`, updatedAt: Date.now() };
-    // A duplicate is a fresh, unshared, unpublished document — it must not
-    // carry over the room/gist identity of the doc it was copied from.
-    delete copy.shared;
-    delete copy.gistId;
-    docs.unshift(copy);
-    activeId = copy.id;
-    persistDocs();
-    localStorage.setItem(STORAGE_ACTIVE, activeId);
-    renderDocList();
-    loadDocIntoEditor(copy);
-    updatePreview();
-    updateCounts();
-    showToast(`Duplicated as "${copy.name}"`, "success");
   }
 
   // Clicking a heading in a doc-row's outline (DocList.svelte) — switches
   // to that doc first if it isn't already active, since CodeMirror only
   // ever holds one buffer.
   function jumpToLine(id: string, line: number) {
-    if (id !== activeId) switchDoc(id);
+    switchDoc(id);
     const lineInfo = cm.state.doc.line(Math.min(line + 1, cm.state.doc.lines));
     cm.dispatch({ selection: { anchor: lineInfo.from }, effects: EditorView.scrollIntoView(lineInfo.from, { y: "center" }) });
     cm.focus();
-  }
-
-  // The actual <ul id="docList"> markup is DocList.svelte now (mounted at
-  // #doclist-mount in main.ts) — this just pushes current state into the
-  // stores it reads, same as every other renderDocList() call site already
-  // did for the old DOM-rebuilding version.
-  //
-  // docs.map(d => ({...d})) rather than docs (or even [...docs]): doc
-  // objects are mutated in place elsewhere (e.g. doc.name on rename), not
-  // reassigned, so a keyed {#each doc.id} in DocList.svelte sees the same
-  // object reference at that key across renders and skips re-rendering its
-  // bound content — Svelte's reuse optimization assumes "same reference"
-  // means "same content". A fresh shallow clone of every doc on every push
-  // guarantees each render is actually a distinct object, however it was
-  // mutated underneath.
-  function renderDocList() {
-    docsStore.set(docs.map((d) => ({ ...d })));
-    activeIdStore.set(activeId);
   }
 
   function escapeHtml(str: string) {
@@ -1105,17 +1018,8 @@ import { viewMode } from "./stores/view";
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
-        saveNow();
         const name = file.name.replace(/\.(md|markdown|txt)$/i, "");
-        const doc: Doc = { id: uid(), name: name || "Imported", content: String(reader.result), updatedAt: Date.now() };
-        docs.unshift(doc);
-        activeId = doc.id;
-        persistDocs();
-        localStorage.setItem(STORAGE_ACTIVE, activeId);
-        renderDocList();
-        loadDocIntoEditor(doc);
-        updatePreview();
-        updateCounts();
+        createDoc({ name: name || "Imported", content: String(reader.result) });
       };
       reader.readAsText(file);
       (e.target as HTMLInputElement).value = "";
@@ -1336,13 +1240,15 @@ ${bodyHtml}
     registerEditor(view) {
       cm = view;
     },
-    getActiveDoc,
+    // getActiveDoc/findDocById/createDoc/deleteDoc/duplicateDoc/
+    // markActiveDocShared/setActiveDocGistId are no longer on the bridge —
+    // collab.ts and gist.ts import them directly from ./stores/docs now,
+    // same as DocList.svelte/MenuBar.svelte already did for docsStore/
+    // activeIdStore. switchDoc/jumpToLine/setDocImage stay here since they
+    // each need something only this closure has (mobile-sidebar DOM state,
+    // the live CodeMirror instance, or a preview refresh).
     switchDoc,
-    deleteDoc,
-    duplicateDoc,
     jumpToLine,
-    persistDocs,
-    renderDocList,
     refreshSaveStatus() {
       setSaveStatus(savedLabel(getActiveDoc()));
     },
@@ -1353,19 +1259,12 @@ ${bodyHtml}
       return resolveImageRefs(cm.state.doc.toString(), getActiveDoc());
     },
     setDocImage(key, dataUrl) {
-      const doc = getActiveDoc();
-      if (!doc) return;
-      doc.images = doc.images || {};
-      doc.images[key] = dataUrl;
-      persistDocs();
+      setDocImage(key, dataUrl);
       updatePreview();
     },
     onImageAdded: null,
     toggleDropdown,
     closeAllDropdowns,
-    findDocById(id) {
-      return docs.find((d) => d.id === id);
-    },
     requireGithubSignIn(hint) {
       const modal = document.getElementById("githubSignInModal");
       if (hint) document.getElementById("githubSignInModalHint").textContent = hint;
@@ -1373,41 +1272,6 @@ ${bodyHtml}
     },
     openGithubSignInPopup,
     githubUsername: null, // kept in sync by gist.ts's checkSession()
-    createDoc(partial) {
-      saveNow();
-      const doc: Doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now() }, partial);
-      docs.unshift(doc);
-      activeId = doc.id;
-      persistDocs();
-      localStorage.setItem(STORAGE_ACTIVE, activeId);
-      renderDocList();
-      loadDocIntoEditor(doc);
-      updatePreview();
-      updateCounts();
-      return doc;
-    },
-    // The doc's own id doubles as its collab room id (see collab.ts) — this
-    // just tracks locally whether the doc has ever been shared, so
-    // switching to/loading it knows whether to attempt rejoining the room.
-    markActiveDocShared(shared) {
-      const doc = getActiveDoc();
-      if (!doc) return null;
-      if (shared) doc.shared = true;
-      else delete doc.shared;
-      doc.updatedAt = Date.now();
-      persistDocs();
-      renderDocList();
-      return doc;
-    },
-    setActiveDocGistId(gistId) {
-      const doc = getActiveDoc();
-      if (!doc) return null;
-      doc.gistId = gistId;
-      doc.updatedAt = Date.now();
-      persistDocs();
-      renderDocList();
-      return doc;
-    },
     // Set by collab.ts. Called by loadDocIntoEditor() right before/after the
     // editor content is swapped, so collab.ts can unbind the outgoing doc's
     // room before CodeMirror's setValue() fires a bogus "edit".

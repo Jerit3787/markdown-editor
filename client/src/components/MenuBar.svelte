@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { docsStore, activeIdStore } from "../stores/docs";
+  import { docsStore, activeIdStore, deleteDoc } from "../stores/docs";
   import { githubUsername } from "../stores/github";
   import { gistBusyLabel } from "../stores/gist";
   import { viewMode } from "../stores/view";
@@ -124,7 +124,7 @@
       </div>
 
       <div class="menu-divider"></div>
-      <button id="menuDeleteDoc" type="button" onclick={() => act(() => window.MDE.deleteDoc($activeIdStore ?? ""))}>
+      <button id="menuDeleteDoc" type="button" onclick={() => act(() => deleteDoc($activeIdStore ?? ""))}>
         <svg class="icon"><use href="#icon-trash-2"></use></svg> Delete document
       </button>
     </div>

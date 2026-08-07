@@ -13,6 +13,7 @@ import "./types";
 import { githubUsername as githubUsernameStore } from "./stores/github";
 import { showToast } from "./stores/toast";
 import { gistBusyLabel } from "./stores/gist";
+import { getActiveDoc, createDoc, setActiveDocGistId } from "./stores/docs";
 
 let connectedUsername: string | null = null;
 
@@ -74,7 +75,7 @@ async function publish() {
     window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue.");
     return;
   }
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   if (!doc) return;
   // getResolvedContent() inlines images as base64 data URIs — that's the
   // only thing the plain REST API can store (files[name].content is a JSON
@@ -108,7 +109,7 @@ async function publish() {
       if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       gistId = data.id;
-      window.MDE.setActiveDocGistId(gistId);
+      setActiveDocGistId(gistId);
     }
 
     try {
@@ -251,7 +252,7 @@ async function openGistById(id: string, btn: HTMLButtonElement) {
     const rawContent = file.truncated ? await fetchRaw(file.raw_url) : file.content;
     const name = file.filename.replace(/\.(md|markdown)$/i, "");
     const { content, images } = extractInlineImages(rawContent);
-    window.MDE.createDoc({ name, content, images: Object.keys(images).length ? images : undefined, gistId: data.id });
+    createDoc({ name, content, images: Object.keys(images).length ? images : undefined, gistId: data.id });
     document.getElementById("openGistModal").hidden = true;
     btn.textContent = original;
     showToast(`Opened "${name}" from Gist`, "success");

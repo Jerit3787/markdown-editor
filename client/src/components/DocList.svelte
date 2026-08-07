@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { docsStore, activeIdStore, activeDocContent } from "../stores/docs";
+  import { docsStore, activeIdStore, activeDocContent, duplicateDoc, deleteDoc } from "../stores/docs";
 
   const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
 
@@ -76,12 +76,12 @@
 
   function duplicate(id: string) {
     closeMenu();
-    window.MDE.duplicateDoc(id);
+    duplicateDoc(id);
   }
 
   function del(id: string) {
     closeMenu();
-    window.MDE.deleteDoc(id);
+    deleteDoc(id);
   }
 
   onMount(() => {

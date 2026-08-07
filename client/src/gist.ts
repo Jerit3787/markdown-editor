@@ -174,48 +174,58 @@ function gistImageFilename(ref: string, ext: string): string {
   return /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(ref) ? ref : `${ref}.${ext}`;
 }
 
-// Pushes every image referenced in rawContent (that's actually in
-// doc.images — plain refs like "screenshot.png") to the gist's git repo as
-// a real binary file (see src/gist-images.ts), then returns rawContent
-// with those refs rewritten to the real returned URLs. Pushed one at a
-// time — parallel pushes to the same gist repo could race against each
-// other. Returns null if there was nothing to push, so the caller can skip
-// the follow-up PATCH entirely.
+// Pushes every image referenced in rawContent to the gist's git repo as a
+// real binary file (see src/gist-images.ts), then returns rawContent with
+// those references rewritten to the real returned URLs. Two kinds of
+// image source can appear in the markdown:
+//  - a short ref resolved against doc.images (the normal case — paste or
+//    drop an image and it's stored there, referenced as `![x](key)`)
+//  - a literal `data:image/...;base64,...` URI already inline in the text
+//    itself — documents saved before the ref system existed, or markdown
+//    pasted in by hand, never went through that conversion, so this has
+//    to catch them directly rather than assuming every image is a ref.
+// Pushed one at a time — parallel pushes to the same gist repo could race
+// against each other. Returns null if there was nothing to push, so the
+// caller can skip the follow-up PATCH entirely.
 async function pushImagesAndRewrite(
   gistId: string,
   rawContent: string,
   images: Record<string, string> | undefined,
   label: HTMLElement
 ): Promise<string | null> {
-  if (!images) return null;
-
-  const refs = new Set<string>();
+  const sources = new Map<string, string>(); // markdown src text -> data URI to push
   for (const match of rawContent.matchAll(MARKDOWN_IMAGE_RE)) {
-    if (images[match[2]]) refs.add(match[2]);
+    const src = match[2];
+    if (images && images[src]) {
+      sources.set(src, images[src]);
+    } else if (/^data:image\//.test(src)) {
+      sources.set(src, src);
+    }
   }
-  if (refs.size === 0) return null;
+  if (sources.size === 0) return null;
 
-  const urlByRef: Record<string, string> = {};
+  const urlBySource: Record<string, string> = {};
   let done = 0;
-  for (const ref of refs) {
+  let counter = 0;
+  for (const [src, dataUrl] of sources) {
     done++;
-    label.textContent = `Publishing images (${done}/${refs.size})…`;
-    const dataUrl = images[ref];
+    label.textContent = `Publishing images (${done}/${sources.size})…`;
     const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.*)$/);
     if (!match) continue;
     const [, mime, contentBase64] = match;
+    const filename = src.startsWith("data:") ? `image-${++counter}.${extFromMime(mime)}` : gistImageFilename(src, extFromMime(mime));
     const res = await fetch(`/api/gist/${gistId}/image`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: gistImageFilename(ref, extFromMime(mime)), contentBase64 }),
+      body: JSON.stringify({ filename, contentBase64 }),
     });
     if (!res.ok) throw new Error(await errorMessage(res));
     const data = await res.json();
-    urlByRef[ref] = data.url;
+    urlBySource[src] = data.url;
   }
 
-  return rawContent.replace(MARKDOWN_IMAGE_RE, (match, alt, ref) => {
-    const url = urlByRef[ref];
+  return rawContent.replace(MARKDOWN_IMAGE_RE, (match, alt, src) => {
+    const url = urlBySource[src];
     return url ? `![${alt}](${url})` : match;
   });
 }

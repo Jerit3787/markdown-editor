@@ -329,34 +329,8 @@
     <!-- Editor + Preview -->
     <main id="main">
       <section id="editorPane" class="pane">
-        <div id="toolbar">
-          <!-- Shown only while the sidebar is collapsed — sits inline with
-               the formatting tools instead of floating over the editor. -->
-          <button id="sidebarToggleOut" class="icon-btn" title="Show documents panel" aria-label="Show documents panel" hidden><svg class="icon"><use href="#icon-menu"></use></svg></button>
-          <span class="sep" id="sidebarToggleOutSep" hidden></span>
-          <button data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
-          <button data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
-          <button data-cmd="strike" title="Strikethrough"><svg class="icon"><use href="#icon-strikethrough"></use></svg></button>
-          <span class="sep"></span>
-          <button data-cmd="h1" title="Heading 1">H1</button>
-          <button data-cmd="h2" title="Heading 2">H2</button>
-          <button data-cmd="h3" title="Heading 3">H3</button>
-          <span class="sep"></span>
-          <button data-cmd="quote" title="Blockquote"><svg class="icon"><use href="#icon-quote"></use></svg></button>
-          <button data-cmd="code" title="Inline code"><svg class="icon"><use href="#icon-code"></use></svg></button>
-          <button data-cmd="codeblock" title="Code block"><svg class="icon"><use href="#icon-braces"></use></svg></button>
-          <span class="sep"></span>
-          <button data-cmd="ul" title="Bullet list"><svg class="icon"><use href="#icon-list"></use></svg></button>
-          <button data-cmd="ol" title="Numbered list"><svg class="icon"><use href="#icon-list-ordered"></use></svg></button>
-          <button data-cmd="task" title="Task list"><svg class="icon"><use href="#icon-square-check"></use></svg></button>
-          <span class="sep"></span>
-          <button data-cmd="link" title="Link (Ctrl+K)"><svg class="icon"><use href="#icon-link"></use></svg></button>
-          <button data-cmd="image" title="Image"><svg class="icon"><use href="#icon-image"></use></svg></button>
-          <button id="imagesManagerBtn" type="button" title="Manage images"><svg class="icon"><use href="#icon-images"></use></svg></button>
-          <button data-cmd="table" title="Table"><svg class="icon"><use href="#icon-table"></use></svg></button>
-          <button data-cmd="hr" title="Horizontal rule">―</button>
-        </div>
-        <div id="editorWrap"><textarea id="editor"></textarea></div>
+        <div id="toolbar-mount"></div>
+        <div id="editor-mount"></div>
       </section>
 
       <div id="divider"></div>

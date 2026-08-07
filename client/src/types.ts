@@ -43,6 +43,12 @@ export interface Doc {
 // instance instead of touching internals directly.
 export interface MDEBridge {
   getEditor(): EditorView;
+  // Editor.svelte's construction handoff: it builds the actual EditorView
+  // (DOM host + mount/destroy lifecycle are its job), but the extension
+  // list is almost entirely app.ts's own callbacks/state, so it asks for
+  // that here and hands the resulting view back via registerEditor.
+  getEditorExtensions(): Extension[];
+  registerEditor(view: EditorView): void;
   getActiveDoc(): Doc | undefined;
   switchDoc(id: string): void;
   deleteDoc(id: string): void;

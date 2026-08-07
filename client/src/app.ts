@@ -103,7 +103,11 @@ import { viewMode } from "./stores/view";
     activeId = localStorage.getItem(STORAGE_ACTIVE) || (docs[0] ? docs[0].id : null);
     if (activeId && !docs.find((d) => d.id === activeId)) activeId = docs[0] ? docs[0].id : null;
 
-    initEditor();
+    // cm is already populated by this point — Editor.svelte constructs the
+    // EditorView in its own onMount and hands it back via
+    // window.MDE.registerEditor(), and main.ts's mount() calls (which
+    // trigger that) run synchronously before this DOMContentLoaded handler
+    // ever fires, same guarantee every other Svelte component here relies on.
     initSyncScroll();
     initImageUploads();
     initToolbar();
@@ -247,62 +251,59 @@ import { viewMode } from "./stores/view";
     cm.dispatch({ effects: removeImageMarkerEffect.of(id) });
   }
 
-  function initEditor() {
-    const textarea = document.getElementById("editor") as HTMLTextAreaElement;
-    const parent = document.createElement("div");
-    parent.className = "cm-host";
-    textarea.parentNode!.insertBefore(parent, textarea);
-    textarea.hidden = true;
-
-    cm = new EditorView({
-      doc: textarea.value,
-      parent,
-      extensions: [
-        readOnlyCompartment.of(EditorState.readOnly.of(false)),
-        editingModeCompartment.of(localEditingModeExtensions()),
-        keymap.of([
-          { key: "Mod-b", run: () => { wrapSelection("**", "**", "bold text"); return true; } },
-          { key: "Mod-i", run: () => { wrapSelection("_", "_", "italic text"); return true; } },
-          { key: "Mod-k", run: () => { insertLink(); return true; } },
-        ]),
-        keymap.of(markdownKeymap),
-        keymap.of(defaultKeymap),
-        markdown({ extensions: [GFM] }),
-        syntaxHighlighting(markdownHighlightStyle),
-        editorTheme,
-        EditorView.lineWrapping,
-        imageMarkerField,
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            scheduleSave();
-            updatePreview();
-            updateCounts();
-            // Undebounced (unlike doc.content, which only syncs on the
-            // debounced save) — DocList.svelte's outline for whichever doc
-            // is active reads this so it stays live as-you-type.
-            activeDocContent.set(cm.state.doc.toString());
-          }
-          if (update.selectionSet) updateCursorPos();
-        }),
-        EditorView.domEventHandlers({
-          paste: (event) => {
-            const files = imageFilesFrom(event.clipboardData);
-            if (files.length === 0) return false;
-            event.preventDefault();
-            files.forEach((file) => insertImageWithUpload(file));
-            return true;
-          },
-          drop: (event, view) => {
-            const files = imageFilesFrom(event.dataTransfer);
-            if (files.length === 0) return false;
-            event.preventDefault();
-            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-            files.forEach((file) => insertImageWithUpload(file, pos ?? undefined));
-            return true;
-          },
-        }),
-      ],
-    });
+  // Editor.svelte (mounted at #editor-mount) owns the actual EditorView
+  // construction/mount/destroy lifecycle — this just builds the extension
+  // list, since that's almost entirely app.ts's own callbacks/state
+  // (scheduleSave, wrapSelection, the collab compartments, ...) and has
+  // nothing to do with where the DOM host element lives. The component
+  // calls this from onMount and hands the resulting view back via
+  // window.MDE.registerEditor.
+  function buildEditorExtensions(): Extension[] {
+    return [
+      readOnlyCompartment.of(EditorState.readOnly.of(false)),
+      editingModeCompartment.of(localEditingModeExtensions()),
+      keymap.of([
+        { key: "Mod-b", run: () => { wrapSelection("**", "**", "bold text"); return true; } },
+        { key: "Mod-i", run: () => { wrapSelection("_", "_", "italic text"); return true; } },
+        { key: "Mod-k", run: () => { insertLink(); return true; } },
+      ]),
+      keymap.of(markdownKeymap),
+      keymap.of(defaultKeymap),
+      markdown({ extensions: [GFM] }),
+      syntaxHighlighting(markdownHighlightStyle),
+      editorTheme,
+      EditorView.lineWrapping,
+      imageMarkerField,
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          scheduleSave();
+          updatePreview();
+          updateCounts();
+          // Undebounced (unlike doc.content, which only syncs on the
+          // debounced save) — DocList.svelte's outline for whichever doc
+          // is active reads this so it stays live as-you-type.
+          activeDocContent.set(cm.state.doc.toString());
+        }
+        if (update.selectionSet) updateCursorPos();
+      }),
+      EditorView.domEventHandlers({
+        paste: (event) => {
+          const files = imageFilesFrom(event.clipboardData);
+          if (files.length === 0) return false;
+          event.preventDefault();
+          files.forEach((file) => insertImageWithUpload(file));
+          return true;
+        },
+        drop: (event, view) => {
+          const files = imageFilesFrom(event.dataTransfer);
+          if (files.length === 0) return false;
+          event.preventDefault();
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+          files.forEach((file) => insertImageWithUpload(file, pos ?? undefined));
+          return true;
+        },
+      }),
+    ];
   }
 
   // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
@@ -682,15 +683,11 @@ import { viewMode } from "./stores/view";
     updateCursorPos();
   }
 
-  // ---------- Toolbar formatting ----------
+  // ---------- Document title ----------
+  // The formatting toolbar itself is Toolbar.svelte now (mounted at
+  // #toolbar-mount) — its buttons call window.MDE.runCmd() directly
+  // instead of a delegated click listener here.
   function initToolbar() {
-    document.getElementById("toolbar").addEventListener("click", (e) => {
-      const btn = (e.target as HTMLElement).closest("button[data-cmd]") as HTMLElement;
-      if (!btn) return;
-      runCmd(btn.dataset.cmd);
-      cm.focus();
-    });
-
     document.getElementById("docTitle").addEventListener("input", (e) => {
       const doc = getActiveDoc();
       if (!doc) return;
@@ -1334,6 +1331,11 @@ ${bodyHtml}
   // through this small surface instead of reaching into internals directly.
   const bridge: MDEBridge = {
     getEditor: () => cm,
+    // Editor.svelte's construction handoff — see buildEditorExtensions().
+    getEditorExtensions: buildEditorExtensions,
+    registerEditor(view) {
+      cm = view;
+    },
     getActiveDoc,
     switchDoc,
     deleteDoc,

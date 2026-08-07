@@ -776,6 +776,12 @@ html, body {
    Svelte-mounted. */
 #menubar-mount { display: contents; }
 
+/* Wraps Toolbar.svelte's <div id="toolbar"> and Editor.svelte's
+   <div id="editorWrap"> — both need to sit as direct flex children of
+   #editorPane (.pane's column flex layout), same reasoning as
+   #menubar-mount above. */
+#toolbar-mount, #editor-mount { display: contents; }
+
 .outline-list {
   list-style: none;
   margin: 0;

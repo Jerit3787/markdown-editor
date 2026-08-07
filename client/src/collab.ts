@@ -20,6 +20,7 @@ import "./types";
 import type { AccessRecord } from "./types";
 import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "./stores/share";
 import { showToast } from "./stores/toast";
+import { getActiveDoc, findDocById, createDoc, markActiveDocShared } from "./stores/docs";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -66,7 +67,7 @@ function init() {
     history.replaceState(null, "", "/" + location.search + location.hash);
     joinSharedLink(shareUrlMatch[1]);
   } else {
-    handleDocChanged(window.MDE.getActiveDoc());
+    handleDocChanged(getActiveDoc());
   }
 }
 
@@ -80,11 +81,11 @@ const SHARE_PATH = /^\/d\/([A-Za-z0-9_-]{1,128})\/(?:view|review|edit)$/;
 // link is stable the moment the doc exists, not a fresh id minted only once
 // sharing is turned on.
 async function joinSharedLink(roomId: string) {
-  const existing = window.MDE.findDocById(roomId);
+  const existing = findDocById(roomId);
   // createDoc() already activates the new doc; switchDoc() only needed to
   // bring an already-known local copy back into view.
   if (existing) window.MDE.switchDoc(existing.id);
-  else window.MDE.createDoc({ id: roomId, name: "Shared document" });
+  else createDoc({ id: roomId, name: "Shared document" });
 
   // Checked before requiring sign-in, not after: a link with general
   // access set to "anyone" needs no account at all — only a restricted
@@ -103,7 +104,7 @@ async function joinSharedLink(roomId: string) {
     }
     return;
   }
-  window.MDE.markActiveDocShared(true);
+  markActiveDocShared(true);
   joinRoom(roomId, { seedFromLocal: false, role });
 }
 
@@ -149,7 +150,7 @@ function joinRoom(roomId: string, { seedFromLocal, role }: { seedFromLocal: bool
     event.changes.keys.forEach((change, key) => {
       if (change.action === "delete") return;
       const dataUrl = room.imagesMap.get(key);
-      if (dataUrl) window.MDE.setDocImage(key, dataUrl);
+      if (dataUrl) window.MDE.setDocImage(key, dataUrl); // needs the bridge: also refreshes the preview
     });
   });
   room.awareness = new awarenessProtocol.Awareness(room.ydoc);
@@ -253,7 +254,7 @@ function bindEditor(role: string) {
 }
 
 function seedImagesIntoRoom() {
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   if (!doc || !doc.images) return;
   room.ydoc.transact(() => {
     Object.entries(doc.images).forEach(([key, dataUrl]) => room.imagesMap.set(key, dataUrl));
@@ -416,7 +417,7 @@ export async function openShareModal() {
     return;
   }
   shareModalOpen.set(true);
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   if (doc) {
     currentAccess = await fetchAccess(doc.id);
     syncShareStores();
@@ -438,7 +439,7 @@ const ACCESS_MODE_TOAST: Record<AccessMode, string> = {
 // Returns false on failure so the component can revert its own optimistic
 // <select> value.
 export async function setAccessMode(mode: AccessMode, fallbackRole: string): Promise<boolean> {
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   if (!doc) return false;
   const wantAnyone = mode !== "restricted";
   const access = await putAccess(doc.id, {
@@ -452,7 +453,7 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
     return false;
   }
   currentAccess = access;
-  window.MDE.markActiveDocShared(wantAnyone || access.invited.length > 0);
+  markActiveDocShared(wantAnyone || access.invited.length > 0);
   if (wantAnyone && !room.id) joinRoom(doc.id, { seedFromLocal: true, role: "editor" });
   if (!wantAnyone) teardown();
   syncShareStores();
@@ -461,7 +462,7 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
 }
 
 export async function setRole(role: string) {
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   if (!doc || !currentAccess) return;
   const access = await putAccess(doc.id, {
     generalAccess: "anyone",
@@ -483,7 +484,7 @@ export async function setRole(role: string) {
 // calling this at all, but returning null here too avoids ever copying a
 // stale/meaningless link if it somehow does.
 export function buildShareLink(): string | null {
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   if (!doc || !currentAccess) return null;
   const isAnyone = currentAccess.generalAccess === "anyone";
   if (!isAnyone && currentAccess.invited.length === 0) return null;
@@ -496,7 +497,7 @@ export function buildShareLink(): string | null {
 export async function addPerson(rawUsername: string) {
   const username = rawUsername.trim().replace(/^@/, "");
   if (!username) return;
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   if (!doc) return;
   const existing = currentAccess ? currentAccess.invited : [];
   if (existing.some((p) => p.username === username)) return;
@@ -509,7 +510,7 @@ export async function addPerson(rawUsername: string) {
   });
   if (access) {
     currentAccess = access;
-    window.MDE.markActiveDocShared(true);
+    markActiveDocShared(true);
     // Restricted access never otherwise triggers joinRoom (only switching
     // to "anyone" does, see setAccessMode) — without this, an invited
     // person could join and authorize successfully but find the room's
@@ -525,7 +526,7 @@ export async function addPerson(rawUsername: string) {
 }
 
 export async function setInviteRole(username: string, role: string) {
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   if (!doc || !currentAccess) return;
   const invited = currentAccess.invited.map((p) => (p.username === username ? { ...p, role } : p));
   const access = await putAccess(doc.id, {
@@ -544,7 +545,7 @@ export async function setInviteRole(username: string, role: string) {
 }
 
 export async function removeInvite(username: string) {
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   if (!doc || !currentAccess) return;
   const invited = currentAccess.invited.filter((p) => p.username !== username);
   const access = await putAccess(doc.id, {
@@ -567,7 +568,7 @@ export async function removeInvite(username: string) {
 function syncShareStores() {
   const access = currentAccess || DEFAULT_ACCESS;
   shareAccess.set(access);
-  const doc = window.MDE.getActiveDoc();
+  const doc = getActiveDoc();
   shareDocName.set((doc && doc.name) || "Untitled");
   document.getElementById("shareBtn").classList.toggle("active", !!room.id);
   updatePresence();

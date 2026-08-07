@@ -49,27 +49,26 @@ export interface MDEBridge {
   // that here and hands the resulting view back via registerEditor.
   getEditorExtensions(): Extension[];
   registerEditor(view: EditorView): void;
-  getActiveDoc(): Doc | undefined;
+  // Doc CRUD/state reads (getActiveDoc, findDocById, createDoc, deleteDoc,
+  // duplicateDoc, markActiveDocShared, setActiveDocGistId) live in
+  // ./stores/docs now — collab.ts/gist.ts/DocList.svelte/MenuBar.svelte
+  // import them directly instead of going through the bridge, since none
+  // of it needs DOM/CodeMirror access. switchDoc/jumpToLine/setDocImage
+  // stay here: each needs something only app.ts's closure has (the
+  // mobile-sidebar DOM state, the live CodeMirror instance, or a preview
+  // refresh).
   switchDoc(id: string): void;
-  deleteDoc(id: string): void;
-  duplicateDoc(id: string): void;
   jumpToLine(id: string, line: number): void;
-  persistDocs(): void;
-  renderDocList(): void;
   refreshSaveStatus(): void;
   getResolvedContent(): string;
   setDocImage(key: string, dataUrl: string): void;
   onImageAdded: ((key: string, dataUrl: string) => void) | null;
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
-  findDocById(id: string): Doc | undefined;
   requireGithubSignIn(hint?: string): void;
   openGithubSignInPopup(): void;
   githubUsername: string | null;
   githubSessionReady?: Promise<unknown>;
-  createDoc(partial: Partial<Doc> & { id?: string; name?: string }): Doc;
-  markActiveDocShared(shared: boolean): Doc | null;
-  setActiveDocGistId(gistId: string): Doc | null;
   onBeforeDocLoad: (() => void) | null;
   onActiveDocChanged: ((doc: Doc) => void) | null;
   onGithubAuthComplete?: () => void;

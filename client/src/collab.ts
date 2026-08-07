@@ -14,6 +14,8 @@ import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
+import { keymap } from "@codemirror/view";
+import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord } from "./types";
 import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "./stores/share";
@@ -35,17 +37,12 @@ const room = {
   ytext: null as Y.Text | null,
   imagesMap: null as Y.Map<string> | null,
   awareness: null as awarenessProtocol.Awareness | null,
+  undoManager: null as Y.UndoManager | null,
   reconnectTimer: null as ReturnType<typeof setTimeout> | null,
   reconnectDelay: 1000,
-  lastKnownValue: "",
-  applyingRemote: false,
-  cursorWidgets: new Map<number, { el: HTMLElement; widget: any }>(),
-  cmChangeHandler: null as any,
-  cmCursorHandler: null as any,
   ydocUpdateHandler: null as ((update: Uint8Array, origin: unknown) => void) | null,
 };
 
-let cm: CodeMirror.Editor;
 // The server-side access record for the room currently shown in the Share
 // modal, refreshed on open and after every change. Null until first fetched.
 let currentAccess: typeof DEFAULT_ACCESS | null = null;
@@ -53,7 +50,6 @@ let currentAccess: typeof DEFAULT_ACCESS | null = null;
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
-  cm = window.MDE.getEditor();
   window.MDE.onBeforeDocLoad = teardown;
   window.MDE.onActiveDocChanged = handleDocChanged;
   // Local image inserts (see app.ts's insertImageWithUpload) get mirrored
@@ -158,33 +154,37 @@ function joinRoom(roomId: string, { seedFromLocal, role }: { seedFromLocal: bool
   });
   room.awareness = new awarenessProtocol.Awareness(room.ydoc);
 
-  bindEditor();
+  const view = window.MDE.getEditor();
   if (seedFromLocal) {
-    pushLocalContentIntoYText(cm.getValue());
+    // The room doesn't have any real content yet — this client's current
+    // local copy IS the room's starting content, so it's pushed in before
+    // the sync extension attaches (nothing to reconcile: both already
+    // agree once yCollab starts observing).
+    const content = view.state.doc.toString();
+    if (content) room.ydoc.transact(() => room.ytext.insert(0, content), "local");
     seedImagesIntoRoom();
   } else {
-    // Joining an existing room: bindEditor() just set room.lastKnownValue
-    // from the brand-new empty room.ytext, but CodeMirror's actual buffer
-    // may already hold this doc's content (re-opening a share link you've
-    // already visited, reloading the page while on one, or the owner
-    // opening their own link — findDocById in joinSharedLink finds the
-    // cached local copy and loads it before this ever runs). The
-    // upcoming sync response will deliver the room's real content via
-    // applyDiffToCm(room.lastKnownValue, syncedContent) — if the baseline
-    // still says "" while CodeMirror already shows that same content,
-    // the diff inserts a second copy on top instead of a no-op, and the
-    // document doubles in size. Re-baselining against what's actually in
-    // the editor right now (whatever that is) makes the diff correct
-    // either way: a no-op if it already matches, or the real patch if it
-    // doesn't.
-    room.lastKnownValue = cm.getValue();
+    // Joining an existing room: its real content arrives asynchronously
+    // via the sync handshake below (see handleServerMessage) and gets
+    // inserted by yCollab's own sync extension once it does. Clearing the
+    // editor first — rather than trusting whatever's currently in it,
+    // e.g. a stale local copy from a previous visit to this same link —
+    // means that insert always lands on an empty buffer instead of
+    // potentially landing on top of already-matching content and
+    // doubling it (the exact cause of a real content-duplication bug
+    // fixed earlier in this project).
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "" } });
   }
 
-  cm.setOption("readOnly", role !== "editor");
+  bindEditor(role);
 
   const username = window.MDE.githubUsername;
   const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
-  room.awareness.setLocalState({ user: identity, cursor: cursorFieldFromCm(), role, username });
+  // No `cursor` field here — yCollab's yRemoteSelections plugin maintains
+  // that itself (as a Yjs relative position, which stays correct through
+  // concurrent edits in a way a raw character index can't) the moment the
+  // editor has focus or a selection.
+  room.awareness.setLocalState({ user: identity, role, username });
   room.awareness.on("update", onLocalAwarenessUpdate);
 
   connect();
@@ -192,7 +192,8 @@ function joinRoom(roomId: string, { seedFromLocal, role }: { seedFromLocal: bool
 }
 
 function teardown() {
-  cm.setOption("readOnly", false);
+  window.MDE.setReadOnly(false);
+  window.MDE.exitCollabMode();
   if (room.reconnectTimer) {
     clearTimeout(room.reconnectTimer);
     room.reconnectTimer = null;
@@ -204,11 +205,8 @@ function teardown() {
   }
   if (room.awareness) room.awareness.destroy();
   if (room.ydoc && room.ydocUpdateHandler) room.ydoc.off("update", room.ydocUpdateHandler);
+  if (room.undoManager) room.undoManager.destroy();
   if (room.ydoc) room.ydoc.destroy();
-  if (room.ytext && room.cmChangeHandler) cm.off("change", room.cmChangeHandler);
-  if (room.cmCursorHandler) cm.off("cursorActivity", room.cmCursorHandler);
-  for (const entry of room.cursorWidgets.values()) entry.widget.clear();
-  room.cursorWidgets.clear();
 
   room.id = null;
   room.ws = null;
@@ -216,33 +214,34 @@ function teardown() {
   room.ytext = null;
   room.imagesMap = null;
   room.awareness = null;
+  room.undoManager = null;
   room.reconnectDelay = 1000;
-  room.lastKnownValue = "";
-  room.cmChangeHandler = null;
-  room.cmCursorHandler = null;
   room.ydocUpdateHandler = null;
 }
 
 // ---------- CodeMirror <-> Y.Text binding ----------
-// Diff-based rather than translating CodeMirror's changeObj chain into fine
-// grained ops: CM5 changeObj positions are only valid against the
-// intermediate document state at the time each chained change applied,
-// which cm.indexFromPos can't reconstruct after the fact. Comparing full
-// text before/after and trimming the common prefix/suffix sidesteps that
-// entirely and is cheap at markdown-document sizes.
+// y-codemirror.next's yCollab extension owns the actual bidirectional
+// sync and remote cursor/selection rendering (previously hand-rolled
+// here as a diff-the-full-text-on-every-change scheme, needed because
+// CM5's changeObj positions couldn't be reconstructed after the fact —
+// CM6 exposes real position-mapped changes, which is what yCollab's own
+// sync plugin uses directly). This just wires it up per room and keeps
+// the transport-level broadcast of local Y.Doc updates to the server,
+// which is independent of how the editor itself binds to the Y.Text.
 
-function bindEditor() {
-  room.lastKnownValue = room.ytext.toString();
+function bindEditor(role: string) {
+  const undoManager = new Y.UndoManager(room.ytext);
+  room.undoManager = undoManager;
+  window.MDE.enterCollabMode([yCollab(room.ytext, room.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)], undoManager);
+  window.MDE.setReadOnly(role !== "editor");
 
-  // Mutating room.ydoc (applyDiffToYText, seedImagesIntoRoom, the
-  // onImageAdded bridge — all "local"-origin transactions) only updates
-  // this client's own in-memory copy. Nothing else ever constructed and
-  // sent a sync message carrying that update afterward, so collaborators
-  // never received any edit made after the initial join/seed — presence
-  // (awareness) broadcasts correctly (see room.awareness.on("update", ...)
-  // below), but actual content never did. The server already has full
-  // broadcast support for this (see handleDocUpdate in collab-room.ts) —
-  // it was purely a missing client-side send.
+  // Mutating room.ydoc (seedImagesIntoRoom, the onImageAdded bridge, and
+  // now yCollab's own local-edit transactions) only updates this client's
+  // own in-memory copy — nothing else constructs and sends a sync message
+  // carrying that update, so this is the only thing that actually
+  // broadcasts a local change to collaborators. The server already has
+  // full broadcast support for receiving it (see handleDocUpdate in
+  // collab-room.ts).
   room.ydocUpdateHandler = (update: Uint8Array, origin: unknown) => {
     if (origin === "server") return; // don't echo back what the server just sent us
     const encoder = encoding.createEncoder();
@@ -251,35 +250,6 @@ function bindEditor() {
     send(encoding.toUint8Array(encoder));
   };
   room.ydoc.on("update", room.ydocUpdateHandler);
-
-  room.ytext.observe((event, tr) => {
-    if (tr.origin === "local") return;
-    const newValue = room.ytext.toString();
-    room.applyingRemote = true;
-    cm.operation(() => applyDiffToCm(room.lastKnownValue, newValue));
-    room.lastKnownValue = newValue;
-    room.applyingRemote = false;
-    renderRemoteCursors();
-  });
-
-  room.cmChangeHandler = (instance: CodeMirror.Editor, changeObj: CodeMirror.EditorChange) => {
-    if (room.applyingRemote || changeObj.origin === "setValue") return;
-    const newValue = cm.getValue();
-    if (newValue === room.lastKnownValue) return;
-    applyDiffToYText(room.lastKnownValue, newValue);
-    room.lastKnownValue = newValue;
-  };
-  cm.on("change", room.cmChangeHandler);
-
-  room.cmCursorHandler = () => {
-    if (room.awareness) room.awareness.setLocalStateField("cursor", cursorFieldFromCm());
-  };
-  cm.on("cursorActivity", room.cmCursorHandler);
-}
-
-function pushLocalContentIntoYText(value: string) {
-  applyDiffToYText(room.lastKnownValue, value);
-  room.lastKnownValue = value;
 }
 
 function seedImagesIntoRoom() {
@@ -288,79 +258,6 @@ function seedImagesIntoRoom() {
   room.ydoc.transact(() => {
     Object.entries(doc.images).forEach(([key, dataUrl]) => room.imagesMap.set(key, dataUrl));
   }, "local");
-}
-
-function applyDiffToYText(oldVal: string, newVal: string) {
-  const [start, oldEnd, newEnd] = diffRange(oldVal, newVal);
-  room.ydoc.transact(() => {
-    if (oldEnd > start) room.ytext.delete(start, oldEnd - start);
-    if (newEnd > start) room.ytext.insert(start, newVal.slice(start, newEnd));
-  }, "local");
-}
-
-function applyDiffToCm(oldVal: string, newVal: string) {
-  const [start, oldEnd, newEnd] = diffRange(oldVal, newVal);
-  const from = cm.posFromIndex(start);
-  const to = cm.posFromIndex(oldEnd);
-  cm.replaceRange(newVal.slice(start, newEnd), from, to, "yjs");
-}
-
-function diffRange(a: string, b: string): [number, number, number] {
-  let start = 0;
-  const minLen = Math.min(a.length, b.length);
-  while (start < minLen && a.charCodeAt(start) === b.charCodeAt(start)) start++;
-  let aEnd = a.length;
-  let bEnd = b.length;
-  while (aEnd > start && bEnd > start && a.charCodeAt(aEnd - 1) === b.charCodeAt(bEnd - 1)) {
-    aEnd--;
-    bEnd--;
-  }
-  return [start, aEnd, bEnd];
-}
-
-function cursorFieldFromCm() {
-  return { index: cm.indexFromPos(cm.getCursor()) };
-}
-
-// ---------- Remote cursor rendering ----------
-
-function renderRemoteCursors() {
-  if (!room.awareness) return;
-  const states = room.awareness.getStates();
-  const seen = new Set();
-  states.forEach((state: any, clientID: number) => {
-    if (clientID === room.awareness.clientID) return;
-    if (!state || !state.cursor || !state.user) return;
-    seen.add(clientID);
-    const pos = cm.posFromIndex(Math.min(state.cursor.index, room.ytext.length));
-    let entry = room.cursorWidgets.get(clientID);
-    if (!entry) {
-      const el = buildCursorEl(state.user);
-      entry = { el, widget: cm.setBookmark(pos, { widget: el, insertLeft: true }) };
-      room.cursorWidgets.set(clientID, entry);
-    } else {
-      entry.widget.clear();
-      entry.widget = cm.setBookmark(pos, { widget: entry.el, insertLeft: true });
-    }
-  });
-  for (const [clientID, entry] of room.cursorWidgets) {
-    if (!seen.has(clientID)) {
-      entry.widget.clear();
-      room.cursorWidgets.delete(clientID);
-    }
-  }
-}
-
-function buildCursorEl(remoteUser: { name: string; color: string }) {
-  const el = document.createElement("span");
-  el.className = "remote-cursor";
-  el.style.borderColor = remoteUser.color;
-  const label = document.createElement("span");
-  label.className = "remote-cursor-label";
-  label.textContent = remoteUser.name;
-  label.style.background = remoteUser.color;
-  el.appendChild(label);
-  return el;
 }
 
 // ---------- WebSocket transport (Yjs sync + awareness protocol) ----------
@@ -417,7 +314,6 @@ function handleServerMessage(data: Uint8Array) {
   } else if (messageType === MESSAGE_AWARENESS) {
     const update = decoding.readVarUint8Array(decoder);
     awarenessProtocol.applyAwarenessUpdate(room.awareness, update, "server");
-    renderRemoteCursors();
     updatePresence();
   }
 }
@@ -425,7 +321,6 @@ function handleServerMessage(data: Uint8Array) {
 function onLocalAwarenessUpdate({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) {
   sendAwareness(added.concat(updated, removed));
   updatePresence();
-  renderRemoteCursors();
 }
 
 function sendAwareness(clientIDs: number[]) {

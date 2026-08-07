@@ -85,7 +85,7 @@ async function publish() {
   // GitHub's gist viewer can't render an <img> whose src is a huge base64
   // string embedded in the markdown text.
   const content = window.MDE.getResolvedContent();
-  const rawContent = window.MDE.getEditor().getValue();
+  const rawContent = window.MDE.getEditor().state.doc.toString();
   const filename = gistFilename(doc);
   const wasUpdate = !!doc.gistId;
   gistBusyLabel.set(wasUpdate ? "Updating…" : "Publishing…");

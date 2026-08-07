@@ -11,11 +11,9 @@
     theme = next;
     document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem(STORAGE_THEME, next);
-    // The editor already exists by the time anyone can click this (it's
-    // behind a modal opened well after init) — window.MDE is always
-    // populated first, see main.ts's import order.
-    const cm = window.MDE.getEditor();
-    if (cm) cm.setOption("theme", next === "dark" ? "material-darker" : "default");
+    // The editor's own colors are CSS custom properties (see cm-facade.ts's
+    // editorTheme) that already flip with data-theme above — no separate
+    // CodeMirror-side reconfiguration needed.
   }
 
   function open() {
@@ -38,9 +36,7 @@
   onMount(() => {
     // Applies the saved theme to <html> on load — previously app.ts's
     // initTheme() did this; now that Settings owns theme state, it does
-    // too. CodeMirror itself still reads localStorage directly at creation
-    // time in app.ts's initEditor() (runs before this component could),
-    // so this only needs to (re)apply the <html> attribute + icon/label.
+    // too. Just needs to (re)apply the <html> attribute + icon/label.
     applyTheme(theme);
     document.getElementById("settingsBtn")?.addEventListener("click", open);
 

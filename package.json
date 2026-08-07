@@ -18,6 +18,9 @@
     "vite": "^8.2.1",
     "wrangler": "^4.19.1"
   },
+  "overrides": {
+    "undici": "^7.29.0"
+  },
   "dependencies": {
     "@codemirror/commands": "^6.10.4",
     "@codemirror/lang-markdown": "^6.5.2",

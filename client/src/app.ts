@@ -935,6 +935,27 @@ import { viewMode } from "./stores/view";
           trigger.classList.add("active");
         }
       });
+      // Native-menu-bar-style: once the parent dropdown is open, hovering
+      // a row with a flyout expands it immediately, same as File > Open
+      // expanding on hover in a real desktop app menu (item #38 — the
+      // top-level File/Edit/View/Help hover-switch already worked, this
+      // was the "/submenu" half of that item, never actually wired).
+      trigger.addEventListener("mouseenter", () => {
+        if (sub.classList.contains("open")) return;
+        closeSubmenus(root);
+        sub.classList.add("open");
+        trigger.classList.add("active");
+      });
+    });
+
+    // Hovering any other row (not a submenu trigger) collapses whichever
+    // flyout is currently open — otherwise moving the mouse from an open
+    // "Export" flyout back up to "New document" would leave Export open
+    // and floating over unrelated items.
+    [...root.children].forEach((child) => {
+      if (!(child as HTMLElement).classList.contains("menu-submenu")) {
+        child.addEventListener("mouseenter", () => closeSubmenus(root));
+      }
     });
   }
 

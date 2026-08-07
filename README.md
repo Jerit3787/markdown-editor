@@ -108,3 +108,7 @@ wrangler.jsonc             Worker + assets + Durable Object config
 - Real-time sync: [Yjs](https://docs.yjs.dev/) + [y-codemirror.next](https://github.com/yjs/y-codemirror.next) + [y-protocols](https://github.com/yjs/y-protocols), bundled client-side; the same Yjs/y-protocols packages run server-side inside the Durable Object
 - Gist image publishing: [isomorphic-git](https://isomorphic-git.org/)
 - UI: [Svelte 5](https://svelte.dev/), bundled with [Vite](https://vite.dev/)
+
+## License
+
+[MIT](LICENSE)

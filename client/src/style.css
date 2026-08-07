@@ -714,26 +714,12 @@ html, body {
 
 .modal-actions-share { align-items: center; }
 
-.cm-image-uploading { opacity: 0.55; font-style: italic; }
-
-.remote-cursor {
-  border-left: 2px solid;
-  margin-left: -1px;
-  position: relative;
-}
-
-.remote-cursor-label {
-  position: absolute;
-  top: -1.35em;
-  left: -2px;
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #fff;
-  padding: 1px 5px;
-  border-radius: 4px 4px 4px 0;
-  white-space: nowrap;
-  pointer-events: none;
-}
+/* Remote cursor/selection rendering (.cm-ySelection, .cm-ySelectionCaret,
+   etc.) comes from y-codemirror.next's own yRemoteSelectionsTheme
+   extension now, included alongside yCollab in app.ts — no separate CSS
+   needed here. .cm-image-uploading is defined in app.ts's editorTheme
+   (a CodeMirror-scoped theme extension), not globally, since it only
+   ever applies inside the editor. */
 
 /* Body layout */
 #body {
@@ -984,16 +970,13 @@ html, body {
   margin: 3px 4px;
 }
 
+/* .cm-host wraps the CodeMirror 6 EditorView (inserted next to the now-
+   hidden #editor textarea by app.ts's initEditor). The view's own root
+   element (.cm-editor) is sized via its theme() extension instead of
+   here — this just needs to give that element something with a real
+   height to fill in the first place. */
 #editorWrap { flex: 1; min-height: 0; overflow: hidden; }
-#editorWrap .CodeMirror {
-  height: 100%;
-  font-family: var(--mono);
-  font-size: 14.5px;
-  line-height: 1.6;
-  padding: 4px 0;
-}
-
-.CodeMirror { background: var(--bg) !important; color: var(--text) !important; }
+#editorWrap .cm-host { height: 100%; }
 
 #preview {
   flex: 1;

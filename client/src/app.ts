@@ -1,13 +1,11 @@
 /* Markdown Editor — static, client-side, localStorage-backed */
-import CodeMirror from "codemirror";
-import "codemirror/mode/markdown/markdown";
-import "codemirror/mode/xml/xml";
-import "codemirror/addon/mode/overlay";
-import "codemirror/mode/gfm/gfm";
-import "codemirror/addon/edit/continuelist";
-import "codemirror/addon/display/placeholder";
-import "codemirror/lib/codemirror.css";
-import "codemirror/theme/material-darker.css";
+import { EditorState, StateField, StateEffect, Compartment, Transaction, type Extension } from "@codemirror/state";
+import { EditorView, Decoration, keymap, type DecorationSet } from "@codemirror/view";
+import { history, historyKeymap, undo as cmUndo, redo as cmRedo, defaultKeymap } from "@codemirror/commands";
+import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
+import { GFM } from "@lezer/markdown";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { tags as t } from "@lezer/highlight";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import html2pdf from "html2pdf.js";
@@ -32,8 +30,38 @@ import { viewMode } from "./stores/view";
   // ---------- State ----------
   let docs: Doc[] = [];
   let activeId: string | null = null;
-  let cm: CodeMirror.Editor = null as unknown as CodeMirror.Editor;
+  let cm: EditorView = null as unknown as EditorView;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // ---------- Editor extension compartments ----------
+  // readOnlyCompartment: viewer/reviewer roles in a shared room (collab.ts
+  // drives this via window.MDE.setReadOnly).
+  // editingModeCompartment: swaps the whole editing/undo stack between
+  // local (CM6's own history()) and collaborative (y-codemirror.next's
+  // yCollab extensions + its Yjs-aware undo keymap) as one atomic unit —
+  // never both at once, since they'd fight over Mod-Z. collab.ts drives
+  // this via window.MDE.enterCollabMode/exitCollabMode.
+  const readOnlyCompartment = new Compartment();
+  const editingModeCompartment = new Compartment();
+
+  function localEditingModeExtensions(): Extension {
+    return [history(), keymap.of(historyKeymap)];
+  }
+
+  // Set by collab.ts when a room is joined (a fresh Y.UndoManager per
+  // join) so window.MDE.undo()/redo() — the Edit-menu's programmatic
+  // triggers, as opposed to a real Mod-Z keypress the editingMode keymap
+  // already handles — can route to whichever undo system is actually
+  // active. y-codemirror.next's own undo/redo StateCommands aren't part
+  // of its public API surface (only their keymap bindings are exported),
+  // so this talks to the Y.UndoManager instance directly instead — same
+  // effect, since the collab extension's own listeners are registered
+  // against that instance regardless of what calls .undo()/.redo() on it.
+  interface UndoManagerLike {
+    undo(): void;
+    redo(): void;
+  }
+  let collabUndoManager: UndoManagerLike | null = null;
 
   // ---------- Storage helpers ----------
   function loadDocs(): Doc[] {
@@ -142,39 +170,139 @@ import { viewMode } from "./stores/view";
   // client/src/components/Settings.svelte) — it applies the saved theme to
   // <html> on mount, which happens before this module's own init() runs
   // (Settings mounts eagerly in main.ts, not gated behind
-  // DOMContentLoaded). initEditor() below still reads localStorage
-  // directly for CodeMirror's own initial theme option.
+  // DOMContentLoaded). The editor's own colors are CSS custom properties
+  // (see editorTheme below) that already flip with that attribute, so it
+  // needs no separate reconfiguration when the theme changes.
 
-  // ---------- Editor (CodeMirror) ----------
+  // ---------- Editor (CodeMirror 6) ----------
+  const editorTheme = EditorView.theme({
+    "&": { color: "var(--text)", backgroundColor: "var(--bg)", height: "100%" },
+    ".cm-content": { fontFamily: "var(--mono)", fontSize: "14.5px", lineHeight: "1.6", padding: "4px 0", caretColor: "var(--text)" },
+    ".cm-scroller": { overflow: "auto", fontFamily: "var(--mono)" },
+    "&.cm-focused": { outline: "none" },
+    ".cm-cursor": { borderLeftColor: "var(--text)" },
+    ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "var(--accent-dim) !important" },
+    ".cm-image-uploading": { opacity: "0.6", fontStyle: "italic" },
+  });
+
+  const markdownHighlightStyle = HighlightStyle.define([
+    { tag: t.heading1, fontWeight: "700", fontSize: "1.3em", color: "var(--text)" },
+    { tag: t.heading2, fontWeight: "700", fontSize: "1.15em", color: "var(--text)" },
+    { tag: [t.heading3, t.heading4, t.heading5, t.heading6], fontWeight: "700", color: "var(--text)" },
+    { tag: t.strong, fontWeight: "700" },
+    { tag: t.emphasis, fontStyle: "italic" },
+    { tag: t.strikethrough, textDecoration: "line-through" },
+    { tag: t.monospace, fontFamily: "var(--mono)" },
+    { tag: [t.link, t.url], color: "var(--accent)" },
+    { tag: t.quote, color: "var(--text-dim)", fontStyle: "italic" },
+    { tag: t.list, color: "var(--accent)" },
+    { tag: [t.meta, t.processingInstruction, t.contentSeparator], color: "var(--text-dim)" },
+  ]);
+
+  // ---- image-upload placeholder marker ----
+  // A live-tracked highlight over "![Encoding photo.png…]()" while it's
+  // being read, so the eventual real markdown link can be swapped in at
+  // wherever that placeholder ends up — including if concurrent typing
+  // (local or a collaborator's) shifted it since the upload started. CM6
+  // decorations auto-map their position through every subsequent edit,
+  // the same live tracking CM5's TextMarker gave this for free.
+  let imageMarkerIdSeq = 0;
+  const addImageMarkerEffect = StateEffect.define<{ id: number; from: number; to: number }>();
+  const removeImageMarkerEffect = StateEffect.define<number>();
+  const imageMarkerField = StateField.define<DecorationSet>({
+    create: () => Decoration.none,
+    update(value, tr) {
+      let deco = value.map(tr.changes);
+      for (const effect of tr.effects) {
+        if (effect.is(addImageMarkerEffect)) {
+          const mark = Decoration.mark({ class: "cm-image-uploading", id: effect.value.id });
+          deco = deco.update({ add: [mark.range(effect.value.from, effect.value.to)] });
+        } else if (effect.is(removeImageMarkerEffect)) {
+          deco = deco.update({ filter: (_f, _t, d) => (d.spec as { id: number }).id !== effect.value });
+        }
+      }
+      return deco;
+    },
+    provide: (f) => EditorView.decorations.from(f),
+  });
+
+  function addImageMarker(from: number, to: number): number {
+    const id = ++imageMarkerIdSeq;
+    cm.dispatch({ effects: addImageMarkerEffect.of({ id, from, to }) });
+    return id;
+  }
+
+  function findImageMarker(id: number): { from: number; to: number } | undefined {
+    let found: { from: number; to: number } | undefined;
+    cm.state.field(imageMarkerField).between(0, cm.state.doc.length, (from, to, deco) => {
+      if ((deco.spec as { id: number }).id === id) {
+        found = { from, to };
+        return false;
+      }
+    });
+    return found;
+  }
+
+  function removeImageMarker(id: number) {
+    cm.dispatch({ effects: removeImageMarkerEffect.of(id) });
+  }
+
   function initEditor() {
     const textarea = document.getElementById("editor") as HTMLTextAreaElement;
-    cm = CodeMirror.fromTextArea(textarea, {
-      mode: "gfm",
-      lineWrapping: true,
-      lineNumbers: false,
-      theme: (localStorage.getItem(STORAGE_THEME) === "dark") ? "material-darker" : "default",
-      extraKeys: {
-        "Cmd-B": () => wrapSelection("**", "**"),
-        "Ctrl-B": () => wrapSelection("**", "**"),
-        "Cmd-I": () => wrapSelection("_", "_"),
-        "Ctrl-I": () => wrapSelection("_", "_"),
-        "Cmd-K": () => insertLink(),
-        "Ctrl-K": () => insertLink(),
-        "Enter": "newlineAndIndentContinueMarkdownList",
-      },
-    });
+    const parent = document.createElement("div");
+    parent.className = "cm-host";
+    textarea.parentNode!.insertBefore(parent, textarea);
+    textarea.hidden = true;
 
-    cm.on("change", () => {
-      scheduleSave();
-      updatePreview();
-      updateCounts();
-      // Undebounced (unlike doc.content, which only syncs on the debounced
-      // save) — DocList.svelte's outline for whichever doc is active reads
-      // this so it stays live as-you-type, same as the old behavior.
-      activeDocContent.set(cm.getValue());
+    cm = new EditorView({
+      doc: textarea.value,
+      parent,
+      extensions: [
+        readOnlyCompartment.of(EditorState.readOnly.of(false)),
+        editingModeCompartment.of(localEditingModeExtensions()),
+        keymap.of([
+          { key: "Mod-b", run: () => { wrapSelection("**", "**", "bold text"); return true; } },
+          { key: "Mod-i", run: () => { wrapSelection("_", "_", "italic text"); return true; } },
+          { key: "Mod-k", run: () => { insertLink(); return true; } },
+        ]),
+        keymap.of(markdownKeymap),
+        keymap.of(defaultKeymap),
+        markdown({ extensions: [GFM] }),
+        syntaxHighlighting(markdownHighlightStyle),
+        editorTheme,
+        EditorView.lineWrapping,
+        imageMarkerField,
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            scheduleSave();
+            updatePreview();
+            updateCounts();
+            // Undebounced (unlike doc.content, which only syncs on the
+            // debounced save) — DocList.svelte's outline for whichever doc
+            // is active reads this so it stays live as-you-type.
+            activeDocContent.set(cm.state.doc.toString());
+          }
+          if (update.selectionSet) updateCursorPos();
+        }),
+        EditorView.domEventHandlers({
+          paste: (event) => {
+            const files = imageFilesFrom(event.clipboardData);
+            if (files.length === 0) return false;
+            event.preventDefault();
+            files.forEach((file) => insertImageWithUpload(file));
+            return true;
+          },
+          drop: (event, view) => {
+            const files = imageFilesFrom(event.dataTransfer);
+            if (files.length === 0) return false;
+            event.preventDefault();
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            files.forEach((file) => insertImageWithUpload(file, pos ?? undefined));
+            return true;
+          },
+        }),
+      ],
     });
-
-    cm.on("cursorActivity", updateCursorPos);
   }
 
   // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
@@ -188,14 +316,14 @@ import { viewMode } from "./stores/view";
     const preview = document.getElementById("preview") as HTMLElement;
     let syncing = false;
 
-    cm.on("scroll", () => {
+    cm.scrollDOM.addEventListener("scroll", () => {
       if (syncing || !main.classList.contains("mode-split")) return;
-      const info = cm.getScrollInfo();
-      const max = info.height - info.clientHeight;
+      const el = cm.scrollDOM;
+      const max = el.scrollHeight - el.clientHeight;
       if (max <= 0) return;
       const previewMax = preview.scrollHeight - preview.clientHeight;
       syncing = true;
-      preview.scrollTop = (info.top / max) * previewMax;
+      preview.scrollTop = (el.scrollTop / max) * previewMax;
       requestAnimationFrame(() => { syncing = false; });
     });
 
@@ -203,9 +331,9 @@ import { viewMode } from "./stores/view";
       if (syncing || !main.classList.contains("mode-split")) return;
       const max = preview.scrollHeight - preview.clientHeight;
       if (max <= 0) return;
-      const info = cm.getScrollInfo();
+      const el = cm.scrollDOM;
       syncing = true;
-      cm.scrollTo(null, (preview.scrollTop / max) * (info.height - info.clientHeight));
+      el.scrollTop = (preview.scrollTop / max) * (el.scrollHeight - el.clientHeight);
       requestAnimationFrame(() => { syncing = false; });
     });
   }
@@ -215,11 +343,12 @@ import { viewMode } from "./stores/view";
   // any of this — these three only exist to back the Edit-menu Cut/Copy/Paste
   // items, since a menu click has no native clipboard access of its own.
   async function menuClipboardCut() {
-    const sel = cm.getSelection();
-    if (!sel) { cm.focus(); return; }
+    const { from, to } = cm.state.selection.main;
+    if (from === to) { cm.focus(); return; }
+    const sel = cm.state.sliceDoc(from, to);
     try {
       await navigator.clipboard.writeText(sel);
-      cm.replaceSelection("");
+      cm.dispatch({ changes: { from, to, insert: "" } });
     } catch {
       cm.focus();
       document.execCommand("cut");
@@ -228,8 +357,9 @@ import { viewMode } from "./stores/view";
   }
 
   async function menuClipboardCopy() {
-    const sel = cm.getSelection();
-    if (!sel) { cm.focus(); return; }
+    const { from, to } = cm.state.selection.main;
+    if (from === to) { cm.focus(); return; }
+    const sel = cm.state.sliceDoc(from, to);
     try {
       await navigator.clipboard.writeText(sel);
     } catch {
@@ -243,7 +373,7 @@ import { viewMode } from "./stores/view";
     cm.focus();
     try {
       const text = await navigator.clipboard.readText();
-      cm.replaceSelection(text);
+      cm.dispatch(cm.state.replaceSelection(text));
     } catch {
       alert("Couldn't read the clipboard automatically — press Ctrl/Cmd+V instead, or allow clipboard access for this site.");
     }
@@ -253,25 +383,12 @@ import { viewMode } from "./stores/view";
   // Images are embedded directly as base64 data URIs in the markdown — no
   // upload, no server involved. Kept fairly small since it counts against
   // both localStorage's ~5-10MB quota and, for shared documents, the size
-  // of every Yjs sync payload sent to collaborators.
+  // of every Yjs sync payload sent to collaborators. Paste/drop themselves
+  // are wired in initEditor() (EditorView.domEventHandlers) — this only
+  // needs the toolbar/menu's own file-picker input.
   const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
   function initImageUploads() {
-    cm.on("paste", (instance, e) => {
-      const files = imageFilesFrom(e.clipboardData);
-      if (files.length === 0) return;
-      e.preventDefault();
-      files.forEach((file) => insertImageWithUpload(file));
-    });
-
-    cm.on("drop", (instance, e) => {
-      const files = imageFilesFrom(e.dataTransfer);
-      if (files.length === 0) return;
-      e.preventDefault();
-      const pos = cm.coordsChar({ left: e.clientX, top: e.clientY });
-      files.forEach((file) => insertImageWithUpload(file, pos));
-    });
-
     document.getElementById("imageFileInput").addEventListener("change", (e) => {
       const file = (e.target as HTMLInputElement).files[0];
       if (file) insertImageWithUpload(file);
@@ -284,24 +401,24 @@ import { viewMode } from "./stores/view";
     return Array.from(dataTransfer.files).filter((f) => f.type.startsWith("image/"));
   }
 
-  function insertImageWithUpload(file: File, pos?: CodeMirror.Position) {
-    const from = pos || cm.getCursor();
+  function insertImageWithUpload(file: File, pos?: number) {
+    const from = pos ?? cm.state.selection.main.head;
     if (file.size > MAX_IMAGE_BYTES) {
-      cm.replaceRange(`![${file.name}: image too large, 2MB max]()`, from);
+      cm.dispatch({ changes: { from, insert: `![${file.name}: image too large, 2MB max]()` } });
       return;
     }
 
     const placeholder = `![Encoding ${file.name}…]()`;
-    cm.replaceRange(placeholder, from);
-    const to = cm.posFromIndex(cm.indexFromPos(from) + placeholder.length);
-    // markText tracks the placeholder's position live as other edits (local
-    // typing, or a collaborator's) land while the file is being read.
-    const marker = cm.markText(from, to, { className: "cm-image-uploading" });
+    const to = from + placeholder.length;
+    cm.dispatch({ changes: { from, insert: placeholder } });
+    // Live-tracks the placeholder's position as other edits (local typing,
+    // or a collaborator's) land while the file is being read.
+    const markerId = addImageMarker(from, to);
 
     readImageAsDataURL(file)
       .then((dataUrl) => {
-        const range = marker.find();
-        marker.clear();
+        const range = findImageMarker(markerId);
+        removeImageMarker(markerId);
         if (!range) return; // doc was switched away mid-read; drop it
         const doc = getActiveDoc();
         doc.images = doc.images || {};
@@ -309,13 +426,13 @@ import { viewMode } from "./stores/view";
         doc.images[key] = dataUrl;
         persistDocs();
         window.MDE.onImageAdded && window.MDE.onImageAdded(key, dataUrl);
-        cm.replaceRange(`![${altTextFromFilename(file.name)}](${key})`, (range as any).from, (range as any).to);
+        cm.dispatch({ changes: { from: range.from, to: range.to, insert: `![${altTextFromFilename(file.name)}](${key})` } });
         updatePreview();
       })
       .catch((err) => {
-        const range = marker.find();
-        marker.clear();
-        if (range) cm.replaceRange(`![image failed to load: ${err.message}]()`, (range as any).from, (range as any).to);
+        const range = findImageMarker(markerId);
+        removeImageMarker(markerId);
+        if (range) cm.dispatch({ changes: { from: range.from, to: range.to, insert: `![image failed to load: ${err.message}]()` } });
       });
   }
 
@@ -421,25 +538,41 @@ import { viewMode } from "./stores/view";
     (document.getElementById("divider") as HTMLElement).style.display = empty ? "none" : "";
   }
 
+  // Replaces the whole document and resets the local (non-collab) undo
+  // history in one transaction — matches the old setValue()+clearHistory()
+  // pair used on every doc switch. Marked addToHistory:false so the load
+  // itself never becomes an undo-able entry (undo should do nothing right
+  // after opening a document, not revert to the previous one's content).
+  // Also resets editingModeCompartment to local mode: collab.ts's
+  // onBeforeDocLoad hook already tears any active room down before this
+  // runs, but a stale collab extension config (bound to the OLD room's
+  // Y.Text) must not survive into whatever doc loads next.
+  function setEditorContent(content: string) {
+    collabUndoManager = null;
+    cm.dispatch({
+      changes: { from: 0, to: cm.state.doc.length, insert: content },
+      effects: editingModeCompartment.reconfigure(localEditingModeExtensions()),
+      annotations: Transaction.addToHistory.of(false),
+      selection: { anchor: 0 },
+    });
+  }
+
   function loadDocIntoEditor(doc: Doc | undefined) {
     window.MDE.onBeforeDocLoad && window.MDE.onBeforeDocLoad();
     updateMainView(!doc);
     if (!doc) {
-      cm.setValue("");
+      setEditorContent("");
       (document.getElementById("docTitle") as HTMLInputElement).value = "";
       resizeDocTitle();
       updatePageTitle("");
-      cm.clearHistory();
       setSaveStatus("");
       window.MDE.onActiveDocChanged && window.MDE.onActiveDocChanged(undefined as unknown as Doc);
       return;
     }
-    cm.setValue(doc.content || "");
+    setEditorContent(doc.content || "");
     (document.getElementById("docTitle") as HTMLInputElement).value = doc.name || "Untitled";
     resizeDocTitle();
     updatePageTitle(doc.name || "Untitled");
-    cm.clearHistory();
-    setTimeout(() => cm.refresh(), 0);
     setSaveStatus(savedLabel(doc));
     window.MDE.onActiveDocChanged && window.MDE.onActiveDocChanged(doc);
   }
@@ -454,7 +587,7 @@ import { viewMode } from "./stores/view";
   function saveNow() {
     const doc = getActiveDoc();
     if (!doc) return;
-    doc.content = cm.getValue();
+    doc.content = cm.state.doc.toString();
     doc.updatedAt = Date.now();
     persistDocs();
     setSaveStatus(savedLabel(doc));
@@ -513,7 +646,7 @@ import { viewMode } from "./stores/view";
 
   // ---------- Preview ----------
   function updatePreview() {
-    const raw = cm.getValue();
+    const raw = cm.state.doc.toString();
     const doc = getActiveDoc();
     const renderer = new marked.Renderer();
     // ![alt](refName) resolves against doc.images; anything not a known
@@ -533,15 +666,16 @@ import { viewMode } from "./stores/view";
 
   // ---------- Counts / cursor ----------
   function updateCounts() {
-    const text = cm.getValue();
+    const text = cm.state.doc.toString();
     const words = text.trim().length ? text.trim().split(/\s+/).length : 0;
     document.getElementById("wordCount").textContent = `${words} word${words === 1 ? "" : "s"}`;
     document.getElementById("charCount").textContent = `${text.length} character${text.length === 1 ? "" : "s"}`;
   }
 
   function updateCursorPos() {
-    const pos = cm.getCursor();
-    document.getElementById("cursorPos").textContent = `Ln ${pos.line + 1}, Col ${pos.ch + 1}`;
+    const pos = cm.state.selection.main.head;
+    const line = cm.state.doc.lineAt(pos);
+    document.getElementById("cursorPos").textContent = `Ln ${line.number}, Col ${pos - line.from + 1}`;
   }
 
   function initShortStatus() {
@@ -601,32 +735,35 @@ import { viewMode } from "./stores/view";
   }
 
   function wrapSelection(before: string, after: string, placeholder?: string) {
-    const sel = cm.getSelection();
+    const { from, to } = cm.state.selection.main;
+    const sel = cm.state.sliceDoc(from, to);
     const text = sel || placeholder || "";
-    cm.replaceSelection(before + text + after);
+    const insert = before + text + after;
     if (!sel && placeholder) {
-      const from = cm.getCursor();
-      cm.setSelection(
-        { line: from.line, ch: from.ch - after.length - placeholder.length },
-        { line: from.line, ch: from.ch - after.length }
-      );
+      // Select just the inserted placeholder so typing immediately
+      // replaces it, instead of leaving the cursor after it.
+      const selFrom = from + before.length;
+      const selTo = selFrom + placeholder.length;
+      cm.dispatch({ changes: { from, to, insert }, selection: { anchor: selFrom, head: selTo } });
+    } else {
+      cm.dispatch(cm.state.replaceSelection(insert));
     }
   }
 
   function prefixLine(prefix: string) {
-    const cursor = cm.getCursor();
-    const line = cm.getLine(cursor.line);
-    if (line.startsWith(prefix)) {
-      cm.replaceRange(line.slice(prefix.length), { line: cursor.line, ch: 0 }, { line: cursor.line, ch: line.length });
+    const line = cm.state.doc.lineAt(cm.state.selection.main.head);
+    if (line.text.startsWith(prefix)) {
+      cm.dispatch({ changes: { from: line.from, to: line.from + prefix.length, insert: "" } });
     } else {
-      cm.replaceRange(prefix, { line: cursor.line, ch: 0 });
+      cm.dispatch({ changes: { from: line.from, insert: prefix } });
     }
   }
 
   // A popup instead of dropping raw `[text](https://)` markdown into the
   // editor — friendlier for anyone not already fluent in markdown syntax.
   function insertLink() {
-    const sel = cm.getSelection();
+    const { from, to } = cm.state.selection.main;
+    const sel = cm.state.sliceDoc(from, to);
     (document.getElementById("linkTextInput") as HTMLInputElement).value = sel || "";
     (document.getElementById("linkUrlInput") as HTMLInputElement).value = "";
     document.getElementById("linkModal").hidden = false;
@@ -644,7 +781,7 @@ import { viewMode } from "./stores/view";
     function confirmInsert() {
       const text = textInput.value.trim() || "link text";
       const url = urlInput.value.trim() || "https://";
-      cm.replaceSelection(`[${text}](${url})`);
+      cm.dispatch(cm.state.replaceSelection(`[${text}](${url})`));
       close();
       cm.focus();
     }
@@ -672,16 +809,16 @@ import { viewMode } from "./stores/view";
   }
 
   function insertBlock(block: string) {
-    const cursor = cm.getCursor();
-    cm.replaceRange(block, cursor);
+    const pos = cm.state.selection.main.head;
+    cm.dispatch({ changes: { from: pos, insert: block }, selection: { anchor: pos + block.length } });
   }
 
   // ---------- View toggle ----------
   // Remembered so the expand-preview button can restore whichever mode the
   // user was actually in (editor or split) rather than always snapping
   // back to split. Owned here (not MenuBar.svelte) since app.ts is the
-  // source of truth for main.className/localStorage/cm.refresh — the
-  // component only reads viewMode (stores/view.ts) and calls setView()/
+  // source of truth for main.className/localStorage — the component only
+  // reads viewMode (stores/view.ts) and calls setView()/
   // toggleExpandPreview() through the bridge.
   let lastNonPreviewView: "editor" | "split" = "split";
 
@@ -696,7 +833,6 @@ import { viewMode } from "./stores/view";
     document.getElementById("main").className = `mode-${view}`;
     localStorage.setItem(STORAGE_VIEW, view);
     viewMode.set(view);
-    setTimeout(() => cm && cm.refresh(), 0);
   }
 
   // A one-click shortcut for the same "Preview" mode already reachable via
@@ -717,7 +853,6 @@ import { viewMode } from "./stores/view";
     // manual show/hide, since it has nothing else to hide it while expanded.
     document.getElementById("sidebarToggleOut").hidden = !collapsed;
     document.getElementById("sidebarToggleOutSep").hidden = !collapsed;
-    setTimeout(() => cm && cm.refresh(), 150);
   }
 
   function initSidebar() {
@@ -812,8 +947,8 @@ import { viewMode } from "./stores/view";
   // ever holds one buffer.
   function jumpToLine(id: string, line: number) {
     if (id !== activeId) switchDoc(id);
-    cm.setCursor({ line, ch: 0 });
-    cm.scrollIntoView({ line, ch: 0 }, 100);
+    const lineInfo = cm.state.doc.line(Math.min(line + 1, cm.state.doc.lines));
+    cm.dispatch({ selection: { anchor: lineInfo.from }, effects: EditorView.scrollIntoView(lineInfo.from, { y: "center" }) });
     cm.focus();
   }
 
@@ -1088,7 +1223,7 @@ import { viewMode } from "./stores/view";
   function exportAs(format: string) {
     saveNow();
     const base = currentFileBase();
-    const raw = cm.getValue();
+    const raw = cm.state.doc.toString();
 
     if (format === "md") {
       const resolved = resolveImageRefs(raw, getActiveDoc());
@@ -1213,7 +1348,7 @@ ${bodyHtml}
     // their real data URIs — what gets published to a Gist, since a Gist
     // needs to stand on its own outside this app.
     getResolvedContent() {
-      return resolveImageRefs(cm.getValue(), getActiveDoc());
+      return resolveImageRefs(cm.state.doc.toString(), getActiveDoc());
     },
     setDocImage(key, dataUrl) {
       const doc = getActiveDoc();
@@ -1281,8 +1416,27 @@ ${bodyHtml}
     enableMenuBarHoverSwitch,
     initSubmenus,
     closeSubmenus,
-    undo() { cm.undo(); cm.focus(); },
-    redo() { cm.redo(); cm.focus(); },
+    undo() {
+      if (collabUndoManager) collabUndoManager.undo();
+      else cmUndo(cm);
+      cm.focus();
+    },
+    redo() {
+      if (collabUndoManager) collabUndoManager.redo();
+      else cmRedo(cm);
+      cm.focus();
+    },
+    setReadOnly(readOnly) {
+      cm.dispatch({ effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(readOnly)) });
+    },
+    enterCollabMode(extensions, undoManager) {
+      collabUndoManager = undoManager;
+      cm.dispatch({ effects: editingModeCompartment.reconfigure(extensions) });
+    },
+    exitCollabMode() {
+      collabUndoManager = null;
+      cm.dispatch({ effects: editingModeCompartment.reconfigure(localEditingModeExtensions()) });
+    },
     cutSelection: menuClipboardCut,
     copySelection: menuClipboardCopy,
     pasteClipboard: menuClipboardPaste,

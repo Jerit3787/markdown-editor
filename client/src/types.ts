@@ -1,3 +1,6 @@
+import type { EditorView } from "@codemirror/view";
+import type { Extension } from "@codemirror/state";
+
 export interface InvitedPerson {
   username: string;
   role: string;
@@ -39,7 +42,7 @@ export interface Doc {
 // this is how they drive doc switching/creation and reach the CodeMirror
 // instance instead of touching internals directly.
 export interface MDEBridge {
-  getEditor(): CodeMirror.Editor;
+  getEditor(): EditorView;
   getActiveDoc(): Doc | undefined;
   switchDoc(id: string): void;
   deleteDoc(id: string): void;
@@ -75,6 +78,12 @@ export interface MDEBridge {
   closeSubmenus(root: HTMLElement): void;
   undo(): void;
   redo(): void;
+  // Reconfigures the editor's readOnly facet and its editing-mode/undo
+  // stack — collab.ts drives both when a room is joined/left/its role
+  // changes (see app.ts's editingModeCompartment/readOnlyCompartment).
+  setReadOnly(readOnly: boolean): void;
+  enterCollabMode(extensions: Extension, undoManager: { undo(): void; redo(): void }): void;
+  exitCollabMode(): void;
   cutSelection(): void;
   copySelection(): void;
   pasteClipboard(): void;

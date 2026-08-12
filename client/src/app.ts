@@ -1977,6 +1977,10 @@ ${bodyHtml}
     setView,
     toggleExpandPreview,
     toggleFocusMode,
+    openDiagramEditor() {
+      diagramEditorRef.set(null);
+      diagramEditorOpen.set(true);
+    },
     setKeybindings,
     formatRelativeTime,
   };

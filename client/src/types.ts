@@ -106,6 +106,7 @@ export interface MDEBridge {
   setView(mode: "editor" | "split" | "preview"): void;
   toggleExpandPreview(): void;
   toggleFocusMode(): void;
+  openDiagramEditor(): void;
   setKeybindings(mode: "normal" | "vim" | "emacs"): void;
   formatRelativeTime(ts: number): string;
   // Set by gist.ts at module load, same pattern as onGithubAuthComplete —

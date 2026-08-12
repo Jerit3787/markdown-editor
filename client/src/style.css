@@ -1104,7 +1104,7 @@ html, body {
   overflow: auto;
   border-right: 1px solid var(--border);
 }
-.diagram-editor-code-host :global(.cm-editor) { height: 100%; font-family: var(--mono); }
+.diagram-editor-code-host .cm-editor { height: 100%; font-family: var(--mono); }
 .diagram-editor-preview {
   overflow: auto;
   padding: 20px;

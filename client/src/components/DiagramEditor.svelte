@@ -271,7 +271,15 @@
         {showReference ? "Hide reference" : "Syntax reference"}
       </button>
       <div class="dropdown">
-        <button type="button" class="secondary-btn" disabled={!lastRenderedSvg} onclick={() => (showExportMenu = !showExportMenu)}>
+        <!-- stopPropagation matches app.ts's toggleDropdown() button handler
+             — without it, this click bubbles to document, where
+             closeDropdownsOnOutsideClick() (registered for the File/Edit/
+             View/Help menus) sees a click that didn't land inside an
+             *already-open* .dropdown-menu (this button is a sibling of
+             .dropdown-menu, never a descendant of it) and immediately
+             strips the "open" class this same click just added, in the
+             same event's bubble phase — the menu never visibly opens. -->
+        <button type="button" class="secondary-btn" disabled={!lastRenderedSvg} onclick={(e) => { e.stopPropagation(); showExportMenu = !showExportMenu; }}>
           Export
         </button>
         <div class="dropdown-menu" class:open={showExportMenu}>

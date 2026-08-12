@@ -1011,7 +1011,7 @@ html, body {
   border-radius: 4px;
   font-size: 0.88em;
 }
-#preview pre {
+#preview pre, .diagram-editor-preview pre {
   background: var(--bg-alt);
   padding: 14px 16px;
   border-radius: 8px;
@@ -1034,7 +1034,7 @@ html, body {
 #preview a { color: var(--accent); }
 #preview hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 
-#preview pre.mermaid.mermaid-rendered {
+#preview pre.mermaid.mermaid-rendered, .diagram-editor-preview pre.mermaid.mermaid-rendered {
   background: none;
   border: none;
   padding: 0;
@@ -1042,17 +1042,54 @@ html, body {
   justify-content: center;
   overflow-x: auto;
 }
-#preview pre.mermaid.mermaid-rendered svg { max-width: 100%; }
-#preview pre.mermaid.mermaid-error { white-space: normal; }
-#preview .mermaid-error-message {
+#preview pre.mermaid.mermaid-rendered svg, .diagram-editor-preview pre.mermaid.mermaid-rendered svg { max-width: 100%; }
+#preview pre.mermaid.mermaid-error, .diagram-editor-preview pre.mermaid.mermaid-error { white-space: normal; }
+#preview .mermaid-error-message, .diagram-editor-preview .mermaid-error-message {
   color: var(--danger);
   font-weight: 600;
   margin: 0 0 8px;
 }
-#preview .mermaid-error-source {
+#preview .mermaid-error-source, .diagram-editor-preview .mermaid-error-source {
   display: block;
   white-space: pre-wrap;
   font-family: var(--mono);
+}
+
+/* Diagram editor */
+.diagram-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.diagram-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.diagram-editor-header h2 { margin: 0; font-size: 16px; font-weight: 600; flex: 1; }
+.diagram-editor-header .secondary-btn,
+.diagram-editor-header .primary-btn { width: auto; margin-bottom: 0; }
+.diagram-editor-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+}
+.diagram-editor-code-host {
+  overflow: auto;
+  border-right: 1px solid var(--border);
+}
+.diagram-editor-code-host :global(.cm-editor) { height: 100%; font-family: var(--mono); }
+.diagram-editor-preview {
+  overflow: auto;
+  padding: 20px;
+  background: var(--bg-alt);
 }
 
 /* Status bar */

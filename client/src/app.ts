@@ -1538,6 +1538,10 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   a { color: #2563eb; }
   hr { border: none; border-top: 1px solid #e2e5e9; margin: 24px 0; }
   .katex { color: #1f2328; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .footnotes { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e5e9; font-size: 0.9em; color: #6b7280; }
+  .footnotes ol { padding-left: 20px; }
+  [data-footnote-ref], [data-footnote-backref] { color: #2563eb; text-decoration: none; }
 </style>
 ${mathCss}
 </head>

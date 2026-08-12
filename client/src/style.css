@@ -1037,6 +1037,30 @@ html, body {
 #preview a { color: var(--accent); }
 #preview hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+#preview .footnotes {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.9em;
+  color: var(--text-dim);
+}
+#preview .footnotes ol { padding-left: 20px; }
+#preview [data-footnote-ref], #preview [data-footnote-backref] {
+  color: var(--accent);
+  text-decoration: none;
+}
+#preview [data-footnote-ref]:hover, #preview [data-footnote-backref]:hover { text-decoration: underline; }
+
 #preview pre.mermaid.mermaid-rendered, .diagram-editor-preview pre.mermaid.mermaid-rendered {
   background: none;
   border: none;

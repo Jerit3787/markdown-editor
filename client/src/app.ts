@@ -1478,6 +1478,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const modal = document.getElementById("infoModal");
     const termsModal = document.getElementById("termsModal");
     const privacyModal = document.getElementById("privacyModal");
+    const licensesModal = document.getElementById("licensesModal");
 
     document.getElementById("infoCloseBtn").addEventListener("click", () => { modal.hidden = true; });
     modal.addEventListener("click", (e) => { if (e.target === modal) modal.hidden = true; });
@@ -1488,6 +1489,9 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     document.getElementById("privacyCloseBtn").addEventListener("click", () => { privacyModal.hidden = true; });
     privacyModal.addEventListener("click", (e) => { if (e.target === privacyModal) privacyModal.hidden = true; });
 
+    document.getElementById("licensesCloseBtn").addEventListener("click", () => { licensesModal.hidden = true; });
+    licensesModal.addEventListener("click", (e) => { if (e.target === licensesModal) licensesModal.hidden = true; });
+
     document.getElementById("menuTerms").addEventListener("click", () => {
       modal.hidden = true;
       termsModal.hidden = false;
@@ -1496,6 +1500,22 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       modal.hidden = true;
       privacyModal.hidden = false;
     });
+    document.getElementById("menuLicenses").addEventListener("click", () => {
+      modal.hidden = true;
+      licensesModal.hidden = false;
+    });
+
+    renderLicensesList();
+  }
+
+  function renderLicensesList() {
+    const container = document.getElementById("licensesList");
+    container.innerHTML = __OSS_LICENSES__.map((entry) => {
+      const nameHtml = entry.url
+        ? `<a href="${escapeHtml(entry.url)}" target="_blank" rel="noopener">${escapeHtml(entry.name)}</a>`
+        : escapeHtml(entry.name);
+      return `<div class="shortcuts-row"><span>${nameHtml}</span><kbd>${escapeHtml(entry.license)} · v${escapeHtml(entry.version)}</kbd></div>`;
+    }).join("");
   }
 
   // A small "?" toggle in a modal's own header, next to its title — reveals

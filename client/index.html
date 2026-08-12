@@ -493,6 +493,7 @@
     <div class="about-links">
       <button id="menuTerms" class="menu-link-item" type="button"><svg class="icon"><use href="#icon-file"></use></svg> Terms of Service</button>
       <button id="menuPrivacy" class="menu-link-item" type="button"><svg class="icon"><use href="#icon-lock"></use></svg> Privacy Policy</button>
+      <button id="menuLicenses" class="menu-link-item" type="button"><svg class="icon"><use href="#icon-file"></use></svg> Open Source Licenses</button>
       <a class="menu-link-item" href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-github"></use></svg> View Source on GitHub</a>
     </div>
 
@@ -524,6 +525,17 @@
     <p>No analytics, tracking, or advertising scripts run in this app. Cloudflare, which hosts it, keeps standard request logs briefly to operate the service — the same as any web host.</p>
     <div class="modal-actions">
       <button id="privacyCloseBtn" class="secondary-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="licensesModal" class="modal-backdrop" hidden>
+  <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="licensesModalTitle">
+    <h2 id="licensesModalTitle"><svg class="icon"><use href="#icon-file"></use></svg> Open Source Licenses</h2>
+    <p class="modal-hint">This app is built with these open-source packages.</p>
+    <div id="licensesList" class="shortcuts-list images-list"></div>
+    <div class="modal-actions">
+      <button id="licensesCloseBtn" class="secondary-btn" type="button">Close</button>
     </div>
   </div>
 </div>

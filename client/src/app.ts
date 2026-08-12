@@ -24,6 +24,7 @@ import {
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
+import { resolveDiagramRefs } from "./diagram-refs";
 import { debounceWithFlush } from "./debounce";
 
 (function () {
@@ -675,7 +676,7 @@ import { debounceWithFlush } from "./debounce";
     // other language falls through to marked's own default code renderer.
     const defaultCodeRenderer = marked.Renderer.prototype.code.bind(renderer);
     renderer.code = (code: string, infostring: string | undefined, escaped: boolean) =>
-      mermaidCodeRenderer(code, infostring, escaped, defaultCodeRenderer);
+      mermaidCodeRenderer(code, infostring, escaped, defaultCodeRenderer, doc?.diagrams);
     const html = marked.parse(raw, { gfm: true, breaks: false, renderer }) as string;
     const clean = DOMPurify.sanitize(html, { ADD_ATTR: ["target"] });
     document.getElementById("preview").innerHTML = clean;
@@ -1205,7 +1206,8 @@ import { debounceWithFlush } from "./debounce";
     const raw = cm.state.doc.toString();
 
     if (format === "md") {
-      const resolved = resolveImageRefs(raw, getActiveDoc());
+      const doc = getActiveDoc();
+      const resolved = resolveDiagramRefs(resolveImageRefs(raw, doc), doc?.diagrams);
       downloadBlob(new Blob([resolved], { type: "text/markdown;charset=utf-8" }), `${base}.md`);
       showToast(`Exported ${base}.md`, "success");
       return;
@@ -1347,7 +1349,8 @@ ${bodyHtml}
     // their real data URIs — what gets published to a Gist, since a Gist
     // needs to stand on its own outside this app.
     getResolvedContent() {
-      return resolveImageRefs(cm.state.doc.toString(), getActiveDoc());
+      const doc = getActiveDoc();
+      return resolveDiagramRefs(resolveImageRefs(cm.state.doc.toString(), doc), doc?.diagrams);
     },
     setDocImage(key, dataUrl) {
       setDocImage(key, dataUrl);

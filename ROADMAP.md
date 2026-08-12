@@ -25,6 +25,8 @@ commitments.
       PDF exports (v1.6.0)
 - [x] Focus Mode — paragraph dimming, typewriter scrolling, hidden chrome,
       one combined toggle (v1.7.0)
+- [x] Open Source Licenses — direct dependencies listed in the About
+      modal, generated automatically at build time (v1.8.0)
 
 ## Backlog — quick wins
 
@@ -112,3 +114,8 @@ to matter later.
       the document itself
 - [ ] Smooth-scroll animation for footnote jump/back-jump links — v1.5.0
       shipped with plain native anchor-link behavior only ("a first pass")
+- [ ] Full-bundle-accurate open source license list (every package
+      actually in the built output — 215+ once transitive dependencies
+      are counted, via a tool like `rollup-plugin-license`) instead of
+      just the 19 direct dependencies — deferred for readability; worth
+      reconsidering if a formal compliance requirement ever needs it

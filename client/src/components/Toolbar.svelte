@@ -38,4 +38,8 @@
   <button type="button" title="Table" onclick={() => run("table")}><svg class="icon"><use href="#icon-table"></use></svg></button>
   <button type="button" title="Horizontal rule" onclick={() => run("hr")}>―</button>
   <button type="button" title="Insert diagram" onclick={() => { diagramEditorRef.set(null); diagramEditorOpen.set(true); }}><svg class="icon"><use href="#icon-workflow"></use></svg></button>
+  <!-- A text glyph, not an SVG icon — matches the existing H1/H2/H3 and
+       ― buttons in this same toolbar, which use plain text rather than
+       inventing a new icon sprite entry. -->
+  <button type="button" title="Math" onclick={() => run("math")}>&Sigma;</button>
 </div>

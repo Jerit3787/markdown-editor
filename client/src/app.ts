@@ -848,6 +848,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
       case "image": return insertImage();
       case "table": return insertTable();
       case "hr": return insertBlock("\n---\n");
+      case "math": return insertMathSnippet();
     }
   }
 
@@ -928,6 +929,18 @@ import katexCss from "katex/dist/katex.min.css?raw";
   function insertBlock(block: string) {
     const pos = cm.state.selection.main.head;
     cm.dispatch({ changes: { from: pos, insert: block }, selection: { anchor: pos + block.length } });
+  }
+
+  // Inserts a block math snippet with the cursor on the blank line
+  // between the delimiters, so typing immediately starts the LaTeX
+  // source — same "insert and place the cursor usefully" shape as
+  // insertTable()/insertBlock(), just with an interior cursor position
+  // rather than one trailing the whole insert.
+  function insertMathSnippet() {
+    const pos = cm.state.selection.main.head;
+    const block = "$$\n\n$$";
+    const cursorPos = pos + 3; // after "$$\n"
+    cm.dispatch({ changes: { from: pos, insert: block }, selection: { anchor: cursorPos } });
   }
 
   // ---------- View toggle ----------

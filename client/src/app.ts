@@ -1141,6 +1141,7 @@ import { debounceWithFlush } from "./debounce";
   }
 
   function initInfoModal() {
+    document.getElementById("appVersion").textContent = `v${__APP_VERSION__}`;
     const modal = document.getElementById("infoModal");
     const termsModal = document.getElementById("termsModal");
     const privacyModal = document.getElementById("privacyModal");

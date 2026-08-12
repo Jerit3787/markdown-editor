@@ -1,0 +1,55 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { whatsNewOpen } from "../stores/whatsNew";
+
+  // Bumped only when there's a new entry worth announcing — not tied to
+  // every patch release. Matches package.json's version at the time this
+  // was last updated; the two are allowed to drift (a patch release with
+  // nothing to announce shouldn't reopen this for everyone).
+  const CURRENT_VERSION = "1.2.0";
+  const STORAGE_KEY = "mde:whatsNewSeen";
+
+  function dismiss() {
+    whatsNewOpen.set(false);
+    localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+  }
+  function backdropClick(e: MouseEvent) {
+    if (e.target === e.currentTarget) dismiss();
+  }
+
+  onMount(() => {
+    if (localStorage.getItem(STORAGE_KEY) !== CURRENT_VERSION) {
+      whatsNewOpen.set(true);
+    }
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $whatsNewOpen) dismiss();
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
+  });
+</script>
+
+{#if $whatsNewOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
+      <h2 id="whatsNewTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> What's new</h2>
+      <div class="menu-section-label">Diagram editor</div>
+      <p class="hint-text">
+        Build a Mermaid diagram in a dedicated code + live-preview workspace, with starter
+        templates for flowcharts, sequence diagrams, and more — open it from the new toolbar
+        button, or hover any diagram already in your document to edit it in place.
+      </p>
+      <div class="menu-divider"></div>
+      <div class="menu-section-label">Mermaid rendering</div>
+      <p class="hint-text">
+        <code>```mermaid</code> fences now render as real diagrams in the preview, with inline
+        errors for invalid syntax instead of breaking the rest of the page.
+      </p>
+      <div class="modal-actions">
+        <button class="primary-btn" type="button" onclick={dismiss}>Got it</button>
+      </div>
+    </div>
+  </div>
+{/if}

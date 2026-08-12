@@ -380,6 +380,10 @@
      client/src/components/DiagramEditor.svelte -->
 <div id="diagram-editor-mount"></div>
 
+<!-- What's new — Svelte component, mounted in main.ts; see
+     client/src/components/WhatsNew.svelte -->
+<div id="whats-new-mount"></div>
+
 <!-- Settings — Svelte component, mounted in main.ts (first component of the
      phase-3 migration; see client/src/components/Settings.svelte) -->
 <div id="settings-mount"></div>
@@ -481,7 +485,7 @@
     <div class="about-brand">
       <img src="/logo.svg" width="40" height="40" alt="">
       <div>
-        <h2 id="infoModalTitle">Markdown Editor</h2>
+        <h2 id="infoModalTitle">Markdown Editor <span id="appVersion" class="about-version"></span></h2>
         <p class="modal-hint">A fast, free markdown editor with live preview and real-time collaboration.</p>
       </div>
     </div>

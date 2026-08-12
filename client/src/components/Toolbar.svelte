@@ -42,4 +42,5 @@
        ― buttons in this same toolbar, which use plain text rather than
        inventing a new icon sprite entry. -->
   <button type="button" title="Math" onclick={() => run("math")}>&Sigma;</button>
+  <button type="button" title="Footnote" onclick={() => run("footnote")}>[^]</button>
 </div>

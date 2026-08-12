@@ -1025,6 +1025,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       case "table": return insertTable();
       case "hr": return insertBlock("\n---\n");
       case "math": return insertMathSnippet();
+      case "footnote": return insertFootnoteSnippet();
     }
   }
 
@@ -1117,6 +1118,31 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const block = "$$\n\n$$";
     const cursorPos = pos + 3; // after "$$\n"
     cm.dispatch({ changes: { from: pos, insert: block }, selection: { anchor: cursorPos } });
+  }
+
+  // Inserts a [^N] reference at the cursor and a [^N]: definition at the
+  // document's end, auto-numbered past any existing numeric footnote
+  // references — a hand-written named footnote like [^note] is ignored
+  // by the scan (matches [^(\d+)] only) and never collides with this
+  // button's own numbering. One atomic transaction (both changes
+  // dispatched together) — a single undo step, not two.
+  function insertFootnoteSnippet() {
+    const text = cm.state.doc.toString();
+    const existingLabels = [...text.matchAll(/\[\^(\d+)\]/g)]
+      .map((m) => parseInt(m[1], 10))
+      .filter((n) => !Number.isNaN(n));
+    const nextLabel = existingLabels.length > 0 ? Math.max(...existingLabels) + 1 : 1;
+    const pos = cm.state.selection.main.head;
+    const ref = `[^${nextLabel}]`;
+    const def = `\n\n[^${nextLabel}]: `;
+    const docEnd = cm.state.doc.length;
+    cm.dispatch({
+      changes: [
+        { from: pos, insert: ref },
+        { from: docEnd, insert: def },
+      ],
+      selection: { anchor: docEnd + ref.length + def.length },
+    });
   }
 
   // ---------- View toggle ----------

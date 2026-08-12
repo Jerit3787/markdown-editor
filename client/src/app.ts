@@ -1199,7 +1199,7 @@ import { debounceWithFlush } from "./debounce";
     return name.replace(/[\\/:*?"<>|]+/g, "-") || "document";
   }
 
-  function exportAs(format: string) {
+  async function exportAs(format: string) {
     saveNow();
     const base = currentFileBase();
     const raw = cm.state.doc.toString();
@@ -1210,6 +1210,11 @@ import { debounceWithFlush } from "./debounce";
       showToast(`Exported ${base}.md`, "success");
       return;
     }
+
+    // txt/html/pdf all read #preview's rendered DOM — make sure any
+    // in-flight or still-scheduled mermaid render has landed first, so a
+    // diagram pasted right before exporting doesn't export as raw source.
+    await mermaidRenderScheduler.flush();
 
     if (format === "txt") {
       const text = (document.getElementById("preview") as HTMLElement).innerText;

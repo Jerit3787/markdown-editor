@@ -95,7 +95,7 @@ export interface MDEBridge {
   runCmd(cmd: string): void;
   newDoc(): void;
   openLocalFile(): void;
-  exportAs(format: string): void;
+  exportAs(format: string): Promise<void>;
   toggleSidebar(): void;
   openImagesManager(): void;
   openShortcuts(): void;

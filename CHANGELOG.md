@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-08-12
+
+### Added
+
+- KaTeX math rendering in the live preview and exports — `$inline$` and
+  `$$block$$` LaTeX, loaded lazily so documents without math pay no extra
+  cost, plus a toolbar button to insert a math snippet.
+
+### Fixed
+
+- Mermaid diagrams no longer flash back to their raw source text on every
+  keystroke anywhere in the document — an already-rendered, unchanged
+  diagram is now preserved instead of being regenerated.
+- Exported standalone HTML files with math now include KaTeX's stylesheet,
+  so the math renders correctly instead of appearing unstyled.
+
 ## [1.3.0] - 2026-08-12
 
 ### Added

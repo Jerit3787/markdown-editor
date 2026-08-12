@@ -456,7 +456,7 @@ html, body {
   cursor: pointer;
 }
 .tab-switch-btn:hover { color: var(--text); }
-.tab-switch-btn.active { background: var(--bg); color: var(--accent); box-shadow: var(--shadow); }
+.tab-switch-btn.active { background: var(--bg); color: var(--accent); }
 
 .menu-link {
   display: flex;

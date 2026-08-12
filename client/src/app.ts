@@ -1,6 +1,6 @@
 /* Markdown Editor — static, client-side, localStorage-backed */
 import { EditorState, StateField, StateEffect, Compartment, Transaction, type Extension } from "@codemirror/state";
-import { EditorView, Decoration, keymap, type DecorationSet } from "@codemirror/view";
+import { EditorView, Decoration, drawSelection, keymap, type DecorationSet } from "@codemirror/view";
 import { history, historyKeymap, undo as cmUndo, redo as cmRedo, defaultKeymap } from "@codemirror/commands";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
@@ -28,6 +28,8 @@ import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./mat
 import { computeBlockLineStarts } from "./scroll-sync";
 import { activeParagraphRange } from "./focus-mode";
 import { focusMode } from "./stores/focusMode";
+import { vim, getCM } from "@replit/codemirror-vim";
+import { emacs } from "@replit/codemirror-emacs";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
@@ -65,6 +67,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   const STORAGE_THEME = "mde:theme";
   const STORAGE_VIEW = "mde:view";
+  const STORAGE_KEYBINDINGS = "mde:keybindings";
   const APP_NAME = "Markdown Editor";
 
   function updatePageTitle(docName: string) {
@@ -133,6 +136,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   const readOnlyCompartment = new Compartment();
   const editingModeCompartment = new Compartment();
   const focusModeCompartment = new Compartment();
+  const keybindingsCompartment = new Compartment();
 
   function localEditingModeExtensions(): Extension {
     return [history(), keymap.of(historyKeymap)];
@@ -179,6 +183,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     initGithubSignInModal();
     initModalEscapeKey();
     initEmptyState();
+    initKeybindingIndicator();
 
     // stores/docs.ts owns docs/activeId (self-initialized from localStorage
     // at module-evaluation time, before this ever runs) — this just reacts
@@ -326,6 +331,20 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     cm.dispatch({ effects: removeImageMarkerEffect.of(id) });
   }
 
+  type KeybindingMode = "normal" | "vim" | "emacs";
+
+  // drawSelection() isn't in this app's base extension list
+  // at all today — the vim package's own docs call it out as required
+  // for correct visual-mode selection rendering when not using CM6's
+  // basicSetup (which this app doesn't use). Bundled in only when a
+  // keybinding mode is actually active, so Normal-mode users see no
+  // change at all.
+  function keybindingsExtensionsFor(mode: KeybindingMode): Extension[] {
+    if (mode === "vim") return [vim(), drawSelection()];
+    if (mode === "emacs") return [emacs(), drawSelection()];
+    return [];
+  }
+
   // Editor.svelte (mounted at #editor-mount) owns the actual EditorView
   // construction/mount/destroy lifecycle — this just builds the extension
   // list, since that's almost entirely app.ts's own callbacks/state
@@ -334,7 +353,14 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // calls this from onMount and hands the resulting view back via
   // window.MDE.registerEditor.
   function buildEditorExtensions(): Extension[] {
+    // vim()/emacs() must come before every other keymap-providing
+    // extension for correct keybinding precedence (both packages'
+    // own docs require this) — keybindingsCompartment is deliberately
+    // first here, unlike every other compartment in this array, none
+    // of which have an ordering requirement.
+    const savedKeybindingMode = (localStorage.getItem(STORAGE_KEYBINDINGS) as KeybindingMode) || "normal";
     return [
+      keybindingsCompartment.of(keybindingsExtensionsFor(savedKeybindingMode)),
       readOnlyCompartment.of(EditorState.readOnly.of(false)),
       editingModeCompartment.of(localEditingModeExtensions()),
       focusModeCompartment.of([]),
@@ -437,6 +463,43 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       effects: focusModeCompartment.reconfigure(focusModeOn ? focusModeExtensions() : []),
     });
     if (focusModeOn) centerCursorLine(cm);
+  }
+
+  function setKeybindings(mode: KeybindingMode) {
+    localStorage.setItem(STORAGE_KEYBINDINGS, mode);
+    cm.dispatch({ effects: keybindingsCompartment.reconfigure(keybindingsExtensionsFor(mode)) });
+    updateKeybindingIndicator(mode);
+  }
+
+  function updateKeybindingIndicator(mode: KeybindingMode) {
+    const el = document.getElementById("keybindingMode");
+    if (mode === "normal") {
+      el.hidden = true;
+      return;
+    }
+    if (mode === "emacs") {
+      el.hidden = false;
+      el.textContent = "EMACS";
+      return;
+    }
+    // vim — getCM(view) only resolves once vim() has actually
+    // initialized on this view. Each call to setKeybindings("vim") gets
+    // a fresh CM5-compat instance (the package creates a new one every
+    // time vim() initializes), so repeatedly toggling Vim mode on/off/on
+    // never accumulates stale listeners on an old, discarded instance.
+    el.hidden = false;
+    const cm5 = getCM(cm);
+    const updateFromVimState = () => {
+      const vimState = cm5?.state?.vim;
+      el.textContent = vimState?.mode ? vimState.mode.toUpperCase() : "NORMAL";
+    };
+    updateFromVimState();
+    cm5?.on("vim-mode-change", updateFromVimState);
+  }
+
+  function initKeybindingIndicator() {
+    const mode = (localStorage.getItem(STORAGE_KEYBINDINGS) as KeybindingMode) || "normal";
+    updateKeybindingIndicator(mode);
   }
 
   // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
@@ -1843,6 +1906,7 @@ ${bodyHtml}
     setView,
     toggleExpandPreview,
     toggleFocusMode,
+    setKeybindings,
     formatRelativeTime,
   };
   window.MDE = bridge;

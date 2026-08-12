@@ -32,6 +32,8 @@ commitments.
 - [x] Command palette — global Ctrl/Cmd+Shift+P overlay (also reachable
       from the Help menu), fuzzy-searches every open document and ~35
       app commands (v1.10.0)
+- [x] Slash commands — inline `/`-triggered insertion menu for block-level
+      elements, anchored to the cursor (v1.11.0)
 
 ## Backlog — quick wins
 
@@ -48,11 +50,6 @@ Extends existing Yjs / role infrastructure rather than adding new systems.
 - [ ] Threaded comments anchored to text (natural extension of the existing
       reviewer role)
 - [ ] Wikilinks + backlinks between documents
-- [ ] Slash commands — inline `/`-triggered insertion menu in the editor
-      itself (split out from the original "Command palette / slash
-      commands" item — a genuinely separate subsystem: different
-      trigger, different UI surface anchored to cursor position rather
-      than a global overlay)
 
 ## Backlog — bigger bets
 

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-08-12
+
+### Added
+
+- Custom CSS on export — a new field in Settings lets you write CSS that
+  applies to HTML and PDF exports, overriding the built-in styling. The
+  live preview is unaffected.
+
 ## [1.5.0] - 2026-08-12
 
 ### Added

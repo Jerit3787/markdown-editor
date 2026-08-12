@@ -21,14 +21,14 @@ const PERSIST_KEY = "update";
 const ACCESS_KEY = "access";
 const PERSIST_DELAY_MS = 1000;
 
-type Role = "viewer" | "reviewer" | "editor";
+export type Role = "viewer" | "reviewer" | "editor";
 
-interface InvitedPerson {
+export interface InvitedPerson {
   username: string;
   role: Role;
 }
 
-interface AccessRecord {
+export interface AccessRecord {
   owner: string | null;
   generalAccess: "restricted" | "anyone";
   // Only meaningful when generalAccess is "anyone" — false (default)
@@ -57,7 +57,7 @@ const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted",
 // (client always sending {username, role} now, but kept for robustness
 // against stale clients) or the new {username, role}[] shape, and
 // produces a deduped, capped, role-validated InvitedPerson[] either way.
-function normalizeInvited(raw: unknown[]): InvitedPerson[] {
+export function normalizeInvited(raw: unknown[]): InvitedPerson[] {
   const seen = new Set<string>();
   const result: InvitedPerson[] = [];
   for (const entry of raw) {

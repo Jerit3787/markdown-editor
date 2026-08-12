@@ -4,5 +4,6 @@ node_modules/
 *.log
 .claude/
 docs/
+.worktrees/
 .dev.vars
 client/dist/

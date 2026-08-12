@@ -364,11 +364,17 @@ import katexCss from "katex/dist/katex.min.css?raw";
   // tall diagram, a large image) was very disproportionate to how many
   // source lines it represents. This finds which tagged block a line (or
   // scroll position) falls inside, then interpolates *within* that
-  // block's own line range and pixel range — not just snapping to the
-  // block's top, which left every source line inside a tall block (a
-  // long code fence, a big table) mapping to the exact same preview
-  // position, so scrolling through the block's interior looked stuck at
-  // its start.
+  // block using each side's own actual pixel height for its line range
+  // — not the line count itself. A long-but-unwrapped-in-source
+  // paragraph can occupy a single logical line yet many wrapped rows (so
+  // many editor pixels) — line-count interpolation treated that whole
+  // wrapped span as one fixed point (0% into the block, unmoving while
+  // scrolling through it), then jumped through any short block right
+  // after it almost instantly, since a short block's line count bought
+  // it almost no share of the editor's scroll range even though its
+  // preview footprint could be much taller. Pixel-to-pixel interpolation
+  // (each side's own rendered height for the block, not source line
+  // count) doesn't have this failure mode.
   //
   // Shared across initSyncScroll()'s explicit-scroll listeners and
   // followCursorInPreview() below (cursor/typing-driven, not scroll-event
@@ -416,12 +422,24 @@ import katexCss from "katex/dist/katex.min.css?raw";
     return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
   }
 
-  // Where a line/scrollTop falls within a block's own line range, mapped
-  // to a 0-1 fraction of that block's own pixel range.
-  function scrollTopWithinBlock(match: PreviewBlockMatch, line: number): number {
-    const lineSpan = Math.max(1, match.endLine - match.startLine);
-    const fraction = Math.min(1, Math.max(0, (line - match.startLine) / lineSpan));
-    return match.top + fraction * (match.bottom - match.top);
+  // The editor's own rendered pixel range for a block's [startLine, endLine)
+  // span — e.g. a heavily-wrapped single-line paragraph reports a tall
+  // range here despite being one source line, which is exactly the
+  // signal line-count interpolation was blind to.
+  function editorPixelRangeForLines(startLine: number, endLine: number): { top: number; bottom: number } {
+    const totalLines = cm.state.doc.lines;
+    const top = cm.lineBlockAt(cm.state.doc.line(Math.min(startLine + 1, totalLines)).from).top;
+    const bottom = endLine < totalLines
+      ? cm.lineBlockAt(cm.state.doc.line(endLine + 1).from).top
+      : cm.scrollDOM.scrollHeight;
+    return { top, bottom };
+  }
+
+  // Maps pos's fraction through [fromTop, fromBottom) onto [toTop, toBottom).
+  function interpolateAcross(pos: number, fromTop: number, fromBottom: number, toTop: number, toBottom: number): number {
+    const span = Math.max(1, fromBottom - fromTop);
+    const fraction = Math.min(1, Math.max(0, (pos - fromTop) / span));
+    return toTop + fraction * (toBottom - toTop);
   }
 
   // How close to a pane's absolute max scrollTop still counts as "at the
@@ -458,8 +476,9 @@ import katexCss from "katex/dist/katex.min.css?raw";
       const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(el.scrollTop).from).number - 1;
       const match = previewBlockForLine(preview, topLine, cm.state.doc.lines);
       if (!match) return;
+      const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
       syncingScroll = true;
-      preview.scrollTop = scrollTopWithinBlock(match, topLine);
+      preview.scrollTop = interpolateAcross(el.scrollTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
       requestAnimationFrame(() => { syncingScroll = false; });
     });
 
@@ -476,12 +495,9 @@ import katexCss from "katex/dist/katex.min.css?raw";
       }
       const match = previewBlockForScrollTop(preview, preview.scrollTop, cm.state.doc.lines);
       if (!match) return;
-      const blockHeight = Math.max(1, match.bottom - match.top);
-      const fraction = Math.min(1, Math.max(0, (preview.scrollTop - match.top) / blockHeight));
-      const targetLine = Math.round(match.startLine + fraction * (match.endLine - match.startLine));
-      const lineInfo = cm.state.doc.line(Math.min(targetLine + 1, cm.state.doc.lines));
+      const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
       syncingScroll = true;
-      cm.dispatch({ effects: EditorView.scrollIntoView(lineInfo.from, { y: "start" }) });
+      cm.scrollDOM.scrollTop = interpolateAcross(preview.scrollTop, match.top, match.bottom, editorRange.top, editorRange.bottom);
       requestAnimationFrame(() => { syncingScroll = false; });
     });
   }
@@ -499,10 +515,13 @@ import katexCss from "katex/dist/katex.min.css?raw";
     const main = document.getElementById("main") as HTMLElement;
     if (!main.classList.contains("mode-split")) return;
     const preview = document.getElementById("preview") as HTMLElement;
-    const cursorLine = cm.state.doc.lineAt(cm.state.selection.main.head).number - 1;
+    const cursorPos = cm.state.selection.main.head;
+    const cursorLine = cm.state.doc.lineAt(cursorPos).number - 1;
     const match = previewBlockForLine(preview, cursorLine, cm.state.doc.lines);
     if (!match) return;
-    const targetScrollTop = scrollTopWithinBlock(match, cursorLine);
+    const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
+    const cursorEditorTop = cm.lineBlockAt(cursorPos).top;
+    const targetScrollTop = interpolateAcross(cursorEditorTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
     if (targetScrollTop >= preview.scrollTop && targetScrollTop <= preview.scrollTop + preview.clientHeight) return; // already visible
     syncingScroll = true;
     preview.scrollTop = targetScrollTop;

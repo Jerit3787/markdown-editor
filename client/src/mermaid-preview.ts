@@ -56,7 +56,16 @@ export async function renderMermaidDiagrams(
   mermaid.initialize({ theme, startOnLoad: false });
 
   for (const block of blocks) {
-    const source = block.textContent ?? "";
+    // On a first pass, block.textContent is the raw mermaid source (see
+    // mermaidCodeRenderer). On any later pass over this same element (a
+    // theme change re-renders in place, without regenerating the preview
+    // from source), block's children are already rendered SVG — its
+    // textContent would be the SVG's own text, including CSS mermaid
+    // embeds in a <style> tag. The original source is cached in a data
+    // attribute on first render and read back from there afterward.
+    const cachedSource = block.getAttribute("data-mermaid-source");
+    const source = cachedSource ?? block.textContent ?? "";
+    if (cachedSource === null) block.setAttribute("data-mermaid-source", source);
     const id = `mermaid-diagram-${nextDiagramId++}`;
     try {
       const { svg } = await mermaid.render(id, source);

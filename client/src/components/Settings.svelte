@@ -4,10 +4,12 @@
 
   const STORAGE_THEME = "mde:theme";
   const STORAGE_CUSTOM_CSS = "mde:customExportCss";
+  const STORAGE_KEYBINDINGS = "mde:keybindings";
 
   let hidden = $state(true);
   let theme = $state(localStorage.getItem(STORAGE_THEME) || "light");
   let customCss = $state(localStorage.getItem(STORAGE_CUSTOM_CSS) || "");
+  let keybindings = $state(localStorage.getItem(STORAGE_KEYBINDINGS) || "normal");
 
   function applyTheme(next: string) {
     theme = next;
@@ -21,6 +23,11 @@
   function saveCustomCss(next: string) {
     customCss = next;
     localStorage.setItem(STORAGE_CUSTOM_CSS, next);
+  }
+
+  function applyKeybindings(next: "normal" | "vim" | "emacs") {
+    keybindings = next;
+    window.MDE.setKeybindings(next);
   }
 
   function open() {
@@ -78,6 +85,13 @@
         <button type="button" class="tab-switch-btn" class:active={theme === "dark"} role="tab" aria-selected={theme === "dark"} onclick={() => applyTheme("dark")}>
           <svg class="icon"><use href="#icon-moon"></use></svg> Dark
         </button>
+      </div>
+      <div class="menu-divider"></div>
+      <div class="menu-section-label">Editor</div>
+      <div class="tab-switch" role="tablist" aria-label="Keybindings">
+        <button type="button" class="tab-switch-btn" class:active={keybindings === "normal"} role="tab" aria-selected={keybindings === "normal"} onclick={() => applyKeybindings("normal")}>Normal</button>
+        <button type="button" class="tab-switch-btn" class:active={keybindings === "vim"} role="tab" aria-selected={keybindings === "vim"} onclick={() => applyKeybindings("vim")}>Vim</button>
+        <button type="button" class="tab-switch-btn" class:active={keybindings === "emacs"} role="tab" aria-selected={keybindings === "emacs"} onclick={() => applyKeybindings("emacs")}>Emacs</button>
       </div>
       <div class="menu-divider"></div>
       <div class="menu-section-label">GitHub</div>

@@ -12,6 +12,7 @@ import "./style.css";
 import { mount } from "svelte";
 import Settings from "./components/Settings.svelte";
 import Share from "./components/Share.svelte";
+import DiagramEditor from "./components/DiagramEditor.svelte";
 import DocList from "./components/DocList.svelte";
 import Toast from "./components/Toast.svelte";
 import MenuBar from "./components/MenuBar.svelte";
@@ -31,6 +32,7 @@ import Toolbar from "./components/Toolbar.svelte";
 // window.MDE.registerEditor() as part of this same synchronous mount.
 mount(Settings, { target: document.getElementById("settings-mount")! });
 mount(Share, { target: document.getElementById("share-mount")! });
+mount(DiagramEditor, { target: document.getElementById("diagram-editor-mount")! });
 mount(DocList, { target: document.getElementById("doclist-mount")! });
 mount(Toast, { target: document.getElementById("toast-mount")! });
 mount(MenuBar, { target: document.getElementById("menubar-mount")! });

@@ -358,27 +358,70 @@ import katexCss from "katex/dist/katex.min.css?raw";
   }
 
   // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
-  // Line-mapped (block-snapping), not proportional — see
-  // updatePreview()'s data-line tagging. A pure percentage match used to
-  // desync badly once a single block's rendered height (a tall diagram,
-  // a large image) was very disproportionate to how many source lines
-  // it represents; this instead finds "which tagged block is at the top
-  // of one pane" and scrolls that same block to the top of the other.
+  // Line-mapped, not proportional to the whole document — see
+  // updatePreview()'s data-line tagging. A pure whole-document percentage
+  // match used to desync badly once a single block's rendered height (a
+  // tall diagram, a large image) was very disproportionate to how many
+  // source lines it represents. This finds which tagged block a line (or
+  // scroll position) falls inside, then interpolates *within* that
+  // block's own line range and pixel range — not just snapping to the
+  // block's top, which left every source line inside a tall block (a
+  // long code fence, a big table) mapping to the exact same preview
+  // position, so scrolling through the block's interior looked stuck at
+  // its start.
   //
   // Shared across initSyncScroll()'s explicit-scroll listeners and
   // followCursorInPreview() below (cursor/typing-driven, not scroll-event
   // driven) so the two can't fight each other via feedback loops.
   let syncingScroll = false;
 
-  function previewBlockForLine(preview: HTMLElement, line: number): HTMLElement | undefined {
-    const tagged = Array.from(preview.querySelectorAll<HTMLElement>("[data-line]"));
-    let target: HTMLElement | undefined;
-    for (const el of tagged) {
-      const blockLine = Number(el.getAttribute("data-line"));
-      if (blockLine <= line) target = el;
+  interface PreviewBlockMatch {
+    element: HTMLElement;
+    startLine: number;
+    endLine: number; // exclusive — the next block's start line, or doc.lines for the last block
+    top: number; // this block's offsetTop
+    bottom: number; // the next block's offsetTop, or the preview's full scrollHeight for the last block
+  }
+
+  function taggedPreviewBlocks(preview: HTMLElement): { element: HTMLElement; line: number }[] {
+    return Array.from(preview.querySelectorAll<HTMLElement>("[data-line]")).map((element) => ({
+      element,
+      line: Number(element.getAttribute("data-line")),
+    }));
+  }
+
+  function previewBlockForLine(preview: HTMLElement, line: number, totalLines: number): PreviewBlockMatch | undefined {
+    const blocks = taggedPreviewBlocks(preview);
+    let idx = -1;
+    for (let i = 0; i < blocks.length; i++) {
+      if (blocks[i].line <= line) idx = i;
       else break; // tagged elements are in document order — line numbers are non-decreasing
     }
-    return target;
+    if (idx === -1) return undefined;
+    const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
+    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
+    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
+  }
+
+  function previewBlockForScrollTop(preview: HTMLElement, scrollTop: number, totalLines: number): PreviewBlockMatch | undefined {
+    const blocks = taggedPreviewBlocks(preview);
+    if (blocks.length === 0) return undefined;
+    let idx = 0;
+    for (let i = 0; i < blocks.length; i++) {
+      if (blocks[i].element.offsetTop <= scrollTop) idx = i;
+      else break;
+    }
+    const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
+    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
+    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
+  }
+
+  // Where a line/scrollTop falls within a block's own line range, mapped
+  // to a 0-1 fraction of that block's own pixel range.
+  function scrollTopWithinBlock(match: PreviewBlockMatch, line: number): number {
+    const lineSpan = Math.max(1, match.endLine - match.startLine);
+    const fraction = Math.min(1, Math.max(0, (line - match.startLine) / lineSpan));
+    return match.top + fraction * (match.bottom - match.top);
   }
 
   // How close to a pane's absolute max scrollTop still counts as "at the
@@ -399,12 +442,13 @@ import katexCss from "katex/dist/katex.min.css?raw";
       const editorMax = el.scrollHeight - el.clientHeight;
       if (editorMax <= 0) return;
       // At the editor's true end: mirror the preview's true end too,
-      // rather than the block-snap position below, which can fall short
-      // of it — the last block's own top doesn't necessarily line up
-      // with the bottom of the scrollable preview content once it (or
-      // trailing blocks) don't exactly fill the remaining viewport
-      // height. Without this, scrolling either pane to its actual end
-      // could leave the other pane visibly short of its own end.
+      // rather than the interpolated position below, which can fall
+      // short of it — the last block's own bottom doesn't necessarily
+      // line up with the true bottom of the scrollable preview content
+      // once trailing padding/margins don't exactly fill the remaining
+      // viewport height. Without this, scrolling either pane to its
+      // actual end could leave the other pane visibly short of its own
+      // end.
       if (el.scrollTop >= editorMax - SYNC_SCROLL_END_SLACK_PX) {
         syncingScroll = true;
         preview.scrollTop = preview.scrollHeight - preview.clientHeight;
@@ -412,10 +456,10 @@ import katexCss from "katex/dist/katex.min.css?raw";
         return;
       }
       const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(el.scrollTop).from).number - 1;
-      const target = previewBlockForLine(preview, topLine);
-      if (!target) return;
+      const match = previewBlockForLine(preview, topLine, cm.state.doc.lines);
+      if (!match) return;
       syncingScroll = true;
-      preview.scrollTop = target.offsetTop;
+      preview.scrollTop = scrollTopWithinBlock(match, topLine);
       requestAnimationFrame(() => { syncingScroll = false; });
     });
 
@@ -430,15 +474,12 @@ import katexCss from "katex/dist/katex.min.css?raw";
         requestAnimationFrame(() => { syncingScroll = false; });
         return;
       }
-      const previewRect = preview.getBoundingClientRect();
-      const tagged = Array.from(preview.querySelectorAll<HTMLElement>("[data-line]"));
-      let target: HTMLElement | undefined;
-      for (const el of tagged) {
-        if (el.getBoundingClientRect().bottom > previewRect.top) { target = el; break; }
-      }
-      if (!target) return;
-      const line = Number(target.getAttribute("data-line"));
-      const lineInfo = cm.state.doc.line(Math.min(line + 1, cm.state.doc.lines));
+      const match = previewBlockForScrollTop(preview, preview.scrollTop, cm.state.doc.lines);
+      if (!match) return;
+      const blockHeight = Math.max(1, match.bottom - match.top);
+      const fraction = Math.min(1, Math.max(0, (preview.scrollTop - match.top) / blockHeight));
+      const targetLine = Math.round(match.startLine + fraction * (match.endLine - match.startLine));
+      const lineInfo = cm.state.doc.line(Math.min(targetLine + 1, cm.state.doc.lines));
       syncingScroll = true;
       cm.dispatch({ effects: EditorView.scrollIntoView(lineInfo.from, { y: "start" }) });
       requestAnimationFrame(() => { syncingScroll = false; });
@@ -448,23 +489,23 @@ import katexCss from "katex/dist/katex.min.css?raw";
   // initSyncScroll()'s listeners only react to explicit scroll *events* —
   // typing or moving the cursor onto a line that's already visible in the
   // editor's current viewport (so the editor itself never scrolls) never
-  // fired them, even when the *preview's* corresponding block was well
-  // out of view (e.g. below a tall diagram or image). Called on every
-  // doc change and cursor move; brings the cursor's block into view only
-  // when it isn't already visible, so the preview doesn't jump around on
-  // every keystroke while editing something already on screen.
+  // fired them, even when the *preview's* corresponding position was
+  // well out of view (e.g. below a tall diagram or image, or elsewhere
+  // within a tall block). Called on every doc change and cursor move;
+  // brings the cursor's interpolated position into view only when it
+  // isn't already visible, so the preview doesn't jump around on every
+  // keystroke while editing something already on screen.
   function followCursorInPreview() {
     const main = document.getElementById("main") as HTMLElement;
     if (!main.classList.contains("mode-split")) return;
     const preview = document.getElementById("preview") as HTMLElement;
     const cursorLine = cm.state.doc.lineAt(cm.state.selection.main.head).number - 1;
-    const target = previewBlockForLine(preview, cursorLine);
-    if (!target) return;
-    const previewRect = preview.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    if (targetRect.bottom > previewRect.top && targetRect.top < previewRect.bottom) return; // already visible
+    const match = previewBlockForLine(preview, cursorLine, cm.state.doc.lines);
+    if (!match) return;
+    const targetScrollTop = scrollTopWithinBlock(match, cursorLine);
+    if (targetScrollTop >= preview.scrollTop && targetScrollTop <= preview.scrollTop + preview.clientHeight) return; // already visible
     syncingScroll = true;
-    preview.scrollTop = target.offsetTop;
+    preview.scrollTop = targetScrollTop;
     requestAnimationFrame(() => { syncingScroll = false; });
   }
 

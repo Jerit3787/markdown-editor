@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateMermaid, type FlowchartModel } from "./flowchart-model";
+import { generateMermaid, removeNode, type FlowchartModel } from "./flowchart-model";
 
 function model(overrides: Partial<FlowchartModel> = {}): FlowchartModel {
   return { direction: "TD", nodes: [], edges: [], subgraphs: [], ...overrides };
@@ -103,5 +103,64 @@ describe("generateMermaid", () => {
     expect(generateMermaid(m)).toBe(
       'flowchart TD\nsubgraph sg1["Group A"]\n  n1["In group"]\nend\nn2["Top level"]\nn1 --> n2'
     );
+  });
+});
+
+describe("removeNode", () => {
+  it("removes the node itself", () => {
+    const m = model({ nodes: [{ id: "n1", label: "A", shape: "rectangle" }] });
+    expect(removeNode(m, "n1").nodes).toEqual([]);
+  });
+
+  it("leaves other nodes untouched", () => {
+    const m = model({
+      nodes: [
+        { id: "n1", label: "A", shape: "rectangle" },
+        { id: "n2", label: "B", shape: "rectangle" },
+      ],
+    });
+    expect(removeNode(m, "n1").nodes).toEqual([{ id: "n2", label: "B", shape: "rectangle" }]);
+  });
+
+  it("removes edges where the node is the source", () => {
+    const m = model({
+      nodes: [
+        { id: "n1", label: "A", shape: "rectangle" },
+        { id: "n2", label: "B", shape: "rectangle" },
+      ],
+      edges: [{ id: "e1", fromNodeId: "n1", toNodeId: "n2", style: "solid" }],
+    });
+    expect(removeNode(m, "n1").edges).toEqual([]);
+  });
+
+  it("removes edges where the node is the target", () => {
+    const m = model({
+      nodes: [
+        { id: "n1", label: "A", shape: "rectangle" },
+        { id: "n2", label: "B", shape: "rectangle" },
+      ],
+      edges: [{ id: "e1", fromNodeId: "n1", toNodeId: "n2", style: "solid" }],
+    });
+    expect(removeNode(m, "n2").edges).toEqual([]);
+  });
+
+  it("leaves edges not touching the removed node untouched", () => {
+    const m = model({
+      nodes: [
+        { id: "n1", label: "A", shape: "rectangle" },
+        { id: "n2", label: "B", shape: "rectangle" },
+        { id: "n3", label: "C", shape: "rectangle" },
+      ],
+      edges: [{ id: "e1", fromNodeId: "n2", toNodeId: "n3", style: "solid" }],
+    });
+    expect(removeNode(m, "n1").edges).toEqual([{ id: "e1", fromNodeId: "n2", toNodeId: "n3", style: "solid" }]);
+  });
+
+  it("removes the node from every subgraph's membership", () => {
+    const m = model({
+      nodes: [{ id: "n1", label: "A", shape: "rectangle" }],
+      subgraphs: [{ id: "sg1", label: "Group", nodeIds: ["n1"] }],
+    });
+    expect(removeNode(m, "n1").subgraphs).toEqual([{ id: "sg1", label: "Group", nodeIds: [] }]);
   });
 });

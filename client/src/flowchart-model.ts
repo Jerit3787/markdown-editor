@@ -66,3 +66,15 @@ export function generateMermaid(model: FlowchartModel): string {
 
   return lines.join("\n");
 }
+
+export function removeNode(model: FlowchartModel, nodeId: string): FlowchartModel {
+  return {
+    ...model,
+    nodes: model.nodes.filter((n) => n.id !== nodeId),
+    edges: model.edges.filter((e) => e.fromNodeId !== nodeId && e.toNodeId !== nodeId),
+    subgraphs: model.subgraphs.map((sg) => ({
+      ...sg,
+      nodeIds: sg.nodeIds.filter((id) => id !== nodeId),
+    })),
+  };
+}

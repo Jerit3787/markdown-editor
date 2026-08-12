@@ -407,6 +407,18 @@ html, body {
    inside every modal's .modal-actions row. */
 .modal-box > .primary-btn, .modal-box > .secondary-btn { width: 100%; margin-bottom: 4px; }
 
+.custom-css-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  font-family: SFMono-Regular, Consolas, Menlo, monospace;
+  resize: vertical;
+}
+
 /* ...except a button sitting inline in a flex .share-row (e.g. the "Copy"
    and "Connect" buttons next to their input) — width: 100% there would
    claim the whole row as its flex-basis and crush its sibling input. */

@@ -3,9 +3,11 @@
   import { githubUsername } from "../stores/github";
 
   const STORAGE_THEME = "mde:theme";
+  const STORAGE_CUSTOM_CSS = "mde:customExportCss";
 
   let hidden = $state(true);
   let theme = $state(localStorage.getItem(STORAGE_THEME) || "light");
+  let customCss = $state(localStorage.getItem(STORAGE_CUSTOM_CSS) || "");
 
   function applyTheme(next: string) {
     theme = next;
@@ -14,6 +16,11 @@
     // The editor's own colors are CSS custom properties (see cm-facade.ts's
     // editorTheme) that already flip with data-theme above — no separate
     // CodeMirror-side reconfiguration needed.
+  }
+
+  function saveCustomCss(next: string) {
+    customCss = next;
+    localStorage.setItem(STORAGE_CUSTOM_CSS, next);
   }
 
   function open() {
@@ -87,6 +94,18 @@
           <svg class="icon"><use href="#icon-log-out"></use></svg> Disconnect
         </button>
       {/if}
+      <div class="menu-divider"></div>
+      <div class="menu-section-label">Export</div>
+      <p class="hint-text">
+        Custom CSS applied to HTML and PDF exports only — the live preview is unaffected.
+      </p>
+      <textarea
+        class="custom-css-input"
+        rows="6"
+        placeholder={"e.g. body { font-family: Georgia, serif; }"}
+        value={customCss}
+        oninput={(e) => saveCustomCss((e.target as HTMLTextAreaElement).value)}
+      ></textarea>
       <div class="modal-actions">
         <button class="secondary-btn" type="button" onclick={close}>Close</button>
       </div>

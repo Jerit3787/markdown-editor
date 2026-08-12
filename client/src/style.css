@@ -1121,11 +1121,14 @@ html, body {
   gap: 16px;
 }
 .diagram-template-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 140px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 12px;
+  max-width: 604px;
 }
 .diagram-template-card {
+  width: 140px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-alt);

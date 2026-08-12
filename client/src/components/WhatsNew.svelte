@@ -6,7 +6,7 @@
   // every patch release. Matches package.json's version at the time this
   // was last updated; the two are allowed to drift (a patch release with
   // nothing to announce shouldn't reopen this for everyone).
-  const CURRENT_VERSION = "1.4.0";
+  const CURRENT_VERSION = "1.5.0";
   const STORAGE_KEY = "mde:whatsNewSeen";
 
   function dismiss() {
@@ -35,10 +35,11 @@
   <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
       <h2 id="whatsNewTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> What's new</h2>
-      <div class="menu-section-label">Math rendering</div>
+      <div class="menu-section-label">Footnotes</div>
       <p class="hint-text">
-        Write <code>$inline$</code> or <code>$$block$$</code> LaTeX and it renders as real math
-        in the preview and in exports — use the new Σ toolbar button to insert a snippet.
+        Write <code>[^1]</code> for a reference and <code>[^1]: text</code> for its definition —
+        they render as numbered superscripts with a collected list at the end of the document.
+        Use the new <code>[^]</code> toolbar button to insert an auto-numbered pair.
       </p>
       <div class="modal-actions">
         <button class="primary-btn" type="button" onclick={dismiss}>Got it</button>

@@ -357,11 +357,12 @@ import katexCss from "katex/dist/katex.min.css?raw";
   }
 
   // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
-  // Proportional (scroll-percentage) sync rather than line-mapped — the
-  // rendered preview's DOM has no reliable 1:1 correspondence to source
-  // lines (headings collapse whitespace, tables/images change height,
-  // etc.), so matching "how far down the document" each pane is reads as
-  // closely in sync as this app's editor/renderer pairing can support.
+  // Line-mapped (block-snapping), not proportional — see
+  // updatePreview()'s data-line tagging. A pure percentage match used to
+  // desync badly once a single block's rendered height (a tall diagram,
+  // a large image) was very disproportionate to how many source lines
+  // it represents; this instead finds "which tagged block is at the top
+  // of one pane" and scrolls that same block to the top of the other.
   function initSyncScroll() {
     const main = document.getElementById("main") as HTMLElement;
     const preview = document.getElementById("preview") as HTMLElement;
@@ -369,22 +370,33 @@ import katexCss from "katex/dist/katex.min.css?raw";
 
     cm.scrollDOM.addEventListener("scroll", () => {
       if (syncing || !main.classList.contains("mode-split")) return;
-      const el = cm.scrollDOM;
-      const max = el.scrollHeight - el.clientHeight;
-      if (max <= 0) return;
-      const previewMax = preview.scrollHeight - preview.clientHeight;
+      const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(cm.scrollDOM.scrollTop).from).number - 1;
+      const tagged = Array.from(preview.querySelectorAll<HTMLElement>("[data-line]"));
+      let target: HTMLElement | undefined;
+      for (const el of tagged) {
+        const line = Number(el.getAttribute("data-line"));
+        if (line <= topLine) target = el;
+        else break; // tagged elements are in document order — line numbers are non-decreasing
+      }
+      if (!target) return;
       syncing = true;
-      preview.scrollTop = (el.scrollTop / max) * previewMax;
+      preview.scrollTop = target.offsetTop;
       requestAnimationFrame(() => { syncing = false; });
     });
 
     preview.addEventListener("scroll", () => {
       if (syncing || !main.classList.contains("mode-split")) return;
-      const max = preview.scrollHeight - preview.clientHeight;
-      if (max <= 0) return;
-      const el = cm.scrollDOM;
+      const previewRect = preview.getBoundingClientRect();
+      const tagged = Array.from(preview.querySelectorAll<HTMLElement>("[data-line]"));
+      let target: HTMLElement | undefined;
+      for (const el of tagged) {
+        if (el.getBoundingClientRect().bottom > previewRect.top) { target = el; break; }
+      }
+      if (!target) return;
+      const line = Number(target.getAttribute("data-line"));
+      const lineInfo = cm.state.doc.line(Math.min(line + 1, cm.state.doc.lines));
       syncing = true;
-      el.scrollTop = (preview.scrollTop / max) * (el.scrollHeight - el.clientHeight);
+      cm.dispatch({ effects: EditorView.scrollIntoView(lineInfo.from, { y: "start" }) });
       requestAnimationFrame(() => { syncing = false; });
     });
   }

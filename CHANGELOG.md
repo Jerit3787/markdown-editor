@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.2] - 2026-08-12
+
+### Fixed
+
+- The preview now also follows the cursor while typing or navigating,
+  not just when you scroll — v1.4.1's line-mapped sync only reacted to
+  explicit scroll events, so editing a line already visible in the
+  editor's viewport never brought its corresponding preview block into
+  view, even when a tall diagram or image had pushed it far out of
+  sight. Only scrolls the preview when the current block isn't already
+  visible, so it doesn't jump around on every keystroke.
+
 ## [1.4.1] - 2026-08-12
 
 ### Fixed

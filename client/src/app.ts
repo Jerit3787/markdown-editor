@@ -25,6 +25,7 @@ import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { resolveDiagramRefs } from "./diagram-refs";
+import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
 
 (function () {
@@ -42,6 +43,30 @@ import { debounceWithFlush } from "./debounce";
   let cm: EditorView = null as unknown as EditorView;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // Runs after every mermaid render pass — adds a hover-revealed "Edit"
+  // button to each diagram backed by a real ref (see mermaid-preview.ts's
+  // data-diagram-ref). Idempotent: skips a block that already has one, so
+  // it's safe to call after every render, not just the first.
+  function addDiagramEditButtons() {
+    const preview = document.getElementById("preview");
+    if (!preview) return;
+    preview.querySelectorAll(".mermaid[data-diagram-ref]").forEach((block) => {
+      if (block.querySelector(".mermaid-edit-btn")) return;
+      const ref = block.getAttribute("data-diagram-ref");
+      if (!ref) return;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "mermaid-edit-btn";
+      btn.textContent = "Edit";
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        diagramEditorRef.set(ref);
+        diagramEditorOpen.set(true);
+      });
+      block.appendChild(btn);
+    });
+  }
+
   // Diagrams re-render on a debounce (mirrors the save debounce below) so
   // typing inside/near a ```mermaid fence doesn't re-layout SVG on every
   // keystroke; theme changes and export force an immediate run instead —
@@ -50,7 +75,7 @@ import { debounceWithFlush } from "./debounce";
     const preview = document.getElementById("preview");
     if (!preview) return;
     const theme = mermaidThemeFor(document.documentElement.getAttribute("data-theme"));
-    return renderMermaidDiagrams(preview, theme);
+    return renderMermaidDiagrams(preview, theme).then(addDiagramEditButtons);
   }, 400);
 
   // ---------- Editor extension compartments ----------
@@ -1344,6 +1369,14 @@ ${bodyHtml}
     jumpToLine,
     refreshSaveStatus() {
       setSaveStatus(savedLabel(getActiveDoc()));
+    },
+    // Re-runs the full marked parse pass. Needed after editing an existing
+    // diagram through DiagramEditor.svelte: saving there updates
+    // doc.diagrams[ref] but never touches the document's own text (the
+    // fence still just holds the ref), so the normal "re-render on doc
+    // change" path never fires on its own — this forces it.
+    refreshPreview() {
+      updatePreview();
     },
     // Editor text with any ![](refName) image references inlined back to
     // their real data URIs — what gets published to a Gist, since a Gist

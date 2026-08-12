@@ -1054,6 +1054,24 @@ html, body {
   white-space: pre-wrap;
   font-family: var(--mono);
 }
+#preview pre.mermaid { position: relative; }
+#preview .mermaid-edit-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+}
+#preview pre.mermaid:hover .mermaid-edit-btn,
+#preview .mermaid-edit-btn:focus-visible { opacity: 1; }
 
 /* Diagram editor */
 .diagram-editor-overlay {

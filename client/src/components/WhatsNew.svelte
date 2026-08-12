@@ -6,7 +6,7 @@
   // every patch release. Matches package.json's version at the time this
   // was last updated; the two are allowed to drift (a patch release with
   // nothing to announce shouldn't reopen this for everyone).
-  const CURRENT_VERSION = "1.9.0";
+  const CURRENT_VERSION = "1.10.0";
   const STORAGE_KEY = "mde:whatsNewSeen";
 
   function dismiss() {
@@ -35,10 +35,10 @@
   <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
       <h2 id="whatsNewTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> What's new</h2>
-      <div class="menu-section-label">Vim &amp; Emacs keybindings</div>
+      <div class="menu-section-label">Command Palette</div>
       <p class="hint-text">
-        Settings now has an Editor section to switch to Vim or Emacs keybindings, with a status
-        bar indicator showing your current mode. Your choice is remembered across sessions.
+        Press <code>Ctrl/Cmd+Shift+P</code> (or use Help &gt; Command Palette) to search and run
+        any command, or jump straight to any open document by name.
       </p>
       <div class="modal-actions">
         <button class="primary-btn" type="button" onclick={dismiss}>Got it</button>

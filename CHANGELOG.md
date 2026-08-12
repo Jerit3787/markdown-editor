@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-08-13
+
+### Added
+
+- Command Palette — press Ctrl/Cmd+Shift+P (or use the new Help menu
+  entry) to open a searchable overlay that fuzzy-filters across every
+  open document and ~35 app commands (formatting, file operations,
+  export, view toggles, editing, help), keyboard-navigable end to end.
+
+### Fixed
+
+- The diagram editor's Export button (Copy as SVG / Download PNG) never
+  actually opened its menu — a missing event-propagation guard let a
+  global "close open dropdowns" listener strip the menu open state the
+  instant it was set.
+
 ## [1.9.0] - 2026-08-13
 
 ### Added

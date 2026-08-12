@@ -1105,11 +1105,32 @@ html, body {
   border-right: 1px solid var(--border);
 }
 .diagram-editor-code-host .cm-editor { height: 100%; font-family: var(--mono); }
+/* .diagram-editor-preview-wrap is now the direct grid child — it
+   stretches to fill its grid cell automatically (CSS Grid's default
+   align-items: stretch). .diagram-editor-preview, nested one level
+   deeper as a plain block child rather than the grid child itself, does
+   NOT automatically inherit that stretched height, hence height: 100%. */
+.diagram-editor-preview-wrap { position: relative; overflow: hidden; }
 .diagram-editor-preview {
-  overflow: auto;
+  overflow: hidden;
+  height: 100%;
   padding: 20px;
   background: var(--bg-alt);
 }
+.diagram-preview-reset {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.diagram-preview-reset:hover { background: var(--border); }
 .diagram-editor-body.with-reference { grid-template-columns: 1fr 1fr 320px; }
 .diagram-editor-reference {
   overflow: auto;

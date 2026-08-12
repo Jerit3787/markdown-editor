@@ -8,6 +8,7 @@
   import { diagramKey } from "../diagram-refs";
   import { renderMermaidDiagrams, mermaidThemeFor } from "../mermaid-preview";
   import { debounceWithFlush } from "../debounce";
+  import Panzoom, { type PanzoomObject } from "@panzoom/panzoom";
 
   const TEMPLATES: { name: string; code: string }[] = [
     { name: "Flowchart", code: "flowchart TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Do the thing]\n    B -->|No| D[Skip it]" },
@@ -26,18 +27,48 @@
   let showPicker = $state(false);
   let showReference = $state(false);
 
-  const renderScheduler = debounceWithFlush(() => {
+  let panzoomInstance: PanzoomObject | undefined;
+  let lastRenderedSvg: SVGSVGElement | null = $state(null);
+
+  function destroyPanzoom() {
+    if (!panzoomInstance) return;
+    previewEl?.removeEventListener("wheel", panzoomInstance.zoomWithWheel);
+    panzoomInstance.destroy();
+    panzoomInstance = undefined;
+  }
+
+  function setupPanzoom(svg: SVGSVGElement) {
+    destroyPanzoom();
+    panzoomInstance = Panzoom(svg, { maxScale: 5 });
+    previewEl?.addEventListener("wheel", panzoomInstance.zoomWithWheel);
+  }
+
+  function resetView() {
+    panzoomInstance?.reset();
+  }
+
+  const renderScheduler = debounceWithFlush(async () => {
     if (!previewEl || !codeView) return;
     const code = codeView.state.doc.toString();
     if (!code.trim()) {
       previewEl.innerHTML = "";
+      lastRenderedSvg = null;
+      destroyPanzoom();
       return;
     }
     previewEl.innerHTML = '<pre class="mermaid"></pre>';
     const block = previewEl.querySelector(".mermaid")!;
     block.textContent = code;
     const theme = mermaidThemeFor(document.documentElement.getAttribute("data-theme"));
-    return renderMermaidDiagrams(previewEl, theme);
+    await renderMermaidDiagrams(previewEl, theme);
+    const svg = previewEl.querySelector("svg");
+    if (svg instanceof SVGSVGElement) {
+      lastRenderedSvg = svg;
+      setupPanzoom(svg);
+    } else {
+      lastRenderedSvg = null;
+      destroyPanzoom();
+    }
   }, 300);
 
   function buildCodeView(initialDoc: string): EditorView {
@@ -74,6 +105,8 @@
     return () => {
       codeView?.destroy();
       codeView = undefined;
+      destroyPanzoom();
+      lastRenderedSvg = null;
     };
   });
 
@@ -137,7 +170,12 @@
     </div>
     <div class="diagram-editor-body" class:with-reference={showReference}>
       <div class="diagram-editor-code-host" bind:this={codeHostEl}></div>
-      <div class="diagram-editor-preview" bind:this={previewEl}></div>
+      <div class="diagram-editor-preview-wrap">
+        <div class="diagram-editor-preview" bind:this={previewEl}></div>
+        {#if lastRenderedSvg}
+          <button type="button" class="diagram-preview-reset" onclick={resetView}>Reset view</button>
+        {/if}
+      </div>
       {#if showReference}
         <div class="diagram-editor-reference">
           <h3>Flowchart</h3>

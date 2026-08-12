@@ -24,9 +24,18 @@ import {
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
+import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
+// Unlike Mermaid's SVGs (which bake their own <style> in at render time),
+// KaTeX's HTML output has no self-contained styling — it's entirely
+// dependent on this stylesheet. buildStandaloneHtml()'s exported <style>
+// block is hand-written and independent of the app's own bundled CSS
+// (where the normal @import in style.css lives), so it needs its own
+// copy inlined here or math would render broken/unstyled in exported
+// HTML files.
+import katexCss from "katex/dist/katex.min.css?raw";
 
 (function () {
   "use strict";
@@ -76,6 +85,18 @@ import { debounceWithFlush } from "./debounce";
     if (!preview) return;
     const theme = mermaidThemeFor(document.documentElement.getAttribute("data-theme"));
     return renderMermaidDiagrams(preview, theme).then(addDiagramEditButtons);
+  }, 400);
+
+  // Set at the top of updatePreview(), right before mathRenderScheduler is
+  // triggered — the scheduler's callback reads whatever this currently
+  // points to, same pattern mermaidRenderScheduler uses implicitly by just
+  // reading the DOM #preview already wrote.
+  let currentMathSources: Map<string, MathSource> = new Map();
+
+  const mathRenderScheduler = debounceWithFlush(() => {
+    const preview = document.getElementById("preview");
+    if (!preview) return;
+    return renderMathPlaceholders(preview, currentMathSources);
   }, 400);
 
   // ---------- Editor extension compartments ----------
@@ -702,10 +723,21 @@ import { debounceWithFlush } from "./debounce";
     const defaultCodeRenderer = marked.Renderer.prototype.code.bind(renderer);
     renderer.code = (code: string, infostring: string | undefined, escaped: boolean) =>
       mermaidCodeRenderer(code, infostring, escaped, defaultCodeRenderer, doc?.diagrams);
-    const html = marked.parse(raw, { gfm: true, breaks: false, renderer }) as string;
-    const clean = DOMPurify.sanitize(html, { ADD_ATTR: ["target"] });
+    const { text: extractedRaw, sources } = extractMathSpans(raw);
+    currentMathSources = sources;
+    const html = marked.parse(extractedRaw, { gfm: true, breaks: false, renderer }) as string;
+    // KaTeX's output includes a MathML companion tree (for accessibility)
+    // alongside its visible HTML — DOMPurify's default allowlist is
+    // HTML-only and strips MathML entirely without ADD_TAGS/ADD_ATTR
+    // below. Verified against real katex.renderToString() output
+    // (sqrt, frac, sum, matrix, vector/underline) — nothing else needed.
+    const clean = DOMPurify.sanitize(html, {
+      ADD_TAGS: ["math", "semantics", "mrow", "mi", "mn", "mo", "msup", "msub", "msubsup", "msqrt", "mroot", "mfrac", "mtable", "mtr", "mtd", "mspace", "mtext", "mstyle", "mover", "munder", "munderover", "mpadded", "annotation"],
+      ADD_ATTR: ["target", "mathvariant", "encoding", "xmlns"],
+    });
     document.getElementById("preview").innerHTML = clean;
     mermaidRenderScheduler.trigger();
+    mathRenderScheduler.trigger();
   }
 
   // ---------- Counts / cursor ----------
@@ -1240,9 +1272,11 @@ import { debounceWithFlush } from "./debounce";
     }
 
     // txt/html/pdf all read #preview's rendered DOM — make sure any
-    // in-flight or still-scheduled mermaid render has landed first, so a
-    // diagram pasted right before exporting doesn't export as raw source.
+    // in-flight or still-scheduled mermaid/math render has landed first,
+    // so a diagram or formula pasted right before exporting doesn't
+    // export as raw source.
     await mermaidRenderScheduler.flush();
+    await mathRenderScheduler.flush();
 
     if (format === "txt") {
       const text = (document.getElementById("preview") as HTMLElement).innerText;
@@ -1266,6 +1300,9 @@ import { debounceWithFlush } from "./debounce";
   }
 
   function buildStandaloneHtml(title: string, bodyHtml: string) {
+    // Only paid for documents that actually rendered math — katex.min.css
+    // is ~24KB, not worth adding to every export when most won't use it.
+    const mathCss = bodyHtml.includes('class="katex"') ? `<style>${katexCss}</style>` : "";
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1287,7 +1324,9 @@ import { debounceWithFlush } from "./debounce";
   img { max-width: 100%; border-radius: 6px; }
   a { color: #2563eb; }
   hr { border: none; border-top: 1px solid #e2e5e9; margin: 24px 0; }
+  .katex { color: #1f2328; }
 </style>
+${mathCss}
 </head>
 <body>
 ${bodyHtml}

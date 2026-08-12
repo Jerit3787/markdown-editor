@@ -178,6 +178,9 @@
   <div class="dropdown">
     <button bind:this={helpMenuBtn} id="helpMenuBtn" class="menubar-btn" type="button">Help</button>
     <div bind:this={helpMenu} id="helpMenu" class="dropdown-menu menubar-menu">
+      <button id="menuCommandPalette" type="button" onclick={() => act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "p", metaKey: true, shiftKey: true })))}>
+        <svg class="icon"><use href="#icon-search"></use></svg> Command Palette <kbd>Ctrl+Shift+P</kbd>
+      </button>
       <button id="menuShortcuts" type="button" onclick={() => act(() => window.MDE.openShortcuts())}>
         <svg class="icon"><use href="#icon-keyboard"></use></svg> Keyboard Shortcuts
       </button>

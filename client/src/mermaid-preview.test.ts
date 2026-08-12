@@ -137,4 +137,17 @@ describe("renderMermaidDiagrams", () => {
     const ids = (mermaid.render as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
     expect(new Set(ids).size).toBe(2);
   });
+
+  it("re-rendering an already-rendered element (e.g. on theme change) reuses the original source, not the rendered SVG", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = '<pre class="mermaid">graph TD; A--&gt;B;</pre>';
+    const mermaid = fakeMermaid();
+    const loadMermaid = vi.fn().mockResolvedValue({ default: mermaid });
+
+    await renderMermaidDiagrams(container, "default", loadMermaid); // first render: block now contains SVG
+    await renderMermaidDiagrams(container, "dark", loadMermaid); // second render: same element, different theme
+
+    const sourcesPassed = (mermaid.render as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[1]);
+    expect(sourcesPassed).toEqual(["graph TD; A-->B;", "graph TD; A-->B;"]);
+  });
 });

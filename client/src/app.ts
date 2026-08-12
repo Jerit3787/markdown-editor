@@ -1307,6 +1307,14 @@ ${bodyHtml}
 
   window.addEventListener("beforeunload", saveNow);
 
+  // The editor theme (see editorTheme above) flips automatically via CSS
+  // keyed off [data-theme] — mermaid can't do that, since it bakes theme
+  // into the rendered SVG, so it needs an explicit re-render whenever
+  // Settings.svelte's applyTheme() changes documentElement's data-theme.
+  new MutationObserver(() => {
+    void mermaidRenderScheduler.runNow();
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
   // ---------- Bridge for js/collab.ts (live collaboration) ----------
   // collab.ts runs as a separate module with no access to this closure, so
   // it drives doc switching/creation and reads the CodeMirror instance

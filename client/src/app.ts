@@ -28,6 +28,7 @@ import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./mat
 import { computeBlockLineStarts } from "./scroll-sync";
 import { activeParagraphRange } from "./focus-mode";
 import { focusMode } from "./stores/focusMode";
+import { slashMenu } from "./stores/slashMenu";
 import { vim, getCM } from "@replit/codemirror-vim";
 import { emacs } from "@replit/codemirror-emacs";
 import { resolveDiagramRefs } from "./diagram-refs";
@@ -331,6 +332,66 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     cm.dispatch({ effects: removeImageMarkerEffect.of(id) });
   }
 
+  // ---------- Slash commands ----------
+  interface SlashTriggerState {
+    open: boolean;
+    triggerPos: number;
+  }
+
+  const closeSlashMenuEffect = StateEffect.define<null>();
+
+  // Mirrors imageMarkerField's shape — a plain StateField (no
+  // decorations to provide) tracking whether the slash-command popup
+  // should be open and, if so, where the triggering "/" is.
+  const slashTriggerField = StateField.define<SlashTriggerState | null>({
+    create: () => null,
+    update(value, tr) {
+      if (tr.effects.some((e) => e.is(closeSlashMenuEffect))) return null;
+      if (!tr.docChanged && !tr.selection) return value;
+
+      if (tr.docChanged) {
+        let triggered: SlashTriggerState | null = null;
+        tr.changes.iterChanges((_fromA, _toA, fromB, toB, inserted) => {
+          if (toB - fromB === 1 && inserted.toString() === "/") {
+            const line = tr.state.doc.lineAt(fromB);
+            const before = tr.state.doc.sliceString(line.from, fromB);
+            if (before.trim() === "") triggered = { open: true, triggerPos: fromB };
+          }
+        });
+        if (triggered) return triggered;
+      }
+
+      if (!value?.open) return null;
+
+      // Validate the existing open state is still valid: the "/" is
+      // still there, the cursor hasn't moved before it, and no
+      // space/newline has been typed into the query.
+      const pos = tr.state.selection.main.head;
+      if (pos <= value.triggerPos) return null;
+      if (tr.state.doc.length <= value.triggerPos || tr.state.doc.sliceString(value.triggerPos, value.triggerPos + 1) !== "/") return null;
+      const query = tr.state.sliceDoc(value.triggerPos + 1, pos);
+      if (query.includes(" ") || query.includes("\n")) return null;
+      return value;
+    },
+  });
+
+  const slashMenuSyncListener = EditorView.updateListener.of((update) => {
+    const value = update.state.field(slashTriggerField);
+    if (!value?.open) {
+      slashMenu.set({ open: false, query: "", triggerPos: 0, coords: null });
+      return;
+    }
+    const pos = update.state.selection.main.head;
+    const query = update.state.sliceDoc(value.triggerPos + 1, pos);
+    const rect = update.view.coordsAtPos(value.triggerPos);
+    slashMenu.set({
+      open: true,
+      query,
+      triggerPos: value.triggerPos,
+      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
+    });
+  });
+
   type KeybindingMode = "normal" | "vim" | "emacs";
 
   // drawSelection() isn't in this app's base extension list
@@ -368,6 +429,14 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         { key: "Mod-b", run: () => { wrapSelection("**", "**", "bold text"); return true; } },
         { key: "Mod-i", run: () => { wrapSelection("_", "_", "italic text"); return true; } },
         { key: "Mod-k", run: () => { insertLink(); return true; } },
+        {
+          key: "Escape",
+          run: (view) => {
+            if (!view.state.field(slashTriggerField)?.open) return false;
+            view.dispatch({ effects: closeSlashMenuEffect.of(null) });
+            return true;
+          },
+        },
       ]),
       keymap.of(markdownKeymap),
       keymap.of(defaultKeymap),
@@ -376,6 +445,8 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       editorTheme,
       EditorView.lineWrapping,
       imageMarkerField,
+      slashTriggerField,
+      slashMenuSyncListener,
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           scheduleSave();

@@ -30,6 +30,7 @@ export interface Doc {
   content: string;
   updatedAt: number;
   images?: Record<string, string>;
+  diagrams?: Record<string, string>;
   gistId?: string;
   // Set once a doc has ever been shared — its own id doubles as its collab
   // room id (see collab.ts), so this is just a local "try to rejoin on

@@ -335,6 +335,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
           activeDocContent.set(cm.state.doc.toString());
         }
         if (update.selectionSet) updateCursorPos();
+        if (update.docChanged || update.selectionSet) followCursorInPreview();
       }),
       EditorView.domEventHandlers({
         paste: (event) => {
@@ -363,29 +364,39 @@ import katexCss from "katex/dist/katex.min.css?raw";
   // a large image) was very disproportionate to how many source lines
   // it represents; this instead finds "which tagged block is at the top
   // of one pane" and scrolls that same block to the top of the other.
+  //
+  // Shared across initSyncScroll()'s explicit-scroll listeners and
+  // followCursorInPreview() below (cursor/typing-driven, not scroll-event
+  // driven) so the two can't fight each other via feedback loops.
+  let syncingScroll = false;
+
+  function previewBlockForLine(preview: HTMLElement, line: number): HTMLElement | undefined {
+    const tagged = Array.from(preview.querySelectorAll<HTMLElement>("[data-line]"));
+    let target: HTMLElement | undefined;
+    for (const el of tagged) {
+      const blockLine = Number(el.getAttribute("data-line"));
+      if (blockLine <= line) target = el;
+      else break; // tagged elements are in document order — line numbers are non-decreasing
+    }
+    return target;
+  }
+
   function initSyncScroll() {
     const main = document.getElementById("main") as HTMLElement;
     const preview = document.getElementById("preview") as HTMLElement;
-    let syncing = false;
 
     cm.scrollDOM.addEventListener("scroll", () => {
-      if (syncing || !main.classList.contains("mode-split")) return;
+      if (syncingScroll || !main.classList.contains("mode-split")) return;
       const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(cm.scrollDOM.scrollTop).from).number - 1;
-      const tagged = Array.from(preview.querySelectorAll<HTMLElement>("[data-line]"));
-      let target: HTMLElement | undefined;
-      for (const el of tagged) {
-        const line = Number(el.getAttribute("data-line"));
-        if (line <= topLine) target = el;
-        else break; // tagged elements are in document order — line numbers are non-decreasing
-      }
+      const target = previewBlockForLine(preview, topLine);
       if (!target) return;
-      syncing = true;
+      syncingScroll = true;
       preview.scrollTop = target.offsetTop;
-      requestAnimationFrame(() => { syncing = false; });
+      requestAnimationFrame(() => { syncingScroll = false; });
     });
 
     preview.addEventListener("scroll", () => {
-      if (syncing || !main.classList.contains("mode-split")) return;
+      if (syncingScroll || !main.classList.contains("mode-split")) return;
       const previewRect = preview.getBoundingClientRect();
       const tagged = Array.from(preview.querySelectorAll<HTMLElement>("[data-line]"));
       let target: HTMLElement | undefined;
@@ -395,10 +406,33 @@ import katexCss from "katex/dist/katex.min.css?raw";
       if (!target) return;
       const line = Number(target.getAttribute("data-line"));
       const lineInfo = cm.state.doc.line(Math.min(line + 1, cm.state.doc.lines));
-      syncing = true;
+      syncingScroll = true;
       cm.dispatch({ effects: EditorView.scrollIntoView(lineInfo.from, { y: "start" }) });
-      requestAnimationFrame(() => { syncing = false; });
+      requestAnimationFrame(() => { syncingScroll = false; });
     });
+  }
+
+  // initSyncScroll()'s listeners only react to explicit scroll *events* —
+  // typing or moving the cursor onto a line that's already visible in the
+  // editor's current viewport (so the editor itself never scrolls) never
+  // fired them, even when the *preview's* corresponding block was well
+  // out of view (e.g. below a tall diagram or image). Called on every
+  // doc change and cursor move; brings the cursor's block into view only
+  // when it isn't already visible, so the preview doesn't jump around on
+  // every keystroke while editing something already on screen.
+  function followCursorInPreview() {
+    const main = document.getElementById("main") as HTMLElement;
+    if (!main.classList.contains("mode-split")) return;
+    const preview = document.getElementById("preview") as HTMLElement;
+    const cursorLine = cm.state.doc.lineAt(cm.state.selection.main.head).number - 1;
+    const target = previewBlockForLine(preview, cursorLine);
+    if (!target) return;
+    const previewRect = preview.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    if (targetRect.bottom > previewRect.top && targetRect.top < previewRect.bottom) return; // already visible
+    syncingScroll = true;
+    preview.scrollTop = target.offsetTop;
+    requestAnimationFrame(() => { syncingScroll = false; });
   }
 
   // ---------- Edit menu clipboard commands ----------

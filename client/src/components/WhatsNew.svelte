@@ -6,7 +6,7 @@
   // every patch release. Matches package.json's version at the time this
   // was last updated; the two are allowed to drift (a patch release with
   // nothing to announce shouldn't reopen this for everyone).
-  const CURRENT_VERSION = "1.6.0";
+  const CURRENT_VERSION = "1.7.0";
   const STORAGE_KEY = "mde:whatsNewSeen";
 
   function dismiss() {
@@ -35,10 +35,11 @@
   <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
       <h2 id="whatsNewTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> What's new</h2>
-      <div class="menu-section-label">Custom export CSS</div>
+      <div class="menu-section-label">Focus Mode</div>
       <p class="hint-text">
-        Settings now has an Export field where you can write CSS that applies to your HTML and
-        PDF exports — override fonts, colors, spacing, anything. The live preview stays untouched.
+        A new View menu toggle for distraction-free writing — dims every paragraph except the
+        one you're editing, keeps your cursor centered as you type, and hides the toolbar,
+        sidebar, and menu bar. Press Escape any time to exit.
       </p>
       <div class="modal-actions">
         <button class="primary-btn" type="button" onclick={dismiss}>Got it</button>

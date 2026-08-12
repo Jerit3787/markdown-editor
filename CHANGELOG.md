@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-08-13
+
+### Added
+
+- Focus Mode — a new View menu toggle (exits on Escape) that dims every
+  paragraph except the one you're editing, keeps your cursor's line
+  vertically centered as you type (typewriter scrolling), and hides the
+  toolbar, sidebar, menu bar, and status bar, without changing whatever
+  view mode (editor/split/preview) you were already in.
+
 ## [1.6.1] - 2026-08-12
 
 ### Fixed

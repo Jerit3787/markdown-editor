@@ -27,6 +27,19 @@ const BLOCK_MATH_RE = /\$\$([^$]+?)\$\$/g;
 // at least one side of every $ that isn't real math.
 const INLINE_MATH_RE = /\$([^\s$][^$\n]*?[^\s$]|[^\s$])\$/g;
 
+export interface KatexLike {
+  renderToString(tex: string, options: { throwOnError: boolean; displayMode: boolean }): string;
+}
+
+async function loadRealKatex(): Promise<{ default: KatexLike }> {
+  const mod = await import("katex");
+  // The real package's type is a strict superset of KatexLike (only
+  // renderToString is called here) — narrowing here keeps this module's
+  // public surface independent of katex's full API/types, same reasoning
+  // as mermaid-preview.ts's MermaidLike.
+  return { default: mod.default as unknown as KatexLike };
+}
+
 export function extractMathSpans(rawMarkdown: string): MathExtraction {
   const sources = new Map<string, MathSource>();
   let nextId = 0;
@@ -53,4 +66,55 @@ export function extractMathSpans(rawMarkdown: string): MathExtraction {
   });
 
   return { text: processed.join(""), sources };
+}
+
+// Walks container's text nodes looking for the §MATH<id>§ markers
+// extractMathSpans left behind (they pass through marked.parse() and
+// DOMPurify.sanitize() untouched, since they're plain text with no HTML
+// meaning), and replaces each with KaTeX's rendered markup for that id's
+// stored source.
+export async function renderMathPlaceholders(
+  container: ParentNode,
+  sources: Map<string, MathSource>,
+  loadKatex: () => Promise<{ default: KatexLike }> = loadRealKatex,
+): Promise<void> {
+  if (sources.size === 0) return;
+
+  const walker = document.createTreeWalker(container as Node, NodeFilter.SHOW_TEXT);
+  const matches: { node: Text; key: string }[] = [];
+  const markerRe = /§(MATH\d+)§/;
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const text = node.textContent ?? "";
+    const match = markerRe.exec(text);
+    if (match) matches.push({ node: node as Text, key: match[1] });
+  }
+  if (matches.length === 0) return;
+
+  const katex = (await loadKatex()).default;
+  for (const { node, key } of matches) {
+    const source = sources.get(key);
+    // Lazy-load failure or a stale marker from a since-superseded render
+    // pass — leave the original $...$/$$...$$ source visible rather than
+    // the internal §MATH<id>§ marker, which would otherwise leak into
+    // the visible preview.
+    if (!source) {
+      node.textContent = (node.textContent ?? "").replace(`§${key}§`, "");
+      continue;
+    }
+    const delimited = source.display ? `$$${source.src}$$` : `$${source.src}$`;
+    let html: string;
+    try {
+      html = katex.renderToString(source.src, { throwOnError: false, displayMode: source.display });
+    } catch {
+      // katex itself failing to load/execute (not a LaTeX syntax error,
+      // which throwOnError:false already handles inline) — fall back to
+      // the literal source rather than losing the marker's replacement.
+      node.textContent = (node.textContent ?? "").replace(`§${key}§`, delimited);
+      continue;
+    }
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    node.replaceWith(template.content);
+  }
 }

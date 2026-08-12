@@ -37,6 +37,7 @@
     "dompurify": "^3.4.13",
     "html2pdf.js": "^0.14.0",
     "isomorphic-git": "^1.40.0",
+    "katex": "^0.18.4",
     "lib0": "^0.2.99",
     "marked": "^12.0.2",
     "mermaid": "^11.16.1",

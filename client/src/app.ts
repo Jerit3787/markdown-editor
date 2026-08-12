@@ -1398,6 +1398,7 @@ ${bodyHtml}
     copySelection: menuClipboardCopy,
     pasteClipboard: menuClipboardPaste,
     runCmd,
+    insertAtCursor: (text: string) => insertBlock(text),
     newDoc: createNewDoc,
     openLocalFile() {
       document.getElementById("importInput").click();

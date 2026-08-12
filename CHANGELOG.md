@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.4] - 2026-08-12
+
+### Fixed
+
+- Scrolling through the interior of a tall block (a long code fence, a
+  big list) no longer looks stuck at the block's start on the other
+  side — sync scroll now interpolates proportionally within a block's
+  own line/pixel range, not just snapping to its top.
+
 ## [1.4.3] - 2026-08-12
 
 ### Fixed

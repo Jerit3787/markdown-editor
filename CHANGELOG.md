@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.1] - 2026-08-12
+
+### Fixed
+
+- Synced scrolling between the editor and preview no longer desyncs on
+  documents with a tall Mermaid diagram or large image — it now maps each
+  preview block to the source line it was rendered from and snaps to the
+  matching block, instead of matching raw scroll percentage (which broke
+  down badly once one block's rendered height was very disproportionate
+  to how many source lines it represented).
+
 ## [1.4.0] - 2026-08-12
 
 ### Added

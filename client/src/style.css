@@ -1034,6 +1034,27 @@ html, body {
 #preview a { color: var(--accent); }
 #preview hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 
+#preview pre.mermaid.mermaid-rendered {
+  background: none;
+  border: none;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+#preview pre.mermaid.mermaid-rendered svg { max-width: 100%; }
+#preview pre.mermaid.mermaid-error { white-space: normal; }
+#preview .mermaid-error-message {
+  color: var(--danger);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+#preview .mermaid-error-source {
+  display: block;
+  white-space: pre-wrap;
+  font-family: var(--mono);
+}
+
 /* Status bar */
 #statusbar {
   display: flex;

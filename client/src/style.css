@@ -1091,6 +1091,52 @@ html, body {
   padding: 20px;
   background: var(--bg-alt);
 }
+.diagram-editor-body.with-reference { grid-template-columns: 1fr 1fr 320px; }
+.diagram-editor-reference {
+  overflow: auto;
+  padding: 16px;
+  border-left: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.diagram-editor-reference h3 { font-size: 12px; text-transform: uppercase; color: var(--text-dim); margin: 16px 0 6px; }
+.diagram-editor-reference h3:first-child { margin-top: 0; }
+.diagram-editor-reference pre {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.diagram-template-picker {
+  position: absolute;
+  inset: 0;
+  top: 57px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.diagram-template-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 140px);
+  gap: 12px;
+}
+.diagram-template-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  padding: 20px 12px;
+  cursor: pointer;
+  text-align: center;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.diagram-template-card:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Status bar */
 #statusbar {

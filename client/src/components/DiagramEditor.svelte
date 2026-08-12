@@ -9,10 +9,22 @@
   import { renderMermaidDiagrams, mermaidThemeFor } from "../mermaid-preview";
   import { debounceWithFlush } from "../debounce";
 
+  const TEMPLATES: { name: string; code: string }[] = [
+    { name: "Flowchart", code: "flowchart TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Do the thing]\n    B -->|No| D[Skip it]" },
+    { name: "Sequence", code: "sequenceDiagram\n    participant A as Alice\n    participant B as Bob\n    A->>B: Hello Bob\n    B-->>A: Hi Alice" },
+    { name: "Class", code: "classDiagram\n    class Animal {\n      +String name\n      +makeSound()\n    }\n    Animal <|-- Dog" },
+    { name: "State", code: "stateDiagram-v2\n    [*] --> Idle\n    Idle --> Running : start\n    Running --> Idle : stop" },
+    { name: "ER", code: "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    ORDER ||--|{ LINE_ITEM : contains" },
+    { name: "Gantt", code: "gantt\n    title Project Plan\n    dateFormat YYYY-MM-DD\n    section Phase 1\n    Task A :a1, 2026-01-01, 5d\n    Task B :after a1, 3d" },
+    { name: "Pie", code: "pie title Survey Results\n    \"Yes\" : 60\n    \"No\" : 30\n    \"Unsure\" : 10" },
+  ];
+
   let codeHostEl: HTMLDivElement | undefined = $state();
   let previewEl: HTMLDivElement | undefined = $state();
   let codeView: EditorView | undefined;
   let hasCode = $state(false);
+  let showPicker = $state(false);
+  let showReference = $state(false);
 
   const renderScheduler = debounceWithFlush(() => {
     if (!previewEl || !codeView) return;
@@ -57,12 +69,24 @@
     const initialCode = ref && doc?.diagrams ? doc.diagrams[ref] || "" : "";
     codeView = buildCodeView(initialCode);
     hasCode = initialCode.length > 0;
+    showPicker = !ref; // creating new: start on the template picker
     renderScheduler.trigger();
     return () => {
       codeView?.destroy();
       codeView = undefined;
     };
   });
+
+  function pickTemplate(code: string) {
+    showPicker = false;
+    codeView?.dispatch({ changes: { from: 0, to: codeView.state.doc.length, insert: code } });
+    codeView?.focus();
+  }
+
+  function startBlank() {
+    showPicker = false;
+    codeView?.focus();
+  }
 
   function close() {
     diagramEditorOpen.set(false);
@@ -102,12 +126,37 @@
   <div class="diagram-editor-overlay" role="dialog" aria-modal="true" aria-labelledby="diagramEditorTitle">
     <div class="diagram-editor-header">
       <h2 id="diagramEditorTitle">{$diagramEditorRef ? "Edit diagram" : "New diagram"}</h2>
+      <button type="button" class="secondary-btn" onclick={() => (showReference = !showReference)}>
+        {showReference ? "Hide reference" : "Syntax reference"}
+      </button>
       <button type="button" class="secondary-btn" onclick={close}>Cancel</button>
       <button type="button" class="primary-btn" disabled={!hasCode} onclick={save}>Save</button>
     </div>
-    <div class="diagram-editor-body">
+    <div class="diagram-editor-body" class:with-reference={showReference}>
       <div class="diagram-editor-code-host" bind:this={codeHostEl}></div>
       <div class="diagram-editor-preview" bind:this={previewEl}></div>
+      {#if showReference}
+        <div class="diagram-editor-reference">
+          <h3>Flowchart</h3>
+          <p><code>A[Rectangle]</code> · <code>A(Rounded)</code> · <code>A{"{Diamond}"}</code></p>
+          <p><code>A --&gt; B</code> arrow · <code>A -.-&gt; B</code> dotted · <code>A --&gt;|Label| B</code> labeled</p>
+          {#each TEMPLATES as t (t.name)}
+            <h3>{t.name}</h3>
+            <pre>{t.code}</pre>
+          {/each}
+        </div>
+      {/if}
     </div>
+    {#if showPicker}
+      <div class="diagram-template-picker">
+        <p>Start from a template, or</p>
+        <button type="button" class="secondary-btn" onclick={startBlank}>Start blank</button>
+        <div class="diagram-template-grid">
+          {#each TEMPLATES as t (t.name)}
+            <button type="button" class="diagram-template-card" onclick={() => pickTemplate(t.code)}>{t.name}</button>
+          {/each}
+        </div>
+      </div>
+    {/if}
   </div>
 {/if}

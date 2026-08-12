@@ -27,12 +27,14 @@ commitments.
       one combined toggle (v1.7.0)
 - [x] Open Source Licenses — direct dependencies listed in the About
       modal, generated automatically at build time (v1.8.0)
+- [x] Vim / Emacs keybindings — a Settings toggle, persisted, with a
+      live status bar mode indicator (v1.9.0)
 
 ## Backlog — quick wins
 
 Small, client-side-only, drop into the existing render pipeline.
 
-- [ ] Vim / Emacs keybindings
+The quick-wins backlog is now empty — see the other tiers below.
 
 ## Backlog — leverage what we have
 

@@ -172,4 +172,16 @@ describe("renderMermaidDiagrams", () => {
     const sourcesPassed = (mermaid.render as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[1]);
     expect(sourcesPassed).toEqual(["graph TD; A-->B;", "graph TD; A-->B;"]);
   });
+
+  it("skips re-rendering an already-rendered element when its source and theme are both unchanged", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = '<pre class="mermaid">graph TD; A--&gt;B;</pre>';
+    const mermaid = fakeMermaid();
+    const loadMermaid = vi.fn().mockResolvedValue({ default: mermaid });
+
+    await renderMermaidDiagrams(container, "default", loadMermaid); // real render
+    await renderMermaidDiagrams(container, "default", loadMermaid); // same source, same theme — should skip
+
+    expect(mermaid.render).toHaveBeenCalledTimes(1);
+  });
 });

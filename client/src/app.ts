@@ -23,6 +23,8 @@ import {
 } from "./stores/docs";
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
+import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
+import { debounceWithFlush } from "./debounce";
 
 (function () {
   "use strict";
@@ -38,6 +40,17 @@ import { viewMode } from "./stores/view";
   // ---------- State ----------
   let cm: EditorView = null as unknown as EditorView;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Diagrams re-render on a debounce (mirrors the save debounce below) so
+  // typing inside/near a ```mermaid fence doesn't re-layout SVG on every
+  // keystroke; theme changes and export force an immediate run instead —
+  // see mermaidRenderScheduler.runNow()/.flush() call sites.
+  const mermaidRenderScheduler = debounceWithFlush(() => {
+    const preview = document.getElementById("preview");
+    if (!preview) return;
+    const theme = mermaidThemeFor(document.documentElement.getAttribute("data-theme"));
+    return renderMermaidDiagrams(preview, theme);
+  }, 400);
 
   // ---------- Editor extension compartments ----------
   // readOnlyCompartment: viewer/reviewer roles in a shared room (collab.ts
@@ -658,9 +671,15 @@ import { viewMode } from "./stores/view";
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
       return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || "")}"${titleAttr}>`;
     };
+    // ```mermaid fences render as diagrams (see mermaid-preview.ts); every
+    // other language falls through to marked's own default code renderer.
+    const defaultCodeRenderer = marked.Renderer.prototype.code.bind(renderer);
+    renderer.code = (code: string, infostring: string | undefined, escaped: boolean) =>
+      mermaidCodeRenderer(code, infostring, escaped, defaultCodeRenderer);
     const html = marked.parse(raw, { gfm: true, breaks: false, renderer }) as string;
     const clean = DOMPurify.sanitize(html, { ADD_ATTR: ["target"] });
     document.getElementById("preview").innerHTML = clean;
+    mermaidRenderScheduler.trigger();
   }
 
   // ---------- Counts / cursor ----------

@@ -101,8 +101,11 @@
     const ref = $diagramEditorRef;
     if (ref) {
       // Editing: overwrite the existing ref's stored source. The document
-      // text (which only ever held the ref, not the source) is untouched.
+      // text (which only ever held the ref, not the source) is untouched
+      // — so the main preview's normal re-render-on-doc-change never
+      // fires on its own; force it explicitly.
       setDocDiagram(ref, code);
+      window.MDE.refreshPreview();
     } else {
       // Creating: mint a new ref, store the source, then insert a fence
       // referencing it at the cursor.

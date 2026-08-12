@@ -61,6 +61,7 @@ export interface MDEBridge {
   switchDoc(id: string): void;
   jumpToLine(id: string, line: number): void;
   refreshSaveStatus(): void;
+  refreshPreview(): void;
   getResolvedContent(): string;
   setDocImage(key: string, dataUrl: string): void;
   onImageAdded: ((key: string, dataUrl: string) => void) | null;

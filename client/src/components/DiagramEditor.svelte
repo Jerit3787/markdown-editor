@@ -9,6 +9,8 @@
   import { renderMermaidDiagrams, mermaidThemeFor } from "../mermaid-preview";
   import { debounceWithFlush } from "../debounce";
   import Panzoom, { type PanzoomObject } from "@panzoom/panzoom";
+  import { showToast } from "../stores/toast";
+  import { svgOuterHtmlForExport, pngBlobFromSvg } from "../diagram-export";
 
   const TEMPLATES: { name: string; code: string }[] = [
     { name: "Flowchart", code: "flowchart TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Do the thing]\n    B -->|No| D[Skip it]" },
@@ -45,6 +47,45 @@
 
   function resetView() {
     panzoomInstance?.reset();
+  }
+
+  let showExportMenu = $state(false);
+
+  function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportFilename(ext: string): string {
+    return `${$diagramEditorRef || "diagram"}.${ext}`;
+  }
+
+  async function copyAsSvg() {
+    if (!lastRenderedSvg) return;
+    showExportMenu = false;
+    try {
+      await navigator.clipboard.writeText(svgOuterHtmlForExport(lastRenderedSvg));
+      showToast("Copied as SVG", "success");
+    } catch {
+      showToast("Couldn't copy — clipboard access was blocked", "error");
+    }
+  }
+
+  async function downloadPng() {
+    if (!lastRenderedSvg) return;
+    showExportMenu = false;
+    try {
+      const blob = await pngBlobFromSvg(lastRenderedSvg);
+      downloadBlob(blob, exportFilename("png"));
+    } catch {
+      showToast("Couldn't generate the PNG", "error");
+    }
   }
 
   const renderScheduler = debounceWithFlush(async () => {
@@ -151,10 +192,19 @@
 
   onMount(() => {
     const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && $diagramEditorOpen) close();
+      if (e.key !== "Escape") return;
+      if (showExportMenu) { showExportMenu = false; return; }
+      if ($diagramEditorOpen) close();
+    };
+    const onDocClick = (e: MouseEvent) => {
+      if (showExportMenu && !(e.target as Element).closest(".dropdown")) showExportMenu = false;
     };
     document.addEventListener("keydown", onKeydown);
-    return () => document.removeEventListener("keydown", onKeydown);
+    document.addEventListener("click", onDocClick);
+    return () => {
+      document.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("click", onDocClick);
+    };
   });
 </script>
 
@@ -165,6 +215,15 @@
       <button type="button" class="secondary-btn" onclick={() => (showReference = !showReference)}>
         {showReference ? "Hide reference" : "Syntax reference"}
       </button>
+      <div class="dropdown">
+        <button type="button" class="secondary-btn" disabled={!lastRenderedSvg} onclick={() => (showExportMenu = !showExportMenu)}>
+          Export
+        </button>
+        <div class="dropdown-menu" class:open={showExportMenu}>
+          <button type="button" onclick={copyAsSvg}>Copy as SVG</button>
+          <button type="button" onclick={downloadPng}>Download PNG</button>
+        </div>
+      </div>
       <button type="button" class="secondary-btn" onclick={close}>Cancel</button>
       <button type="button" class="primary-btn" disabled={!hasCode} onclick={save}>Save</button>
     </div>

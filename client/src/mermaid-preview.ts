@@ -19,14 +19,23 @@ export function mermaidCodeRenderer(
   infostring: string | undefined,
   escaped: boolean,
   defaultRender: (code: string, infostring: string | undefined, escaped: boolean) => string,
+  diagrams?: Record<string, string>,
 ): string {
   const lang = (infostring || "").trim().split(/\s+/)[0];
   if (lang !== "mermaid") return defaultRender(code, infostring, escaped);
+  // A fence whose trimmed content matches a known ref renders the stored
+  // source (see diagram-refs.ts); otherwise the fence's own content is
+  // the literal source — this is what already shipped, so every
+  // hand-written ```mermaid fence keeps rendering unchanged.
+  const trimmedRef = code.trim();
+  const knownSource = diagrams && diagrams[trimmedRef];
+  const source = knownSource || code;
+  const refAttr = knownSource ? ` data-diagram-ref="${escapeForHtml(trimmedRef)}"` : "";
   // Always HTML-escape here regardless of the `escaped` flag: mermaid reads
   // this element's textContent, which the browser decodes back to the
   // original characters, so escaping is just this placeholder's own HTML
   // safety, independent of what marked's `escaped` flag means upstream.
-  return `<pre class="mermaid">${escapeForHtml(code)}</pre>`;
+  return `<pre class="mermaid"${refAttr}>${escapeForHtml(source)}</pre>`;
 }
 
 export interface MermaidLike {

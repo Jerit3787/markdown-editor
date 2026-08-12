@@ -52,6 +52,28 @@ describe("mermaidCodeRenderer", () => {
     expect(defaultRender).toHaveBeenCalledWith("plain", undefined, false);
     expect(html).toBe("<pre><code>plain</code></pre>");
   });
+
+  it("resolves a known ref to its stored source and stamps data-diagram-ref", () => {
+    const defaultRender = vi.fn();
+    const html = mermaidCodeRenderer("diagram", "mermaid", false, defaultRender, {
+      diagram: "flowchart TD\nA-->B",
+    });
+    expect(html).toBe('<pre class="mermaid" data-diagram-ref="diagram">flowchart TD\nA--&gt;B</pre>');
+  });
+
+  it("falls back to treating the fence content as literal source when the ref is unknown", () => {
+    const defaultRender = vi.fn();
+    const html = mermaidCodeRenderer("graph TD; A-->B;", "mermaid", false, defaultRender, {
+      diagram: "flowchart TD\nX-->Y",
+    });
+    expect(html).toBe('<pre class="mermaid">graph TD; A--&gt;B;</pre>');
+  });
+
+  it("falls back to literal content when no diagrams map is passed at all", () => {
+    const defaultRender = vi.fn();
+    const html = mermaidCodeRenderer("graph TD; A-->B;", "mermaid", false, defaultRender);
+    expect(html).toBe('<pre class="mermaid">graph TD; A--&gt;B;</pre>');
+  });
 });
 
 // @vitest-environment jsdom

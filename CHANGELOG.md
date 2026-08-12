@@ -4,6 +4,23 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-08-12
+
+### Added
+
+- Export a diagram as SVG (copied to the clipboard) or PNG (downloaded) from
+  the diagram editor's new Export menu.
+- Pan and zoom on the diagram editor's preview — scroll to zoom, drag to
+  pan, with a "Reset view" button to snap back to the original position.
+- Mermaid-aware syntax highlighting in the diagram editor's code pane,
+  covering all seven supported diagram types.
+
+### Fixed
+
+- Diagram text now renders as native SVG rather than embedded HTML labels,
+  fixing a browser security restriction that silently broke PNG export for
+  every diagram.
+
 ## [1.2.0] - 2026-08-12
 
 ### Added

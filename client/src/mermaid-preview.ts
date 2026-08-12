@@ -80,10 +80,29 @@ export async function renderMermaidDiagrams(
     const cachedSource = block.getAttribute("data-mermaid-source");
     const source = cachedSource ?? block.textContent ?? "";
     if (cachedSource === null) block.setAttribute("data-mermaid-source", source);
+
+    // app.ts's updatePreview() re-renders the whole document preview on
+    // every keystroke and restores any already-rendered diagram whose
+    // source is unchanged (see its own comment) so it never flashes back
+    // to raw text — but that restored element still reaches this same
+    // .mermaid query on the next debounced pass. Without this check,
+    // every diagram in the document would get a full, unnecessary
+    // mermaid.render() re-execution on every keystroke anywhere in the
+    // doc, purely to reproduce the exact SVG already on screen. Skip that
+    // when nothing this function's output could depend on (source, theme)
+    // has actually changed since the last successful render.
+    if (
+      block.classList.contains("mermaid-rendered") &&
+      block.getAttribute("data-mermaid-theme") === theme
+    ) {
+      continue;
+    }
+
     const id = `mermaid-diagram-${nextDiagramId++}`;
     try {
       const { svg } = await mermaid.render(id, source);
       block.innerHTML = svg;
+      block.setAttribute("data-mermaid-theme", theme);
       block.classList.remove("mermaid-error");
       block.classList.add("mermaid-rendered");
     } catch (err) {

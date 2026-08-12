@@ -735,7 +735,31 @@ import katexCss from "katex/dist/katex.min.css?raw";
       ADD_TAGS: ["math", "semantics", "mrow", "mi", "mn", "mo", "msup", "msub", "msubsup", "msqrt", "mroot", "mfrac", "mtable", "mtr", "mtd", "mspace", "mtext", "mstyle", "mover", "munder", "munderover", "mpadded", "annotation"],
       ADD_ATTR: ["target", "mathvariant", "encoding", "xmlns"],
     });
-    document.getElementById("preview").innerHTML = clean;
+    const previewEl = document.getElementById("preview");
+    // marked.parse() always regenerates every ```mermaid fence as its raw
+    // source text (mermaidCodeRenderer has no way to know a diagram was
+    // already rendered), and this whole function re-runs on every
+    // keystroke anywhere in the document — so without this, every
+    // existing diagram would flash back to raw source text on every
+    // keystroke, only catching up once mermaidRenderScheduler's debounced
+    // pass fires ~400ms later. Snapshot already-rendered diagrams here,
+    // keyed by the exact source they were rendered from (same identity
+    // mermaid-preview.ts itself uses for its own data-mermaid-source
+    // cache), and splice the still-current ones back in immediately below
+    // — only a diagram whose source actually changed, or one seen for the
+    // first time, still needs to wait for the real re-render.
+    const renderedDiagrams = new Map<string, Element>();
+    previewEl.querySelectorAll("pre.mermaid.mermaid-rendered[data-mermaid-source]").forEach((el) => {
+      const source = el.getAttribute("data-mermaid-source");
+      if (source !== null) renderedDiagrams.set(source, el);
+    });
+    previewEl.innerHTML = clean;
+    if (renderedDiagrams.size > 0) {
+      previewEl.querySelectorAll("pre.mermaid").forEach((el) => {
+        const cached = renderedDiagrams.get(el.textContent ?? "");
+        if (cached) el.replaceWith(cached);
+      });
+    }
     mermaidRenderScheduler.trigger();
     mathRenderScheduler.trigger();
   }

@@ -17,12 +17,8 @@ commitments.
 - [x] Diagram export — Copy as SVG / Download PNG (v1.3.0)
 - [x] Diagram editor pan & zoom, with reset view (v1.3.0)
 - [x] Diagram editor Mermaid-aware syntax highlighting (v1.3.0)
-
-## In progress
-
-- [ ] KaTeX / LaTeX math rendering — `$inline$` / `$$block$$`, toolbar
-      button to insert a snippet
-      (spec: `docs/superpowers/specs/2026-08-12-katex-math-design.md`)
+- [x] KaTeX math rendering — `$inline$` / `$$block$$`, toolbar button to
+      insert a snippet (v1.4.0)
 
 ## Backlog — quick wins
 

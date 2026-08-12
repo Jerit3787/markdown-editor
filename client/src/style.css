@@ -1,3 +1,5 @@
+@import "katex/dist/katex.min.css";
+
 :root {
   --bg: #ffffff;
   --bg-alt: #f6f7f9;
@@ -1105,6 +1107,10 @@ html, body {
   border-right: 1px solid var(--border);
 }
 .diagram-editor-code-host .cm-editor { height: 100%; font-family: var(--mono); }
+/* KaTeX renders in a hardcoded near-black by default — inherit the
+   app's own text color in both themes instead, same as every other
+   preview element. */
+.katex { color: var(--text); }
 /* .diagram-editor-preview-wrap is now the direct grid child — it
    stretches to fill its grid cell automatically (CSS Grid's default
    align-items: stretch). .diagram-editor-preview, nested one level

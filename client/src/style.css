@@ -1255,6 +1255,8 @@ body.focus-mode #statusbar {
 .statusbar-link .icon { width: 13px; height: 13px; }
 .statusbar-link:hover { color: var(--accent); }
 
+.keybinding-mode-indicator { font-weight: 600; color: var(--accent); letter-spacing: 0.03em; }
+
 /* Responsive */
 @media (max-width: 780px) {
   /* A flyout extending further right would overflow a phone screen —

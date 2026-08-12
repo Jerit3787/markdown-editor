@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-08-13
+
+### Added
+
+- Open Source Licenses — a new entry in the About modal listing every
+  direct dependency's name, version, and license, linked to its
+  repository where available. Generated automatically from what's
+  actually installed at build time, so it can never go stale.
+
 ## [1.7.0] - 2026-08-13
 
 ### Added

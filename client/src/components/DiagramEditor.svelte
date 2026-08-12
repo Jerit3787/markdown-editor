@@ -11,6 +11,8 @@
   import Panzoom, { type PanzoomObject } from "@panzoom/panzoom";
   import { showToast } from "../stores/toast";
   import { svgOuterHtmlForExport, pngBlobFromSvg } from "../diagram-export";
+  import { syntaxHighlighting } from "@codemirror/language";
+  import { mermaidStreamLanguage, mermaidHighlightStyle } from "../mermaid-language";
 
   const TEMPLATES: { name: string; code: string }[] = [
     { name: "Flowchart", code: "flowchart TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Do the thing]\n    B -->|No| D[Skip it]" },
@@ -121,6 +123,8 @@
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.lineWrapping,
+          mermaidStreamLanguage,
+          syntaxHighlighting(mermaidHighlightStyle),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
             hasCode = update.state.doc.length > 0;

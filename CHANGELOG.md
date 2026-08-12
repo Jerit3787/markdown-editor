@@ -4,6 +4,21 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-08-12
+
+### Added
+
+- Dedicated full-screen diagram editor — build a Mermaid diagram (any
+  diagram type) in a proper code + live-preview workspace, with starter
+  templates (flowchart, sequence, class, state, ER, Gantt, pie) and a
+  collapsible syntax reference, opened from a new toolbar button.
+- Hover over any diagram already in the document to reveal an Edit button
+  that reopens it in the same editor, pre-loaded with its current source.
+- Diagrams are stored by reference (mirroring how pasted images already
+  work) — editing a diagram never touches the surrounding document text,
+  and exporting or publishing to a Gist always resolves refs back to real,
+  portable Mermaid syntax.
+
 ## [1.1.0] - 2026-08-12
 
 ### Added

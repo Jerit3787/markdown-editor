@@ -1,5 +1,11 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { readFileSync } from "node:fs";
+
+// Single source of truth for the version shown in the About panel — reads
+// package.json directly rather than duplicating the number by hand, so it
+// can't drift from what actually gets published in a release.
+const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8"));
 
 // Phase 3 of the approved TS+Svelte migration plan: individual UI regions
 // (starting with the Settings modal) are converted to Svelte 5 components,
@@ -15,6 +21,9 @@ export default defineConfig({
   // root instead of client/.
   root: import.meta.dirname,
   plugins: [svelte()],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

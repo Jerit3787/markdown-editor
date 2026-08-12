@@ -4,6 +4,7 @@
   import { githubUsername } from "../stores/github";
   import { gistBusyLabel } from "../stores/gist";
   import { viewMode } from "../stores/view";
+  import { whatsNewOpen } from "../stores/whatsNew";
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
   let editMenuBtn: HTMLButtonElement, editMenu: HTMLDivElement;
@@ -177,6 +178,9 @@
       </button>
       <button id="menuInfo" type="button" onclick={() => act(() => window.MDE.openAbout())}>
         <svg class="icon"><use href="#icon-info"></use></svg> About &amp; Privacy
+      </button>
+      <button type="button" onclick={() => act(() => whatsNewOpen.set(true))}>
+        <svg class="icon"><use href="#icon-rocket"></use></svg> What's New
       </button>
       <a class="menu-link-item" href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener">
         <svg class="icon"><use href="#icon-github"></use></svg> View Source on GitHub

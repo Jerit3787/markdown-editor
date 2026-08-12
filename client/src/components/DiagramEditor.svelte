@@ -149,13 +149,13 @@
     </div>
     {#if showPicker}
       <div class="diagram-template-picker">
-        <p>Start from a template, or</p>
-        <button type="button" class="secondary-btn" onclick={startBlank}>Start blank</button>
+        <p>Start from a template</p>
         <div class="diagram-template-grid">
           {#each TEMPLATES as t (t.name)}
             <button type="button" class="diagram-template-card" onclick={() => pickTemplate(t.code)}>{t.name}</button>
           {/each}
         </div>
+        <p class="diagram-template-or">or <button type="button" class="secondary-btn" onclick={startBlank}>start new</button></p>
       </div>
     {/if}
   </div>

@@ -25,6 +25,7 @@ import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
+import { computeBlockLineStarts } from "./scroll-sync";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
@@ -759,6 +760,22 @@ import katexCss from "katex/dist/katex.min.css?raw";
         const cached = renderedDiagrams.get(el.textContent ?? "");
         if (cached) el.replaceWith(cached);
       });
+    }
+    // Tags each top-level preview block with the source line it was
+    // rendered from, for sync-scroll (see initSyncScroll()) to snap to
+    // instead of using raw scroll percentage — which breaks down badly
+    // once a block's rendered height (a tall diagram, a large image) is
+    // very disproportionate to how many source lines it represents.
+    // computeBlockLineStarts() runs on the *original* raw text (not
+    // extractedRaw) — see its own comment for why. Non-space top-level
+    // tokens and top-level DOM children correspond 1:1 in order for
+    // every standard block type; the length-capped loop degrades
+    // gracefully (leaving a mismatched tail untagged) rather than
+    // throwing if some edge case ever breaks that correspondence.
+    const lineStarts = computeBlockLineStarts(raw);
+    const previewChildren = Array.from(previewEl.children);
+    for (let i = 0; i < lineStarts.length && i < previewChildren.length; i++) {
+      previewChildren[i].setAttribute("data-line", String(lineStarts[i]));
     }
     mermaidRenderScheduler.trigger();
     mathRenderScheduler.trigger();

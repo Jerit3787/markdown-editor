@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.3] - 2026-08-12
+
+### Fixed
+
+- Scrolling either the editor or preview all the way to the end no longer
+  leaves the other pane short of its own end — both now recognize "at the
+  true end" and mirror it directly, instead of only snapping to the top
+  of the last block, which could fall noticeably short once that block
+  didn't exactly fill the remaining viewport height.
+
 ## [1.4.2] - 2026-08-12
 
 ### Fixed

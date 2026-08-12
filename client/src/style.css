@@ -50,6 +50,13 @@ html, body {
   overflow: hidden;
 }
 
+body.focus-mode #topbar,
+body.focus-mode #sidebar,
+body.focus-mode #toolbar-mount,
+body.focus-mode #statusbar {
+  display: none;
+}
+
 /* Top bar: row 1 (brand/title/status/Share/Settings), row 2 (File/Edit/View/Help) */
 #topbar {
   position: relative;

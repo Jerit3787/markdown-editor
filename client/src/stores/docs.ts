@@ -185,3 +185,19 @@ export function deleteDocImage(key: string) {
   updateDoc(doc.id, { images });
   persistDocs();
 }
+
+export function setDocDiagram(key: string, code: string) {
+  const doc = getActiveDoc();
+  if (!doc) return;
+  updateDoc(doc.id, { diagrams: { ...(doc.diagrams || {}), [key]: code } });
+  persistDocs();
+}
+
+export function deleteDocDiagram(key: string) {
+  const doc = getActiveDoc();
+  if (!doc || !doc.diagrams) return;
+  const diagrams = { ...doc.diagrams };
+  delete diagrams[key];
+  updateDoc(doc.id, { diagrams });
+  persistDocs();
+}

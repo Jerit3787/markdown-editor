@@ -39,7 +39,7 @@ export function mermaidCodeRenderer(
 }
 
 export interface MermaidLike {
-  initialize(config: { theme: "default" | "dark"; startOnLoad: boolean }): void;
+  initialize(config: { theme: "default" | "dark"; startOnLoad: boolean; htmlLabels: boolean }): void;
   render(id: string, text: string): Promise<{ svg: string }>;
 }
 
@@ -62,7 +62,12 @@ export async function renderMermaidDiagrams(
   if (blocks.length === 0) return;
 
   const mermaid = (await loadMermaid()).default;
-  mermaid.initialize({ theme, startOnLoad: false });
+  // htmlLabels: false renders diagram text as native SVG <text> instead of
+  // <foreignObject>-wrapped HTML. Without this, drawing the rendered SVG
+  // onto a <canvas> (for PNG export) throws "Tainted canvases may not be
+  // exported" — browsers refuse to read back pixels from a canvas that drew
+  // an SVG containing embedded HTML, even same-origin.
+  mermaid.initialize({ theme, startOnLoad: false, htmlLabels: false });
 
   for (const block of blocks) {
     // On a first pass, block.textContent is the raw mermaid source (see

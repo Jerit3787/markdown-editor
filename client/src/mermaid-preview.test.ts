@@ -104,7 +104,7 @@ describe("renderMermaidDiagrams", () => {
 
     await renderMermaidDiagrams(container, "dark", loadMermaid);
 
-    expect(mermaid.initialize).toHaveBeenCalledWith({ theme: "dark", startOnLoad: false });
+    expect(mermaid.initialize).toHaveBeenCalledWith({ theme: "dark", startOnLoad: false, htmlLabels: false });
     const block = container.querySelector(".mermaid")!;
     expect(block.innerHTML).toBe("<svg>diagram</svg>");
     expect(block.classList.contains("mermaid-rendered")).toBe(true);

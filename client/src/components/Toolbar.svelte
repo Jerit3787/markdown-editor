@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { diagramBuilderOpen } from "../stores/diagramBuilder";
+
   function run(cmd: string) {
     window.MDE.runCmd(cmd);
     window.MDE.getEditor().focus();
@@ -35,4 +37,5 @@
   <button id="imagesManagerBtn" type="button" title="Manage images"><svg class="icon"><use href="#icon-images"></use></svg></button>
   <button type="button" title="Table" onclick={() => run("table")}><svg class="icon"><use href="#icon-table"></use></svg></button>
   <button type="button" title="Horizontal rule" onclick={() => run("hr")}>―</button>
+  <button type="button" title="Insert flowchart" onclick={() => diagramBuilderOpen.set(true)}><svg class="icon"><use href="#icon-workflow"></use></svg></button>
 </div>

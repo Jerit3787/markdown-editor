@@ -19,12 +19,13 @@ commitments.
 - [x] Diagram editor Mermaid-aware syntax highlighting (v1.3.0)
 - [x] KaTeX math rendering — `$inline$` / `$$block$$`, toolbar button to
       insert a snippet (v1.4.0)
+- [x] Footnotes — `[^1]` references / `[^1]: text` definitions, toolbar
+      button to insert an auto-numbered pair (v1.5.0)
 
 ## Backlog — quick wins
 
 Small, client-side-only, drop into the existing render pipeline.
 
-- [ ] Footnotes (`marked` already ships a footnotes extension)
 - [ ] Custom CSS on export
 - [ ] Focus / typewriter / zen mode
 - [ ] Vim / Emacs keybindings

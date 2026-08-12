@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-08-12
+
+### Added
+
+- GFM footnote support — `[^1]` inline references and `[^1]: text`
+  definitions, rendered as bare superscript markers with a collected
+  "Footnotes" section at the document's end regardless of where each
+  definition was typed, plus a toolbar button to insert an auto-numbered
+  reference + definition pair.
+
 ## [1.4.5] - 2026-08-12
 
 ### Fixed

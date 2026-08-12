@@ -43,12 +43,62 @@
 
   function setupPanzoom(svg: SVGSVGElement) {
     destroyPanzoom();
-    panzoomInstance = Panzoom(svg, { maxScale: 5 });
+    // Panzoom defaults to setting overflow:hidden on the target's own
+    // *immediate* parent (assuming that parent is the intended viewport).
+    // Here that's the mermaid-rendered <pre>, which is sized to the SVG's
+    // natural unscaled dimensions — not .diagram-editor-preview, the
+    // actual (correctly-sized) viewport two levels up. Left at the
+    // default, the <pre> clips the transformed SVG before it ever reaches
+    // .diagram-editor-preview's own overflow:hidden, which is the
+    // boundary we actually want in effect.
+    panzoomInstance = Panzoom(svg, { maxScale: 5, overflow: "visible" });
     previewEl?.addEventListener("wheel", panzoomInstance.zoomWithWheel);
   }
 
+  function nextFrame(): Promise<void> {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  // Panzoom has no built-in "fit to container" — a diagram taller than the
+  // preview pane renders at native (scale-1) size and gets silently
+  // clipped by the pane's overflow:hidden, with no scrollbar or other cue
+  // that content is missing. Shrinks (never enlarges) and centers the
+  // diagram so the whole thing is always visible on first render and after
+  // "Reset view", measuring actual rects rather than assuming Panzoom's
+  // internal transform math, since that's undocumented.
+  //
+  // Panzoom's .zoom()/.pan() always defer the real style write to a
+  // requestAnimationFrame callback (see setTransformWithEvent in its
+  // source) — getBoundingClientRect() called synchronously right after
+  // either one reads the *previous* transform, not the one just set. Each
+  // step below must wait a real frame before measuring the result of the
+  // previous one.
+  async function fitToContainer() {
+    if (!panzoomInstance || !previewEl || !lastRenderedSvg) return;
+    const svg = lastRenderedSvg;
+    panzoomInstance.zoom(1, { animate: false, force: true });
+    panzoomInstance.pan(0, 0, { animate: false, force: true });
+    await nextFrame();
+    // A newer render pass may have swapped panzoomInstance/lastRenderedSvg
+    // out from under this in-flight call while it was awaiting the frame.
+    if (panzoomInstance === undefined || lastRenderedSvg !== svg) return;
+    const containerRect = previewEl.getBoundingClientRect();
+    const svgRect = svg.getBoundingClientRect();
+    if (svgRect.width === 0 || svgRect.height === 0) return;
+    // 0.92 leaves a small margin so the diagram doesn't touch the pane's
+    // padding edge at full fit.
+    const scale = Math.min(1, (containerRect.width / svgRect.width) * 0.92, (containerRect.height / svgRect.height) * 0.92);
+    panzoomInstance.zoom(scale, { animate: false, force: true });
+    await nextFrame();
+    if (panzoomInstance === undefined || lastRenderedSvg !== svg) return;
+    const scaledRect = svg.getBoundingClientRect();
+    const dx = (containerRect.width - scaledRect.width) / 2 - (scaledRect.left - containerRect.left);
+    const dy = (containerRect.height - scaledRect.height) / 2 - (scaledRect.top - containerRect.top);
+    panzoomInstance.pan(dx / scale, dy / scale, { relative: true, animate: false, force: true });
+  }
+
   function resetView() {
-    panzoomInstance?.reset();
+    fitToContainer();
   }
 
   let showExportMenu = $state(false);
@@ -108,6 +158,7 @@
     if (svg instanceof SVGSVGElement) {
       lastRenderedSvg = svg;
       setupPanzoom(svg);
+      await fitToContainer();
     } else {
       lastRenderedSvg = null;
       destroyPanzoom();

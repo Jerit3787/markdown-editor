@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.5] - 2026-08-12
+
+### Fixed
+
+- Sync scroll now interpolates using each side's own rendered pixel
+  height for a block, not its source line count — a long paragraph
+  that wraps into many editor rows previously reported the same single
+  line number throughout, so the preview stayed frozen at its start
+  while scrolling through it, then any short paragraph right after got
+  almost no share of the editor's scroll range and flew by in an
+  instant.
+
 ## [1.4.4] - 2026-08-12
 
 ### Fixed

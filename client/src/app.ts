@@ -1597,6 +1597,16 @@ ${bodyHtml}
     wrapper.style.padding = "20px 30px";
     wrapper.appendChild(clone);
 
+    // Uses createElement + textContent (not a template string) — DOM
+    // APIs don't parse textContent as markup, so there's no </style>
+    // escaping concern here, unlike the HTML export path.
+    const rawCustomCss = localStorage.getItem("mde:customExportCss") || "";
+    if (rawCustomCss) {
+      const styleEl = document.createElement("style");
+      styleEl.textContent = rawCustomCss;
+      wrapper.appendChild(styleEl);
+    }
+
     const opt = {
       margin: 12,
       filename: `${base}.pdf`,

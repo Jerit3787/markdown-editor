@@ -93,6 +93,7 @@ export interface MDEBridge {
   copySelection(): void;
   pasteClipboard(): void;
   runCmd(cmd: string): void;
+  insertAtCursor(text: string): void;
   newDoc(): void;
   openLocalFile(): void;
   exportAs(format: string): Promise<void>;

@@ -1542,16 +1542,18 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // Only paid for documents that actually rendered math — katex.min.css
     // is ~24KB, not worth adding to every export when most won't use it.
     const mathCss = bodyHtml.includes('class="katex"') ? `<style>${katexCss}</style>` : "";
-    // Escapes a literal "</style" so the user's own CSS (even
-    // unintentionally, e.g. inside a comment or string) can't prematurely
-    // close the tag and inject arbitrary markup into their own downloaded
-    // file. This HTML is never sent to a server or rendered inside the
-    // app itself — the only person a broken escape could affect is the
-    // exporting user opening their own file — but it costs nothing to
-    // guard and avoids a genuinely confusing broken-export bug report.
+    // Escapes any "</style" so the user's own CSS (even unintentionally,
+    // e.g. inside a comment or string) can't prematurely close the tag
+    // and inject arbitrary markup into their own downloaded file. HTML
+    // end-tag matching is case-insensitive ("</STYLE>", "</Style>", ...
+    // all close a <style> element), so this must be too — a case-
+    // sensitive check would miss those variants. This HTML is never sent
+    // to a server or rendered inside the app itself — the only person a
+    // broken escape could affect is the exporting user opening their own
+    // file — but it costs nothing to guard correctly.
     const rawCustomCss = localStorage.getItem("mde:customExportCss") || "";
     const customCssBlock = rawCustomCss
-      ? `<style>${rawCustomCss.replaceAll("</style", "<\\/style")}</style>`
+      ? `<style>${rawCustomCss.replace(/<\/style/gi, "<\\/style")}</style>`
       : "";
     return `<!DOCTYPE html>
 <html lang="en">

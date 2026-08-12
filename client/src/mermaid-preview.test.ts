@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { mermaidThemeFor, mermaidCodeRenderer } from "./mermaid-preview";
+import { mermaidThemeFor, mermaidCodeRenderer, renderMermaidDiagrams, type MermaidLike } from "./mermaid-preview";
 
 describe("mermaidThemeFor", () => {
   it("maps 'dark' to the mermaid dark theme", () => {
@@ -51,5 +51,90 @@ describe("mermaidCodeRenderer", () => {
     const html = mermaidCodeRenderer("plain", undefined, false, defaultRender);
     expect(defaultRender).toHaveBeenCalledWith("plain", undefined, false);
     expect(html).toBe("<pre><code>plain</code></pre>");
+  });
+});
+
+// @vitest-environment jsdom
+describe("renderMermaidDiagrams", () => {
+  function fakeMermaid(overrides: Partial<MermaidLike> = {}): MermaidLike {
+    return {
+      initialize: vi.fn(),
+      render: vi.fn().mockResolvedValue({ svg: "<svg>diagram</svg>" }),
+      ...overrides,
+    };
+  }
+
+  it("does nothing and never loads mermaid when there are no .mermaid elements", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = "<p>no diagrams here</p>";
+    const loadMermaid = vi.fn();
+
+    await renderMermaidDiagrams(container, "default", loadMermaid);
+
+    expect(loadMermaid).not.toHaveBeenCalled();
+  });
+
+  it("initializes mermaid with the given theme and replaces the placeholder with rendered SVG", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = '<pre class="mermaid">graph TD; A--&gt;B;</pre>';
+    const mermaid = fakeMermaid();
+    const loadMermaid = vi.fn().mockResolvedValue({ default: mermaid });
+
+    await renderMermaidDiagrams(container, "dark", loadMermaid);
+
+    expect(mermaid.initialize).toHaveBeenCalledWith({ theme: "dark", startOnLoad: false });
+    const block = container.querySelector(".mermaid")!;
+    expect(block.innerHTML).toBe("<svg>diagram</svg>");
+    expect(block.classList.contains("mermaid-rendered")).toBe(true);
+    expect(mermaid.render).toHaveBeenCalledWith(expect.any(String), "graph TD; A-->B;");
+  });
+
+  it("shows an inline error on that diagram without throwing, leaving the function to resolve", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = '<pre class="mermaid">not valid mermaid</pre>';
+    const mermaid = fakeMermaid({
+      render: vi.fn().mockRejectedValue(new Error("Parse error on line 1")),
+    });
+    const loadMermaid = vi.fn().mockResolvedValue({ default: mermaid });
+
+    await expect(renderMermaidDiagrams(container, "default", loadMermaid)).resolves.toBeUndefined();
+
+    const block = container.querySelector(".mermaid")!;
+    expect(block.classList.contains("mermaid-error")).toBe(true);
+    expect(block.innerHTML).toContain("Parse error on line 1");
+    expect(block.innerHTML).toContain("not valid mermaid");
+  });
+
+  it("renders each diagram independently — one failing doesn't affect the others", async () => {
+    const container = document.createElement("div");
+    container.innerHTML =
+      '<pre class="mermaid">bad one</pre><pre class="mermaid">graph TD; A--&gt;B;</pre>';
+    const mermaid = fakeMermaid({
+      render: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("boom"))
+        .mockResolvedValueOnce({ svg: "<svg>ok</svg>" }),
+    });
+    const loadMermaid = vi.fn().mockResolvedValue({ default: mermaid });
+
+    await renderMermaidDiagrams(container, "default", loadMermaid);
+
+    const blocks = container.querySelectorAll(".mermaid");
+    expect(blocks[0].classList.contains("mermaid-error")).toBe(true);
+    expect(blocks[1].classList.contains("mermaid-rendered")).toBe(true);
+    expect(blocks[1].innerHTML).toBe("<svg>ok</svg>");
+  });
+
+  it("uses a distinct id per diagram, even across multiple elements", async () => {
+    const container = document.createElement("div");
+    container.innerHTML =
+      '<pre class="mermaid">graph TD; A--&gt;B;</pre><pre class="mermaid">graph TD; C--&gt;D;</pre>';
+    const mermaid = fakeMermaid();
+    const loadMermaid = vi.fn().mockResolvedValue({ default: mermaid });
+
+    await renderMermaidDiagrams(container, "default", loadMermaid);
+
+    const ids = (mermaid.render as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+    expect(new Set(ids).size).toBe(2);
   });
 });

@@ -4,6 +4,7 @@
   import { githubUsername } from "../stores/github";
   import { gistBusyLabel } from "../stores/gist";
   import { viewMode } from "../stores/view";
+  import { focusMode } from "../stores/focusMode";
   import { whatsNewOpen } from "../stores/whatsNew";
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
@@ -166,6 +167,10 @@
       <div class="menu-divider"></div>
       <button id="menuToggleSidebar" type="button" onclick={() => act(() => window.MDE.toggleSidebar())}>
         <svg class="icon"><use href="#icon-panel-left"></use></svg> Toggle Sidebar
+      </button>
+      <div class="menu-divider"></div>
+      <button class="menu-view-btn" class:active={$focusMode} type="button" onclick={() => act(() => window.MDE.toggleFocusMode())}>
+        <svg class="icon menu-check"><use href="#icon-check"></use></svg> Focus Mode
       </button>
     </div>
   </div>

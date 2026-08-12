@@ -26,6 +26,8 @@ import { viewMode } from "./stores/view";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { computeBlockLineStarts } from "./scroll-sync";
+import { activeParagraphRange } from "./focus-mode";
+import { focusMode } from "./stores/focusMode";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
@@ -130,6 +132,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // this via window.MDE.enterCollabMode/exitCollabMode.
   const readOnlyCompartment = new Compartment();
   const editingModeCompartment = new Compartment();
+  const focusModeCompartment = new Compartment();
 
   function localEditingModeExtensions(): Extension {
     return [history(), keymap.of(historyKeymap)];
@@ -212,6 +215,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   function initModalEscapeKey() {
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
+      if (focusModeOn) toggleFocusMode();
       // [data-svelte-modal] backdrops (e.g. Settings) manage their own
       // `hidden`-equivalent as reactive component state, not the DOM
       // `hidden` attribute — mutating that attribute directly from outside
@@ -257,6 +261,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     ".cm-cursor": { borderLeftColor: "var(--text)" },
     ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "var(--accent-dim) !important" },
     ".cm-image-uploading": { opacity: "0.6", fontStyle: "italic" },
+    ".cm-dimmed-line": { opacity: "0.35", transition: "opacity 0.2s ease" },
   });
 
   const markdownHighlightStyle = HighlightStyle.define([
@@ -332,6 +337,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     return [
       readOnlyCompartment.of(EditorState.readOnly.of(false)),
       editingModeCompartment.of(localEditingModeExtensions()),
+      focusModeCompartment.of([]),
       keymap.of([
         { key: "Mod-b", run: () => { wrapSelection("**", "**", "bold text"); return true; } },
         { key: "Mod-i", run: () => { wrapSelection("_", "_", "italic text"); return true; } },
@@ -375,6 +381,62 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         },
       }),
     ];
+  }
+
+  // ---------- Focus Mode ----------
+  const dimLineMark = Decoration.line({ class: "cm-dimmed-line" });
+
+  function computeDimDecorations(state: EditorState): DecorationSet {
+    const { from, to } = activeParagraphRange(state.doc, state.selection.main.head);
+    const marks = [];
+    for (let ln = 1; ln <= state.doc.lines; ln++) {
+      const line = state.doc.line(ln);
+      if (line.to < from || line.from > to) marks.push(dimLineMark.range(line.from));
+    }
+    return Decoration.set(marks);
+  }
+
+  const focusDimField = StateField.define<DecorationSet>({
+    create: (state) => computeDimDecorations(state),
+    update(deco, tr) {
+      if (!tr.docChanged && !tr.selection) return deco;
+      return computeDimDecorations(tr.state);
+    },
+    provide: (f) => EditorView.decorations.from(f),
+  });
+
+  // Mutates scrollDOM.scrollTop directly — a plain DOM property write,
+  // not cm.dispatch() — so there's no concern about dispatching a new
+  // transaction from inside this same updateListener callback. Mirrors
+  // how initSyncScroll() already manipulates cm.scrollDOM directly
+  // elsewhere in this file, and reuses lineBlockAt(), the same API
+  // editorPixelRangeForLines() (scroll-sync) relies on for real pixel
+  // positions.
+  function centerCursorLine(view: EditorView) {
+    const pos = view.state.selection.main.head;
+    const block = view.lineBlockAt(pos);
+    const target = block.top - view.scrollDOM.clientHeight / 2 + block.height / 2;
+    view.scrollDOM.scrollTop = Math.max(0, target);
+  }
+
+  const typewriterListener = EditorView.updateListener.of((update) => {
+    if (update.docChanged || update.selectionSet) centerCursorLine(update.view);
+  });
+
+  function focusModeExtensions(): Extension[] {
+    return [focusDimField, typewriterListener];
+  }
+
+  let focusModeOn = false;
+
+  function toggleFocusMode() {
+    focusModeOn = !focusModeOn;
+    focusMode.set(focusModeOn);
+    document.body.classList.toggle("focus-mode", focusModeOn);
+    cm.dispatch({
+      effects: focusModeCompartment.reconfigure(focusModeOn ? focusModeExtensions() : []),
+    });
+    if (focusModeOn) centerCursorLine(cm);
   }
 
   // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
@@ -1760,6 +1822,7 @@ ${bodyHtml}
     },
     setView,
     toggleExpandPreview,
+    toggleFocusMode,
     formatRelativeTime,
   };
   window.MDE = bridge;

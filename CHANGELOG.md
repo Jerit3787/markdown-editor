@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.1] - 2026-08-12
+
+### Fixed
+
+- Custom export CSS's `</style` escaping (added in v1.6.0 to stop the
+  field from being able to break out of its `<style>` tag in an HTML
+  export) only matched a literal lowercase `</style`. HTML end tags are
+  matched case-insensitively, so a variant like `</STYLE>` could still
+  close the tag early and let arbitrary markup follow it in the
+  exported file. The check is now case-insensitive.
+
 ## [1.6.0] - 2026-08-12
 
 ### Added

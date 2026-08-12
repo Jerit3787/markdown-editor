@@ -381,13 +381,37 @@ import katexCss from "katex/dist/katex.min.css?raw";
     return target;
   }
 
+  // How close to a pane's absolute max scrollTop still counts as "at the
+  // end" for the at-max special case below. CodeMirror's own
+  // scroll-cursor-into-view behavior (e.g. Cmd+Down to the document end)
+  // was observed leaving a few px of unscrolled slack rather than
+  // landing on the exact pixel — likely scroller padding/line-height
+  // rounding — so a strict `>= max` check missed it.
+  const SYNC_SCROLL_END_SLACK_PX = 8;
+
   function initSyncScroll() {
     const main = document.getElementById("main") as HTMLElement;
     const preview = document.getElementById("preview") as HTMLElement;
 
     cm.scrollDOM.addEventListener("scroll", () => {
       if (syncingScroll || !main.classList.contains("mode-split")) return;
-      const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(cm.scrollDOM.scrollTop).from).number - 1;
+      const el = cm.scrollDOM;
+      const editorMax = el.scrollHeight - el.clientHeight;
+      if (editorMax <= 0) return;
+      // At the editor's true end: mirror the preview's true end too,
+      // rather than the block-snap position below, which can fall short
+      // of it — the last block's own top doesn't necessarily line up
+      // with the bottom of the scrollable preview content once it (or
+      // trailing blocks) don't exactly fill the remaining viewport
+      // height. Without this, scrolling either pane to its actual end
+      // could leave the other pane visibly short of its own end.
+      if (el.scrollTop >= editorMax - SYNC_SCROLL_END_SLACK_PX) {
+        syncingScroll = true;
+        preview.scrollTop = preview.scrollHeight - preview.clientHeight;
+        requestAnimationFrame(() => { syncingScroll = false; });
+        return;
+      }
+      const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(el.scrollTop).from).number - 1;
       const target = previewBlockForLine(preview, topLine);
       if (!target) return;
       syncingScroll = true;
@@ -397,6 +421,15 @@ import katexCss from "katex/dist/katex.min.css?raw";
 
     preview.addEventListener("scroll", () => {
       if (syncingScroll || !main.classList.contains("mode-split")) return;
+      const previewMax = preview.scrollHeight - preview.clientHeight;
+      if (previewMax <= 0) return;
+      // Mirrors the editor-at-max case above, in the other direction.
+      if (preview.scrollTop >= previewMax - SYNC_SCROLL_END_SLACK_PX) {
+        syncingScroll = true;
+        cm.dispatch({ effects: EditorView.scrollIntoView(cm.state.doc.length, { y: "end" }) });
+        requestAnimationFrame(() => { syncingScroll = false; });
+        return;
+      }
       const previewRect = preview.getBoundingClientRect();
       const tagged = Array.from(preview.querySelectorAll<HTMLElement>("[data-line]"));
       let target: HTMLElement | undefined;

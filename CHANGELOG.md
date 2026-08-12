@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] - 2026-08-13
+
+### Added
+
+- Slash commands — type `/` at the start of an empty line to open an
+  inline menu of block-level insertions (headings, blockquote, code
+  block, lists, task list, table, horizontal rule, image, math,
+  footnote, diagram), fuzzy-filterable and keyboard-navigable, anchored
+  directly under the cursor.
+
 ## [1.10.0] - 2026-08-13
 
 ### Added

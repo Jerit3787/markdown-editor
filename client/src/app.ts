@@ -37,6 +37,26 @@ import { debounceWithFlush } from "./debounce";
 // copy inlined here or math would render broken/unstyled in exported
 // HTML files.
 import katexCss from "katex/dist/katex.min.css?raw";
+import markedFootnote from "marked-footnote";
+
+// Registered once, at module scope — marked.use() mutates the shared
+// marked singleton permanently, so this must never run inside
+// updatePreview() or any other per-render function. Verified directly
+// (a throwaway Node spike, not shipped) that this composes correctly
+// with this file's existing pattern of creating a *fresh*
+// marked.Renderer() per updatePreview() call and passing it via
+// marked.parse(text, { renderer, ... }) — both the extension's footnote
+// handling and the custom renderer overrides apply together correctly,
+// and re-parsing the same content repeatedly (matching this app's
+// per-keystroke re-render) produces identical output each time rather
+// than accumulating state across calls.
+//
+// headingClass: "sr-only" — the package's default heading text
+// ("Footnotes") for the trailing section is meant to be visually hidden
+// but screen-reader-visible; style.css defines .sr-only for this.
+// refMarkers left at its default (false) for bare superscript numbers,
+// matching GitHub's own footnote rendering.
+marked.use(markedFootnote({ headingClass: "sr-only" }));
 
 (function () {
   "use strict";

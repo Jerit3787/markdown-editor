@@ -1433,6 +1433,20 @@ body.focus-mode #statusbar {
 
 .toolbar-buttons button:hover { background: var(--border); }
 
+/* #sidebarToggleOut and the "⋮" overflow toggle both reuse the app-wide
+   .icon-btn class (for its active-state color, shared with every other
+   icon toggle button), but that class is a fixed 32x32 box — visibly
+   bigger, and differently spaced against a neighboring .sep, than every
+   other toolbar button here, which size to their padding instead.
+   Override just the box model to match their actual neighbors. */
+.toolbar-buttons #sidebarToggleOut,
+.toolbar-overflow .icon-btn {
+  width: auto;
+  height: auto;
+  padding: 5px 9px;
+  border-radius: 5px;
+}
+
 .sep {
   width: 1px;
   background: var(--border);

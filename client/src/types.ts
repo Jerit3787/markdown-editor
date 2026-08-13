@@ -46,6 +46,15 @@ export interface Doc {
   images?: Record<string, string>;
   diagrams?: Record<string, string>;
   gistId?: string;
+  // The filename actually used inside the gist as of the last publish
+  // — GitHub's Gist PATCH API creates a *new* file whenever the
+  // files{} key doesn't exactly match an existing filename, so this
+  // has to be tracked and reused (or explicitly renamed via the old
+  // -key-with-a-new-filename-property PATCH form) rather than
+  // recomputed fresh from doc.name on every update; otherwise
+  // renaming the document after the first publish left the gist with
+  // two files instead of one renamed one.
+  gistFilename?: string;
   // Set once a doc has ever been shared — its own id doubles as its collab
   // room id (see collab.ts), so this is just a local "try to rejoin on
   // load" flag, not the room id itself.

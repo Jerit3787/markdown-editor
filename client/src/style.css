@@ -95,8 +95,8 @@ body.focus-mode #statusbar {
 }
 
 .topbar-row { display: flex; align-items: center; gap: 8px; padding: 4px 14px; }
-#topbarRow1 { grid-area: title; padding: 6px 0 2px 0; gap: 4px; }
-#menuBar { grid-area: menubar; gap: 2px; padding: 0 0 6px 0; }
+#topbarRow1 { grid-area: title; padding: 6px 0 0 0; gap: 4px; }
+#menuBar { grid-area: menubar; gap: 2px; padding: 0 0 4px 0; }
 
 /* Comments/history/share/settings read as one grouped cluster (matching
    the mockup's single "comment history share etc." cell) — no gap
@@ -110,7 +110,6 @@ body.focus-mode #statusbar {
   align-items: center;
   gap: 10px;
   padding: 0 14px;
-  border-left: 1px solid var(--border);
 }
 /* Sized up to match the logo's bigger presence in this same tall
    column — plain .icon-btn elsewhere in the app stay their normal
@@ -254,10 +253,10 @@ body.focus-mode #statusbar {
   background: transparent;
   font-size: 18px;
   font-weight: 400;
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-radius: 4px;
   color: var(--text);
-  line-height: 24px;
+  line-height: 22px;
   /* Small enough to stay clickable for a very short name, not big
      enough to leave a visible gap before the save-status icon when
      resizeDocTitle() has already sized the field to fit the actual

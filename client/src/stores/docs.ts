@@ -7,6 +7,7 @@
 import { get, writable } from "svelte/store";
 import type { Doc } from "../types";
 import { showToast } from "./toast";
+import { deleteHistory } from "../history";
 
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
@@ -122,6 +123,7 @@ export function deleteDoc(id: string): Doc | undefined {
     setActiveId(remaining[0] ? remaining[0].id : null);
   }
   persistDocs();
+  void deleteHistory(id);
   showToast(`Deleted "${doc.name || "Untitled"}"`, "success");
   return doc;
 }

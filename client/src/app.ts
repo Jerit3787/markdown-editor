@@ -40,6 +40,7 @@ import { debounceWithFlush } from "./debounce";
 import { maybeSnapshotVersion } from "./history";
 import { commentDraft } from "./stores/commentDraft";
 import { relocateAnchor } from "./anchor";
+import { imageKey } from "./image-key";
 import { renameCollision } from "./stores/renameCollision";
 import { transformWikilinks, resolveWikilinkTarget } from "./wikilinks";
 import { wikilinkMenu } from "./stores/wikilinkMenu";
@@ -1011,22 +1012,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
   }
 
-  // Short reference name instead of the full base64 blob living inline in
-  // the editor text — e.g. "screenshot.png" or "screenshot-2.png" if that
-  // name's taken. The preview/export resolve it back to the real data URI
-  // (see the marked image renderer in updatePreview and resolveImageRefs).
-  function imageKey(filename: string, images: Record<string, string>) {
-    const match = (filename || "image").match(/^(.*?)(\.[^.]+)?$/);
-    const base = (match[1] || "image").trim().replace(/[^a-zA-Z0-9-_ ]+/g, "").trim() || "image";
-    const ext = match[2] || ".png";
-    let key = `${base}${ext}`;
-    let n = 2;
-    while (images[key]) {
-      key = `${base}-${n}${ext}`;
-      n++;
-    }
-    return key;
-  }
 
   function resolveImageRefs(text: string, doc: Doc | undefined) {
     if (!doc || !doc.images) return text;

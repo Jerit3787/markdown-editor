@@ -41,6 +41,15 @@ html, body {
   font-family: var(--sans);
   color: var(--text);
   background: var(--bg);
+  /* iOS Safari's default double-tap-anywhere-to-zoom gesture doesn't
+     account for this being an app with its own scrollable panes and
+     fixed chrome — the resulting zoomed-in state left the layout
+     visibly broken rather than just annoying. "manipulation" disables
+     double-tap-zoom (and the old 300ms tap delay) specifically,
+     without disabling pinch-to-zoom too — that stays available, since
+     turning it off entirely is a real accessibility regression for
+     anyone who relies on it. */
+  touch-action: manipulation;
 }
 
 #app {

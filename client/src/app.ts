@@ -1456,7 +1456,13 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     if (line.text.startsWith(prefix)) {
       cm.dispatch({ changes: { from: line.from, to: line.from + prefix.length, insert: "" } });
     } else {
-      cm.dispatch({ changes: { from: line.from, insert: prefix } });
+      // Without an explicit selection, an insertion landing exactly at
+      // the cursor's position (the common case — an empty line) maps
+      // the cursor to stay *before* the inserted text by default,
+      // leaving it sitting in front of "# " instead of ready to type
+      // after it.
+      const head = cm.state.selection.main.head;
+      cm.dispatch({ changes: { from: line.from, insert: prefix }, selection: { anchor: head + prefix.length } });
     }
   }
 

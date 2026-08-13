@@ -527,6 +527,32 @@ body.focus-mode #statusbar {
 }
 .modal-box-wide { max-width: 560px; }
 
+/* What's New carousel (client/src/components/WhatsNew.svelte) */
+.whats-new-slide {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+.whats-new-screenshot {
+  width: 180px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-alt);
+}
+.whats-new-text { flex: 1; min-width: 0; }
+.whats-new-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.whats-new-nav .secondary-btn, .whats-new-nav .primary-btn { width: auto; margin-bottom: 0; }
+.whats-new-counter { font-size: 12px; color: var(--text-dim); }
+
 .modal-box h2 {
   margin: 0 0 12px;
   font-size: 18px;

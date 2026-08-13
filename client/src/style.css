@@ -76,28 +76,49 @@ body.focus-mode #statusbar {
 }
 
 /* Top bar: row 1 (brand/title/status/Share/Settings), row 2 (File/Edit/View/Help) */
+/* Google Docs-style header: logo and the action-icon cluster each span
+   both rows as tall flanking columns, with the document title (row 1)
+   and File/Edit/View/Help (row 2) stacked in the middle column between
+   them — matching the mockup's rowspan=2 logo/actions cells exactly,
+   rather than approximating it with padding on a stacked-flex layout. */
 #topbar {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "brand title   actions"
+    "brand menubar actions";
   background: var(--bg-alt);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-.topbar-row { display: flex; align-items: center; gap: 8px; padding: 6px 14px; }
+.topbar-row { display: flex; align-items: center; gap: 8px; padding: 4px 14px; }
+#topbarRow1 { grid-area: title; }
+#menuBar { grid-area: menubar; gap: 2px; padding-top: 2px; padding-bottom: 2px; }
 
 /* Comments/history/share/settings read as one grouped cluster (matching
    the mockup's single "comment history share etc." cell) — no gap
    between them, unlike .topbar-row's wider 8px gap used to separate
    the row's distinct sections from each other. */
 .topbar-actions { display: flex; align-items: center; gap: 0; }
-/* Indented to align under the document title, not the logo — the logo
-   visually spans both topbar rows (Google Docs' layout), so the menu
-   bar row starts where the title's own left edge starts: 14px (this
-   row's own base padding-left, shared via .topbar-row) + 22px (the
-   logo's fixed width) + 8px (.topbar-row's gap between them) = 44px. */
-#menuBar { gap: 2px; padding-top: 4px; padding-bottom: 4px; padding-left: 44px; }
+
+#topbarActionsCol {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-left: 1px solid var(--border);
+}
+/* Sized up to match the logo's bigger presence in this same tall
+   column — plain .icon-btn elsewhere in the app stay their normal
+   size, this is scoped to just this column. */
+#topbarActionsCol .icon-btn { width: 36px; height: 36px; }
+#topbarActionsCol .icon-btn .icon { width: 19px; height: 19px; }
+#topbarActionsCol .share-pill { padding: 8px 16px; font-size: 14px; }
+#topbarActionsCol .share-pill .icon { width: 17px; height: 17px; }
 
 .share-pill {
   display: inline-flex;
@@ -225,7 +246,7 @@ body.focus-mode #statusbar {
 .menu-recent-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
 .menu-recent-empty { font-size: 12.5px; color: var(--text-dim); padding: 6px 14px; }
 
-#brand { display: flex; align-items: center; flex-shrink: 0; }
+#brand { grid-area: brand; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 16px; border-right: 1px solid var(--border); }
 #brand img { display: block; }
 
 #docTitle {
@@ -1663,12 +1684,18 @@ body.focus-mode #statusbar {
      Wrapping can't clip anything, and in practice nothing needs to wrap
      down to real phone widths anyway (verified at 390px). */
   .topbar-row { flex-wrap: wrap; row-gap: 4px; padding-left: 10px; padding-right: 10px; }
-  /* The desktop-only indent (aligning the menu bar under the document
-     title instead of the logo) doesn't apply here — mobile's own topbar
-     already wraps to fit, so keep File/Edit/View/Help flush with the
-     rest of the row instead of reserving logo-width space that isn't
-     there. */
-  #menuBar { padding-left: 10px; }
+
+  /* The desktop grid (logo/actions as tall flanking columns) doesn't
+     fit a phone width — fall back to a wrapping flex row instead:
+     brand, title content, and the actions cluster share the first
+     line (wrapping as needed), and the menu bar is forced onto its
+     own full-width line below via flex-basis. */
+  #topbar { display: flex; flex-wrap: wrap; align-items: center; padding: 6px 10px; }
+  #brand { order: 1; border-right: none; padding: 0 8px 0 0; }
+  #topbarRow1 { order: 2; flex: 1; padding: 0; min-width: 0; }
+  #topbarActionsCol { order: 3; border-left: none; padding: 0; }
+  #menuBar { order: 4; flex-basis: 100%; padding: 4px 0 0; }
+
   .share-pill, .menubar-btn, #settingsBtn { flex-shrink: 0; }
   #menuBar .icon-btn { width: 40px; height: 40px; flex-shrink: 0; }
 

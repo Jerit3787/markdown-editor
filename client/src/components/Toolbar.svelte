@@ -54,7 +54,7 @@
 
   <div class="view-selector" role="group" aria-label="View mode">
     <button type="button" class:active={editorOn} title="Toggle editor pane" aria-label="Toggle editor pane" aria-pressed={editorOn} onclick={toggleEditorPane}>
-      <svg class="icon"><use href="#icon-file"></use></svg>
+      <svg class="icon"><use href="#icon-panel-left"></use></svg>
     </button>
     <button type="button" class:active={previewOn} title="Toggle preview pane" aria-label="Toggle preview pane" aria-pressed={previewOn} onclick={togglePreviewPane}>
       <svg class="icon"><use href="#icon-panel-right"></use></svg>

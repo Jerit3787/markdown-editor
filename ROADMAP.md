@@ -50,6 +50,11 @@ commitments.
       + Backlinks panel, and a sidebar sort-order fix (only a real
       content edit reorders the list, not merely opening a document)
       (v1.15.0)
+- [x] Desktop view selector — Editor pane / Preview pane toggle buttons
+      in the toolbar and View menu, sharing one toggle model; formatting
+      toolbar restructured into a full-width row spanning the document
+      sidenav + editor + preview, with overflowing buttons collapsing
+      into a "⋮" menu instead of wrapping/scrolling (v1.16.0)
 
 ## Backlog — quick wins
 
@@ -206,3 +211,15 @@ to matter later.
       popup — v1.15.0's popup only lists existing documents; creating
       a new one is still only reachable by typing a new name and
       closing `]]` by hand, or clicking a rendered "missing" link
+- [ ] Toolbar button reordering/grouping by type — v1.16.0's overflow
+      menu collapses whichever buttons don't fit in DOM order; it
+      doesn't group related tools together first (needs a proposed
+      grouping to react to, same reason this was deferred back in the
+      original Phase 1 pass)
+- [ ] Pinning the view selector visible while only the formatting
+      buttons scroll on mobile — v1.16.0's mobile toolbar scrolls (or
+      overflows into "⋮") as one unit; the selector isn't pinned
+      separately
+- [ ] Full mobile layout redesign (bottom-sheet document sidenav/
+      comments, tabbed document/headings switcher) — v1.16.0 only
+      restructured the desktop toolbar/sidenav layout; mobile is next

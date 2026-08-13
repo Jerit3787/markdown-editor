@@ -1,7 +1,7 @@
 /* Markdown Editor — static, client-side, localStorage-backed */
 import { EditorState, StateField, StateEffect, Compartment, Transaction, type Extension } from "@codemirror/state";
 import { EditorView, Decoration, drawSelection, keymap, type DecorationSet } from "@codemirror/view";
-import { history, historyKeymap, undo as cmUndo, redo as cmRedo, defaultKeymap } from "@codemirror/commands";
+import { history, historyKeymap, undo as cmUndo, redo as cmRedo, defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -569,6 +569,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
           },
         },
       ]),
+      // Tab/Shift-Tab indent-select-lines by default (indentWithTab
+      // captures Tab entirely — it no longer moves focus out of the
+      // editor via keyboard, a deliberate trade-off every code editor
+      // with Tab-to-indent makes).
+      keymap.of([indentWithTab]),
       keymap.of(markdownKeymap),
       keymap.of(defaultKeymap),
       markdown({ extensions: [GFM] }),

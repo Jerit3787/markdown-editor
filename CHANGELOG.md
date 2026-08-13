@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.3] - 2026-08-13
+
+### Fixed
+
+- Double-tapping anywhere on mobile triggered iOS Safari's default
+  zoom gesture, which left the app's layout visibly broken (it wasn't
+  built to handle an arbitrary zoomed-in state). Disabled double-tap
+  -zoom specifically; pinch-to-zoom is untouched.
+
 ## [1.15.2] - 2026-08-13
 
 ### Changed

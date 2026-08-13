@@ -1760,6 +1760,34 @@ body.focus-mode #statusbar {
     transition: transform 0.15s ease;
   }
   #sidebar.collapsed { transform: translateY(100%); margin-left: 0; }
+
+  .mobile-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 39;
+  }
+
+  /* Bottom sheet, not the desktop 320px side panel — the desktop rule
+     otherwise squeezes the editor down to almost nothing on a phone.
+     No slide transition here (unlike #sidebar): .comments-panel is
+     conditionally rendered ({#if $commentsPanelOpen}), not a
+     persistent node, so animating its entrance would mean adopting a
+     Svelte transition just for this — matches its own existing
+     desktop behavior (instant show/hide) instead. */
+  .comments-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: 75vh;
+    border-radius: 16px 16px 0 0;
+    z-index: 40;
+    box-shadow: var(--shadow);
+    border-left: none;
+  }
+
   #body.mode-split #main { flex-direction: column; }
   #body.mode-split #previewPane { border-left: none; border-top: 1px solid var(--border); }
   #body.mode-split #divider { display: none; }

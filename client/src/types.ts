@@ -127,6 +127,7 @@ export interface MDEBridge {
   openLocalFile(): void;
   exportAs(format: string): Promise<void>;
   toggleSidebar(): void;
+  collapseSidebarForMobile(): void;
   openImagesManager(): void;
   openShortcuts(): void;
   openAbout(): void;

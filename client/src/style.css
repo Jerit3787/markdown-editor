@@ -1741,8 +1741,10 @@ body.focus-mode #statusbar {
     z-index: 39;
   }
 
-  /* Bottom sheet, not a left-slide overlay, on mobile — matches the
-     original mobile mockup. transform (not the desktop margin-left
+  /* Flush to the screen's left/right/bottom edges, only the top corners
+     rounded — matches the native iOS bottom-sheet look (e.g. Google
+     Docs' own "Document tabs" sheet) exactly, not a floating card with
+     margin on every side. transform (not the desktop margin-left
      slide) drives open/closed here, so explicitly zero out the base
      #sidebar.collapsed rule's margin-left too, or it'd shift the sheet
      sideways while it's translating down. */
@@ -1752,7 +1754,7 @@ body.focus-mode #statusbar {
     right: 0;
     bottom: 0;
     top: auto;
-    height: 75vh;
+    height: 50vh;
     border-radius: 16px 16px 0 0;
     z-index: 40;
     box-shadow: var(--shadow);
@@ -1769,29 +1771,49 @@ body.focus-mode #statusbar {
   }
 
   /* Both backdrops (#sidebarBackdrop and .mobile-sheet-backdrop) cover
-     the full viewport at z-index:39, including the header — without
-     this, tapping the *other* panel's trigger button while one sheet
-     is open would hit the backdrop instead (visually still faintly
-     visible through the 50%-opacity dimming) and just close the open
-     sheet, rather than switching directly to the other one. Elevating
-     the header above both backdrops keeps its buttons clickable no
-     matter which sheet (if any) is currently open. */
+     the full viewport at z-index:39, including the header — elevating
+     the header above them keeps its buttons clickable no matter which
+     sheet (if any) is open (tapping the *other* panel's trigger should
+     switch directly to it, not just hit the backdrop and close the
+     current sheet). But a fully sharp, undimmed header while
+     everything below it is dimmed reads as broken/inconsistent, so a
+     second layer — a plain pointer-events:none dim overlay, the same
+     color as the real backdrops — sits on top of the header's own
+     content instead: visually dimmed like the rest of the screen,
+     without intercepting the clicks the elevation above exists for. */
   #topbar, #toolbar { position: relative; z-index: 45; }
+  #topbar::after, #toolbar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+  body:has(#sidebar:not(.collapsed)) #topbar::after,
+  body:has(#sidebar:not(.collapsed)) #toolbar::after,
+  body:has(.comments-panel) #topbar::after,
+  body:has(.comments-panel) #toolbar::after {
+    opacity: 1;
+  }
 
-  /* Bottom sheet, not the desktop 320px side panel — the desktop rule
-     otherwise squeezes the editor down to almost nothing on a phone.
-     No slide transition here (unlike #sidebar): .comments-panel is
-     conditionally rendered ({#if $commentsPanelOpen}), not a
-     persistent node, so animating its entrance would mean adopting a
-     Svelte transition just for this — matches its own existing
-     desktop behavior (instant show/hide) instead. */
+  /* Flush to the screen's left/right/bottom edges, only the top corners
+     rounded (not the desktop 320px side panel either — that rule
+     otherwise squeezes the editor down to almost nothing on a phone) —
+     matches #sidebar's native bottom-sheet look. No slide transition
+     here (unlike #sidebar): .comments-panel is conditionally rendered
+     ({#if $commentsPanelOpen}), not a persistent node, so animating
+     its entrance would mean adopting a Svelte transition just for this
+     — matches its own existing desktop behavior (instant show/hide)
+     instead. */
   .comments-panel {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     width: auto;
-    height: 75vh;
+    height: 50vh;
     border-radius: 16px 16px 0 0;
     z-index: 40;
     box-shadow: var(--shadow);

@@ -22,6 +22,7 @@ import {
   deleteDocImage,
   refreshDocNoteAnchors,
   findCollidingDoc,
+  docsStore,
 } from "./stores/docs";
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
@@ -40,6 +41,8 @@ import { maybeSnapshotVersion } from "./history";
 import { commentDraft } from "./stores/commentDraft";
 import { relocateAnchor } from "./anchor";
 import { renameCollision } from "./stores/renameCollision";
+import { transformWikilinks, resolveWikilinkTarget } from "./wikilinks";
+import { get } from "svelte/store";
 // Unlike Mermaid's SVGs (which bake their own <style> in at render time),
 // KaTeX's HTML output has no self-contained styling — it's entirely
 // dependent on this stylesheet. buildStandaloneHtml()'s exported <style>
@@ -175,6 +178,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // trigger that) run synchronously before this DOMContentLoaded handler
     // ever fires, same guarantee every other Svelte component here relies on.
     initSyncScroll();
+    initWikilinkNavigation();
     initImageUploads();
     initToolbar();
     initSaveStatus();
@@ -781,6 +785,29 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
   }
 
+  // ---------- Wikilinks ----------
+  // One delegated listener on the stable #preview container, not
+  // per-element — updatePreview() replaces the whole innerHTML on every
+  // keystroke, so per-element listeners would need constant
+  // re-attachment (same reasoning as every other preview-content
+  // interaction in this file).
+  function initWikilinkNavigation() {
+    const previewEl = document.getElementById("preview");
+    previewEl.addEventListener("click", (e) => {
+      const link = (e.target as HTMLElement).closest<HTMLElement>(".wikilink");
+      if (!link) return;
+      e.preventDefault();
+      const name = link.getAttribute("data-doc-name");
+      if (!name) return;
+      const target = resolveWikilinkTarget(name, get(docsStore));
+      if (target) {
+        storeSwitchDoc(target.id);
+      } else {
+        createDoc({ name });
+      }
+    });
+  }
+
   // initSyncScroll()'s listeners only react to explicit scroll *events* —
   // typing or moving the cursor onto a line that's already visible in the
   // editor's current viewport (so the editor itself never scrolls) never
@@ -1168,7 +1195,20 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const defaultCodeRenderer = marked.Renderer.prototype.code.bind(renderer);
     renderer.code = (code: string, infostring: string | undefined, escaped: boolean) =>
       mermaidCodeRenderer(code, infostring, escaped, defaultCodeRenderer, doc?.diagrams);
-    const { text: extractedRaw, sources } = extractMathSpans(raw);
+    // [[Name]] links (see wikilinks.ts's transformWikilinks, applied
+    // below) become "wikilink:"-scheme links — resolved against the
+    // current document list at render time so a rename/delete elsewhere
+    // is reflected on the next keystroke, same as every other preview
+    // content.
+    const defaultLinkRenderer = marked.Renderer.prototype.link.bind(renderer);
+    renderer.link = (href: string, title: string | null, text: string) => {
+      if (!href.startsWith("wikilink:")) return defaultLinkRenderer(href, title, text);
+      const name = decodeURIComponent(href.slice("wikilink:".length));
+      const exists = !!resolveWikilinkTarget(name, get(docsStore));
+      const cls = exists ? "wikilink" : "wikilink wikilink-missing";
+      return `<a href="#" class="${cls}" data-doc-name="${escapeHtml(name)}">${escapeHtml(text)}</a>`;
+    };
+    const { text: extractedRaw, sources } = extractMathSpans(transformWikilinks(raw));
     currentMathSources = sources;
     const html = marked.parse(extractedRaw, { gfm: true, breaks: false, renderer }) as string;
     // KaTeX's output includes a MathML companion tree (for accessibility)

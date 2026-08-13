@@ -4,6 +4,27 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.17.0] - 2026-08-14
+
+### Added
+
+- The document sidenav and comments panel now present as native-style
+  bottom sheets on mobile: flush to the screen's left/right/bottom
+  edges with rounded top corners, a dimmed backdrop (the header dims
+  too, while staying tappable), and tap-outside or the existing close
+  button to dismiss. Opening either sheet closes the other, since two
+  stacked sheets would otherwise collide.
+
+### Fixed
+
+- Comments had no mobile-specific layout at all before this — it used
+  the same 320px desktop side panel, which squeezed the editor down to
+  almost nothing on a phone whenever comments were open.
+- Document title text was still getting clipped on mobile specifically
+  — a leftover mobile-only override on the width-measuring mirror
+  element assumed the title field also shrank to 16px there, which it
+  never actually did once bumped to 18px.
+
 ## [1.16.0] - 2026-08-14
 
 ### Added

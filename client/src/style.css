@@ -550,7 +550,10 @@ body.focus-mode #statusbar {
 }
 .modal-box-wide { max-width: 560px; }
 
-/* What's New carousel (client/src/components/WhatsNew.svelte) */
+/* What's New carousel (client/src/components/WhatsNew.svelte) — wider
+   than the base modal-box-wide so a bigger screenshot doesn't crowd
+   its text out. */
+.whats-new-modal { max-width: 680px; }
 .whats-new-slide {
   display: flex;
   gap: 16px;
@@ -561,8 +564,8 @@ body.focus-mode #statusbar {
    square) — object-fit:cover on a fixed 180x180 box was cropping any
    screenshot that wasn't already square. */
 .whats-new-screenshot {
-  max-width: 220px;
-  max-height: 220px;
+  max-width: 320px;
+  max-height: 320px;
   width: auto;
   height: auto;
   display: block;
@@ -1611,13 +1614,19 @@ body.focus-mode #statusbar {
 
   /* iOS Safari auto-zooms the whole page in when a focused input's
      computed font-size is under 16px, and never zooms back out on
-     blur — the editor's 14.5px and the title field's 15px both
-     qualified. Bumping both to 16px here (not fighting it via a
-     maximum-scale/user-scalable viewport override, which disables
-     pinch-zoom for everyone and is a real accessibility regression)
-     stops the zoom from triggering in the first place. */
+     blur. Catches every text field in the app generically — comment
+     drafts/replies, modal fields (link URL, image alt text, gist
+     search), the command palette's search box, and any future one —
+     rather than bumping each one individually and missing whichever
+     wasn't remembered (as happened here: the editor and title field
+     were fixed first, but every plain <input>/<textarea> in the app
+     was still relying on the browser's own default form-control size,
+     well under 16px). Not fought via a maximum-scale/user-scalable
+     viewport override instead, since that disables pinch-zoom for
+     everyone — a real accessibility regression. */
+  input, textarea, select { font-size: 16px; }
   .cm-content { font-size: 16px; }
-  #docTitle, #docTitleMirror { font-size: 16px; }
+  #docTitleMirror { font-size: 16px; }
 
   /* Plain wrap, not scroll: overflow-x:auto here would also clip the
      File/Edit/View/Help dropdowns vertically, since they're absolutely

@@ -43,10 +43,18 @@
     if (!state) return;
     commitName(state.previousName);
   }
+
+  // Clicking outside the dialog is a dismissal, same as every other
+  // modal in this app — this one was missing it entirely. Treated as
+  // equivalent to Cancel (revert to the pre-edit name), the same
+  // non-destructive default clicking outside a dialog implies elsewhere.
+  function backdropClick(e: MouseEvent) {
+    if (e.target === e.currentTarget) cancel();
+  }
 </script>
 
 {#if $renameCollision}
-  <div class="modal-backdrop" data-svelte-modal>
+  <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="renameCollisionTitle">
       <h2 id="renameCollisionTitle">Name already in use</h2>
       <p>Another document is already named "{$renameCollision.pendingName}".</p>

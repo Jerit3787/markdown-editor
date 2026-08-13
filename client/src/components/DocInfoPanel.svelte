@@ -25,17 +25,20 @@
     close();
   }
 
+  // formatRelativeTime (the window.MDE bridge method) is deliberately
+  // compact ("Today") for where it's used elsewhere (the Open Recent
+  // submenu) — this panel is the one place precise enough to want the
+  // full timestamp alongside it.
+  function formatFullTimestamp(ts: number): string {
+    return new Date(ts).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  }
+
   onMount(() => {
-    const open = () => docInfoPanelOpen.set(true);
-    document.getElementById("docInfoBtn")?.addEventListener("click", open);
     const onKeydown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && $docInfoPanelOpen) close();
     };
     document.addEventListener("keydown", onKeydown);
-    return () => {
-      document.getElementById("docInfoBtn")?.removeEventListener("click", open);
-      document.removeEventListener("keydown", onKeydown);
-    };
+    return () => document.removeEventListener("keydown", onKeydown);
   });
 </script>
 
@@ -45,8 +48,20 @@
   <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="docInfoTitle">
       <h2 id="docInfoTitle"><svg class="icon"><use href="#icon-info"></use></svg> Document info</h2>
-      <div class="doc-info-row"><span>Created</span><span>{window.MDE.formatRelativeTime(doc.createdAt)}</span></div>
-      <div class="doc-info-row"><span>Edited</span><span>{window.MDE.formatRelativeTime(doc.updatedAt)}</span></div>
+      <div class="doc-info-row">
+        <span>Created</span>
+        <span class="doc-info-value">
+          {window.MDE.formatRelativeTime(doc.createdAt)}
+          <span class="doc-info-timestamp">{formatFullTimestamp(doc.createdAt)}</span>
+        </span>
+      </div>
+      <div class="doc-info-row">
+        <span>Edited</span>
+        <span class="doc-info-value">
+          {window.MDE.formatRelativeTime(doc.updatedAt)}
+          <span class="doc-info-timestamp">{formatFullTimestamp(doc.updatedAt)}</span>
+        </span>
+      </div>
       <div class="doc-info-row"><span>Length</span><span>{wordCount} word{wordCount === 1 ? "" : "s"}, {charCount} character{charCount === 1 ? "" : "s"}</span></div>
       <div class="menu-section-label">Linked from</div>
       {#if backlinks.length === 0}

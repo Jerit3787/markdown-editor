@@ -311,7 +311,6 @@
       <div id="presenceBar" class="presence-bar" hidden></div>
       <button id="commentsBtn" class="icon-btn" type="button" title="Comments" aria-label="Comments"><svg class="icon"><use href="#icon-message-square"></use></svg></button>
       <button id="versionHistoryBtn" class="icon-btn" type="button" title="Version history" aria-label="Version history"><svg class="icon"><use href="#icon-history"></use></svg></button>
-      <button id="docInfoBtn" class="icon-btn" type="button" title="Document info" aria-label="Document info"><svg class="icon"><use href="#icon-info"></use></svg></button>
       <button id="shareBtn" class="share-pill" type="button"><svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span></button>
       <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
     </div>
@@ -371,6 +370,12 @@
         </div>
       </div>
     </main>
+
+    <!-- Comments Panel — Svelte component, mounted in main.ts; see
+         client/src/components/CommentsPanel.svelte. A #body flex sibling
+         (not a fixed-position overlay) so opening it pushes #main's
+         content left/narrower instead of floating on top of it. -->
+    <div id="comments-panel-mount"></div>
   </div>
 
   <footer id="statusbar">
@@ -410,10 +415,6 @@
 <!-- Version History — Svelte component, mounted in main.ts; see
      client/src/components/VersionHistory.svelte -->
 <div id="version-history-mount"></div>
-
-<!-- Comments Panel — Svelte component, mounted in main.ts; see
-     client/src/components/CommentsPanel.svelte -->
-<div id="comments-panel-mount"></div>
 
 <!-- Document Info panel — Svelte component, mounted in main.ts; see
      client/src/components/DocInfoPanel.svelte -->

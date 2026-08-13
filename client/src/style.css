@@ -1329,7 +1329,7 @@ body.focus-mode #statusbar {
 .view-selector button:hover { background: var(--border); }
 .view-selector button.active { background: var(--accent-dim); color: var(--accent); }
 
-#toolbar button {
+.toolbar-buttons button {
   border: none;
   background: transparent;
   color: var(--text);
@@ -1340,7 +1340,7 @@ body.focus-mode #statusbar {
   min-width: 30px;
 }
 
-#toolbar button:hover { background: var(--border); }
+.toolbar-buttons button:hover { background: var(--border); }
 
 .sep {
   width: 1px;

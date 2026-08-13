@@ -1619,11 +1619,13 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   function collapseSidebarForMobile() {
     if (!isMobile()) return;
     document.getElementById("sidebar").classList.add("collapsed");
+    document.getElementById("sidebarBackdrop").hidden = true;
     setSidebarToggleState(false);
   }
 
   function toggleSidebar() {
     const collapsed = document.getElementById("sidebar").classList.toggle("collapsed");
+    document.getElementById("sidebarBackdrop").hidden = !isMobile() || collapsed;
     setSidebarToggleState(!collapsed);
   }
 
@@ -1637,6 +1639,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
     document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarToggleOut").addEventListener("click", toggleSidebar);
+    document.getElementById("sidebarBackdrop").addEventListener("click", toggleSidebar);
 
     document.getElementById("newDocBtn").addEventListener("click", createNewDoc);
   }

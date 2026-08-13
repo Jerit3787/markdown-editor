@@ -322,6 +322,13 @@
 
   <div id="body">
 
+    <!-- Formatting toolbar + view selector — Toolbar.svelte renders two
+         root elements here (see that component): #toolbar spans the
+         sidenav+editor+preview columns, .view-selector sits in its own
+         column aligned above the comment sidenav. See #body's
+         grid-template-areas in style.css. -->
+    <div id="toolbar-mount"></div>
+
     <!-- Sidebar: document list -->
     <aside id="sidebar">
       <div id="sidebarHeader">
@@ -344,19 +351,15 @@
 
     <!-- Editor + Preview -->
     <main id="main">
-      <div id="toolbar-mount"></div>
+      <section id="editorPane" class="pane">
+        <div id="editor-mount"></div>
+      </section>
 
-      <div id="panesRow">
-        <section id="editorPane" class="pane">
-          <div id="editor-mount"></div>
-        </section>
+      <div id="divider"></div>
 
-        <div id="divider"></div>
-
-        <section id="previewPane" class="pane">
-          <div id="preview"></div>
-        </section>
-      </div>
+      <section id="previewPane" class="pane">
+        <div id="preview"></div>
+      </section>
 
       <!-- Shown instead of editorPane/previewPane/divider (see app.ts's
            updateMainView) when no document is open — a brand-new visitor
@@ -377,9 +380,11 @@
     </main>
 
     <!-- Comments Panel — Svelte component, mounted in main.ts; see
-         client/src/components/CommentsPanel.svelte. A #body flex sibling
+         client/src/components/CommentsPanel.svelte. A #body grid item
          (not a fixed-position overlay) so opening it pushes #main's
-         content left/narrower instead of floating on top of it. -->
+         content left/narrower instead of floating on top of it — and its
+         column width is shared with the view selector above it (see
+         #body's grid-template-areas in style.css). -->
     <div id="comments-panel-mount"></div>
   </div>
 

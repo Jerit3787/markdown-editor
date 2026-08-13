@@ -866,6 +866,12 @@ body.focus-mode #statusbar {
 .hint-toggle-btn:hover, .hint-toggle-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 .hint-text { margin: -4px 0 12px; }
 
+.doc-info-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.doc-info-row span:first-child { color: var(--text-dim); }
+.doc-info-backlinks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.doc-info-backlink-row { text-align: left; border: none; background: var(--bg-alt); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-family: inherit; font-size: 13px; }
+.doc-info-backlink-row:hover { background: var(--border); }
+
 .modal-field { display: block; margin-bottom: 12px; }
 .modal-field span { display: block; font-size: 12.5px; color: var(--text-dim); margin-bottom: 4px; }
 .modal-field input {

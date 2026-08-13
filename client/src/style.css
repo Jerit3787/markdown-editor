@@ -208,7 +208,12 @@ body.focus-mode #statusbar {
   padding: 5px 8px;
   border-radius: 6px;
   color: var(--text);
-  min-width: 80px;
+  /* Small enough to stay clickable for a very short name, not big
+     enough to leave a visible gap before the save-status icon when
+     resizeDocTitle() has already sized the field to fit the actual
+     text (see app.ts) — 80px previously left a large empty gap after
+     any short title. */
+  min-width: 24px;
   max-width: 260px;
   /* Actual width is set in JS (see app.js resizeDocTitle) by measuring
      #docTitleMirror — min/max-width above still clamp it either way.
@@ -1300,7 +1305,10 @@ body.focus-mode #statusbar {
 #preview {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 40px;
+  /* Equal top/bottom (was 28px top, leaving the first line sitting
+     closer to the topbar than the editor pane's own toolbar-buffered
+     top ever does) — matches the horizontal padding too. */
+  padding: 40px;
   line-height: 1.7;
   font-size: 15.5px;
 }
@@ -1336,6 +1344,11 @@ body.focus-mode #statusbar {
 #preview th { background: var(--bg-alt); }
 #preview img { max-width: 100%; border-radius: 6px; }
 #preview a { color: var(--accent); }
+/* GFM task-list items (marked's checkbox <li>s carry no distinguishing
+   class in this version — bare <li><input type="checkbox">...) still
+   get the browser's default bullet marker alongside the checkbox
+   without this, showing both a dot and a checkbox. */
+#preview li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.2em; }
 #preview hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 
 .sr-only {

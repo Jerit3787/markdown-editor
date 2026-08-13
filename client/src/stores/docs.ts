@@ -9,14 +9,31 @@ import type { Doc, Note } from "../types";
 import { showToast } from "./toast";
 import { deleteHistory } from "../history";
 import { relocateAnchor } from "../anchor";
+import { ensureUniqueName, nextAvailableName } from "../doc-naming";
 
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
 
+// Fixes up two things that could exist in storage from before this
+// feature: duplicate names (wikilinks need exact-match resolution to
+// stay unambiguous) and a missing createdAt (backfilled from
+// updatedAt, the closest available approximation). Deterministic given
+// the stored array's order, so re-running it on every load without
+// persisting the result immediately is safe — it converges to the same
+// output every time until the next real save writes it back for good.
+function normalizeLoadedDocs(docs: Doc[]): Doc[] {
+  const seen = new Set<string>();
+  return docs.map((d) => {
+    const name = nextAvailableName(d.name || "Untitled", seen);
+    seen.add(name);
+    return { ...d, name, createdAt: d.createdAt ?? d.updatedAt };
+  });
+}
+
 function loadDocsFromStorage(): Doc[] {
   try {
     const raw = localStorage.getItem(STORAGE_DOCS);
-    if (raw) return JSON.parse(raw);
+    if (raw) return normalizeLoadedDocs(JSON.parse(raw));
   } catch (e) { /* ignore corrupt storage */ }
   // No seeded Welcome doc — a brand-new visitor (or someone who deletes
   // every document) sees the empty state instead, same as VS Code with no
@@ -87,13 +104,22 @@ function updateDoc(id: string, changes: Partial<Doc>) {
 export function saveActiveDocContent() {
   const doc = getActiveDoc();
   if (!doc) return;
-  updateDoc(doc.id, { content: get(activeDocContent), updatedAt: Date.now() });
+  const content = get(activeDocContent);
+  // Merely opening/switching away from a document with no pending
+  // edit must not bump updatedAt — DocList.svelte sorts by it, and
+  // navigation alone shouldn't reorder the sidebar (only a real edit
+  // should). switchDoc() calls this on every switch regardless of
+  // whether anything actually changed, so this check is what makes
+  // that distinction instead of the debounced-save path.
+  if (content === doc.content) return;
+  updateDoc(doc.id, { content, updatedAt: Date.now() });
   persistDocs();
 }
 
 export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string }): Doc {
   saveActiveDocContent();
-  const doc: Doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now() }, partial);
+  const doc: Doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now(), createdAt: Date.now() }, partial);
+  doc.name = ensureUniqueName(doc.name, get(docsStore));
   docsStore.update((docs) => [doc, ...docs]);
   setActiveId(doc.id);
   persistDocs();
@@ -111,10 +137,11 @@ export function switchDoc(id: string): boolean {
   return true;
 }
 
-export function deleteDoc(id: string): Doc | undefined {
-  const doc = findDocById(id);
-  if (!doc) return undefined;
-  if (!confirm(`Delete "${doc.name}"? This can't be undone.`)) return undefined;
+// Non-confirming delete primitive — shared by deleteDoc() (which
+// confirms first) and RenameCollisionModal.svelte's Replace action
+// (where the modal itself is already the confirmation). Exported so
+// that component can call it directly.
+export function removeDocById(id: string) {
   docsStore.update((docs) => docs.filter((d) => d.id !== id));
   // Deleting the last remaining doc leaves docs empty and activeId null —
   // the reactive editor subscription shows the empty state rather than
@@ -125,8 +152,22 @@ export function deleteDoc(id: string): Doc | undefined {
   }
   persistDocs();
   void deleteHistory(id);
+}
+
+export function deleteDoc(id: string): Doc | undefined {
+  const doc = findDocById(id);
+  if (!doc) return undefined;
+  if (!confirm(`Delete "${doc.name}"? This can't be undone.`)) return undefined;
+  removeDocById(id);
   showToast(`Deleted "${doc.name || "Untitled"}"`, "success");
   return doc;
+}
+
+// Used by app.ts's docTitle blur handler to decide whether a
+// deliberate rename needs RenameCollisionModal instead of committing
+// directly.
+export function findCollidingDoc(id: string, name: string): Doc | undefined {
+  return get(docsStore).find((d) => d.id !== id && d.name === name);
 }
 
 // Doc-row "..." menu action (DocList.svelte) — not a rename/edit, a full
@@ -135,7 +176,8 @@ export function duplicateDoc(id: string): Doc | undefined {
   if (!findDocById(id)) return undefined;
   saveActiveDocContent();
   const source = findDocById(id)!; // re-read: saveActiveDocContent may have just updated it
-  const copy: Doc = { ...source, id: uid(), name: `${source.name || "Untitled"} (copy)`, updatedAt: Date.now() };
+  const name = ensureUniqueName(`${source.name || "Untitled"} (copy)`, get(docsStore));
+  const copy: Doc = { ...source, id: uid(), name, updatedAt: Date.now(), createdAt: Date.now() };
   // A duplicate is a fresh, unshared, unpublished document — it must not
   // carry over the room/gist identity of the doc it was copied from.
   delete copy.shared;

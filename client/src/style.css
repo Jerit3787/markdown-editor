@@ -1787,7 +1787,10 @@ body.focus-mode #statusbar {
   #topbar::after, #toolbar::after {
     content: "";
     position: absolute;
-    inset: 0;
+    /* inset:0 alone stops at the parent's padding edge, leaving its own
+       border-bottom (1px, outside the padding box) showing through as
+       an undimmed line — extend 1px past the bottom to cover it too. */
+    inset: 0 0 -1px 0;
     background: rgba(0, 0, 0, 0.5);
     opacity: 0;
     pointer-events: none;

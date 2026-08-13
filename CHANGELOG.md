@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.5] - 2026-08-13
+
+### Fixed
+
+- iOS zoom-on-focus (v1.15.1) only covered the editor and title field
+  — every other text field (comment drafts/replies, modal fields,
+  the command palette) still triggered it. Now covers every text
+  field in the app generically.
+
+### Changed
+
+- What's New's screenshot is bigger — it looked small even after
+  fixing the crop.
+
 ## [1.15.4] - 2026-08-13
 
 ### Fixed

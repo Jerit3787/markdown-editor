@@ -207,10 +207,27 @@ export function markActiveDocShared(shared: boolean): Doc | undefined {
   return findDocById(doc.id);
 }
 
-export function setActiveDocGistId(gistId: string): Doc | undefined {
+// filename is the exact name the gist itself knows this file by —
+// callers (gist.ts) must keep passing the same value back on every
+// subsequent update unless they've deliberately renamed the gist file
+// itself (see gistFilename's own comment in types.ts for why).
+export function setActiveDocGistId(gistId: string, filename: string): Doc | undefined {
   const doc = getActiveDoc();
   if (!doc) return undefined;
-  updateDoc(doc.id, { gistId, updatedAt: Date.now() });
+  updateDoc(doc.id, { gistId, gistFilename: filename, updatedAt: Date.now() });
+  persistDocs();
+  return findDocById(doc.id);
+}
+
+// Called when a gist operation 404s — the gist was deleted outside
+// this app (there's no other way for it to stop existing), and
+// without this the app kept treating the document as linked forever,
+// with no way to notice or clear it short of editing localStorage by
+// hand.
+export function clearActiveDocGist(): Doc | undefined {
+  const doc = getActiveDoc();
+  if (!doc) return undefined;
+  updateDoc(doc.id, { gistId: undefined, gistFilename: undefined });
   persistDocs();
   return findDocById(doc.id);
 }

@@ -92,7 +92,6 @@ body.focus-mode #statusbar {
    between them, unlike .topbar-row's wider 8px gap used to separate
    the row's distinct sections from each other. */
 .topbar-actions { display: flex; align-items: center; gap: 0; }
-#topbarRow1 { border-bottom: 1px solid var(--border); }
 /* Indented to align under the document title, not the logo — the logo
    visually spans both topbar rows (Google Docs' layout), so the menu
    bar row starts where the title's own left edge starts: 14px (this

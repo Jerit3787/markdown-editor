@@ -4,6 +4,26 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.2] - 2026-08-13
+
+### Changed
+
+- Document Info moved out of the topbar into the File menu only, and
+  now shows a full timestamp alongside its relative time ("Today" /
+  "13 Aug 2026, 8:45 PM").
+- The Comments panel now pushes the editor/preview narrower when
+  opened instead of floating on top of them, and the topbar icon
+  toggles it open/closed (previously only opened it) with an active
+  state while open.
+
+### Fixed
+
+- Every modal in the app (including What's New's full-screen mobile
+  layout) was rendering underneath the topbar instead of above it — a
+  regression from v1.15.1's Comments-panel topbar fix.
+- The rename-collision prompt (Replace/Save as/Cancel) had no way to
+  dismiss it by clicking outside, unlike every other modal in the app.
+
 ## [1.15.1] - 2026-08-13
 
 ### Fixed

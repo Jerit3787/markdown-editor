@@ -87,7 +87,12 @@ body.focus-mode #statusbar {
 
 .topbar-row { display: flex; align-items: center; gap: 8px; padding: 6px 14px; }
 #topbarRow1 { border-bottom: 1px solid var(--border); }
-#menuBar { gap: 2px; padding-top: 4px; padding-bottom: 4px; }
+/* Indented to align under the document title, not the logo — the logo
+   visually spans both topbar rows (Google Docs' layout), so the menu
+   bar row starts where the title's own left edge starts: 14px (this
+   row's own base padding-left, shared via .topbar-row) + 22px (the
+   logo's fixed width) + 8px (.topbar-row's gap between them) = 44px. */
+#menuBar { gap: 2px; padding-top: 4px; padding-bottom: 4px; padding-left: 44px; }
 
 .share-pill {
   display: inline-flex;
@@ -1653,6 +1658,12 @@ body.focus-mode #statusbar {
      Wrapping can't clip anything, and in practice nothing needs to wrap
      down to real phone widths anyway (verified at 390px). */
   .topbar-row { flex-wrap: wrap; row-gap: 4px; padding-left: 10px; padding-right: 10px; }
+  /* The desktop-only indent (aligning the menu bar under the document
+     title instead of the logo) doesn't apply here — mobile's own topbar
+     already wraps to fit, so keep File/Edit/View/Help flush with the
+     rest of the row instead of reserving logo-width space that isn't
+     there. */
+  #menuBar { padding-left: 10px; }
   .share-pill, .menubar-btn, #settingsBtn { flex-shrink: 0; }
   #menuBar .icon-btn { width: 40px; height: 40px; flex-shrink: 0; }
 

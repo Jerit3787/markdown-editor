@@ -170,6 +170,14 @@ export class CollabRoom {
     if (versionMatch) return this.handleVersionContentRequest(request, versionMatch[1]!);
     if (url.pathname.endsWith("/versions")) return this.handleVersionsListRequest(request);
 
+    const replyMatch = url.pathname.match(/\/comments\/([^/]+)\/reply$/);
+    if (replyMatch) return this.handleCommentReplyRequest(request, replyMatch[1]!);
+    const resolveMatch = url.pathname.match(/\/comments\/([^/]+)\/resolve$/);
+    if (resolveMatch) return this.handleCommentResolveRequest(request, resolveMatch[1]!);
+    const commentIdMatch = url.pathname.match(/\/comments\/([^/]+)$/);
+    if (commentIdMatch) return this.handleCommentDeleteRequest(request, commentIdMatch[1]!);
+    if (url.pathname.endsWith("/comments")) return this.handleCommentsRequest(request);
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected websocket", { status: 426 });
     }
@@ -220,6 +228,84 @@ export class CollabRoom {
     }, "restore");
     const created = await this.forceSnapshot(snap.content);
     return Response.json(created);
+  }
+
+  // ---------- Comment threads (HTTP) ----------
+
+  async handleCommentsRequest(request: Request): Promise<Response> {
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (request.method === "GET") return Response.json(this.getComments());
+    if (request.method === "POST") {
+      if (auth.role === "viewer") return new Response("Viewers can't comment.", { status: 403 });
+      let body: { from?: unknown; to?: unknown; quote?: unknown; body?: unknown };
+      try {
+        body = await request.json();
+      } catch (err) {
+        return new Response("Invalid JSON.", { status: 400 });
+      }
+      if (
+        typeof body.from !== "number" ||
+        typeof body.to !== "number" ||
+        typeof body.quote !== "string" ||
+        typeof body.body !== "string" ||
+        !body.body.trim()
+      ) {
+        return new Response("Invalid comment.", { status: 400 });
+      }
+      const thread = this.createThread(body.from, body.to, body.quote, auth.username || "Anonymous", body.body);
+      await this.persistComments();
+      return Response.json(thread);
+    }
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  async handleCommentReplyRequest(request: Request, threadId: string): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (auth.role === "viewer") return new Response("Viewers can't comment.", { status: 403 });
+    let body: { body?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      return new Response("Invalid JSON.", { status: 400 });
+    }
+    if (typeof body.body !== "string" || !body.body.trim()) return new Response("Invalid reply.", { status: 400 });
+    const thread = this.addReply(threadId, auth.username || "Anonymous", body.body);
+    if (!thread) return new Response("Thread not found.", { status: 404 });
+    await this.persistComments();
+    return Response.json(thread);
+  }
+
+  async handleCommentResolveRequest(request: Request, threadId: string): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (auth.role === "viewer") return new Response("Viewers can't resolve comments.", { status: 403 });
+    let body: { resolved?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      return new Response("Invalid JSON.", { status: 400 });
+    }
+    const thread = this.resolveThread(threadId, body.resolved !== false);
+    if (!thread) return new Response("Thread not found.", { status: 404 });
+    await this.persistComments();
+    return Response.json(thread);
+  }
+
+  async handleCommentDeleteRequest(request: Request, threadId: string): Promise<Response> {
+    if (request.method !== "DELETE") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const access = await this.getAccess();
+    const isOwner = auth.username !== null && auth.username === access.owner;
+    const result = this.deleteThread(threadId, auth.username, isOwner);
+    if (result === "not_found") return new Response("Thread not found.", { status: 404 });
+    if (result === "forbidden") return new Response("Only the thread's author or the document owner can delete it.", { status: 403 });
+    await this.persistComments();
+    return new Response(null, { status: 204 });
   }
 
   // ---------- Access control ----------

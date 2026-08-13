@@ -6,6 +6,7 @@
   import { viewMode } from "../stores/view";
   import { focusMode } from "../stores/focusMode";
   import { whatsNewOpen } from "../stores/whatsNew";
+  import { versionHistoryOpen } from "../stores/versionHistory";
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
   let editMenuBtn: HTMLButtonElement, editMenu: HTMLDivElement;
@@ -124,6 +125,11 @@
           <button type="button" onclick={() => act(() => window.MDE.exportAs("txt"))}><svg class="icon"><use href="#icon-download"></use></svg> Plain text (.txt)</button>
         </div>
       </div>
+
+      <div class="menu-divider"></div>
+      <button id="menuVersionHistory" type="button" onclick={() => act(() => versionHistoryOpen.set(true))}>
+        <svg class="icon"><use href="#icon-history"></use></svg> Version history
+      </button>
 
       <div class="menu-divider"></div>
       <button id="menuDeleteDoc" type="button" onclick={() => act(() => deleteDoc($activeIdStore ?? ""))}>

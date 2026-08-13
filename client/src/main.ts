@@ -16,6 +16,7 @@ import DiagramEditor from "./components/DiagramEditor.svelte";
 import WhatsNew from "./components/WhatsNew.svelte";
 import CommandPalette from "./components/CommandPalette.svelte";
 import SlashMenu from "./components/SlashMenu.svelte";
+import VersionHistory from "./components/VersionHistory.svelte";
 import DocList from "./components/DocList.svelte";
 import Toast from "./components/Toast.svelte";
 import MenuBar from "./components/MenuBar.svelte";
@@ -39,6 +40,7 @@ mount(DiagramEditor, { target: document.getElementById("diagram-editor-mount")! 
 mount(WhatsNew, { target: document.getElementById("whats-new-mount")! });
 mount(CommandPalette, { target: document.getElementById("command-palette-mount")! });
 mount(SlashMenu, { target: document.getElementById("slash-menu-mount")! });
+mount(VersionHistory, { target: document.getElementById("version-history-mount")! });
 mount(DocList, { target: document.getElementById("doclist-mount")! });
 mount(Toast, { target: document.getElementById("toast-mount")! });
 mount(MenuBar, { target: document.getElementById("menubar-mount")! });

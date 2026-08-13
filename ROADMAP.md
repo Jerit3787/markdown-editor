@@ -34,6 +34,9 @@ commitments.
       app commands (v1.10.0)
 - [x] Slash commands — inline `/`-triggered insertion menu for block-level
       elements, anchored to the cursor (v1.11.0)
+- [x] Version history with revert — automatic background snapshots for
+      every document (local and shared alike), non-destructive restore
+      (v1.12.0)
 
 ## Backlog — quick wins
 
@@ -45,8 +48,6 @@ The quick-wins backlog is now empty — see the other tiers below.
 
 Extends existing Yjs / role infrastructure rather than adding new systems.
 
-- [ ] Version history with revert (periodic Yjs doc snapshots in Durable
-      Object storage)
 - [ ] Threaded comments anchored to text (natural extension of the existing
       reviewer role)
 - [ ] Wikilinks + backlinks between documents

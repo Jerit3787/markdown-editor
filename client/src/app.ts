@@ -34,6 +34,7 @@ import { emacs } from "@replit/codemirror-emacs";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
+import { maybeSnapshotVersion } from "./history";
 // Unlike Mermaid's SVGs (which bake their own <style> in at render time),
 // KaTeX's HTML output has no self-contained styling — it's entirely
 // dependent on this stylesheet. buildStandaloneHtml()'s exported <style>
@@ -1005,7 +1006,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   function saveNow() {
     saveActiveDocContent();
-    setSaveStatus(savedLabel(getActiveDoc()));
+    const doc = getActiveDoc();
+    // Once a document has ever been shared, CollabRoom (server-side) is
+    // the sole owner of its history — see history.ts's own comment.
+    if (doc && !doc.shared) void maybeSnapshotVersion(doc.id, doc.content);
+    setSaveStatus(savedLabel(doc));
   }
 
   // Everything always lives in this browser's localStorage first; the

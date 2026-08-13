@@ -291,9 +291,9 @@
 
   <!-- Top bar: identity/actions row, then a File/Edit/View/Help menu bar -->
   <header id="topbar">
-    <div id="topbarRow1" class="topbar-row">
-      <div id="brand"><img src="/logo.svg" width="22" height="22" alt="Markdown Editor"></div>
+    <div id="brand"><img src="/logo.svg" width="28" height="28" alt="Markdown Editor"></div>
 
+    <div id="topbarRow1" class="topbar-row">
       <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title">
       <span id="docTitleMirror" aria-hidden="true"></span>
 
@@ -305,9 +305,11 @@
           <a id="saveStatusGistLink" class="menu-link-item" href="#" target="_blank" rel="noopener" hidden><svg class="icon"><use href="#icon-github"></use></svg> Also linked to a GitHub Gist</a>
         </div>
       </div>
+    </div>
 
-      <div class="spacer"></div>
+    <div id="menubar-mount"></div>
 
+    <div id="topbarActionsCol">
       <div id="presenceBar" class="presence-bar" hidden></div>
       <div class="topbar-actions">
         <button id="commentsBtn" class="icon-btn" type="button" title="Comments" aria-label="Comments"><svg class="icon"><use href="#icon-message-square"></use></svg></button>
@@ -316,8 +318,6 @@
         <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
       </div>
     </div>
-
-    <div id="menubar-mount"></div>
   </header>
 
   <div id="body">

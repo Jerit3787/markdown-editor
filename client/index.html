@@ -342,16 +342,19 @@
 
     <!-- Editor + Preview -->
     <main id="main">
-      <section id="editorPane" class="pane">
-        <div id="toolbar-mount"></div>
-        <div id="editor-mount"></div>
-      </section>
+      <div id="toolbar-mount"></div>
 
-      <div id="divider"></div>
+      <div id="panesRow">
+        <section id="editorPane" class="pane">
+          <div id="editor-mount"></div>
+        </section>
 
-      <section id="previewPane" class="pane">
-        <div id="preview"></div>
-      </section>
+        <div id="divider"></div>
+
+        <section id="previewPane" class="pane">
+          <div id="preview"></div>
+        </section>
+      </div>
 
       <!-- Shown instead of editorPane/previewPane/divider (see app.ts's
            updateMainView) when no document is open — a brand-new visitor

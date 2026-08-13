@@ -1107,6 +1107,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     (document.getElementById("editorPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("previewPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("divider") as HTMLElement).style.display = empty ? "none" : "";
+    (document.getElementById("toolbar") as HTMLElement).style.display = empty ? "none" : "";
 
     // On mobile the sidebar is a full-height overlay (see css) — if it was
     // open (e.g. the user just deleted the last doc from the doc list),

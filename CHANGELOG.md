@@ -4,6 +4,43 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.1] - 2026-08-13
+
+### Fixed
+
+- Pasted/dropped images whose filename contained a space (nearly all
+  of them — e.g. macOS's default "Screenshot ... at H.MM.SS PM.png"
+  naming) never rendered, in the preview or on export. The generated
+  reference embedded that space directly into `![alt](ref)` markdown
+  syntax, which isn't valid without escaping, so it silently fell back
+  to rendering as literal text instead of an image.
+- Renaming a document and then updating its linked Gist created a
+  second file in the gist instead of updating the existing one —
+  GitHub's Gist API only updates a file in place when the request's
+  filename key exactly matches an existing one.
+- If a linked Gist was deleted outside the app, it stayed showing as
+  linked indefinitely with no way to clear it.
+- Tab now indents in the editor instead of doing nothing.
+- The cursor landed *before* an inserted heading/list/quote marker
+  instead of after it when applied to an empty line.
+- Checkbox list items showed a bullet dot next to the checkbox.
+- The document title field's minimum width left a visible gap before
+  the save-status icon on short names; pressing Enter there now
+  commits the rename and moves focus to the editor.
+- The text-selection highlight disappeared the moment you started
+  typing a comment on it.
+- The floating "Add comment" button could appear even with the
+  Comments panel closed, and the open panel itself could cover the
+  topbar's own buttons.
+- The Images manager gave no indication when a still-listed image's
+  reference had been removed from the document.
+- Three mobile-specific issues: Safari zooming in on focusing the
+  title field or editor and never zooming back out, the stacked
+  editor/preview layout's scroll area getting clipped by `100vh` not
+  accounting for the browser's own chrome, and the What's New modal
+  cramming a fixed-width screenshot beside its text instead of using
+  the full screen.
+
 ## [1.15.0] - 2026-08-13
 
 ### Added

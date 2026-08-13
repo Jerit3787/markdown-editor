@@ -15,82 +15,36 @@ of these (the comment-highlight-while-typing bug, the gist rename
 duplication) are exactly the kind of regression that's cheap to prevent
 with a test and expensive to rediscover by hand later.
 
-**Tested until v1.14.0** — items below may already be stale against
+**Tested until v1.15.0** — items below may already be stale against
 later releases; verify before starting each one.
 
 ---
 
 ## Phase 1 — Quick / low-risk fixes
 
-Small, independent, each fixable and testable on its own.
-
-### Editor
-- [ ] Pressing Enter in the document title field saves the name and
-      moves focus to the editor (currently it doesn't — or does
-      something else; clarify exact current vs. desired behavior when
-      picked up).
-- [ ] Adding a heading (or similar block-prefix insertion) leaves the
-      cursor positioned before the inserted marker instead of after
-      it, forcing the user to move the cursor before typing.
-- [ ] Checkbox list items render with a plain dot instead of an actual
-      checkbox.
-- [ ] Tab/indent key presses aren't handled in the editor at all
-      (distinct from Phase 2's "tabbed space support" — this is about
-      the raw Tab keypress doing nothing useful).
-
-### Layout / sizing
-- [ ] No minimum width on the document title field — when the name is
-      short, there's a visible gap between the cloud (save-status)
-      icon and the name.
-- [ ] On desktop, the title field is slightly too small, cropping
-      some text/letters.
-- [ ] The preview pane's top padding/margin doesn't match its bottom,
-      so the first line of text sits too close to the UI above it.
-- [ ] Toolbar/tooltip ordering isn't grouped by type — re-arrange so
-      related tools sit together.
-
-### Mobile
-- [ ] Focusing a cursor on mobile zooms the page and never restores
-      zoom level afterward — force no-zoom-on-focus.
-- [ ] In the stacked (up-down) editor/preview layout on small screens,
-      scrolling is broken.
-- [ ] The What's New modal should be a full-screen modal on mobile,
-      navigated top-bottom rather than left-right.
+Small, independent, each fixable and testable on its own. Everything
+from the original pass has shipped (v1.15.0-fixes, 2026-08-13) except
+the two items still listed below — see CHANGELOG.md for the full list
+of what was fixed, including the real root causes found along the way
+(a filename-sanitization bug was why images "couldn't be imported,"
+not a rendering bug; a Gist API filename-matching bug was why renaming
++ updating created a duplicate file, not a publish bug).
 
 ### Comments
 - [ ] Replying to a comment or marking one resolved is broken in
-      practice (confirmed 2026-08-13) — investigate root cause; this
-      shipped in v1.13.0 and needs a regression test once fixed so it
-      doesn't silently break again.
-- [ ] Selecting text then clicking "Add comment": once the user starts
-      typing the comment body, the source text's highlight disappears.
-- [ ] The "Add comment" floating button should only appear when the
-      Comments panel is actually open.
-- [ ] The Comments panel (currently a fixed right-hand overlay) blocks
-      topbar buttons and doesn't share space with the editor/preview/
-      document-list layout the way it should — it should sit alongside
-      them instead of overlapping. (Partially informs Phase 3's full
-      desktop redesign, which gives Comments its own permanent pane —
-      but this is worth a lighter interim fix before that lands.)
+      practice (confirmed 2026-08-13) — reviewed the full path (server
+      routes, HTTP handlers, client fetch wrappers, panel UI) against
+      the original design and found no defect; the server-side logic
+      already has passing tests. Needs a fresh repro with specifics
+      (exact steps, and whether it's a network error, a UI freeze, or
+      a silent no-op) — couldn't reproduce blind, and this needs a
+      real shared document with two GitHub-authenticated roles
+      interacting to test properly.
 
-### Gist / sharing
-- [ ] Renaming a document and then updating its linked Gist creates a
-      second Gist instead of updating the existing one in place.
-- [ ] If a Gist is deleted (outside the app), the app still thinks the
-      document is linked to it — no way to detect/clear the stale
-      link.
-- [ ] A shared document doesn't propagate a name change to other
-      collaborators — if one party renames it, others don't see the
-      new name.
-
-### Images
-- [ ] Some images fail to render — reproduction case:
-      https://gist.github.com/Jerit3787/8343d265ba1ed4aa429dc191f9c90162
-- [ ] A specific import/paste case fails to show the image at all
-      (repro screenshot was attached when this was filed — get a
-      fresh repro since the original attachment didn't resolve).
-- [ ] The Images manager keeps listing an image even after every
-      reference to it has been removed from the document.
+### Layout / sizing
+- [ ] Toolbar/tooltip ordering isn't grouped by type — re-arrange so
+      related tools sit together. (Deferred: needs an actual proposed
+      grouping to react to, not a guess at what "by type" means here.)
 
 ---
 
@@ -115,6 +69,17 @@ its own, same process as every feature shipped this session.
 - [ ] Split the Format and Insert menu concerns apart (currently
       combined).
 - [ ] MultiMarkdown syntax support.
+- [ ] **Shared document name sync.** Only document *content* syncs
+      between collaborators today (via Yjs's `ytext`) — the document
+      name is purely local per-browser and never touches the collab
+      layer at all, so a rename by one party never reaches anyone
+      else. Reclassified here from an original "quick fix" report
+      (2026-08-13) once investigation showed it needs a new synced
+      field (a second Y-doc field alongside `ytext`, or a
+      CollabRoom-stored metadata field with its own sync path) plus a
+      real design decision: should renaming respect the same
+      viewer/reviewer/editor role gating comments already use, or
+      should any collaborator be able to rename?
 
 ---
 

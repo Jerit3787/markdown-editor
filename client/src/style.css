@@ -86,6 +86,12 @@ body.focus-mode #statusbar {
 }
 
 .topbar-row { display: flex; align-items: center; gap: 8px; padding: 6px 14px; }
+
+/* Comments/history/share/settings read as one grouped cluster (matching
+   the mockup's single "comment history share etc." cell) — no gap
+   between them, unlike .topbar-row's wider 8px gap used to separate
+   the row's distinct sections from each other. */
+.topbar-actions { display: flex; align-items: center; gap: 0; }
 #topbarRow1 { border-bottom: 1px solid var(--border); }
 /* Indented to align under the document title, not the logo — the logo
    visually spans both topbar rows (Google Docs' layout), so the menu

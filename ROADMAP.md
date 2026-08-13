@@ -126,3 +126,18 @@ to matter later.
       are counted, via a tool like `rollup-plugin-license`) instead of
       just the 19 direct dependencies — deferred for readability; worth
       reconsidering if a formal compliance requirement ever needs it
+- [ ] Inline-formatting slash commands (Bold/Italic/Strikethrough/Inline
+      code/Link) — v1.11.0 shipped block-level insertions only, at the
+      user's explicit request; inline formatting stays toolbar- and
+      Command-Palette-only for now
+- [ ] Custom/user-defined slash commands — v1.11.0's 14 entries are a
+      fixed, built-in list
+- [ ] Text diff / change-highlighting between versions in Version
+      History — v1.12.0 shipped full-content read-only preview only, no
+      line-by-line comparison UI
+- [ ] Manually-named version checkpoints ("save version now") — v1.12.0's
+      history is fully automatic (throttled background snapshots); a
+      manual save action was considered and explicitly deferred
+- [ ] Age-based (rather than count-based) version retention — v1.12.0
+      caps at the 50 most recent snapshots per document regardless of
+      how old they are, not a calendar window

@@ -519,15 +519,14 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   type KeybindingMode = "normal" | "vim" | "emacs";
 
-  // drawSelection() isn't in this app's base extension list
-  // at all today — the vim package's own docs call it out as required
-  // for correct visual-mode selection rendering when not using CM6's
-  // basicSetup (which this app doesn't use). Bundled in only when a
-  // keybinding mode is actually active, so Normal-mode users see no
-  // change at all.
+  // drawSelection() is now in the base extension list (see
+  // buildEditorExtensions) — vim mode needs it (the vim package's own
+  // docs call it out as required for correct visual-mode selection
+  // rendering when not using CM6's basicSetup, which this app doesn't
+  // use) and it's already unconditional, so it isn't added again here.
   function keybindingsExtensionsFor(mode: KeybindingMode): Extension[] {
-    if (mode === "vim") return [vim(), drawSelection()];
-    if (mode === "emacs") return [emacs(), drawSelection()];
+    if (mode === "vim") return [vim()];
+    if (mode === "emacs") return [emacs()];
     return [];
   }
 
@@ -580,6 +579,16 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       syntaxHighlighting(markdownHighlightStyle),
       editorTheme,
       EditorView.lineWrapping,
+      // CM6's own decoration-based selection overlay — renders
+      // regardless of DOM focus, unlike the browser's native text
+      // selection (what CM6 falls back to without this), which visibly
+      // disappears the moment focus moves elsewhere — e.g. to the
+      // Comments panel's draft textarea while writing a comment on the
+      // very text you just selected. editorTheme's own
+      // .cm-selectionBackground rule was already written to keep the
+      // same color in both focus states; this is what actually makes
+      // that apply.
+      drawSelection(),
       imageMarkerField,
       slashTriggerField,
       slashMenuSyncListener,

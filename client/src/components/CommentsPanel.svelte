@@ -149,7 +149,7 @@
   });
 </script>
 
-{#if $commentDraft.visible && $commentDraft.coords}
+{#if $commentsPanelOpen && $commentDraft.visible && $commentDraft.coords}
   <div class="comment-draft-anchor" style="left: {$commentDraft.coords.left}px; top: {$commentDraft.coords.bottom + 4}px;">
     {#if !creatingDraft}
       <button type="button" class="secondary-btn comment-add-btn" onclick={() => (creatingDraft = true)}>Add comment</button>

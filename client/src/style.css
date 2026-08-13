@@ -789,9 +789,13 @@ body.focus-mode #statusbar {
 }
 .comment-orphaned-label { font-style: normal; font-size: 11px; }
 
-.wikilink { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); cursor: pointer; }
-.wikilink:hover { border-bottom-style: solid; }
-.wikilink-missing { color: var(--text-dim); border-bottom-color: var(--text-dim); }
+/* Scoped under #preview, matching (not just relying on coincidental
+   color overlap with) #preview a's specificity — otherwise that
+   generic rule's `color` wins over a plain .wikilink-missing class
+   selector and the "missing" dimming silently never shows. */
+#preview .wikilink { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); cursor: pointer; }
+#preview .wikilink:hover { border-bottom-style: solid; }
+#preview .wikilink-missing { color: var(--text-dim); border-bottom-color: var(--text-dim); }
 .comment-body { margin: 0 0 6px; font-size: 13px; }
 .comment-reply-row { display: flex; gap: 6px; margin-bottom: 6px; }
 .comment-reply-row input {

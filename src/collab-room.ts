@@ -20,6 +20,19 @@ const SYNC_UPDATE = 2;
 const PERSIST_KEY = "update";
 const ACCESS_KEY = "access";
 const PERSIST_DELAY_MS = 1000;
+const SNAPSHOTS_KEY = "snapshots";
+const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
+const MAX_SNAPSHOTS = 50;
+
+export interface Snapshot {
+  id: string;
+  timestamp: number;
+  content: string;
+}
+
+function uid(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
 
 export type Role = "viewer" | "reviewer" | "editor";
 
@@ -87,12 +100,18 @@ export class CollabRoom {
   persistScheduled: boolean;
   doc: Y.Doc;
   awareness: awarenessProtocol.Awareness;
+  // Cached in memory so the common (throttled, no-op) case never needs a
+  // storage read — only warmed from storage.get on this instance's first
+  // check after a cold start, or set directly whenever a snapshot is
+  // actually written.
+  lastSnapshotAt: number | undefined;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
     this.sessions = new Map();
     this.persistScheduled = false;
+    this.lastSnapshotAt = undefined;
 
     this.doc = new Y.Doc();
     this.awareness = new awarenessProtocol.Awareness(this.doc);
@@ -295,7 +314,12 @@ export class CollabRoom {
     encoding.writeVarUint(encoder, MESSAGE_SYNC);
     syncProtocol.writeUpdate(encoder, update);
     this.broadcast(encoding.toUint8Array(encoder), origin);
-    if (origin !== "storage") this.schedulePersist();
+    if (origin === "storage") return;
+    this.schedulePersist();
+    // "restore" (the version-restore endpoint) force-writes its own
+    // snapshot right after this fires — running the throttled check here
+    // too would race it (both read the same array, one write is lost).
+    if (origin !== "restore") void this.maybeSnapshot();
   }
 
   handleAwarenessUpdate(added: number[], updated: number[], removed: number[], origin: unknown): void {
@@ -335,5 +359,44 @@ export class CollabRoom {
 
   async persistNow(): Promise<void> {
     await this.state.storage.put(PERSIST_KEY, Y.encodeStateAsUpdate(this.doc));
+  }
+
+  // ---------- Version snapshots ----------
+
+  async getSnapshots(): Promise<Snapshot[]> {
+    const stored = await this.state.storage.get<Snapshot[]>(SNAPSHOTS_KEY);
+    return stored || [];
+  }
+
+  // Called on every doc update (see handleDocUpdate) — the in-memory
+  // lastSnapshotAt guard means this only touches storage when a snapshot
+  // is actually due, not on every keystroke.
+  async maybeSnapshot(now: number = Date.now()): Promise<void> {
+    if (this.lastSnapshotAt !== undefined && now - this.lastSnapshotAt < SNAPSHOT_INTERVAL_MS) return;
+    const content = this.doc.getText("content").toString();
+    const snapshots = await this.getSnapshots();
+    const last = snapshots[snapshots.length - 1];
+    if (last && last.content === content) {
+      // Nothing changed — stay throttled from the last real snapshot
+      // rather than re-checking storage on every subsequent update.
+      this.lastSnapshotAt = last.timestamp;
+      return;
+    }
+    snapshots.push({ id: uid(), timestamp: now, content });
+    while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
+    await this.state.storage.put(SNAPSHOTS_KEY, snapshots);
+    this.lastSnapshotAt = now;
+  }
+
+  // Always appends, ignoring the throttle — used only by the restore
+  // endpoint, so a restore itself always lands in history.
+  async forceSnapshot(content: string, now: number = Date.now()): Promise<Snapshot> {
+    const snapshots = await this.getSnapshots();
+    const snap: Snapshot = { id: uid(), timestamp: now, content };
+    snapshots.push(snap);
+    while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
+    await this.state.storage.put(SNAPSHOTS_KEY, snapshots);
+    this.lastSnapshotAt = now;
+    return snap;
   }
 }

@@ -83,6 +83,69 @@ describe("normalizeInvited", () => {
   });
 });
 
+// Every content mutation below is wrapped in transact(fn, "storage") — the
+// same origin the constructor's own disk-load path already uses to mean
+// "not a live edit" (see handleDocUpdate). Without it, the constructor's
+// doc.on("update", ...) listener fires handleDocUpdate for the mutation
+// itself, which calls the real (un-awaited, real-Date.now()) maybeSnapshot
+// in parallel with these tests' own explicit, timestamp-controlled calls —
+// racing them and making snapshot counts non-deterministic.
+describe("CollabRoom version snapshots", () => {
+  it("does not snapshot before the throttle window elapses", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
+    await room.maybeSnapshot(1_000);
+    room.doc.transact(() => room.doc.getText("content").insert(5, " world"), "storage");
+    await room.maybeSnapshot(1_000 + 4 * 60 * 1000); // 4 min later
+    expect(await room.getSnapshots()).toHaveLength(1);
+  });
+
+  it("snapshots again once the throttle window elapses and content changed", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
+    await room.maybeSnapshot(1_000);
+    room.doc.transact(() => room.doc.getText("content").insert(5, " world"), "storage");
+    await room.maybeSnapshot(1_000 + 6 * 60 * 1000); // 6 min later
+    const snapshots = await room.getSnapshots();
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[1]!.content).toBe("hello world");
+  });
+
+  it("does not snapshot if content is unchanged, even past the throttle window", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
+    await room.maybeSnapshot(1_000);
+    await room.maybeSnapshot(1_000 + 6 * 60 * 1000);
+    expect(await room.getSnapshots()).toHaveLength(1);
+  });
+
+  it("prunes the oldest snapshot past the 50 cap", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    for (let i = 0; i < 51; i++) {
+      room.doc.transact(() => {
+        const t = room.doc.getText("content");
+        t.delete(0, t.length);
+        t.insert(0, `v${i}`);
+      }, "storage");
+      await room.maybeSnapshot(1_000 + i * 6 * 60 * 1000);
+    }
+    const snapshots = await room.getSnapshots();
+    expect(snapshots).toHaveLength(50);
+    expect(snapshots[0]!.content).toBe("v1"); // v0 pruned
+    expect(snapshots[49]!.content).toBe("v50");
+  });
+
+  it("forceSnapshot always appends, bypassing the throttle", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
+    await room.maybeSnapshot(1_000);
+    await room.forceSnapshot("restored content", 1_001);
+    const snapshots = await room.getSnapshots();
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[1]!.content).toBe("restored content");
+  });
+});
+
 describe("CollabRoom.getAccess", () => {
   it("returns the default record when nothing has been stored", async () => {
     const room = new CollabRoom(fakeState(), fakeEnv);

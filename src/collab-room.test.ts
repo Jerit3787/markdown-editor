@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import * as Y from "yjs";
 import * as syncProtocol from "y-protocols/sync";
 import * as encoding from "lib0/encoding";
-import { CollabRoom, normalizeInvited, type AccessRecord } from "./collab-room";
+import { CollabRoom, normalizeInvited, type AccessRecord, type Snapshot } from "./collab-room";
 import { encryptSession } from "./auth";
 import type { Env } from "./env";
 
@@ -45,6 +45,14 @@ async function putAccess(room: CollabRoom, username: string, body: Record<string
     body: JSON.stringify(body),
   });
   return room.handleAccessRequest(request);
+}
+
+async function authedRequest(username: string, path: string, init?: RequestInit): Promise<Request> {
+  const cookie = await encryptSession(fakeEnv, { token: "gh-token", username });
+  return new Request(`https://example.com${path}`, {
+    ...init,
+    headers: { ...(init?.headers || {}), Cookie: `mde_gh_session=${cookie}` },
+  });
 }
 
 describe("normalizeInvited", () => {
@@ -143,6 +151,84 @@ describe("CollabRoom version snapshots", () => {
     const snapshots = await room.getSnapshots();
     expect(snapshots).toHaveLength(2);
     expect(snapshots[1]!.content).toBe("restored content");
+  });
+});
+
+describe("GET /room1/versions", () => {
+  it("rejects an unshared room", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    const res = await room.fetch(new Request("https://example.com/room1/versions"));
+    expect(res.status).toBe(403);
+  });
+
+  it("lists snapshot summaries without content, newest first", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    room.doc.transact(() => room.doc.getText("content").insert(0, "v1"), "storage");
+    await room.maybeSnapshot(1_000);
+    room.doc.transact(() => room.doc.getText("content").insert(2, "-v2"), "storage");
+    await room.maybeSnapshot(1_000 + 6 * 60 * 1000);
+
+    const res = await room.fetch(new Request("https://example.com/room1/versions"));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Array<{ id: string; timestamp: number; content?: string }>;
+    expect(body).toHaveLength(2);
+    expect(body[0]!.timestamp).toBeGreaterThan(body[1]!.timestamp);
+    expect(body[0]!.content).toBeUndefined();
+  });
+});
+
+describe("GET /room1/versions/:id", () => {
+  it("returns 404 for an unknown id", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    const res = await room.fetch(new Request("https://example.com/room1/versions/nope"));
+    expect(res.status).toBe(404);
+  });
+
+  it("returns the snapshot's content", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
+    await room.maybeSnapshot(1_000);
+    const [snap] = await room.getSnapshots();
+    const res = await room.fetch(new Request(`https://example.com/room1/versions/${snap!.id}`));
+    expect(res.status).toBe(200);
+    expect((await res.json()) as Snapshot).toMatchObject({ id: snap!.id, content: "hello" });
+  });
+});
+
+describe("POST /room1/versions/:id/restore", () => {
+  it("rejects a non-editor role", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    room.doc.transact(() => room.doc.getText("content").insert(0, "v1"), "storage");
+    await room.maybeSnapshot(1_000);
+    const [snap] = await room.getSnapshots();
+    const req = await authedRequest("bob", `/room1/versions/${snap!.id}/restore`, { method: "POST" });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("applies the restored content to the live doc and force-writes a new snapshot", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [] });
+    room.doc.transact(() => room.doc.getText("content").insert(0, "v1"), "storage");
+    await room.maybeSnapshot(1_000);
+    room.doc.transact(() => room.doc.getText("content").insert(2, "-v2"), "storage");
+    await room.maybeSnapshot(1_000 + 6 * 60 * 1000);
+    const [v1] = await room.getSnapshots();
+
+    // alice is the room's owner (set by the putAccess call above), so she
+    // has editor access regardless of the room's general role.
+    const req = await authedRequest("alice", `/room1/versions/${v1!.id}/restore`, { method: "POST" });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(200);
+    expect(room.doc.getText("content").toString()).toBe("v1");
+
+    const after = await room.getSnapshots();
+    expect(after).toHaveLength(3); // v1, v1-v2, restored-v1
+    expect(after[2]!.content).toBe("v1");
   });
 });
 

@@ -335,12 +335,6 @@ body.focus-mode #statusbar {
 .icon-btn.active { background: var(--accent-dim); color: var(--accent); }
 .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; background: transparent; }
 
-/* #menuBar's own .icon-btn (expandPreviewBtn) sits in a shorter, tighter
-   row than topbarRow1's — shrink it down to match .menubar-btn's height
-   instead of the topbar's full 32px so it doesn't stretch the row. */
-#menuBar .icon-btn { width: 26px; height: 26px; }
-#menuBar .icon-btn .icon { width: 15px; height: 15px; }
-
 .primary-btn {
   background: var(--accent);
   color: #fff;

@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] - 2026-08-13
+
+### Added
+
+- Version history with revert — every document, local or shared, now
+  builds up automatic background snapshots as you edit (throttled to at
+  most one every 5 minutes, capped at 50 per document). Open it from
+  File > Version History or the new clock icon next to Share; select any
+  past version to preview it read-only, then restore it — nothing in
+  history is ever deleted by a restore, so a restore is itself undoable
+  by restoring whatever was current before it.
+
 ## [1.11.0] - 2026-08-13
 
 ### Added

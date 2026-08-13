@@ -1262,6 +1262,14 @@ body.focus-mode #statusbar {
 #main {
   flex: 1;
   display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+#panesRow {
+  flex: 1;
+  display: flex;
   min-width: 0;
   min-height: 0;
 }
@@ -1287,6 +1295,11 @@ body.focus-mode #statusbar {
 #main.mode-preview #editorPane, #main.mode-preview #divider { display: none; }
 #main.mode-editor #editorPane { flex: 1; }
 #main.mode-preview #previewPane { flex: 1; border-left: none; }
+
+/* The formatting buttons act on the editor — nothing for them to do
+   with no editor visible. The view-selector (a sibling, not inside
+   .toolbar-buttons) stays visible so there's always a way back. */
+#main.mode-preview #toolbar .toolbar-buttons { display: none; }
 
 #divider {
   width: 1px;
@@ -1607,7 +1620,7 @@ body.focus-mode #statusbar {
      height ever changes. */
   #sidebar { position: absolute; top: 0; bottom: 0; left: 0; z-index: 40; box-shadow: var(--shadow); }
   #sidebar.collapsed { margin-left: -231px; }
-  #main.mode-split { flex-direction: column; }
+  #main.mode-split #panesRow { flex-direction: column; }
   #main.mode-split #previewPane { border-left: none; border-top: 1px solid var(--border); }
   #main.mode-split #divider { display: none; }
   #docTitle { max-width: 120px; }

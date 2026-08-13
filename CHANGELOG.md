@@ -4,6 +4,35 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.0] - 2026-08-13
+
+### Added
+
+- Wikilinks — type `[[Document Name]]` (autocompleted as you type) to
+  link between documents. It renders as a clickable link in the
+  preview: click to jump to that document, or create it if it doesn't
+  exist yet.
+- A merged Document Info panel (new topbar icon and File-menu entry)
+  showing when a document was created/last edited, its word/character
+  count, and which other documents link to it.
+
+### Changed
+
+- Document names are now enforced unique — creating or duplicating a
+  document that would collide gets a silent `-2`, `-3`, ... suffix.
+  Renaming a document to an existing name prompts to Replace the other
+  document, Save as a suffixed name, or Cancel.
+- Opening or switching to a document no longer moves it to the top of
+  the sidebar — only an actual edit does.
+
+### Fixed
+
+- The Help menu's "What's New" entry silently did nothing once you'd
+  already seen the latest update — it only ever computed what's still
+  unseen, which is empty right after any release announcement closes.
+  It now always reopens the full list on demand, while the automatic
+  on-load popup still only surfaces what's actually new.
+
 ## [1.14.0] - 2026-08-13
 
 ### Changed

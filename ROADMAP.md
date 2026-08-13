@@ -41,6 +41,15 @@ commitments.
       local documents, full threaded/resolvable comments (role-gated)
       on shared ones, highlighted inline with a toggleable panel
       (v1.13.0)
+- [x] Wikilinks + backlinks between documents — `[[Name]]` renders as a
+      clickable/navigable preview link with `[[`-triggered autocomplete;
+      document names are now enforced unique (silent `-2` suffixing,
+      with a three-way Replace/Save-as/Cancel prompt only for a
+      deliberate rename that collides) so link resolution is always
+      unambiguous; bundled in the same release: a merged Document Info
+      + Backlinks panel, and a sidebar sort-order fix (only a real
+      content edit reorders the list, not merely opening a document)
+      (v1.15.0)
 
 ## Backlog — quick wins
 
@@ -52,7 +61,7 @@ The quick-wins backlog is now empty — see the other tiers below.
 
 Extends existing Yjs / role infrastructure rather than adding new systems.
 
-- [ ] Wikilinks + backlinks between documents
+The leverage-what-we-have backlog is now empty — see the other tiers below.
 
 ## Backlog — bigger bets
 
@@ -185,3 +194,15 @@ to matter later.
 - [ ] An authoring/editing UI for What's New entries — v1.14.0 entries
       are added directly to `whats-new-entries.ts` as a manual step per
       release, same as CHANGELOG/ROADMAP updates already are
+- [ ] Wikilink rename cascade — v1.15.0 renaming a document never
+      rewrites `[[OldName]]` references inside other documents; they
+      become "missing" links instead until fixed by hand
+- [ ] Case-insensitive wikilink matching — v1.15.0 is exact-match only,
+      the same simplicity tradeoff that motivated enforcing unique
+      names in the first place
+- [ ] Wikilink aliasing (`[[Name|Display Text]]`) — v1.15.0 supports
+      only plain `[[Name]]`
+- [ ] A "create new document" entry inline in the `[[` autocomplete
+      popup — v1.15.0's popup only lists existing documents; creating
+      a new one is still only reachable by typing a new name and
+      closing `]]` by hand, or clicking a rendered "missing" link

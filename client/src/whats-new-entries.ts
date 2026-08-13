@@ -37,4 +37,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       'Select any text and click "Add comment" to anchor a note to it — a personal note on your own documents, or a full discussion thread with replies and resolve/reopen once a document is shared. Open the panel from File > Comments or the icon next to Version History.',
     screenshot: "/whats-new/threaded-comments.png",
   },
+  {
+    version: "1.15.0",
+    title: "Wikilinks",
+    description:
+      "Type [[Document Name]] (autocompleted as you type) to link between documents — click a link in the preview to jump there, or create it if it doesn't exist yet. Document names are now unique, and a new Document Info panel shows a document's metadata plus which other documents link to it.",
+    screenshot: "/whats-new/wikilinks.png",
+  },
 ];

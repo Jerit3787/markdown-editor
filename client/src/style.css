@@ -904,6 +904,8 @@ body.focus-mode #statusbar {
 .secondary-btn:hover { background: var(--border); }
 .secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .secondary-btn:disabled:hover { background: var(--bg-alt); }
+.secondary-btn.danger-btn { color: var(--danger); border-color: var(--danger); }
+.secondary-btn.danger-btn:hover { background: rgba(220, 38, 38, 0.12); }
 
 .status-dot {
   width: 8px;

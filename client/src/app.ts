@@ -21,6 +21,7 @@ import {
   setDocImage,
   deleteDocImage,
   refreshDocNoteAnchors,
+  findCollidingDoc,
 } from "./stores/docs";
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
@@ -38,6 +39,7 @@ import { debounceWithFlush } from "./debounce";
 import { maybeSnapshotVersion } from "./history";
 import { commentDraft } from "./stores/commentDraft";
 import { relocateAnchor } from "./anchor";
+import { renameCollision } from "./stores/renameCollision";
 // Unlike Mermaid's SVGs (which bake their own <style> in at render time),
 // KaTeX's HTML output has no self-contained styling — it's entirely
 // dependent on this stylesheet. buildStandaloneHtml()'s exported <style>
@@ -1247,6 +1249,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // instead of a delegated click listener here.
   function initToolbar() {
     const docTitleInput = document.getElementById("docTitle") as HTMLInputElement;
+    // Captured on focus, read on blur — doc.name has already been
+    // rewritten to the (possibly colliding) in-progress value by every
+    // "input" event by the time blur fires, so this is the only place
+    // "what it was before this edit" is still available.
+    let nameBeforeEdit = "";
     docTitleInput.addEventListener("input", (e) => {
       const doc = getActiveDoc();
       if (!doc) return;
@@ -1264,16 +1271,30 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // default gets cleared this way — an actual title the user chose
     // (even one that happens to need a small edit) is left alone.
     docTitleInput.addEventListener("focus", () => {
+      const doc = getActiveDoc();
+      nameBeforeEdit = doc ? doc.name : "";
       if (docTitleInput.value === "Untitled") docTitleInput.value = "";
     });
     // Left blank without typing a replacement (or typed-then-deleted, which
     // the input handler above already renamed back to "Untitled" — this
     // just makes the field's own display catch up) — show "Untitled" again
-    // rather than leaving the field looking empty.
+    // rather than leaving the field looking empty. Collision-checking is
+    // deliberately skipped for this empty-then-restored case (see the
+    // design doc's Error handling section) — only a real, non-empty,
+    // actually-changed name triggers it.
     docTitleInput.addEventListener("blur", () => {
       if (!docTitleInput.value.trim()) {
         docTitleInput.value = "Untitled";
         resizeDocTitle();
+        return;
+      }
+      const doc = getActiveDoc();
+      if (!doc) return;
+      const finalName = docTitleInput.value;
+      if (finalName === nameBeforeEdit) return;
+      const colliding = findCollidingDoc(doc.id, finalName);
+      if (colliding) {
+        renameCollision.set({ docId: doc.id, pendingName: finalName, previousName: nameBeforeEdit, collidingDocId: colliding.id });
       }
     });
     resizeDocTitle();

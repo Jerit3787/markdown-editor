@@ -95,14 +95,14 @@ body.focus-mode #statusbar {
 }
 
 .topbar-row { display: flex; align-items: center; gap: 8px; padding: 4px 14px; }
-#topbarRow1 { grid-area: title; }
-#menuBar { grid-area: menubar; gap: 2px; padding-top: 2px; padding-bottom: 2px; }
+#topbarRow1 { grid-area: title; padding: 6px 0 2px 0; gap: 4px; }
+#menuBar { grid-area: menubar; gap: 2px; padding: 0 0 6px 0; }
 
 /* Comments/history/share/settings read as one grouped cluster (matching
    the mockup's single "comment history share etc." cell) — no gap
    between them, unlike .topbar-row's wider 8px gap used to separate
    the row's distinct sections from each other. */
-.topbar-actions { display: flex; align-items: center; gap: 0; }
+.topbar-actions { display: flex; align-items: center; gap: 4px; }
 
 #topbarActionsCol {
   grid-area: actions;
@@ -117,7 +117,7 @@ body.focus-mode #statusbar {
    size, this is scoped to just this column. */
 #topbarActionsCol .icon-btn { width: 36px; height: 36px; }
 #topbarActionsCol .icon-btn .icon { width: 19px; height: 19px; }
-#topbarActionsCol .share-pill { padding: 8px 16px; font-size: 14px; }
+#topbarActionsCol .share-pill { padding: 6px 20px; font-size: 14px; border-radius: 100px; }
 #topbarActionsCol .share-pill .icon { width: 17px; height: 17px; }
 
 .share-pill {
@@ -246,17 +246,18 @@ body.focus-mode #statusbar {
 .menu-recent-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
 .menu-recent-empty { font-size: 12.5px; color: var(--text-dim); padding: 6px 14px; }
 
-#brand { grid-area: brand; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 16px; border-right: 1px solid var(--border); }
+#brand { grid-area: brand; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 12px; }
 #brand img { display: block; }
 
 #docTitle {
   border: 1px solid transparent;
   background: transparent;
-  font-size: 15px;
-  font-weight: 600;
-  padding: 5px 8px;
-  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 400;
+  padding: 2px 6px;
+  border-radius: 4px;
   color: var(--text);
+  line-height: 24px;
   /* Small enough to stay clickable for a very short name, not big
      enough to leave a visible gap before the save-status icon when
      resizeDocTitle() has already sized the field to fit the actual
@@ -307,7 +308,8 @@ body.focus-mode #statusbar {
    edge) would overflow off the left of the viewport here. */
 .save-status-popup { left: 0; right: auto; }
 
-#saveStatusBtn .icon { color: var(--text-dim); }
+#saveStatusBtn { width: 28px; height: 28px; margin-left: 2px; }
+#saveStatusBtn .icon { width: 16px; height: 16px; color: var(--text-dim); }
 #saveStatusBtn.saving .icon { color: var(--accent); animation: save-status-pulse 1.2s ease-in-out infinite; }
 @keyframes save-status-pulse {
   0%, 100% { opacity: 1; }

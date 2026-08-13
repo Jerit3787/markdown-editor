@@ -1748,6 +1748,15 @@ body.focus-mode #statusbar {
      slide) drives open/closed here, so explicitly zero out the base
      #sidebar.collapsed rule's margin-left too, or it'd shift the sheet
      sideways while it's translating down. */
+  /* No transform in the resting (open) state, deliberately — a
+     `transform` on this element, even a no-op translateY(0), creates a
+     new containing block for any `position: fixed` descendant (like
+     DocList.svelte's .doc-menu-popover), silently repositioning it
+     relative to #sidebar's own box instead of the real viewport and
+     breaking its window.innerHeight-relative boundary math entirely.
+     `transition: transform` still animates smoothly from this implicit
+     "none" starting point once .collapsed sets a real transform below
+     — no need for an explicit resting-state value to make that work. */
   #sidebar {
     position: fixed;
     left: 0;
@@ -1760,7 +1769,6 @@ body.focus-mode #statusbar {
     border-right: none;
     z-index: 40;
     box-shadow: var(--shadow);
-    transform: translateY(0);
     transition: transform 0.15s ease;
   }
   #sidebar.collapsed { transform: translateY(100%); margin-left: 0; }

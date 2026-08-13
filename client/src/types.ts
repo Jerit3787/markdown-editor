@@ -131,7 +131,6 @@ export interface MDEBridge {
   openShortcuts(): void;
   openAbout(): void;
   setView(mode: "editor" | "split" | "preview"): void;
-  toggleExpandPreview(): void;
   toggleFocusMode(): void;
   openDiagramEditor(): void;
   setCommentMarkers(entries: { id: string; from: number; to: number }[]): void;

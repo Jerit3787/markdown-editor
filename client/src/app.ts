@@ -1583,33 +1583,15 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   }
 
   // ---------- View toggle ----------
-  // Remembered so the expand-preview button can restore whichever mode the
-  // user was actually in (editor or split) rather than always snapping
-  // back to split. Owned here (not MenuBar.svelte) since app.ts is the
-  // source of truth for main.className/localStorage — the component only
-  // reads viewMode (stores/view.ts) and calls setView()/
-  // toggleExpandPreview() through the bridge.
-  let lastNonPreviewView: "editor" | "split" = "split";
-
   function initViewToggle() {
     const saved = (localStorage.getItem(STORAGE_VIEW) as "editor" | "split" | "preview") || "split";
-    lastNonPreviewView = saved === "preview" ? "split" : saved;
     setView(saved);
   }
 
   function setView(view: "editor" | "split" | "preview") {
-    if (view !== "preview") lastNonPreviewView = view;
     document.getElementById("main").className = `mode-${view}`;
     localStorage.setItem(STORAGE_VIEW, view);
     viewMode.set(view);
-  }
-
-  // A one-click shortcut for the same "Preview" mode already reachable via
-  // View > Preview — sits right next to the menu bar instead of requiring
-  // that menu to be opened first (item #21).
-  function toggleExpandPreview() {
-    const isPreview = document.getElementById("main").classList.contains("mode-preview");
-    setView(isPreview ? lastNonPreviewView : "preview");
   }
 
   // ---------- Sidebar / documents ----------
@@ -2216,7 +2198,6 @@ ${bodyHtml}
       document.getElementById("infoModal").hidden = false;
     },
     setView,
-    toggleExpandPreview,
     toggleFocusMode,
     openDiagramEditor() {
       diagramEditorRef.set(null);

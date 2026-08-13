@@ -24,6 +24,7 @@ import MenuBar from "./components/MenuBar.svelte";
 import Editor from "./components/Editor.svelte";
 import Toolbar from "./components/Toolbar.svelte";
 import RenameCollisionModal from "./components/RenameCollisionModal.svelte";
+import WikilinkMenu from "./components/WikilinkMenu.svelte";
 
 // #settings-mount / #share-mount / #doclist-mount / #toast-mount /
 // #menubar-mount / #editor-mount / #toolbar-mount already exist by the
@@ -43,6 +44,7 @@ mount(DiagramEditor, { target: document.getElementById("diagram-editor-mount")! 
 mount(WhatsNew, { target: document.getElementById("whats-new-mount")! });
 mount(CommandPalette, { target: document.getElementById("command-palette-mount")! });
 mount(SlashMenu, { target: document.getElementById("slash-menu-mount")! });
+mount(WikilinkMenu, { target: document.getElementById("wikilink-menu-mount")! });
 mount(VersionHistory, { target: document.getElementById("version-history-mount")! });
 mount(DocList, { target: document.getElementById("doclist-mount")! });
 mount(Toast, { target: document.getElementById("toast-mount")! });

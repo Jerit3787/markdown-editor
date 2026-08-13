@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.17.1] - 2026-08-14
+
+### Fixed
+
+- A document row's "..." menu (Rename/Duplicate/Delete) could render
+  partially or fully off-screen on the mobile bottom sheet, making
+  Delete unreachable for rows near the sheet's bottom edge — two
+  compounding bugs: the sheet's own slide animation gave it a
+  `transform`, which silently broke the menu's fixed positioning
+  (containing-block change), and the menu never checked whether it
+  would overflow the bottom of the screen in the first place. It now
+  positions correctly and flips to open above the row when there isn't
+  room below.
+
 ## [1.17.0] - 2026-08-14
 
 ### Added

@@ -1309,14 +1309,25 @@ body.focus-mode #statusbar {
 
 #toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-alt);
   flex-shrink: 0;
 }
+
+.toolbar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.view-selector { display: flex; gap: 2px; flex-shrink: 0; }
+.view-selector button { border: none; background: transparent; color: var(--text); padding: 5px 9px; border-radius: 5px; cursor: pointer; display: flex; }
+.view-selector button:hover { background: var(--border); }
+.view-selector button.active { background: var(--accent-dim); color: var(--accent); }
 
 #toolbar button {
   border: none;

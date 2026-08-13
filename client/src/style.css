@@ -69,12 +69,6 @@ body.focus-mode #statusbar {
 /* Top bar: row 1 (brand/title/status/Share/Settings), row 2 (File/Edit/View/Help) */
 #topbar {
   position: relative;
-  /* Above .comments-panel's z-index:250 (an opaque partial side panel
-     that otherwise visually runs underneath the topbar's own row,
-     blocking Share/Settings/its own toggle icon while open) — below
-     genuine full-screen takeovers like Version History (z-index:300),
-     which are meant to replace the topbar entirely, not coexist with it. */
-  z-index: 260;
   display: flex;
   flex-direction: column;
   background: var(--bg-alt);
@@ -761,20 +755,12 @@ body.focus-mode #statusbar {
 .comment-draft-actions button { width: auto; margin-bottom: 0; }
 
 .comments-panel {
-  /* #comments-panel-mount lives outside #app in the DOM (like every
-     other modal/panel mount point), so position:absolute here can't
-     anchor to #body despite it having position:relative — there's no
-     actual ancestor relationship for that to resolve against. Stays
-     position:fixed against the viewport instead; #topbar's own
-     z-index (see its rule) is what keeps this panel from covering its
-     buttons, by rendering the (opaque) topbar on top of it rather
-     than by excluding the topbar's screen area geometrically. */
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  /* A real flex sibling of #main inside #body (see index.html) — the
+     panel takes up genuine layout space, so opening it pushes #main's
+     own content narrower/left instead of floating on top of it like a
+     modal. #main's own flex:1 handles the shrinking automatically. */
   width: 320px;
-  z-index: 250;
+  flex-shrink: 0;
   background: var(--bg);
   border-left: 1px solid var(--border);
   display: flex;
@@ -900,6 +886,8 @@ body.focus-mode #statusbar {
 
 .doc-info-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .doc-info-row span:first-child { color: var(--text-dim); }
+.doc-info-value { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.doc-info-timestamp { font-size: 11px; color: var(--text-dim); }
 .doc-info-backlinks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .doc-info-backlink-row { text-align: left; border: none; background: var(--bg-alt); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-family: inherit; font-size: 13px; }
 .doc-info-backlink-row:hover { background: var(--border); }

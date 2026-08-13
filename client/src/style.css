@@ -788,6 +788,10 @@ body.focus-mode #statusbar {
   padding: 0 0 6px;
 }
 .comment-orphaned-label { font-style: normal; font-size: 11px; }
+
+.wikilink { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); cursor: pointer; }
+.wikilink:hover { border-bottom-style: solid; }
+.wikilink-missing { color: var(--text-dim); border-bottom-color: var(--text-dim); }
 .comment-body { margin: 0 0 6px; font-size: 13px; }
 .comment-reply-row { display: flex; gap: 6px; margin-bottom: 6px; }
 .comment-reply-row input {

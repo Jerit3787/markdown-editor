@@ -24,6 +24,16 @@ export interface PresenceEntry {
   role?: string;
 }
 
+export interface Note {
+  id: string;
+  from: number;
+  to: number;
+  quote: string;
+  orphaned: boolean;
+  body: string;
+  createdAt: number;
+}
+
 export interface Doc {
   id: string;
   name: string;
@@ -36,6 +46,10 @@ export interface Doc {
   // room id (see collab.ts), so this is just a local "try to rejoin on
   // load" flag, not the room id itself.
   shared?: boolean;
+  // Local, single-author annotations anchored to text — only meaningful
+  // for a document that has never been shared (see comments.ts's own
+  // comment for why shared documents' threads live server-side instead).
+  notes?: Note[];
 }
 
 // The cross-module contract app.ts publishes on window.MDE — collab.ts and

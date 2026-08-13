@@ -5,9 +5,10 @@
 // import the action functions here directly instead of going through
 // window.MDE, since none of this needs DOM/CodeMirror access.
 import { get, writable } from "svelte/store";
-import type { Doc } from "../types";
+import type { Doc, Note } from "../types";
 import { showToast } from "./toast";
 import { deleteHistory } from "../history";
+import { relocateAnchor } from "../anchor";
 
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
@@ -201,5 +202,40 @@ export function deleteDocDiagram(key: string) {
   const diagrams = { ...doc.diagrams };
   delete diagrams[key];
   updateDoc(doc.id, { diagrams });
+  persistDocs();
+}
+
+export function addDocNote(from: number, to: number, quote: string, body: string): Note | undefined {
+  const doc = getActiveDoc();
+  if (!doc) return undefined;
+  const note: Note = { id: uid(), from, to, quote, orphaned: false, body, createdAt: Date.now() };
+  updateDoc(doc.id, { notes: [...(doc.notes || []), note] });
+  persistDocs();
+  return note;
+}
+
+export function deleteDocNote(noteId: string) {
+  const doc = getActiveDoc();
+  if (!doc || !doc.notes) return;
+  updateDoc(doc.id, { notes: doc.notes.filter((n) => n.id !== noteId) });
+  persistDocs();
+}
+
+// Called from app.ts's saveNow() for documents that have never been
+// shared — keeps stored positions from drifting too far out of date, so
+// relocateAnchor's ambiguous-quote tiebreak stays accurate over many
+// edits. The active document's *displayed* anchor positions are always
+// recomputed fresh via relocateAnchor() wherever they're shown (see
+// CommentsPanel.svelte), so this is a background-accuracy refresh, not
+// something the UI depends on for correctness.
+export function refreshDocNoteAnchors(content: string) {
+  const doc = getActiveDoc();
+  if (!doc || !doc.notes || doc.notes.length === 0) return;
+  const notes = doc.notes.map((n) => {
+    const relocated = relocateAnchor(content, n);
+    if (!relocated) return { ...n, orphaned: true };
+    return { ...n, from: relocated.from, to: relocated.to, orphaned: false };
+  });
+  updateDoc(doc.id, { notes });
   persistDocs();
 }

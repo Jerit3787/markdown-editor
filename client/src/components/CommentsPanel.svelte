@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { get } from "svelte/store";
   import { commentsPanelOpen } from "../stores/commentsPanel";
   import { commentDraft } from "../stores/commentDraft";
   import { activeIdStore, getActiveDoc, addDocNote, deleteDocNote } from "../stores/docs";
@@ -145,7 +146,14 @@
   });
 
   onMount(() => {
-    const toggle = () => commentsPanelOpen.update((open) => !open);
+    // On mobile, opening comments should close the sidenav bottom
+    // sheet first — both are 75vh sheets and would otherwise stack.
+    // No-op on desktop: collapseSidebarForMobile() itself no-ops there.
+    const toggle = () => {
+      const willOpen = !get(commentsPanelOpen);
+      if (willOpen) window.MDE.collapseSidebarForMobile();
+      commentsPanelOpen.update((open) => !open);
+    };
     document.getElementById("commentsBtn")?.addEventListener("click", toggle);
     const onKeydown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && creatingDraft) creatingDraft = false;
@@ -175,6 +183,7 @@
 {/if}
 
 {#if $commentsPanelOpen}
+  <div class="mobile-sheet-backdrop" onclick={close}></div>
   <div class="comments-panel" role="complementary" aria-label="Comments">
     <div class="comments-panel-header">
       <h2>Comments</h2>

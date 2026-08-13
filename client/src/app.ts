@@ -26,6 +26,7 @@ import {
 } from "./stores/docs";
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
+import { commentsPanelOpen } from "./stores/commentsPanel";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { computeBlockLineStarts } from "./scroll-sync";
@@ -1627,6 +1628,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const collapsed = document.getElementById("sidebar").classList.toggle("collapsed");
     document.getElementById("sidebarBackdrop").hidden = !isMobile() || collapsed;
     setSidebarToggleState(!collapsed);
+    if (isMobile() && !collapsed) commentsPanelOpen.set(false);
   }
 
   function initSidebar() {
@@ -2202,6 +2204,7 @@ ${bodyHtml}
     },
     exportAs,
     toggleSidebar,
+    collapseSidebarForMobile,
     openImagesManager() {
       renderImagesList();
       document.getElementById("imagesModal").hidden = false;

@@ -136,6 +136,12 @@ export class CollabRoom {
     const url = new URL(request.url);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
 
+    const restoreMatch = url.pathname.match(/\/versions\/([^/]+)\/restore$/);
+    if (restoreMatch) return this.handleVersionRestoreRequest(request, restoreMatch[1]!);
+    const versionMatch = url.pathname.match(/\/versions\/([^/]+)$/);
+    if (versionMatch) return this.handleVersionContentRequest(request, versionMatch[1]!);
+    if (url.pathname.endsWith("/versions")) return this.handleVersionsListRequest(request);
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected websocket", { status: 426 });
     }
@@ -147,6 +153,45 @@ export class CollabRoom {
     const server = pair[1];
     this.handleSession(server, auth.username, auth.role);
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  // ---------- Version history ----------
+
+  async handleVersionsListRequest(request: Request): Promise<Response> {
+    if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const snapshots = await this.getSnapshots();
+    const list = snapshots.map((s) => ({ id: s.id, timestamp: s.timestamp })).reverse();
+    return Response.json(list);
+  }
+
+  async handleVersionContentRequest(request: Request, versionId: string): Promise<Response> {
+    if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const snapshots = await this.getSnapshots();
+    const snap = snapshots.find((s) => s.id === versionId);
+    if (!snap) return new Response("Version not found.", { status: 404 });
+    return Response.json(snap);
+  }
+
+  async handleVersionRestoreRequest(request: Request, versionId: string): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (auth.role !== "editor") return new Response("Only an editor can restore a version.", { status: 403 });
+    const snapshots = await this.getSnapshots();
+    const snap = snapshots.find((s) => s.id === versionId);
+    if (!snap) return new Response("Version not found.", { status: 404 });
+
+    const text = this.doc.getText("content");
+    this.doc.transact(() => {
+      text.delete(0, text.length);
+      text.insert(0, snap.content);
+    }, "restore");
+    const created = await this.forceSnapshot(snap.content);
+    return Response.json(created);
   }
 
   // ---------- Access control ----------

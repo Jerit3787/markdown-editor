@@ -69,6 +69,12 @@ body.focus-mode #statusbar {
 /* Top bar: row 1 (brand/title/status/Share/Settings), row 2 (File/Edit/View/Help) */
 #topbar {
   position: relative;
+  /* Above .comments-panel's z-index:250 (an opaque partial side panel
+     that otherwise visually runs underneath the topbar's own row,
+     blocking Share/Settings/its own toggle icon while open) — below
+     genuine full-screen takeovers like Version History (z-index:300),
+     which are meant to replace the topbar entirely, not coexist with it. */
+  z-index: 260;
   display: flex;
   flex-direction: column;
   background: var(--bg-alt);
@@ -755,6 +761,14 @@ body.focus-mode #statusbar {
 .comment-draft-actions button { width: auto; margin-bottom: 0; }
 
 .comments-panel {
+  /* #comments-panel-mount lives outside #app in the DOM (like every
+     other modal/panel mount point), so position:absolute here can't
+     anchor to #body despite it having position:relative — there's no
+     actual ancestor relationship for that to resolve against. Stays
+     position:fixed against the viewport instead; #topbar's own
+     z-index (see its rule) is what keeps this panel from covering its
+     buttons, by rendering the (opaque) topbar on top of it rather
+     than by excluding the topbar's screen area geometrically. */
   position: fixed;
   top: 0;
   right: 0;

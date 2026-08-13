@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.4] - 2026-08-13
+
+### Fixed
+
+- What's New screenshots were forced into a fixed square and cropped
+  if the source image wasn't already square. Now sized to each
+  image's own natural aspect ratio instead.
+
 ## [1.15.3] - 2026-08-13
 
 ### Fixed

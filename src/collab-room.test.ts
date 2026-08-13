@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import * as Y from "yjs";
 import * as syncProtocol from "y-protocols/sync";
 import * as encoding from "lib0/encoding";
-import { CollabRoom, normalizeInvited, type AccessRecord, type Snapshot } from "./collab-room";
+import { CollabRoom, normalizeInvited, type AccessRecord, type Snapshot, type CommentThread } from "./collab-room";
 import { encryptSession } from "./auth";
 import type { Env } from "./env";
 
@@ -151,6 +151,83 @@ describe("CollabRoom version snapshots", () => {
     const snapshots = await room.getSnapshots();
     expect(snapshots).toHaveLength(2);
     expect(snapshots[1]!.content).toBe("restored content");
+  });
+});
+
+describe("CollabRoom comment threads", () => {
+  it("creates a thread with one comment", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    const thread = room.createThread(0, 5, "hello", "alice", "nice greeting");
+    expect(room.getComments()).toHaveLength(1);
+    expect(thread.comments).toHaveLength(1);
+    expect(thread.comments[0]!.author).toBe("alice");
+    expect(thread.orphaned).toBe(false);
+    expect(thread.resolved).toBe(false);
+  });
+
+  it("survives two overlapping creates without losing either", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    // Simulates concurrent requests: both mutate the in-memory
+    // commentThreads field directly, with no read-from-storage gap that
+    // could let one overwrite the other.
+    room.createThread(0, 5, "hello", "alice", "comment A");
+    room.createThread(6, 11, "world", "bob", "comment B");
+    expect(room.getComments()).toHaveLength(2);
+  });
+
+  it("adds a reply to an existing thread", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    const thread = room.createThread(0, 5, "hello", "alice", "first");
+    room.addReply(thread.id, "bob", "reply");
+    expect(room.getComments()[0]!.comments).toHaveLength(2);
+  });
+
+  it("addReply returns null for an unknown thread", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    expect(room.addReply("nope", "bob", "reply")).toBeNull();
+  });
+
+  it("resolves and reopens a thread", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    const thread = room.createThread(0, 5, "hello", "alice", "first");
+    room.resolveThread(thread.id, true);
+    expect(room.getComments()[0]!.resolved).toBe(true);
+    room.resolveThread(thread.id, false);
+    expect(room.getComments()[0]!.resolved).toBe(false);
+  });
+
+  it("deleteThread allows the starting author", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    const thread = room.createThread(0, 5, "hello", "alice", "first");
+    expect(room.deleteThread(thread.id, "alice", false)).toBe("deleted");
+    expect(room.getComments()).toHaveLength(0);
+  });
+
+  it("deleteThread allows the document owner", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    const thread = room.createThread(0, 5, "hello", "alice", "first");
+    expect(room.deleteThread(thread.id, "owner", true)).toBe("deleted");
+  });
+
+  it("deleteThread rejects a non-author non-owner", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    const thread = room.createThread(0, 5, "hello", "alice", "first");
+    expect(room.deleteThread(thread.id, "bob", false)).toBe("forbidden");
+    expect(room.getComments()).toHaveLength(1);
+  });
+
+  it("deleteThread returns not_found for an unknown id", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    expect(room.deleteThread("nope", "alice", false)).toBe("not_found");
+  });
+
+  it("refreshCommentAnchors relocates a moved quote and marks a missing one orphaned", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.createThread(0, 5, "hello", "alice", "first");
+    room.refreshCommentAnchors("say hello there");
+    expect(room.getComments()[0]).toMatchObject({ from: 4, to: 9, orphaned: false });
+    room.refreshCommentAnchors("nothing matches here");
+    expect(room.getComments()[0]!.orphaned).toBe(true);
   });
 });
 

@@ -4,6 +4,7 @@ import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
+import { relocateAnchor } from "./anchor";
 import type { Env } from "./env";
 
 const MESSAGE_SYNC = 0;
@@ -28,6 +29,25 @@ export interface Snapshot {
   id: string;
   timestamp: number;
   content: string;
+}
+
+const COMMENTS_KEY = "comments";
+
+export interface CommentReply {
+  id: string;
+  author: string;
+  body: string;
+  createdAt: number;
+}
+
+export interface CommentThread {
+  id: string;
+  from: number;
+  to: number;
+  quote: string;
+  orphaned: boolean;
+  resolved: boolean;
+  comments: CommentReply[];
 }
 
 function uid(): string {
@@ -105,6 +125,11 @@ export class CollabRoom {
   // check after a cold start, or set directly whenever a snapshot is
   // actually written.
   lastSnapshotAt: number | undefined;
+  // Authoritative in memory (not re-read from storage.get on each call,
+  // unlike snapshots) — see createThread/persistComments' own comments
+  // for why: comment creation has no throttle to narrow the race window
+  // a read-modify-write pattern would otherwise have.
+  commentThreads: CommentThread[];
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -112,6 +137,7 @@ export class CollabRoom {
     this.sessions = new Map();
     this.persistScheduled = false;
     this.lastSnapshotAt = undefined;
+    this.commentThreads = [];
 
     this.doc = new Y.Doc();
     this.awareness = new awarenessProtocol.Awareness(this.doc);
@@ -129,6 +155,8 @@ export class CollabRoom {
     this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get<ArrayBuffer>(PERSIST_KEY);
       if (stored) Y.applyUpdate(this.doc, new Uint8Array(stored), "storage");
+      const storedComments = await this.state.storage.get<CommentThread[]>(COMMENTS_KEY);
+      this.commentThreads = storedComments || [];
     });
   }
 
@@ -360,6 +388,7 @@ export class CollabRoom {
     syncProtocol.writeUpdate(encoder, update);
     this.broadcast(encoding.toUint8Array(encoder), origin);
     if (origin === "storage") return;
+    this.refreshCommentAnchors(this.doc.getText("content").toString());
     this.schedulePersist();
     // "restore" (the version-restore endpoint) force-writes its own
     // snapshot right after this fires — running the throttled check here
@@ -404,6 +433,7 @@ export class CollabRoom {
 
   async persistNow(): Promise<void> {
     await this.state.storage.put(PERSIST_KEY, Y.encodeStateAsUpdate(this.doc));
+    await this.persistComments();
   }
 
   // ---------- Version snapshots ----------
@@ -443,5 +473,65 @@ export class CollabRoom {
     await this.state.storage.put(SNAPSHOTS_KEY, snapshots);
     this.lastSnapshotAt = now;
     return snap;
+  }
+
+  // ---------- Comment threads ----------
+
+  getComments(): CommentThread[] {
+    return this.commentThreads;
+  }
+
+  async persistComments(): Promise<void> {
+    await this.state.storage.put(COMMENTS_KEY, this.commentThreads);
+  }
+
+  createThread(from: number, to: number, quote: string, author: string, body: string, now: number = Date.now()): CommentThread {
+    const thread: CommentThread = {
+      id: uid(),
+      from,
+      to,
+      quote,
+      orphaned: false,
+      resolved: false,
+      comments: [{ id: uid(), author, body, createdAt: now }],
+    };
+    this.commentThreads = [...this.commentThreads, thread];
+    return thread;
+  }
+
+  addReply(threadId: string, author: string, body: string, now: number = Date.now()): CommentThread | null {
+    const thread = this.commentThreads.find((t) => t.id === threadId);
+    if (!thread) return null;
+    thread.comments = [...thread.comments, { id: uid(), author, body, createdAt: now }];
+    return thread;
+  }
+
+  resolveThread(threadId: string, resolved: boolean): CommentThread | null {
+    const thread = this.commentThreads.find((t) => t.id === threadId);
+    if (!thread) return null;
+    thread.resolved = resolved;
+    return thread;
+  }
+
+  deleteThread(threadId: string, username: string | null, isOwner: boolean): "deleted" | "not_found" | "forbidden" {
+    const thread = this.commentThreads.find((t) => t.id === threadId);
+    if (!thread) return "not_found";
+    const startedBy = thread.comments[0]?.author;
+    if (!isOwner && startedBy !== username) return "forbidden";
+    this.commentThreads = this.commentThreads.filter((t) => t.id !== threadId);
+    return "deleted";
+  }
+
+  // Called from handleDocUpdate on every content change — keeps stored
+  // positions from drifting too far out of date, so ambiguous-quote
+  // relocation (see relocateAnchor's "closest occurrence" tiebreak) stays
+  // accurate over many edits. Purely in-memory; persisted the next time
+  // persistNow() fires (the same debounced cadence as the Yjs snapshot).
+  refreshCommentAnchors(content: string): void {
+    this.commentThreads = this.commentThreads.map((t) => {
+      const relocated = relocateAnchor(content, t);
+      if (!relocated) return { ...t, orphaned: true };
+      return { ...t, from: relocated.from, to: relocated.to, orphaned: false };
+    });
   }
 }

@@ -180,3 +180,8 @@ to matter later.
       turn out to need the same live-ness as text/cursor sync
 - [ ] Comment notifications (email or in-app) — no notification
       infrastructure exists in this app today; out of scope for v1.13.0
+- [ ] Slide transition animation in the What's New carousel — v1.14.0
+      swaps slides instantly, no animation
+- [ ] An authoring/editing UI for What's New entries — v1.14.0 entries
+      are added directly to `whats-new-entries.ts` as a manual step per
+      release, same as CHANGELOG/ROADMAP updates already are

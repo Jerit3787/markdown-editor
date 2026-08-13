@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.14.0] - 2026-08-13
+
+### Changed
+
+- What's New is now a data-driven, missed-updates carousel instead of a
+  single screen listing everything at once. It shows only the entries
+  newer than what you've already seen (just the newest for a first-time
+  visitor), one at a time with Prev/Next and a screenshot per entry.
+
 ## [1.13.0] - 2026-08-13
 
 ### Added

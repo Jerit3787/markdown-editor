@@ -135,6 +135,18 @@
     commentsPanelOpen.set(false);
   }
 
+  // #comments-panel-mount lives outside #app in the DOM (like every
+  // other modal/panel mount point), so this can't just anchor to a
+  // positioned ancestor in CSS — measured fresh on every open instead,
+  // which also keeps it correct across a resize that changes how many
+  // rows the topbar wraps to (e.g. crossing the mobile breakpoint).
+  // #topbar's own z-index still renders above this panel too, as a
+  // second line of defense — belt and suspenders, not either/or.
+  let panelTop = $state(0);
+  $effect(() => {
+    if ($commentsPanelOpen) panelTop = document.getElementById("topbar")?.offsetHeight ?? 0;
+  });
+
   onMount(() => {
     const open = () => commentsPanelOpen.set(true);
     document.getElementById("commentsBtn")?.addEventListener("click", open);
@@ -149,7 +161,7 @@
   });
 </script>
 
-{#if $commentDraft.visible && $commentDraft.coords}
+{#if $commentsPanelOpen && $commentDraft.visible && $commentDraft.coords}
   <div class="comment-draft-anchor" style="left: {$commentDraft.coords.left}px; top: {$commentDraft.coords.bottom + 4}px;">
     {#if !creatingDraft}
       <button type="button" class="secondary-btn comment-add-btn" onclick={() => (creatingDraft = true)}>Add comment</button>
@@ -166,7 +178,7 @@
 {/if}
 
 {#if $commentsPanelOpen}
-  <div class="comments-panel" role="complementary" aria-label="Comments">
+  <div class="comments-panel" style="top: {panelTop}px;" role="complementary" aria-label="Comments">
     <div class="comments-panel-header">
       <h2>Comments</h2>
       <button type="button" class="secondary-btn" onclick={close}>Close</button>

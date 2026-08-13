@@ -47,6 +47,15 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* 100vh on mobile Safari/Chrome is sized for the largest possible
+     viewport (browser chrome hidden), not what's actually visible —
+     the difference is exactly the address bar's height, which is why
+     the bottom pane in the stacked mobile layout could end up
+     unreachable no matter how you scrolled it. 100dvh tracks the real
+     visible viewport as browser chrome shows/hides; kept as a second
+     declaration (not a replacement) so a browser that doesn't
+     understand dvh silently keeps the vh fallback above. */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -60,6 +69,12 @@ body.focus-mode #statusbar {
 /* Top bar: row 1 (brand/title/status/Share/Settings), row 2 (File/Edit/View/Help) */
 #topbar {
   position: relative;
+  /* Above .comments-panel's z-index:250 (an opaque partial side panel
+     that otherwise visually runs underneath the topbar's own row,
+     blocking Share/Settings/its own toggle icon while open) — below
+     genuine full-screen takeovers like Version History (z-index:300),
+     which are meant to replace the topbar entirely, not coexist with it. */
+  z-index: 260;
   display: flex;
   flex-direction: column;
   background: var(--bg-alt);
@@ -208,7 +223,12 @@ body.focus-mode #statusbar {
   padding: 5px 8px;
   border-radius: 6px;
   color: var(--text);
-  min-width: 80px;
+  /* Small enough to stay clickable for a very short name, not big
+     enough to leave a visible gap before the save-status icon when
+     resizeDocTitle() has already sized the field to fit the actual
+     text (see app.ts) — 80px previously left a large empty gap after
+     any short title. */
+  min-width: 24px;
   max-width: 260px;
   /* Actual width is set in JS (see app.js resizeDocTitle) by measuring
      #docTitleMirror — min/max-width above still clamp it either way.
@@ -741,6 +761,14 @@ body.focus-mode #statusbar {
 .comment-draft-actions button { width: auto; margin-bottom: 0; }
 
 .comments-panel {
+  /* #comments-panel-mount lives outside #app in the DOM (like every
+     other modal/panel mount point), so position:absolute here can't
+     anchor to #body despite it having position:relative — there's no
+     actual ancestor relationship for that to resolve against. Stays
+     position:fixed against the viewport instead; #topbar's own
+     z-index (see its rule) is what keeps this panel from covering its
+     buttons, by rendering the (opaque) topbar on top of it rather
+     than by excluding the topbar's screen area geometrically. */
   position: fixed;
   top: 0;
   right: 0;
@@ -897,6 +925,8 @@ body.focus-mode #statusbar {
 .image-item .image-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .image-item .image-size { font-size: 11.5px; color: var(--text-dim); }
 .image-item .icon-btn { flex-shrink: 0; }
+.image-item.unused { opacity: 0.6; }
+.image-unused-label { font-weight: normal; font-size: 11px; color: var(--text-dim); }
 
 .gist-item { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
 .gist-item .gist-meta { flex: 1; min-width: 0; }
@@ -1300,7 +1330,10 @@ body.focus-mode #statusbar {
 #preview {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 40px;
+  /* Equal top/bottom (was 28px top, leaving the first line sitting
+     closer to the topbar than the editor pane's own toolbar-buffered
+     top ever does) — matches the horizontal padding too. */
+  padding: 40px;
   line-height: 1.7;
   font-size: 15.5px;
 }
@@ -1336,6 +1369,11 @@ body.focus-mode #statusbar {
 #preview th { background: var(--bg-alt); }
 #preview img { max-width: 100%; border-radius: 6px; }
 #preview a { color: var(--accent); }
+/* GFM task-list items (marked's checkbox <li>s carry no distinguishing
+   class in this version — bare <li><input type="checkbox">...) still
+   get the browser's default bullet marker alongside the checkbox
+   without this, showing both a dot and a checkbox. */
+#preview li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.2em; }
 #preview hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 
 .sr-only {
@@ -1569,6 +1607,16 @@ body.focus-mode #statusbar {
   #main.mode-split #divider { display: none; }
   #docTitle { max-width: 120px; }
 
+  /* iOS Safari auto-zooms the whole page in when a focused input's
+     computed font-size is under 16px, and never zooms back out on
+     blur — the editor's 14.5px and the title field's 15px both
+     qualified. Bumping both to 16px here (not fighting it via a
+     maximum-scale/user-scalable viewport override, which disables
+     pinch-zoom for everyone and is a real accessibility regression)
+     stops the zoom from triggering in the first place. */
+  .cm-content { font-size: 16px; }
+  #docTitle, #docTitleMirror { font-size: 16px; }
+
   /* Plain wrap, not scroll: overflow-x:auto here would also clip the
      File/Edit/View/Help dropdowns vertically, since they're absolutely
      positioned descendants of this same row (a scrolling ancestor clips
@@ -1597,6 +1645,24 @@ body.focus-mode #statusbar {
   #toolbar::-webkit-scrollbar { display: none; }
   #toolbar button { flex-shrink: 0; min-width: 36px; padding: 7px 10px; }
   #toolbar .sep { flex-shrink: 0; }
+
+  /* What's New: full-screen instead of a floating centered box (there's
+     not enough width on a phone to float one usefully), and the
+     screenshot stacks above its text instead of sitting beside it —
+     the fixed 180px-wide image left very little room for the text
+     next to it on a narrow screen. */
+  .whats-new-modal {
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .whats-new-modal .whats-new-slide { flex-direction: column; flex: 1; }
+  .whats-new-modal .whats-new-screenshot { width: 100%; height: auto; aspect-ratio: 1; }
+  .modal-backdrop:has(.whats-new-modal) { padding: 0; }
 }
 
 /* Toasts */

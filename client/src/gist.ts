@@ -13,7 +13,7 @@ import "./types";
 import { githubUsername as githubUsernameStore } from "./stores/github";
 import { showToast } from "./stores/toast";
 import { gistBusyLabel } from "./stores/gist";
-import { getActiveDoc, createDoc, setActiveDocGistId } from "./stores/docs";
+import { getActiveDoc, createDoc, setActiveDocGistId, clearActiveDocGist } from "./stores/docs";
 
 let connectedUsername: string | null = null;
 
@@ -94,12 +94,35 @@ async function publish() {
   try {
     let gistId = doc.gistId;
     if (gistId) {
+      // The files{} key must exactly match an existing filename in the
+      // gist to update it in place — anything else creates a *new*
+      // file instead (this is what silently left renamed documents
+      // with two files in their gist: the freshly-computed name from
+      // the new doc.name never matched what the gist actually had).
+      // doc.gistFilename tracks what the gist currently knows this
+      // file as; a real rename needs GitHub's own rename form (the
+      // *old* key, with a `filename` property naming the new one).
+      const knownFilename = doc.gistFilename || filename;
+      const files =
+        knownFilename !== filename ? { [knownFilename]: { filename, content } } : { [filename]: { content } };
       const res = await fetch(`/api/gist/${gistId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ files: { [filename]: { content } } }),
+        body: JSON.stringify({ files }),
       });
+      if (res.status === 404) {
+        // The gist was deleted outside this app — there's no other way
+        // for an update to 404 here. Clear the local link rather than
+        // leaving the document looking permanently (and unfixably)
+        // linked to a gist that no longer exists.
+        clearActiveDocGist();
+        window.MDE.refreshSaveStatus();
+        gistBusyLabel.set("Failed: Gist no longer exists");
+        showToast("That Gist no longer exists — publish again to create a new one.", "error");
+        return;
+      }
       if (!res.ok) throw new Error(await errorMessage(res));
+      if (knownFilename !== filename) setActiveDocGistId(gistId, filename);
     } else {
       const res = await fetch("/api/gist", {
         method: "POST",
@@ -109,7 +132,7 @@ async function publish() {
       if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       gistId = data.id;
-      setActiveDocGistId(gistId);
+      setActiveDocGistId(gistId, filename);
     }
 
     try {
@@ -252,7 +275,7 @@ async function openGistById(id: string, btn: HTMLButtonElement) {
     const rawContent = file.truncated ? await fetchRaw(file.raw_url) : file.content;
     const name = file.filename.replace(/\.(md|markdown)$/i, "");
     const { content, images } = extractInlineImages(rawContent);
-    createDoc({ name, content, images: Object.keys(images).length ? images : undefined, gistId: data.id });
+    createDoc({ name, content, images: Object.keys(images).length ? images : undefined, gistId: data.id, gistFilename: file.filename });
     document.getElementById("openGistModal").hidden = true;
     btn.textContent = original;
     showToast(`Opened "${name}" from Gist`, "success");

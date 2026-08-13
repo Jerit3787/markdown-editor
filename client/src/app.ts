@@ -1,7 +1,7 @@
 /* Markdown Editor — static, client-side, localStorage-backed */
 import { EditorState, StateField, StateEffect, Compartment, Transaction, type Extension } from "@codemirror/state";
 import { EditorView, Decoration, drawSelection, keymap, type DecorationSet } from "@codemirror/view";
-import { history, historyKeymap, undo as cmUndo, redo as cmRedo, defaultKeymap } from "@codemirror/commands";
+import { history, historyKeymap, undo as cmUndo, redo as cmRedo, defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -40,6 +40,7 @@ import { debounceWithFlush } from "./debounce";
 import { maybeSnapshotVersion } from "./history";
 import { commentDraft } from "./stores/commentDraft";
 import { relocateAnchor } from "./anchor";
+import { imageKey } from "./image-key";
 import { renameCollision } from "./stores/renameCollision";
 import { transformWikilinks, resolveWikilinkTarget } from "./wikilinks";
 import { wikilinkMenu } from "./stores/wikilinkMenu";
@@ -518,15 +519,14 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   type KeybindingMode = "normal" | "vim" | "emacs";
 
-  // drawSelection() isn't in this app's base extension list
-  // at all today — the vim package's own docs call it out as required
-  // for correct visual-mode selection rendering when not using CM6's
-  // basicSetup (which this app doesn't use). Bundled in only when a
-  // keybinding mode is actually active, so Normal-mode users see no
-  // change at all.
+  // drawSelection() is now in the base extension list (see
+  // buildEditorExtensions) — vim mode needs it (the vim package's own
+  // docs call it out as required for correct visual-mode selection
+  // rendering when not using CM6's basicSetup, which this app doesn't
+  // use) and it's already unconditional, so it isn't added again here.
   function keybindingsExtensionsFor(mode: KeybindingMode): Extension[] {
-    if (mode === "vim") return [vim(), drawSelection()];
-    if (mode === "emacs") return [emacs(), drawSelection()];
+    if (mode === "vim") return [vim()];
+    if (mode === "emacs") return [emacs()];
     return [];
   }
 
@@ -568,12 +568,27 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
           },
         },
       ]),
+      // Tab/Shift-Tab indent-select-lines by default (indentWithTab
+      // captures Tab entirely — it no longer moves focus out of the
+      // editor via keyboard, a deliberate trade-off every code editor
+      // with Tab-to-indent makes).
+      keymap.of([indentWithTab]),
       keymap.of(markdownKeymap),
       keymap.of(defaultKeymap),
       markdown({ extensions: [GFM] }),
       syntaxHighlighting(markdownHighlightStyle),
       editorTheme,
       EditorView.lineWrapping,
+      // CM6's own decoration-based selection overlay — renders
+      // regardless of DOM focus, unlike the browser's native text
+      // selection (what CM6 falls back to without this), which visibly
+      // disappears the moment focus moves elsewhere — e.g. to the
+      // Comments panel's draft textarea while writing a comment on the
+      // very text you just selected. editorTheme's own
+      // .cm-selectionBackground rule was already written to keep the
+      // same color in both focus states; this is what actually makes
+      // that apply.
+      drawSelection(),
       imageMarkerField,
       slashTriggerField,
       slashMenuSyncListener,
@@ -1011,22 +1026,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
   }
 
-  // Short reference name instead of the full base64 blob living inline in
-  // the editor text — e.g. "screenshot.png" or "screenshot-2.png" if that
-  // name's taken. The preview/export resolve it back to the real data URI
-  // (see the marked image renderer in updatePreview and resolveImageRefs).
-  function imageKey(filename: string, images: Record<string, string>) {
-    const match = (filename || "image").match(/^(.*?)(\.[^.]+)?$/);
-    const base = (match[1] || "image").trim().replace(/[^a-zA-Z0-9-_ ]+/g, "").trim() || "image";
-    const ext = match[2] || ".png";
-    let key = `${base}${ext}`;
-    let n = 2;
-    while (images[key]) {
-      key = `${base}-${n}${ext}`;
-      n++;
-    }
-    return key;
-  }
 
   function resolveImageRefs(text: string, doc: Doc | undefined) {
     if (!doc || !doc.images) return text;
@@ -1059,14 +1058,25 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     list.innerHTML = "";
     emptyHint.hidden = keys.length > 0;
 
+    // Removing an image's markdown reference from the text doesn't
+    // delete it from doc.images — same "don't destroy data the user
+    // might want back" stance orphaned comment anchors already take
+    // (see Note.orphaned) — but showing it identically to an
+    // actively-used image made it look like the manager just doesn't
+    // notice references being removed. Flagged here instead, against
+    // the live editor buffer (not the last-saved doc.content) so it's
+    // accurate immediately after an edit, before the debounced save.
+    const rawContent = cm.state.doc.toString();
     keys.forEach((key) => {
       const dataUrl = images[key];
+      const used = rawContent.includes(`](${key})`);
       const item = document.createElement("div");
       item.className = "image-item";
+      if (!used) item.classList.add("unused");
       item.innerHTML = `
         <img src="${dataUrl}" alt="">
         <div class="image-meta">
-          <div class="image-name">${escapeHtml(key)}</div>
+          <div class="image-name">${escapeHtml(key)}${used ? "" : ' <span class="image-unused-label">(not used in this document)</span>'}</div>
           <div class="image-size">${formatBytes(dataUrl.length)}</div>
         </div>
         <button class="icon-btn" title="Delete image" aria-label="Delete ${escapeHtml(key)}"><svg class="icon"><use href="#icon-trash-2"></use></svg></button>
@@ -1405,6 +1415,15 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         renameCollision.set({ docId: doc.id, pendingName: finalName, previousName: nameBeforeEdit, collidingDocId: colliding.id });
       }
     });
+    // Enter commits the rename (via the existing blur handler above)
+    // and moves focus to the editor — same as clicking away, just
+    // reachable from the keyboard without tabbing.
+    docTitleInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      docTitleInput.blur();
+      cm.focus();
+    });
     resizeDocTitle();
   }
 
@@ -1462,7 +1481,13 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     if (line.text.startsWith(prefix)) {
       cm.dispatch({ changes: { from: line.from, to: line.from + prefix.length, insert: "" } });
     } else {
-      cm.dispatch({ changes: { from: line.from, insert: prefix } });
+      // Without an explicit selection, an insertion landing exactly at
+      // the cursor's position (the common case — an empty line) maps
+      // the cursor to stay *before* the inserted text by default,
+      // leaving it sitting in front of "# " instead of ready to type
+      // after it.
+      const head = cm.state.selection.main.head;
+      cm.dispatch({ changes: { from: line.from, insert: prefix }, selection: { anchor: head + prefix.length } });
     }
   }
 

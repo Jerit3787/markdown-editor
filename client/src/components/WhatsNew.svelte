@@ -90,7 +90,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
-    <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
+    <div class="modal-box modal-box-wide whats-new-modal" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
       <h2 id="whatsNewTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> What's new</h2>
       <div class="whats-new-slide">
         <img class="whats-new-screenshot" src={slides[slideIndex].screenshot} alt={slides[slideIndex].title} />

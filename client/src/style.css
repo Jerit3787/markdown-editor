@@ -47,6 +47,15 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* 100vh on mobile Safari/Chrome is sized for the largest possible
+     viewport (browser chrome hidden), not what's actually visible —
+     the difference is exactly the address bar's height, which is why
+     the bottom pane in the stacked mobile layout could end up
+     unreachable no matter how you scrolled it. 100dvh tracks the real
+     visible viewport as browser chrome shows/hides; kept as a second
+     declaration (not a replacement) so a browser that doesn't
+     understand dvh silently keeps the vh fallback above. */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -1582,6 +1591,16 @@ body.focus-mode #statusbar {
   #main.mode-split #divider { display: none; }
   #docTitle { max-width: 120px; }
 
+  /* iOS Safari auto-zooms the whole page in when a focused input's
+     computed font-size is under 16px, and never zooms back out on
+     blur — the editor's 14.5px and the title field's 15px both
+     qualified. Bumping both to 16px here (not fighting it via a
+     maximum-scale/user-scalable viewport override, which disables
+     pinch-zoom for everyone and is a real accessibility regression)
+     stops the zoom from triggering in the first place. */
+  .cm-content { font-size: 16px; }
+  #docTitle, #docTitleMirror { font-size: 16px; }
+
   /* Plain wrap, not scroll: overflow-x:auto here would also clip the
      File/Edit/View/Help dropdowns vertically, since they're absolutely
      positioned descendants of this same row (a scrolling ancestor clips
@@ -1610,6 +1629,24 @@ body.focus-mode #statusbar {
   #toolbar::-webkit-scrollbar { display: none; }
   #toolbar button { flex-shrink: 0; min-width: 36px; padding: 7px 10px; }
   #toolbar .sep { flex-shrink: 0; }
+
+  /* What's New: full-screen instead of a floating centered box (there's
+     not enough width on a phone to float one usefully), and the
+     screenshot stacks above its text instead of sitting beside it —
+     the fixed 180px-wide image left very little room for the text
+     next to it on a narrow screen. */
+  .whats-new-modal {
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .whats-new-modal .whats-new-slide { flex-direction: column; flex: 1; }
+  .whats-new-modal .whats-new-screenshot { width: 100%; height: auto; aspect-ratio: 1; }
+  .modal-backdrop:has(.whats-new-modal) { padding: 0; }
 }
 
 /* Toasts */

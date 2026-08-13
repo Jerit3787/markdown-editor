@@ -1699,14 +1699,9 @@ body.focus-mode #statusbar {
 
   .share-pill, .menubar-btn, #settingsBtn { flex-shrink: 0; }
   #menuBar .icon-btn { width: 40px; height: 40px; flex-shrink: 0; }
-
-  /* Icon-only on phone widths — the topbar row is already tight there
-     (brand, title, save status, presence avatars, share, settings all
-     competing for space) and the share icon alone is recognizable enough
-     without the label. */
-  .share-pill-label { display: none; }
-  .share-pill { padding: 8px; border-radius: 50%; }
-  .share-pill .icon { width: 17px; height: 17px; }
+  
+  /* Keep the share pill large on mobile too */
+  #topbarActionsCol { gap: 8px; }
 
   /* Comfortable touch targets (~44px is the platform-recommended minimum). */
   .icon-btn { width: 40px; height: 40px; font-size: 17px; }

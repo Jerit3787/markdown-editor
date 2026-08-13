@@ -35,6 +35,16 @@
    default `[hidden] { display: none }` UA rule and defeats el.hidden. */
 [hidden] { display: none !important; }
 
+/* Form controls don't inherit the page's font-family from a browser's
+   UA stylesheet by default — every button/input/select/textarea in the
+   app (the topbar's title field, every icon button, the menu bar, the
+   Share pill, etc.) was silently falling back to the platform's default
+   form-control font instead of --sans, a real visible mismatch against
+   the rest of the page's text. One generic rule instead of patching
+   every element that happens to get noticed — same reasoning as the
+   mobile 16px input font-size rule elsewhere in this file. */
+button, input, select, textarea { font-family: inherit; }
+
 html, body {
   height: 100%;
   margin: 0;

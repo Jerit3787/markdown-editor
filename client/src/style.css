@@ -799,10 +799,13 @@ body.focus-mode #statusbar {
 .comment-draft-actions button { width: auto; margin-bottom: 0; }
 
 .comments-panel {
-  /* A real flex sibling of #main inside #body (see index.html) — the
-     panel takes up genuine layout space, so opening it pushes #main's
-     own content narrower/left instead of floating on top of it like a
-     modal. #main's own flex:1 handles the shrinking automatically. */
+  /* A real grid item in #body (see index.html), not a fixed-position
+     overlay — the panel takes up genuine layout space, so opening it
+     pushes #main's own content narrower/left instead of floating on top
+     of it like a modal. Its column is shared with the view selector
+     above it (see #body's grid-template-areas), so both stay the same
+     width automatically. */
+  grid-area: comments;
   width: 320px;
   flex-shrink: 0;
   background: var(--bg);
@@ -1096,15 +1099,27 @@ body.focus-mode #statusbar {
    (a CodeMirror-scoped theme extension), not globally, since it only
    ever applies inside the editor. */
 
-/* Body layout */
+/* Body layout — a grid, not a flex row, so the toolbar row above can
+   span the sidenav+editor+preview columns as one block while the view
+   selector shares a column with the comment sidenav below it (matching
+   the original mockup's rowspan/colspan table exactly: the toolbar's
+   3-column span and the view selector's column both need to track
+   #sidebar's and .comments-panel's actual widths, which only a shared
+   grid track (not two independently-sized flex rows) keeps in sync). */
 #body {
   position: relative;
   flex: 1;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "toolbar toolbar view-selector"
+    "sidebar main    comments";
   min-height: 0;
 }
 
 #sidebar {
+  grid-area: sidebar;
   width: 230px;
   flex-shrink: 0;
   background: var(--bg-sidebar);
@@ -1287,15 +1302,7 @@ body.focus-mode #statusbar {
 
 /* Main editor/preview */
 #main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-#panesRow {
-  flex: 1;
+  grid-area: main;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -1318,15 +1325,15 @@ body.focus-mode #statusbar {
 .empty-state-inner p { color: var(--text-dim); font-size: 13.5px; line-height: 1.5; margin: 0 0 26px; }
 .empty-state-actions { display: flex; flex-direction: column; gap: 8px; }
 
-#main.mode-editor #previewPane, #main.mode-editor #divider { display: none; }
-#main.mode-preview #editorPane, #main.mode-preview #divider { display: none; }
-#main.mode-editor #editorPane { flex: 1; }
-#main.mode-preview #previewPane { flex: 1; border-left: none; }
+#body.mode-editor #previewPane, #body.mode-editor #divider { display: none; }
+#body.mode-preview #editorPane, #body.mode-preview #divider { display: none; }
+#body.mode-editor #editorPane { flex: 1; }
+#body.mode-preview #previewPane { flex: 1; border-left: none; }
 
 /* The formatting buttons act on the editor — nothing for them to do
-   with no editor visible. The view-selector (a sibling, not inside
+   with no editor visible. The view-selector (a grid sibling, not inside
    .toolbar-buttons) stays visible so there's always a way back. */
-#main.mode-preview #toolbar .toolbar-buttons { display: none; }
+#body.mode-preview #toolbar .toolbar-buttons { display: none; }
 
 #divider {
   width: 1px;
@@ -1335,23 +1342,70 @@ body.focus-mode #statusbar {
 }
 
 #toolbar {
+  grid-area: toolbar;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-alt);
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .toolbar-buttons {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
   align-items: center;
   gap: 2px;
 }
 
-.view-selector { display: flex; gap: 2px; flex-shrink: 0; }
+/* Google Docs-style "more tools" overflow — see Toolbar.svelte's
+   recalcOverflow(). A flex row, not a vertical list, so buttons read the
+   same wrapped-grid way in the dropdown as they do inline. */
+.toolbar-overflow { flex-shrink: 0; }
+.toolbar-overflow-menu {
+  /* display stays with the base .dropdown-menu/.dropdown-menu.open
+     pair (none / block) — only overridden to flex once .open is also
+     present, otherwise this rule's higher specificity (two classes vs
+     .dropdown-menu's one) would keep it visible even closed. */
+  flex-wrap: wrap;
+  align-content: flex-start;
+  width: 216px;
+  padding: 4px;
+  gap: 2px;
+  left: auto;
+  right: 0;
+}
+.toolbar-overflow-menu.open { display: flex; }
+.toolbar-overflow-menu button:not(.primary-btn):not(.secondary-btn) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 30px;
+  padding: 5px 9px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  text-align: center;
+}
+.toolbar-overflow-menu .sep { display: none; }
+
+/* A separate grid item from #toolbar (see #body's grid-template-areas)
+   so it lines up in its own column above the comment sidenav — needs
+   its own copy of #toolbar's row styling (background/border/padding) to
+   read as a continuation of the same visual row. */
+.view-selector {
+  grid-area: view-selector;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+}
 .view-selector button { border: none; background: transparent; color: var(--text); padding: 5px 9px; border-radius: 5px; cursor: pointer; display: flex; }
 .view-selector button:hover { background: var(--border); }
 .view-selector button.active { background: var(--accent-dim); color: var(--accent); }
@@ -1658,9 +1712,9 @@ body.focus-mode #statusbar {
      height ever changes. */
   #sidebar { position: absolute; top: 0; bottom: 0; left: 0; z-index: 40; box-shadow: var(--shadow); }
   #sidebar.collapsed { margin-left: -231px; }
-  #main.mode-split #panesRow { flex-direction: column; }
-  #main.mode-split #previewPane { border-left: none; border-top: 1px solid var(--border); }
-  #main.mode-split #divider { display: none; }
+  #body.mode-split #main { flex-direction: column; }
+  #body.mode-split #previewPane { border-left: none; border-top: 1px solid var(--border); }
+  #body.mode-split #divider { display: none; }
   #docTitle { max-width: 120px; }
 
   /* iOS Safari auto-zooms the whole page in when a focused input's
@@ -1715,11 +1769,10 @@ body.focus-mode #statusbar {
   #topbarActionsCol .share-pill .icon { width: 17px; height: 17px; }
   .share-pill-label { display: none; }
 
-  /* The formatting toolbar doesn't fit one line on a phone either — scroll
-     it horizontally instead of wrapping to a 2nd row (flex-wrap:wrap is
-     the desktop/tablet default, set in the base #toolbar rule above). */
-  #toolbar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  #toolbar::-webkit-scrollbar { display: none; }
+  /* The formatting toolbar's overflow-into-"⋮" (see Toolbar.svelte's
+     recalcOverflow()) already handles narrow widths generically — no
+     mobile-specific scroll/wrap override needed here anymore, just
+     bigger touch targets for whichever buttons stay visible. */
   #toolbar button { flex-shrink: 0; min-width: 36px; padding: 7px 10px; }
   #toolbar .sep { flex-shrink: 0; }
 

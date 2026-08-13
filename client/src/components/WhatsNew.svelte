@@ -6,7 +6,7 @@
   // every patch release. Matches package.json's version at the time this
   // was last updated; the two are allowed to drift (a patch release with
   // nothing to announce shouldn't reopen this for everyone).
-  const CURRENT_VERSION = "1.12.0";
+  const CURRENT_VERSION = "1.13.0";
   const STORAGE_KEY = "mde:whatsNewSeen";
 
   function dismiss() {
@@ -35,6 +35,13 @@
   <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
       <h2 id="whatsNewTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> What's new</h2>
+      <div class="menu-section-label">Threaded Comments</div>
+      <p class="hint-text">
+        Select any text and click "Add comment" to anchor a note to it — a personal note on
+        your own documents, or a full discussion thread with replies and resolve/reopen once
+        a document is shared. Open the panel from File &gt; Comments or the new icon next to
+        Version History.
+      </p>
       <div class="menu-section-label">Version History</div>
       <p class="hint-text">
         Every document now builds up automatic version history as you edit. Open it from

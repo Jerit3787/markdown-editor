@@ -329,6 +329,14 @@
          grid-template-areas in style.css. -->
     <div id="toolbar-mount"></div>
 
+    <!-- Dimming backdrop for the mobile bottom-sheet presentation of
+         #sidebar (see the mobile media query in style.css) — shown/
+         hidden by app.ts's collapseSidebarForMobile()/toggleSidebar()
+         alongside #sidebar's own .collapsed class. Always present in
+         the DOM (hidden by default); harmless on desktop since it's
+         only ever un-hidden when isMobile() is true. -->
+    <div id="sidebarBackdrop" hidden></div>
+
     <!-- Sidebar: document list -->
     <aside id="sidebar">
       <div id="sidebarHeader">

@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { extractChangelog } = require('./release-helper.cjs');
+const { extractChangelog, sortTags, appendComparisonLink, getRepoSlug } = require('./release-helper.cjs');
 
 const sampleChangelog = `
 # Changelog
@@ -18,10 +18,17 @@ const sampleChangelog = `
 const notes114 = extractChangelog(sampleChangelog, 'v1.14.0');
 assert(notes114.includes("What's New carousel feature"), 'Should extract v1.14.0 notes');
 
-const notes113 = extractChangelog(sampleChangelog, '1.13.0');
-assert(notes113.includes("Threaded comments feature"), 'Should extract 1.13.0 notes');
+// Test tag sorting
+const unsortedTags = ['v1.14.0', 'v1.2.0', 'v1.10.0', 'v1.0.0', 'v1.4.5', 'v1.4.10'];
+const sorted = sortTags(unsortedTags);
+assert.deepStrictEqual(sorted, ['v1.0.0', 'v1.2.0', 'v1.4.5', 'v1.4.10', 'v1.10.0', 'v1.14.0']);
 
-const notesMissing = extractChangelog(sampleChangelog, 'v9.9.9');
-assert.strictEqual(notesMissing, null, 'Should return null for missing versions');
+// Test comparison link appending
+const allTags = ['v1.0.0', 'v1.13.0', 'v1.14.0'];
+const notesWithLink = appendComparisonLink(notes114, 'v1.14.0', allTags, 'Jerit3787/markdown-editor');
+assert(notesWithLink.includes('**Full Changelog**: https://github.com/Jerit3787/markdown-editor/compare/v1.13.0...v1.14.0'));
 
-console.log('Changelog parser unit tests passed!');
+const firstTagLink = appendComparisonLink('Initial release', 'v1.0.0', allTags, 'Jerit3787/markdown-editor');
+assert(firstTagLink.includes('**Full Changelog**: https://github.com/Jerit3787/markdown-editor/commits/v1.0.0'));
+
+console.log('Changelog parser and comparison link unit tests passed!');

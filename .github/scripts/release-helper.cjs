@@ -14,6 +14,55 @@ function extractChangelog(content, tagName) {
   return match[1].trim();
 }
 
+function parseSemver(tag) {
+  const clean = tag.replace(/^v/, '');
+  return clean.split('.').map(p => parseInt(p, 10) || 0);
+}
+
+function sortTags(tags) {
+  return [...tags].sort((a, b) => {
+    const pa = parseSemver(a);
+    const pb = parseSemver(b);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const na = pa[i] || 0;
+      const nb = pb[i] || 0;
+      if (na !== nb) return na - nb;
+    }
+    return 0;
+  });
+}
+
+function getRepoSlug() {
+  if (process.env.GITHUB_REPOSITORY) {
+    return process.env.GITHUB_REPOSITORY;
+  }
+  try {
+    const remoteUrl = execSync('git remote get-url origin', { encoding: 'utf8' }).trim();
+    const match = remoteUrl.match(/github\.com[:/]([^/]+\/[^/.]+)(?:\.git)?$/);
+    if (match) {
+      return match[1];
+    }
+  } catch (err) {
+    // Ignore error
+  }
+  return '';
+}
+
+function appendComparisonLink(notes, tag, sortedTags, repoSlug) {
+  if (!repoSlug) {
+    return notes;
+  }
+  const index = sortedTags.indexOf(tag);
+  let link = '';
+  if (index > 0) {
+    const prevTag = sortedTags[index - 1];
+    link = `**Full Changelog**: https://github.com/${repoSlug}/compare/${prevTag}...${tag}`;
+  } else {
+    link = `**Full Changelog**: https://github.com/${repoSlug}/commits/${tag}`;
+  }
+  return `${notes}\n\n${link}`;
+}
+
 function processReleases() {
   const changelogPath = path.join(process.cwd(), 'CHANGELOG.md');
   if (!fs.existsSync(changelogPath)) {
@@ -39,12 +88,13 @@ function processReleases() {
   }
 
   // Get all local git tags matching v*
+  let allGitTags = [];
   try {
-    const gitTags = execSync('git tag -l "v*"', { encoding: 'utf8' })
+    allGitTags = execSync('git tag -l "v*"', { encoding: 'utf8' })
       .split('\n')
       .map(t => t.trim())
       .filter(Boolean);
-    for (const tag of gitTags) {
+    for (const tag of allGitTags) {
       if (!tagsToProcess.includes(tag)) {
         tagsToProcess.push(tag);
       }
@@ -52,6 +102,9 @@ function processReleases() {
   } catch (err) {
     console.warn('Could not list git tags:', err.message);
   }
+
+  const sortedGitTags = sortTags(allGitTags.length > 0 ? allGitTags : tagsToProcess);
+  const repoSlug = getRepoSlug();
 
   console.log(`Checking ${tagsToProcess.length} tag(s)...`);
 
@@ -61,11 +114,13 @@ function processReleases() {
       continue;
     }
 
-    const notes = extractChangelog(changelogContent, tag);
+    let notes = extractChangelog(changelogContent, tag);
     if (!notes) {
       console.log(`No changelog notes found for ${tag}. Skipping.`);
       continue;
     }
+
+    notes = appendComparisonLink(notes, tag, sortedGitTags, repoSlug);
 
     console.log(`Creating GitHub Release for ${tag}...`);
     const tempNotesFile = path.join(process.cwd(), `.release_notes_${tag.replace(/[^a-zA-Z0-9.-]/g, '_')}.md`);
@@ -90,4 +145,4 @@ if (require.main === module) {
   processReleases();
 }
 
-module.exports = { extractChangelog, processReleases };
+module.exports = { extractChangelog, sortTags, appendComparisonLink, getRepoSlug, processReleases };

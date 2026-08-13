@@ -1405,6 +1405,15 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         renameCollision.set({ docId: doc.id, pendingName: finalName, previousName: nameBeforeEdit, collidingDocId: colliding.id });
       }
     });
+    // Enter commits the rename (via the existing blur handler above)
+    // and moves focus to the editor — same as clicking away, just
+    // reachable from the keyboard without tabbing.
+    docTitleInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      docTitleInput.blur();
+      cm.focus();
+    });
     resizeDocTitle();
   }
 

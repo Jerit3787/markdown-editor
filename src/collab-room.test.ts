@@ -231,6 +231,135 @@ describe("CollabRoom comment threads", () => {
   });
 });
 
+describe("GET/POST /room1/comments", () => {
+  it("rejects an unshared room", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    const res = await room.fetch(new Request("https://example.com/room1/comments"));
+    expect(res.status).toBe(403);
+  });
+
+  it("creates a thread and returns it", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
+    const req = await authedRequest("alice", "/room1/comments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from: 0, to: 5, quote: "hello", body: "nice" }),
+    });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(200);
+    const thread = (await res.json()) as CommentThread;
+    expect(thread.comments[0]!.body).toBe("nice");
+  });
+
+  it("rejects a viewer's attempt to create a comment", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    const req = await authedRequest("bob", "/room1/comments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from: 0, to: 5, quote: "hello", body: "nice" }),
+    });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects an empty comment body", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
+    const req = await authedRequest("alice", "/room1/comments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from: 0, to: 5, quote: "hello", body: "   " }),
+    });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(400);
+  });
+
+  it("lists created threads", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
+    room.createThread(0, 5, "hello", "alice", "first");
+    const res = await room.fetch(new Request("https://example.com/room1/comments"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toHaveLength(1);
+  });
+});
+
+describe("POST /room1/comments/:id/reply and /resolve", () => {
+  it("replies to a thread", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
+    const thread = room.createThread(0, 5, "hello", "alice", "first");
+    const req = await authedRequest("bob", `/room1/comments/${thread.id}/reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: "reply" }),
+    });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(200);
+    const updated = (await res.json()) as CommentThread;
+    expect(updated.comments).toHaveLength(2);
+  });
+
+  it("returns 404 replying to an unknown thread", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
+    const req = await authedRequest("alice", "/room1/comments/nope/reply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: "reply" }),
+    });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(404);
+  });
+
+  it("resolves a thread", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
+    const thread = room.createThread(0, 5, "hello", "alice", "first");
+    const req = await authedRequest("alice", `/room1/comments/${thread.id}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resolved: true }),
+    });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as CommentThread).resolved).toBe(true);
+  });
+});
+
+describe("DELETE /room1/comments/:id", () => {
+  it("allows the starting author to delete", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
+    const thread = room.createThread(0, 5, "hello", "alice", "first");
+    const req = await authedRequest("alice", `/room1/comments/${thread.id}`, { method: "DELETE" });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(204);
+    expect(room.getComments()).toHaveLength(0);
+  });
+
+  it("rejects a non-author non-owner", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
+    const thread = room.createThread(0, 5, "hello", "alice", "first");
+    const req = await authedRequest("bob", `/room1/comments/${thread.id}`, { method: "DELETE" });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(403);
+    expect(room.getComments()).toHaveLength(1);
+  });
+
+  it("allows the document owner to delete any thread", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
+    const thread = room.createThread(0, 5, "hello", "bob", "first");
+    const req = await authedRequest("alice", `/room1/comments/${thread.id}`, { method: "DELETE" });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(204);
+  });
+});
+
 describe("GET /room1/versions", () => {
   it("rejects an unshared room", async () => {
     const room = new CollabRoom(fakeState(), fakeEnv);

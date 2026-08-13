@@ -15,6 +15,7 @@ import type { Env } from "./env";
 const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
 const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
 const ROOM_VERSIONS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/versions(\/.*)?$/;
+const ROOM_COMMENTS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/comments(\/.*)?$/;
 const GIST_PATH = /^\/api\/gist\/([0-9a-f]+)$/i;
 const GIST_IMAGE_PATH = /^\/api\/gist\/([0-9a-f]+)\/image$/i;
 
@@ -31,6 +32,12 @@ export default {
     const roomVersionsMatch = url.pathname.match(ROOM_VERSIONS_PATH);
     if (roomVersionsMatch) {
       const id = env.COLLAB_ROOM.idFromName(roomVersionsMatch[1]!);
+      return env.COLLAB_ROOM.get(id).fetch(request);
+    }
+
+    const roomCommentsMatch = url.pathname.match(ROOM_COMMENTS_PATH);
+    if (roomCommentsMatch) {
+      const id = env.COLLAB_ROOM.idFromName(roomCommentsMatch[1]!);
       return env.COLLAB_ROOM.get(id).fetch(request);
     }
 

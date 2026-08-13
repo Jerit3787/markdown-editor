@@ -1752,10 +1752,12 @@ body.focus-mode #statusbar {
     position: fixed;
     left: 0;
     right: 0;
+    width: auto;
     bottom: 0;
     top: auto;
     height: 50vh;
     border-radius: 16px 16px 0 0;
+    border-right: none;
     z-index: 40;
     box-shadow: var(--shadow);
     transform: translateY(0);

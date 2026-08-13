@@ -273,6 +273,9 @@
     <path d="M3 3v5h5" />
     <path d="M12 7v5l4 2" />
   </symbol>
+  <symbol id="icon-message-square" viewBox="0 0 24 24">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </symbol>
   <symbol id="icon-info" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="10" />
     <path d="M12 16v-4" />
@@ -306,6 +309,7 @@
       <div class="spacer"></div>
 
       <div id="presenceBar" class="presence-bar" hidden></div>
+      <button id="commentsBtn" class="icon-btn" type="button" title="Comments" aria-label="Comments"><svg class="icon"><use href="#icon-message-square"></use></svg></button>
       <button id="versionHistoryBtn" class="icon-btn" type="button" title="Version history" aria-label="Version history"><svg class="icon"><use href="#icon-history"></use></svg></button>
       <button id="shareBtn" class="share-pill" type="button"><svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span></button>
       <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
@@ -401,6 +405,10 @@
 <!-- Version History — Svelte component, mounted in main.ts; see
      client/src/components/VersionHistory.svelte -->
 <div id="version-history-mount"></div>
+
+<!-- Comments Panel — Svelte component, mounted in main.ts; see
+     client/src/components/CommentsPanel.svelte -->
+<div id="comments-panel-mount"></div>
 
 <!-- Settings — Svelte component, mounted in main.ts (first component of the
      phase-3 migration; see client/src/components/Settings.svelte) -->

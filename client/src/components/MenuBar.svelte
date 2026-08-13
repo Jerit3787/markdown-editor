@@ -7,6 +7,7 @@
   import { focusMode } from "../stores/focusMode";
   import { whatsNewOpen } from "../stores/whatsNew";
   import { versionHistoryOpen } from "../stores/versionHistory";
+  import { commentsPanelOpen } from "../stores/commentsPanel";
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
   let editMenuBtn: HTMLButtonElement, editMenu: HTMLDivElement;
@@ -125,6 +126,11 @@
           <button type="button" onclick={() => act(() => window.MDE.exportAs("txt"))}><svg class="icon"><use href="#icon-download"></use></svg> Plain text (.txt)</button>
         </div>
       </div>
+
+      <div class="menu-divider"></div>
+      <button id="menuComments" type="button" onclick={() => act(() => commentsPanelOpen.set(true))}>
+        <svg class="icon"><use href="#icon-message-square"></use></svg> Comments
+      </button>
 
       <div class="menu-divider"></div>
       <button id="menuVersionHistory" type="button" onclick={() => act(() => versionHistoryOpen.set(true))}>

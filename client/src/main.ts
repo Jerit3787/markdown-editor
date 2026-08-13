@@ -17,6 +17,7 @@ import WhatsNew from "./components/WhatsNew.svelte";
 import CommandPalette from "./components/CommandPalette.svelte";
 import SlashMenu from "./components/SlashMenu.svelte";
 import VersionHistory from "./components/VersionHistory.svelte";
+import CommentsPanel from "./components/CommentsPanel.svelte";
 import DocList from "./components/DocList.svelte";
 import Toast from "./components/Toast.svelte";
 import MenuBar from "./components/MenuBar.svelte";
@@ -45,4 +46,10 @@ mount(DocList, { target: document.getElementById("doclist-mount")! });
 mount(Toast, { target: document.getElementById("toast-mount")! });
 mount(MenuBar, { target: document.getElementById("menubar-mount")! });
 mount(Editor, { target: document.getElementById("editor-mount")! });
+// CommentsPanel is the first component whose own reactive $effect calls
+// window.MDE.getEditor() eagerly (not just from a later click handler,
+// like every other window.MDE consumer above) — it must mount after
+// Editor, which is what actually calls registerEditor() during its own
+// mount, or that first effect run finds cm still null.
+mount(CommentsPanel, { target: document.getElementById("comments-panel-mount")! });
 mount(Toolbar, { target: document.getElementById("toolbar-mount")! });

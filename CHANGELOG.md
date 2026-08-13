@@ -4,6 +4,49 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.16.0] - 2026-08-14
+
+### Added
+
+- View selector: two independent Editor pane / Preview pane toggle
+  buttons in the toolbar (and matching entries in the View menu),
+  replacing the old three-way Editor/Split/Preview switch — both on =
+  split view, matching the original desktop layout mockup.
+- The formatting toolbar collapses buttons that don't fit into a
+  Google Docs-style "⋮" overflow menu instead of wrapping to a 2nd line
+  or scrolling horizontally.
+
+### Changed
+
+- Desktop layout restructured to match the original mockup: the
+  formatting toolbar now spans the document sidenav + editor + preview
+  as one row (not just editor+preview), with the view selector in its
+  own column aligned above the comment sidenav — both stay in sync via
+  a shared CSS grid instead of two independently-sized rows.
+- Topbar: the logo and the comments/history/share/settings cluster
+  each span both header rows, the File/Edit/View/Help menu bar aligns
+  under the document title instead of the logo, and the divider line
+  between the two header rows is gone — all matching Google Docs'
+  actual header layout more closely than the original approximation.
+- The document sidenav toggle is now a single always-visible button
+  with an active/inactive state, instead of two separate buttons
+  swapping visibility depending on whether the sidenav is collapsed.
+
+### Fixed
+
+- Document title text (e.g. "Welcome", shown when no document is open)
+  was getting clipped — the hidden mirror element used to measure the
+  title field's width had drifted out of sync with the field's actual
+  font/padding.
+- Buttons and inputs across the app were rendering in the browser's
+  default form-control font instead of the app's intended font — form
+  controls don't inherit page font-family by default, and nothing had
+  told them to.
+- The document-sidenav toggle and toolbar overflow buttons were
+  visibly bigger, and inconsistently spaced against their neighbors,
+  than every other toolbar button — they shared a fixed-size class used
+  elsewhere in the app instead of sizing like their actual neighbors.
+
 ## [1.15.5] - 2026-08-13
 
 ### Fixed

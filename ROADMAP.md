@@ -141,3 +141,31 @@ to matter later.
 - [ ] Age-based (rather than count-based) version retention — v1.12.0
       caps at the 50 most recent snapshots per document regardless of
       how old they are, not a calendar window
+- [ ] Custom/user-defined Command Palette commands — v1.10.0 ships a
+      fixed list matching what's already reachable via menus/toolbar
+- [ ] Recent-commands / frequency-based ranking in the Command Palette —
+      v1.10.0 uses pure fuzzy-match ranking only, no usage-history
+      learning or persistence
+- [ ] Cross-session persistence of the Command Palette's last query or
+      selection — v1.10.0 always opens fresh
+- [ ] A custom keybinding remapping UI for Vim/Emacs mode — v1.9.0 ships
+      each package's stock default keymap only (both expose a JS API for
+      remapping, just no in-app UI for it)
+- [ ] Per-document Vim/Emacs keybinding preference — v1.9.0 is one global
+      Settings choice, matching every other preference in this app
+- [ ] Visual customization of the Vim-mode status bar indicator's
+      position or format — v1.9.0 ships one fixed presentation
+- [ ] Pixel-perfect / sub-block scroll interpolation in synced scrolling
+      — the line-mapped sync-scroll fix snaps to block boundaries, which
+      solved the reported problem; finer interpolation *within* a tall
+      block is a possible future refinement
+- [ ] Embedded license text (full MIT/MPL/Apache body) per package in
+      the Open Source Licenses list — v1.8.0 shows just the identifier
+      and a repository link, not the full license text for all 19
+      dependencies
+- [ ] Configurable Focus Mode dimming granularity (sentence vs.
+      paragraph vs. off, as iA Writer offers) — v1.7.0 is paragraph-level
+      only, the common default across editors that have this feature
+- [ ] Focus Mode persisted across page loads — v1.7.0 is a session
+      toggle that always starts off, not a sticky preference like theme
+      or custom export CSS

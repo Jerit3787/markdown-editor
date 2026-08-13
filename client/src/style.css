@@ -557,10 +557,15 @@ body.focus-mode #statusbar {
   align-items: flex-start;
   margin-bottom: 16px;
 }
+/* Sized to the image's own natural aspect ratio (capped, not forced
+   square) — object-fit:cover on a fixed 180x180 box was cropping any
+   screenshot that wasn't already square. */
 .whats-new-screenshot {
-  width: 180px;
-  height: 180px;
-  object-fit: cover;
+  max-width: 220px;
+  max-height: 220px;
+  width: auto;
+  height: auto;
+  display: block;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   flex-shrink: 0;
@@ -1657,8 +1662,11 @@ body.focus-mode #statusbar {
     display: flex;
     flex-direction: column;
   }
-  .whats-new-modal .whats-new-slide { flex-direction: column; flex: 1; }
-  .whats-new-modal .whats-new-screenshot { width: 100%; height: auto; aspect-ratio: 1; }
+  .whats-new-modal .whats-new-slide { flex-direction: column; flex: 1; align-items: center; }
+  /* Fills the available width up to max-height, then the browser's own
+     replaced-element sizing shrinks width to match instead — natural
+     aspect ratio either way, no forced square/cropping. */
+  .whats-new-modal .whats-new-screenshot { width: 100%; height: auto; max-height: 50vh; }
   .modal-backdrop:has(.whats-new-modal) { padding: 0; }
 }
 

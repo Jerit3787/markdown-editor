@@ -55,6 +55,12 @@ commitments.
       toolbar restructured into a full-width row spanning the document
       sidenav + editor + preview, with overflowing buttons collapsing
       into a "⋮" menu instead of wrapping/scrolling (v1.16.0)
+- [x] Mobile bottom sheets — the document sidenav and comments panel
+      present as native-style bottom sheets on mobile (flush to the
+      screen edges, dimmed backdrop + header, tap-outside/close-button
+      dismissal) instead of the desktop-style overlay/side-panel
+      presentation that squeezed the editor down to almost nothing on a
+      phone; opening either sheet closes the other (v1.17.0)
 
 ## Backlog — quick wins
 
@@ -220,6 +226,17 @@ to matter later.
       buttons scroll on mobile — v1.16.0's mobile toolbar scrolls (or
       overflows into "⋮") as one unit; the selector isn't pinned
       separately
-- [ ] Full mobile layout redesign (bottom-sheet document sidenav/
-      comments, tabbed document/headings switcher) — v1.16.0 only
-      restructured the desktop toolbar/sidenav layout; mobile is next
+- [ ] Tabbed document/headings switcher on mobile — v1.17.0 shipped the
+      bottom-sheet document sidenav/comments half of the mobile
+      redesign mockup; the tabbed switcher is the remaining piece
+- [ ] Swipe-to-dismiss for the mobile bottom sheets — v1.17.0 only
+      supports tap-outside/close-button dismissal; a drag gesture is
+      real new complexity (touch tracking, momentum, follow-the-finger
+      animation) with no precedent elsewhere in this app, deferred
+      unless tap-to-dismiss proves insufficient in practice
+- [ ] Slide-up entrance animation for the mobile comments sheet —
+      v1.17.0's sidenav sheet animates (reusing its existing
+      slide-transition mechanism), but comments appears/disappears
+      instantly since it's conditionally rendered rather than a
+      persistent node; animating it would mean adopting a Svelte
+      transition for just this one case

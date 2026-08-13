@@ -1058,14 +1058,25 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     list.innerHTML = "";
     emptyHint.hidden = keys.length > 0;
 
+    // Removing an image's markdown reference from the text doesn't
+    // delete it from doc.images — same "don't destroy data the user
+    // might want back" stance orphaned comment anchors already take
+    // (see Note.orphaned) — but showing it identically to an
+    // actively-used image made it look like the manager just doesn't
+    // notice references being removed. Flagged here instead, against
+    // the live editor buffer (not the last-saved doc.content) so it's
+    // accurate immediately after an edit, before the debounced save.
+    const rawContent = cm.state.doc.toString();
     keys.forEach((key) => {
       const dataUrl = images[key];
+      const used = rawContent.includes(`](${key})`);
       const item = document.createElement("div");
       item.className = "image-item";
+      if (!used) item.classList.add("unused");
       item.innerHTML = `
         <img src="${dataUrl}" alt="">
         <div class="image-meta">
-          <div class="image-name">${escapeHtml(key)}</div>
+          <div class="image-name">${escapeHtml(key)}${used ? "" : ' <span class="image-unused-label">(not used in this document)</span>'}</div>
           <div class="image-size">${formatBytes(dataUrl.length)}</div>
         </div>
         <button class="icon-btn" title="Delete image" aria-label="Delete ${escapeHtml(key)}"><svg class="icon"><use href="#icon-trash-2"></use></svg></button>

@@ -788,6 +788,14 @@ body.focus-mode #statusbar {
   padding: 0 0 6px;
 }
 .comment-orphaned-label { font-style: normal; font-size: 11px; }
+
+/* Scoped under #preview, matching (not just relying on coincidental
+   color overlap with) #preview a's specificity — otherwise that
+   generic rule's `color` wins over a plain .wikilink-missing class
+   selector and the "missing" dimming silently never shows. */
+#preview .wikilink { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); cursor: pointer; }
+#preview .wikilink:hover { border-bottom-style: solid; }
+#preview .wikilink-missing { color: var(--text-dim); border-bottom-color: var(--text-dim); }
 .comment-body { margin: 0 0 6px; font-size: 13px; }
 .comment-reply-row { display: flex; gap: 6px; margin-bottom: 6px; }
 .comment-reply-row input {
@@ -862,6 +870,12 @@ body.focus-mode #statusbar {
 .hint-toggle-btn:hover, .hint-toggle-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 .hint-text { margin: -4px 0 12px; }
 
+.doc-info-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.doc-info-row span:first-child { color: var(--text-dim); }
+.doc-info-backlinks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.doc-info-backlink-row { text-align: left; border: none; background: var(--bg-alt); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-family: inherit; font-size: 13px; }
+.doc-info-backlink-row:hover { background: var(--border); }
+
 .modal-field { display: block; margin-bottom: 12px; }
 .modal-field span { display: block; font-size: 12.5px; color: var(--text-dim); margin-bottom: 4px; }
 .modal-field input {
@@ -904,6 +918,8 @@ body.focus-mode #statusbar {
 .secondary-btn:hover { background: var(--border); }
 .secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .secondary-btn:disabled:hover { background: var(--bg-alt); }
+.secondary-btn.danger-btn { color: var(--danger); border-color: var(--danger); }
+.secondary-btn.danger-btn:hover { background: rgba(220, 38, 38, 0.12); }
 
 .status-dot {
   width: 8px;

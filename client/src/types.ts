@@ -39,6 +39,10 @@ export interface Doc {
   name: string;
   content: string;
   updatedAt: number;
+  // Backfilled from updatedAt for any document that predates this
+  // field (see stores/docs.ts's loadDocsFromStorage normalization
+  // pass) — always present on every doc in docsStore after load.
+  createdAt: number;
   images?: Record<string, string>;
   diagrams?: Record<string, string>;
   gistId?: string;

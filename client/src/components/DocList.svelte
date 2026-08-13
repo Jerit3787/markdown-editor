@@ -54,11 +54,23 @@
   }
 
   const MENU_WIDTH = 170;
+  // 3 fixed rows (Rename/Duplicate/Delete) at this CSS's own padding/
+  // font-size, plus the popover's 1px top+bottom border — a plain
+  // estimate rather than measuring the real element after render,
+  // since the content here never varies (avoids a visible
+  // render-at-wrong-position-then-jump flash).
+  const MENU_HEIGHT = 120;
 
   function openMenu(id: string, e: MouseEvent) {
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    menuPos = { top: rect.bottom + 4, left: Math.max(8, rect.right - MENU_WIDTH) };
+    // Flip above the trigger instead of below when there isn't room —
+    // the mobile bottom sheet is short enough (50vh) that a row near
+    // its bottom edge would otherwise push "Delete" past the viewport
+    // with no way to scroll it into view.
+    const top =
+      rect.bottom + 4 + MENU_HEIGHT > window.innerHeight ? Math.max(8, rect.top - MENU_HEIGHT - 4) : rect.bottom + 4;
+    menuPos = { top, left: Math.max(8, rect.right - MENU_WIDTH) };
     openMenuId = openMenuId === id ? null : id;
   }
 

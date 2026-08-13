@@ -8,6 +8,7 @@
   import { whatsNewOpen } from "../stores/whatsNew";
   import { versionHistoryOpen } from "../stores/versionHistory";
   import { commentsPanelOpen } from "../stores/commentsPanel";
+  import { docInfoPanelOpen } from "../stores/docInfoPanel";
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
   let editMenuBtn: HTMLButtonElement, editMenu: HTMLDivElement;
@@ -135,6 +136,11 @@
       <div class="menu-divider"></div>
       <button id="menuVersionHistory" type="button" onclick={() => act(() => versionHistoryOpen.set(true))}>
         <svg class="icon"><use href="#icon-history"></use></svg> Version history
+      </button>
+
+      <div class="menu-divider"></div>
+      <button id="menuDocInfo" type="button" onclick={() => act(() => docInfoPanelOpen.set(true))}>
+        <svg class="icon"><use href="#icon-info"></use></svg> Document info
       </button>
 
       <div class="menu-divider"></div>

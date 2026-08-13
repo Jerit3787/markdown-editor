@@ -21,6 +21,8 @@ import {
   setDocImage,
   deleteDocImage,
   refreshDocNoteAnchors,
+  findCollidingDoc,
+  docsStore,
 } from "./stores/docs";
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
@@ -38,6 +40,10 @@ import { debounceWithFlush } from "./debounce";
 import { maybeSnapshotVersion } from "./history";
 import { commentDraft } from "./stores/commentDraft";
 import { relocateAnchor } from "./anchor";
+import { renameCollision } from "./stores/renameCollision";
+import { transformWikilinks, resolveWikilinkTarget } from "./wikilinks";
+import { wikilinkMenu } from "./stores/wikilinkMenu";
+import { get } from "svelte/store";
 // Unlike Mermaid's SVGs (which bake their own <style> in at render time),
 // KaTeX's HTML output has no self-contained styling — it's entirely
 // dependent on this stylesheet. buildStandaloneHtml()'s exported <style>
@@ -173,6 +179,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // trigger that) run synchronously before this DOMContentLoaded handler
     // ever fires, same guarantee every other Svelte component here relies on.
     initSyncScroll();
+    initWikilinkNavigation();
     initImageUploads();
     initToolbar();
     initSaveStatus();
@@ -451,6 +458,64 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
   });
 
+  // ---------- Wikilink autocomplete ----------
+  interface WikilinkTriggerState {
+    open: boolean;
+    triggerPos: number; // position right after the triggering "[["
+  }
+
+  const closeWikilinkMenuEffect = StateEffect.define<null>();
+
+  // Structurally the same as slashTriggerField, but with different
+  // close conditions — document names commonly contain spaces (unlike
+  // slash-command names), so this doesn't close on a space; it closes
+  // on "]" typed (the user closing the brackets by hand), a newline,
+  // the cursor moving before the trigger, or the "[[" prefix itself
+  // being deleted.
+  const wikilinkTriggerField = StateField.define<WikilinkTriggerState | null>({
+    create: () => null,
+    update(value, tr) {
+      if (tr.effects.some((e) => e.is(closeWikilinkMenuEffect))) return null;
+      if (!tr.docChanged && !tr.selection) return value;
+
+      if (tr.docChanged) {
+        let triggered: WikilinkTriggerState | null = null;
+        tr.changes.iterChanges((_fromA, _toA, fromB, toB, inserted) => {
+          if (toB - fromB === 1 && inserted.toString() === "[" && fromB > 0 && tr.state.sliceDoc(fromB - 1, fromB) === "[") {
+            triggered = { open: true, triggerPos: toB };
+          }
+        });
+        if (triggered) return triggered;
+      }
+
+      if (!value?.open) return null;
+
+      const pos = tr.state.selection.main.head;
+      if (pos < value.triggerPos) return null;
+      if (tr.state.sliceDoc(Math.max(0, value.triggerPos - 2), value.triggerPos) !== "[[") return null;
+      const query = tr.state.sliceDoc(value.triggerPos, pos);
+      if (query.includes("]") || query.includes("\n")) return null;
+      return value;
+    },
+  });
+
+  const wikilinkMenuSyncListener = EditorView.updateListener.of((update) => {
+    const value = update.state.field(wikilinkTriggerField);
+    if (!value?.open) {
+      wikilinkMenu.set({ open: false, query: "", triggerPos: 0, coords: null });
+      return;
+    }
+    const pos = update.state.selection.main.head;
+    const query = update.state.sliceDoc(value.triggerPos, pos);
+    const rect = update.view.coordsAtPos(value.triggerPos);
+    wikilinkMenu.set({
+      open: true,
+      query,
+      triggerPos: value.triggerPos,
+      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
+    });
+  });
+
   type KeybindingMode = "normal" | "vim" | "emacs";
 
   // drawSelection() isn't in this app's base extension list
@@ -491,9 +556,15 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         {
           key: "Escape",
           run: (view) => {
-            if (!view.state.field(slashTriggerField)?.open) return false;
-            view.dispatch({ effects: closeSlashMenuEffect.of(null) });
-            return true;
+            if (view.state.field(slashTriggerField)?.open) {
+              view.dispatch({ effects: closeSlashMenuEffect.of(null) });
+              return true;
+            }
+            if (view.state.field(wikilinkTriggerField)?.open) {
+              view.dispatch({ effects: closeWikilinkMenuEffect.of(null) });
+              return true;
+            }
+            return false;
           },
         },
       ]),
@@ -506,6 +577,8 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       imageMarkerField,
       slashTriggerField,
       slashMenuSyncListener,
+      wikilinkTriggerField,
+      wikilinkMenuSyncListener,
       commentMarkerField,
       commentDraftSyncListener,
       EditorView.updateListener.of((update) => {
@@ -779,6 +852,29 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
   }
 
+  // ---------- Wikilinks ----------
+  // One delegated listener on the stable #preview container, not
+  // per-element — updatePreview() replaces the whole innerHTML on every
+  // keystroke, so per-element listeners would need constant
+  // re-attachment (same reasoning as every other preview-content
+  // interaction in this file).
+  function initWikilinkNavigation() {
+    const previewEl = document.getElementById("preview");
+    previewEl.addEventListener("click", (e) => {
+      const link = (e.target as HTMLElement).closest<HTMLElement>(".wikilink");
+      if (!link) return;
+      e.preventDefault();
+      const name = link.getAttribute("data-doc-name");
+      if (!name) return;
+      const target = resolveWikilinkTarget(name, get(docsStore));
+      if (target) {
+        storeSwitchDoc(target.id);
+      } else {
+        createDoc({ name });
+      }
+    });
+  }
+
   // initSyncScroll()'s listeners only react to explicit scroll *events* —
   // typing or moving the cursor onto a line that's already visible in the
   // editor's current viewport (so the editor itself never scrolls) never
@@ -1017,6 +1113,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     (document.getElementById("shareBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("commentsBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("versionHistoryBtn") as HTMLButtonElement).disabled = empty;
+    (document.getElementById("docInfoBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("expandPreviewBtn") as HTMLButtonElement).disabled = empty;
   }
 
@@ -1166,7 +1263,20 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const defaultCodeRenderer = marked.Renderer.prototype.code.bind(renderer);
     renderer.code = (code: string, infostring: string | undefined, escaped: boolean) =>
       mermaidCodeRenderer(code, infostring, escaped, defaultCodeRenderer, doc?.diagrams);
-    const { text: extractedRaw, sources } = extractMathSpans(raw);
+    // [[Name]] links (see wikilinks.ts's transformWikilinks, applied
+    // below) become "wikilink:"-scheme links — resolved against the
+    // current document list at render time so a rename/delete elsewhere
+    // is reflected on the next keystroke, same as every other preview
+    // content.
+    const defaultLinkRenderer = marked.Renderer.prototype.link.bind(renderer);
+    renderer.link = (href: string, title: string | null, text: string) => {
+      if (!href.startsWith("wikilink:")) return defaultLinkRenderer(href, title, text);
+      const name = decodeURIComponent(href.slice("wikilink:".length));
+      const exists = !!resolveWikilinkTarget(name, get(docsStore));
+      const cls = exists ? "wikilink" : "wikilink wikilink-missing";
+      return `<a href="#" class="${cls}" data-doc-name="${escapeHtml(name)}">${escapeHtml(text)}</a>`;
+    };
+    const { text: extractedRaw, sources } = extractMathSpans(transformWikilinks(raw));
     currentMathSources = sources;
     const html = marked.parse(extractedRaw, { gfm: true, breaks: false, renderer }) as string;
     // KaTeX's output includes a MathML companion tree (for accessibility)
@@ -1247,6 +1357,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // instead of a delegated click listener here.
   function initToolbar() {
     const docTitleInput = document.getElementById("docTitle") as HTMLInputElement;
+    // Captured on focus, read on blur — doc.name has already been
+    // rewritten to the (possibly colliding) in-progress value by every
+    // "input" event by the time blur fires, so this is the only place
+    // "what it was before this edit" is still available.
+    let nameBeforeEdit = "";
     docTitleInput.addEventListener("input", (e) => {
       const doc = getActiveDoc();
       if (!doc) return;
@@ -1264,16 +1379,30 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // default gets cleared this way — an actual title the user chose
     // (even one that happens to need a small edit) is left alone.
     docTitleInput.addEventListener("focus", () => {
+      const doc = getActiveDoc();
+      nameBeforeEdit = doc ? doc.name : "";
       if (docTitleInput.value === "Untitled") docTitleInput.value = "";
     });
     // Left blank without typing a replacement (or typed-then-deleted, which
     // the input handler above already renamed back to "Untitled" — this
     // just makes the field's own display catch up) — show "Untitled" again
-    // rather than leaving the field looking empty.
+    // rather than leaving the field looking empty. Collision-checking is
+    // deliberately skipped for this empty-then-restored case (see the
+    // design doc's Error handling section) — only a real, non-empty,
+    // actually-changed name triggers it.
     docTitleInput.addEventListener("blur", () => {
       if (!docTitleInput.value.trim()) {
         docTitleInput.value = "Untitled";
         resizeDocTitle();
+        return;
+      }
+      const doc = getActiveDoc();
+      if (!doc) return;
+      const finalName = docTitleInput.value;
+      if (finalName === nameBeforeEdit) return;
+      const colliding = findCollidingDoc(doc.id, finalName);
+      if (colliding) {
+        renameCollision.set({ docId: doc.id, pendingName: finalName, previousName: nameBeforeEdit, collidingDocId: colliding.id });
       }
     });
     resizeDocTitle();

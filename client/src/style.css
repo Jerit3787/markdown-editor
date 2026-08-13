@@ -1734,8 +1734,32 @@ body.focus-mode #statusbar {
      exclude the topbar/footer by the flex layout) instead of a hardcoded
      pixel offset from the viewport, which would break if the topbar's
      height ever changes. */
-  #sidebar { position: absolute; top: 0; bottom: 0; left: 0; z-index: 40; box-shadow: var(--shadow); }
-  #sidebar.collapsed { margin-left: -231px; }
+  #sidebarBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 39;
+  }
+
+  /* Bottom sheet, not a left-slide overlay, on mobile — matches the
+     original mobile mockup. transform (not the desktop margin-left
+     slide) drives open/closed here, so explicitly zero out the base
+     #sidebar.collapsed rule's margin-left too, or it'd shift the sheet
+     sideways while it's translating down. */
+  #sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    height: 75vh;
+    border-radius: 16px 16px 0 0;
+    z-index: 40;
+    box-shadow: var(--shadow);
+    transform: translateY(0);
+    transition: transform 0.15s ease;
+  }
+  #sidebar.collapsed { transform: translateY(100%); margin-left: 0; }
   #body.mode-split #main { flex-direction: column; }
   #body.mode-split #previewPane { border-left: none; border-top: 1px solid var(--border); }
   #body.mode-split #divider { display: none; }

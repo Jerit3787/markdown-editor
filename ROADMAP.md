@@ -37,6 +37,10 @@ commitments.
 - [x] Version history with revert — automatic background snapshots for
       every document (local and shared alike), non-destructive restore
       (v1.12.0)
+- [x] Threaded comments anchored to text — lightweight self-notes on
+      local documents, full threaded/resolvable comments (role-gated)
+      on shared ones, highlighted inline with a toggleable panel
+      (v1.13.0)
 
 ## Backlog — quick wins
 
@@ -48,8 +52,6 @@ The quick-wins backlog is now empty — see the other tiers below.
 
 Extends existing Yjs / role infrastructure rather than adding new systems.
 
-- [ ] Threaded comments anchored to text (natural extension of the existing
-      reviewer role)
 - [ ] Wikilinks + backlinks between documents
 
 ## Backlog — bigger bets
@@ -169,3 +171,12 @@ to matter later.
 - [ ] Focus Mode persisted across page loads — v1.7.0 is a session
       toggle that always starts off, not a sticky preference like theme
       or custom export CSS
+- [ ] Per-reply comment deletion — v1.13.0's delete removes an entire
+      note/thread only, not one reply within a thread
+- [ ] Real-time push of new comments/replies over the existing
+      collaboration WebSocket — v1.13.0 uses request/response HTTP
+      (matching Version History's endpoints) with refetch-on-open, not a
+      new sync-protocol message type; worth reconsidering if comments
+      turn out to need the same live-ness as text/cursor sync
+- [ ] Comment notifications (email or in-app) — no notification
+      infrastructure exists in this app today; out of scope for v1.13.0

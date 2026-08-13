@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] - 2026-08-13
+
+### Added
+
+- Threaded comments — select any text and click "Add comment" to anchor
+  a note to it. On a document you haven't shared, it's a lightweight
+  personal note; on a shared document, it's a full discussion thread
+  with replies and resolve/reopen, gated by role (viewers can read,
+  reviewers and editors can comment). Anchors track live edits and
+  survive reloads by relocating their quoted text. Open the panel from
+  File > Comments or the new speech-bubble icon next to Version History.
+
 ## [1.12.0] - 2026-08-13
 
 ### Added

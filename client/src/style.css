@@ -112,12 +112,13 @@ body.focus-mode #statusbar {
   padding: 0 16px;
 }
 /* Sized up to match the logo's bigger presence in this same tall
-   column — plain .icon-btn elsewhere in the app stay their normal
-   size, this is scoped to just this column. */
-#topbarActionsCol .icon-btn { width: 40px; height: 40px; border-radius: 50%; }
+   column — plain .icon-btn/.share-pill elsewhere in the app stay their
+   normal size, this is scoped to just this column. Colors stay this
+   app's own accent tokens, not a differently-colored one-off. */
+#topbarActionsCol .icon-btn { width: 40px; height: 40px; }
 #topbarActionsCol .icon-btn .icon { width: 22px; height: 22px; }
-#topbarActionsCol .share-pill { height: 40px; padding: 0 24px; font-size: 14px; border-radius: 20px; background: #c2e7ff; color: #001d35; }
-#topbarActionsCol .share-pill .icon { width: 18px; height: 18px; color: #001d35; }
+#topbarActionsCol .share-pill { height: 40px; padding: 0 24px; font-size: 14px; border-radius: 20px; background: var(--accent-dim); color: var(--accent); }
+#topbarActionsCol .share-pill .icon { width: 18px; height: 18px; }
 
 .share-pill {
   display: inline-flex;
@@ -1693,18 +1694,26 @@ body.focus-mode #statusbar {
      own full-width line below via flex-basis. */
   #topbar { display: flex; flex-wrap: wrap; align-items: center; padding: 6px 10px; }
   #brand { order: 1; border-right: none; padding: 0 8px 0 0; }
+  #brand img { width: 22px; height: 22px; }
   #topbarRow1 { order: 2; flex: 1; padding: 0; min-width: 0; }
-  #topbarActionsCol { order: 3; border-left: none; padding: 0; }
+  #topbarActionsCol { order: 3; border-left: none; padding: 0; gap: 8px; }
   #menuBar { order: 4; flex-basis: 100%; padding: 4px 0 0; }
 
   .share-pill, .menubar-btn, #topbarActionsCol .icon-btn { flex-shrink: 0; }
   #menuBar .icon-btn { width: 40px; height: 40px; flex-shrink: 0; }
-  
-  /* Keep the share pill large on mobile too */
-  #topbarActionsCol { gap: 8px; }
 
   /* Comfortable touch targets (~44px is the platform-recommended minimum). */
   .icon-btn { width: 40px; height: 40px; font-size: 17px; }
+
+  /* The desktop action-column sizing above (bigger icon glyphs, a wider
+     Share pill) is deliberately scaled up to match the logo's presence
+     in that tall column — none of that applies on a phone-width topbar,
+     which just wants the same small, icon-only controls every other
+     mobile topbar button already uses. */
+  #topbarActionsCol .icon-btn .icon { width: 18px; height: 18px; }
+  #topbarActionsCol .share-pill { height: auto; padding: 8px; border-radius: 50%; }
+  #topbarActionsCol .share-pill .icon { width: 17px; height: 17px; }
+  .share-pill-label { display: none; }
 
   /* The formatting toolbar doesn't fit one line on a phone either — scroll
      it horizontally instead of wrapping to a 2nd row (flex-wrap:wrap is

@@ -816,11 +816,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   const SYNC_SCROLL_END_SLACK_PX = 8;
 
   function initSyncScroll() {
-    const main = document.getElementById("main") as HTMLElement;
+    const body = document.getElementById("body") as HTMLElement;
     const preview = document.getElementById("preview") as HTMLElement;
 
     cm.scrollDOM.addEventListener("scroll", () => {
-      if (syncingScroll || !main.classList.contains("mode-split")) return;
+      if (syncingScroll || !body.classList.contains("mode-split")) return;
       const el = cm.scrollDOM;
       const editorMax = el.scrollHeight - el.clientHeight;
       if (editorMax <= 0) return;
@@ -848,7 +848,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
 
     preview.addEventListener("scroll", () => {
-      if (syncingScroll || !main.classList.contains("mode-split")) return;
+      if (syncingScroll || !body.classList.contains("mode-split")) return;
       const previewMax = preview.scrollHeight - preview.clientHeight;
       if (previewMax <= 0) return;
       // Mirrors the editor-at-max case above, in the other direction.
@@ -900,8 +900,8 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // isn't already visible, so the preview doesn't jump around on every
   // keystroke while editing something already on screen.
   function followCursorInPreview() {
-    const main = document.getElementById("main") as HTMLElement;
-    if (!main.classList.contains("mode-split")) return;
+    const body = document.getElementById("body") as HTMLElement;
+    if (!body.classList.contains("mode-split")) return;
     const preview = document.getElementById("preview") as HTMLElement;
     const cursorPos = cm.state.selection.main.head;
     const cursorLine = cm.state.doc.lineAt(cursorPos).number - 1;
@@ -1108,6 +1108,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     (document.getElementById("previewPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("divider") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("toolbar") as HTMLElement).style.display = empty ? "none" : "";
+    (document.querySelector(".view-selector") as HTMLElement).style.display = empty ? "none" : "";
 
     // On mobile the sidebar is a full-height overlay (see css) — if it was
     // open (e.g. the user just deleted the last doc from the doc list),
@@ -1588,7 +1589,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   }
 
   function setView(view: "editor" | "split" | "preview") {
-    document.getElementById("main").className = `mode-${view}`;
+    document.getElementById("body").className = `mode-${view}`;
     localStorage.setItem(STORAGE_VIEW, view);
     viewMode.set(view);
   }
@@ -1602,25 +1603,37 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // the user to content the still-open sidebar would otherwise hide:
   // initial page load, switching docs, or landing on the empty state
   // (e.g. after deleting the last remaining document).
+  // #sidebarToggleOut is always visible now (a real toggle with an
+  // active/inactive state — active means the sidebar is currently open —
+  // rather than a button that appears/disappears depending on sidebar
+  // state). Shared by both entry points below so the button's state
+  // never drifts from the sidebar's actual collapsed/expanded state.
+  function setSidebarToggleState(expanded: boolean) {
+    const btn = document.getElementById("sidebarToggleOut") as HTMLButtonElement;
+    btn.classList.toggle("active", expanded);
+    const label = expanded ? "Hide documents panel" : "Show documents panel";
+    btn.title = label;
+    btn.setAttribute("aria-label", label);
+  }
+
   function collapseSidebarForMobile() {
     if (!isMobile()) return;
     document.getElementById("sidebar").classList.add("collapsed");
-    document.getElementById("sidebarToggleOut").hidden = false;
-    document.getElementById("sidebarToggleOutSep").hidden = false;
+    setSidebarToggleState(false);
   }
 
   function toggleSidebar() {
     const collapsed = document.getElementById("sidebar").classList.toggle("collapsed");
-    // #sidebarToggleIn lives inside #sidebar and slides off-screen with it
-    // automatically — only the toolbar copy (and its separator) needs
-    // manual show/hide, since it has nothing else to hide it while expanded.
-    document.getElementById("sidebarToggleOut").hidden = !collapsed;
-    document.getElementById("sidebarToggleOutSep").hidden = !collapsed;
+    setSidebarToggleState(!collapsed);
   }
 
   function initSidebar() {
     // Starting open on a phone-width screen would cover the whole editor.
+    // On desktop the sidebar starts expanded (no .collapsed class), so
+    // the toggle button's initial active state needs setting explicitly
+    // — collapseSidebarForMobile() only sets it when actually collapsing.
     collapseSidebarForMobile();
+    setSidebarToggleState(!document.getElementById("sidebar").classList.contains("collapsed"));
 
     document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarToggleOut").addEventListener("click", toggleSidebar);

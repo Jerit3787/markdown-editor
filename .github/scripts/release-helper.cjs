@@ -104,6 +104,7 @@ function processReleases() {
   }
 
   const sortedGitTags = sortTags(allGitTags.length > 0 ? allGitTags : tagsToProcess);
+  const highestTag = sortedGitTags.length > 0 ? sortedGitTags[sortedGitTags.length - 1] : '';
   const repoSlug = getRepoSlug();
 
   console.log(`Checking ${tagsToProcess.length} tag(s)...`);
@@ -122,12 +123,15 @@ function processReleases() {
 
     notes = appendComparisonLink(notes, tag, sortedGitTags, repoSlug);
 
-    console.log(`Creating GitHub Release for ${tag}...`);
+    const isLatest = (tag === highestTag);
+    const latestFlag = isLatest ? '--latest' : '--latest=false';
+
+    console.log(`Creating GitHub Release for ${tag} (latest: ${isLatest})...`);
     const tempNotesFile = path.join(process.cwd(), `.release_notes_${tag.replace(/[^a-zA-Z0-9.-]/g, '_')}.md`);
     fs.writeFileSync(tempNotesFile, notes, 'utf8');
 
     try {
-      execSync(`gh release create "${tag}" --title "${tag}" --notes-file "${tempNotesFile}"`, {
+      execSync(`gh release create "${tag}" --title "${tag}" --notes-file "${tempNotesFile}" ${latestFlag}`, {
         stdio: 'inherit'
       });
       console.log(`Successfully published release for ${tag}.`);
@@ -137,6 +141,15 @@ function processReleases() {
       if (fs.existsSync(tempNotesFile)) {
         fs.unlinkSync(tempNotesFile);
       }
+    }
+  }
+
+  if (highestTag) {
+    try {
+      console.log(`Ensuring ${highestTag} is set as Latest release...`);
+      execSync(`gh release edit "${highestTag}" --latest`, { stdio: 'inherit' });
+    } catch (err) {
+      console.warn(`Could not set ${highestTag} as latest release:`, err.message);
     }
   }
 }

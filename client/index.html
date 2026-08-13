@@ -311,6 +311,7 @@
       <div id="presenceBar" class="presence-bar" hidden></div>
       <button id="commentsBtn" class="icon-btn" type="button" title="Comments" aria-label="Comments"><svg class="icon"><use href="#icon-message-square"></use></svg></button>
       <button id="versionHistoryBtn" class="icon-btn" type="button" title="Version history" aria-label="Version history"><svg class="icon"><use href="#icon-history"></use></svg></button>
+      <button id="docInfoBtn" class="icon-btn" type="button" title="Document info" aria-label="Document info"><svg class="icon"><use href="#icon-info"></use></svg></button>
       <button id="shareBtn" class="share-pill" type="button"><svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span></button>
       <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
     </div>
@@ -413,6 +414,10 @@
 <!-- Comments Panel — Svelte component, mounted in main.ts; see
      client/src/components/CommentsPanel.svelte -->
 <div id="comments-panel-mount"></div>
+
+<!-- Document Info panel — Svelte component, mounted in main.ts; see
+     client/src/components/DocInfoPanel.svelte -->
+<div id="doc-info-panel-mount"></div>
 
 <!-- Rename-collision modal — Svelte component, mounted in main.ts;
      see client/src/components/RenameCollisionModal.svelte -->

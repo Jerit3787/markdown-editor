@@ -1113,6 +1113,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     (document.getElementById("shareBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("commentsBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("versionHistoryBtn") as HTMLButtonElement).disabled = empty;
+    (document.getElementById("docInfoBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("expandPreviewBtn") as HTMLButtonElement).disabled = empty;
   }
 

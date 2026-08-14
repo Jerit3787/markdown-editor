@@ -180,8 +180,11 @@ sequenced relative to each other yet.
   Document sidenav and comments move to a bottom-sheet modal on
   mobile. Use a tabbed document/headings switcher (older-style tabs)
   to help with quicker navigation in the smaller space.
-- [ ] **Standardized modal layout.** Every modal in the app should
-      follow one structure: header row (logo, title, quick action),
-      scrollable content area, optional footer action row (e.g. a
-      carousel's Back/Next). Currently each modal composes this
-      somewhat differently.
+- [x] **Standardized modal layout — Phase 1.** (Shipped v1.19.0.) Every
+      modal in the app should follow one structure: header row (logo,
+      title, quick action), scrollable content area, optional footer
+      action row (e.g. a carousel's Back/Next). Currently each modal
+      composes this somewhat differently.
+      Phase 2 (reconciling Version History, What's New, the Comments
+      mobile sheet, Command Palette, and the Diagram Editor's header to
+      the same shared component) remains — see ROADMAP.md.

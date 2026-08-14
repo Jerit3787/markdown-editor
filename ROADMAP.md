@@ -66,6 +66,15 @@ commitments.
       the active document's full outline at the top level instead of
       nested under one row at a time; the last piece of the mobile
       redesign mockup. Desktop unchanged (v1.18.0)
+- [x] Standardized modal layout — Phase 1 — a shared `Modal` component
+      (icon-only close button, text-link quick action, scrollable body
+      pinned between header/footer) now backs all 13 simple dialogs
+      (Sign in, Insert link, Images manager, Open from GitHub Gist,
+      Keyboard Shortcuts, About, Terms, Privacy, Licenses, Settings,
+      Document info, Rename collision, Share), replacing 13 different
+      hand-rolled variants; also replaces both native `window.confirm()`
+      popups (delete document, delete image) with a matching
+      `ConfirmDialog` (v1.19.0)
 
 ## Backlog — quick wins
 
@@ -249,3 +258,14 @@ to matter later.
       instantly since it's conditionally rendered rather than a
       persistent node; animating it would mean adopting a Svelte
       transition for just this one case
+- [ ] Standardized modal layout — Phase 2 — reconciling Version
+      History, What's New, the mobile Comments sheet, and Command
+      Palette (each already has its own hand-built sticky header/body/
+      footer, just not through the shared `Modal` component) plus the
+      Diagram Editor's header/close-button area to the same shared
+      structure Phase 1 established — deferred since those four
+      already work today, lower priority than the 13 modals Phase 1
+      actually fixed
+- [ ] Tab-bar support in `Modal` (built in Phase 1, unused so far) has
+      no real consumer yet — no modal in the app currently needs
+      internal sub-sections

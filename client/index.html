@@ -481,18 +481,9 @@
      client/src/components/LinkModal.svelte -->
 <div id="link-modal-mount"></div>
 
-<!-- Images manager -->
-<div id="imagesModal" class="modal-backdrop" hidden>
-  <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="imagesModalTitle">
-    <h2 id="imagesModalTitle"><svg class="icon"><use href="#icon-images"></use></svg> Images in this document<button class="hint-toggle-btn" type="button" aria-label="What is this?">?</button></h2>
-    <p class="modal-hint hint-text" hidden>Images are stored inside this document, not uploaded anywhere, unless you publish it to a Gist.</p>
-    <div id="imagesList" class="images-list"></div>
-    <p id="imagesEmptyHint" class="modal-hint">No images in this document yet. Paste, drop, or use the toolbar 🖼 button to add one.</p>
-    <div class="modal-actions">
-      <button id="imagesCloseBtn" class="secondary-btn" type="button">Close</button>
-    </div>
-  </div>
-</div>
+<!-- Images manager — Svelte component, mounted in main.ts; see
+     client/src/components/ImagesModal.svelte -->
+<div id="images-modal-mount"></div>
 
 <!-- Open from GitHub Gist -->
 <div id="openGistModal" class="modal-backdrop" hidden>

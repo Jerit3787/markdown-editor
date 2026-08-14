@@ -95,6 +95,7 @@ export interface MDEBridge {
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
   insertLinkIntoEditor(text: string, url: string): void;
+  updatePreview(): void;
   requireGithubSignIn(hint?: string): void;
   openGithubSignInPopup(): void;
   githubUsername: string | null;

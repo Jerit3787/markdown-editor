@@ -29,6 +29,7 @@ import DocInfoPanel from "./components/DocInfoPanel.svelte";
 import ConfirmDialog from "./components/ConfirmDialog.svelte";
 import GithubSignInModal from "./components/GithubSignInModal.svelte";
 import LinkModal from "./components/LinkModal.svelte";
+import ImagesModal from "./components/ImagesModal.svelte";
 
 // #settings-mount / #share-mount / #doclist-mount / #toast-mount /
 // #menubar-mount / #editor-mount / #toolbar-mount already exist by the
@@ -48,6 +49,7 @@ mount(DocInfoPanel, { target: document.getElementById("doc-info-panel-mount")! }
 mount(ConfirmDialog, { target: document.getElementById("confirm-dialog-mount")! });
 mount(GithubSignInModal, { target: document.getElementById("github-signin-modal-mount")! });
 mount(LinkModal, { target: document.getElementById("link-modal-mount")! });
+mount(ImagesModal, { target: document.getElementById("images-modal-mount")! });
 mount(DiagramEditor, { target: document.getElementById("diagram-editor-mount")! });
 mount(WhatsNew, { target: document.getElementById("whats-new-mount")! });
 mount(CommandPalette, { target: document.getElementById("command-palette-mount")! });

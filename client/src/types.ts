@@ -94,6 +94,7 @@ export interface MDEBridge {
   onImageAdded: ((key: string, dataUrl: string) => void) | null;
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
+  insertLinkIntoEditor(text: string, url: string): void;
   requireGithubSignIn(hint?: string): void;
   openGithubSignInPopup(): void;
   githubUsername: string | null;

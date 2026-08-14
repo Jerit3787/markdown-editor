@@ -477,25 +477,9 @@
      client/src/components/GithubSignInModal.svelte -->
 <div id="github-signin-modal-mount"></div>
 
-<!-- Insert link -->
-<div id="linkModal" class="modal-backdrop" hidden>
-  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="linkModalTitle">
-    <h2 id="linkModalTitle"><svg class="icon"><use href="#icon-link"></use></svg> Insert link<button class="hint-toggle-btn" type="button" aria-label="What is this?">?</button></h2>
-    <p class="modal-hint hint-text" hidden>Select text first to turn it into a link, or leave Text blank to insert the URL on its own.</p>
-    <label class="modal-field">
-      <span>Text</span>
-      <input id="linkTextInput" type="text" placeholder="Link text">
-    </label>
-    <label class="modal-field">
-      <span>URL</span>
-      <input id="linkUrlInput" type="text" placeholder="https://example.com">
-    </label>
-    <div class="modal-actions">
-      <button id="linkCancelBtn" class="secondary-btn" type="button">Cancel</button>
-      <button id="linkInsertBtn" class="primary-btn" type="button">Insert</button>
-    </div>
-  </div>
-</div>
+<!-- Insert link — Svelte component, mounted in main.ts; see
+     client/src/components/LinkModal.svelte -->
+<div id="link-modal-mount"></div>
 
 <!-- Images manager -->
 <div id="imagesModal" class="modal-backdrop" hidden>

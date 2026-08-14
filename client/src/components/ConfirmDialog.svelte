@@ -9,7 +9,7 @@
 </script>
 
 {#if $confirmRequest}
-  <Modal title="Confirm" labelledBy="confirmDialogTitle" onClose={() => respond(false)}>
+  <Modal title="Confirm" labelledBy="confirmDialogTitle" onClose={() => respond(false)} elevated>
     <p>{$confirmRequest.message}</p>
     {#snippet footer()}
       <button type="button" class="secondary-btn" onclick={() => respond(false)}>Cancel</button>

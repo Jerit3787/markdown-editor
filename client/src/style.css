@@ -1975,6 +1975,25 @@ body.focus-mode #statusbar {
      aspect ratio either way, no forced square/cropping. */
   .whats-new-modal .whats-new-screenshot { width: 100%; height: auto; max-height: 50vh; }
   .modal-backdrop:has(.whats-new-modal) { padding: 0; }
+
+  /* Version History: the desktop two-column layout (a fixed 260px list
+     column beside a flexible preview) had no mobile override at all —
+     260px alone eats most of a phone's width, squeezing the preview
+     pane so narrow that its own content (headings, etc.) overflowed
+     past the screen edge instead of wrapping. Stack list above preview
+     instead, each scrolling independently, matching the same
+     restacking approach already used for What's New above. The list is
+     capped at 35vh so the preview (the more useful pane once a version
+     is actually selected) still gets most of the screen. */
+  .version-history-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .version-history-list {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 35vh;
+  }
 }
 
 /* Toasts */

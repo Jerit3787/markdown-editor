@@ -335,7 +335,7 @@
          alongside #sidebar's own .collapsed class. Always present in
          the DOM (hidden by default); harmless on desktop since it's
          only ever un-hidden when isMobile() is true. -->
-    <div id="sidebarBackdrop" hidden></div>
+    <div id="sidebarBackdrop"></div>
 
     <!-- Sidebar: document list -->
     <aside id="sidebar">
@@ -356,6 +356,24 @@
       <div id="doclist-mount"></div>
       <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden>
     </aside>
+
+    <!-- Applies #sidebar's collapsed (bottom-sheet-hidden) state
+         synchronously, before the browser's first paint — app.ts's own
+         initSidebar()/collapseSidebarForMobile() run as part of a
+         deferred module script, well after that first paint, so without
+         this the mobile bottom sheet would flash fully open and then
+         visibly slide shut once that script finally ran. A plain
+         blocking inline script (unlike a module script) executes
+         immediately during HTML parsing, before anything renders — the
+         same technique sites use to avoid a flash of the wrong
+         light/dark theme. Idempotent with app.ts's own later call:
+         re-adding an already-present class is a no-op, so this doesn't
+         need to stay in sync with anything there. -->
+    <script>
+      if (window.matchMedia("(max-width: 780px)").matches) {
+        document.getElementById("sidebar").classList.add("collapsed");
+      }
+    </script>
 
     <!-- Editor + Preview -->
     <main id="main">

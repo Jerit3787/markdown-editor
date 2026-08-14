@@ -61,6 +61,11 @@ commitments.
       dismissal) instead of the desktop-style overlay/side-panel
       presentation that squeezed the editor down to almost nothing on a
       phone; opening either sheet closes the other (v1.17.0)
+- [x] Mobile document/headings tabbed switcher — a "Documents"/"Headings"
+      tab bar replaces the per-row expandable outline on mobile, showing
+      the active document's full outline at the top level instead of
+      nested under one row at a time; the last piece of the mobile
+      redesign mockup. Desktop unchanged (v1.18.0)
 
 ## Backlog — quick wins
 
@@ -226,9 +231,13 @@ to matter later.
       buttons scroll on mobile — v1.16.0's mobile toolbar scrolls (or
       overflows into "⋮") as one unit; the selector isn't pinned
       separately
-- [ ] Tabbed document/headings switcher on mobile — v1.17.0 shipped the
-      bottom-sheet document sidenav/comments half of the mobile
-      redesign mockup; the tabbed switcher is the remaining piece
+- [ ] Persisting which Documents/Headings tab was last open across
+      mobile sheet close/reopen — v1.18.0 always resets to "Documents"
+      on open (deliberate, matching Focus Mode's existing
+      stateless-by-default precedent), not a technical limitation
+- [ ] Editing/reordering headings from the mobile Headings tab —
+      v1.18.0 is read-only navigation only, same as the desktop
+      per-row outline it replaces there
 - [ ] Swipe-to-dismiss for the mobile bottom sheets — v1.17.0 only
       supports tap-outside/close-button dismissal; a drag gesture is
       real new complexity (touch tracking, momentum, follow-the-finger

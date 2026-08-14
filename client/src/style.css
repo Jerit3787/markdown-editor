@@ -1310,6 +1310,21 @@ body.focus-mode #statusbar {
 .outline-item[data-level="3"] { padding-left: 58px; }
 .outline-item[data-level="4"], .outline-item[data-level="5"], .outline-item[data-level="6"] { padding-left: 70px; }
 
+/* Hidden by default (desktop) — activeTab (DocList.svelte) never
+   changes on desktop since there's no visible way to trigger it there,
+   so the {#if activeTab === "documents"} branch always wins regardless
+   of this rule. Shown only inside the mobile media query below. */
+.doclist-tabs { display: none; }
+
+.doclist-headings-tab-label {
+  padding: 8px 14px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
 /* Main editor/preview */
 #main {
   grid-area: main;
@@ -1772,6 +1787,31 @@ body.focus-mode #statusbar {
     transition: transform 0.15s ease;
   }
   #sidebar.collapsed { transform: translateY(100%); margin-left: 0; }
+
+  .doclist-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 14px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .doclist-tabs button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .doclist-tabs button.active { background: var(--accent-dim); color: var(--accent); }
+
+  /* The per-row expand is replaced by the Headings tab on mobile —
+     desktop keeps it untouched (this rule only applies inside this
+     mobile media query, same pattern as every other mobile-only
+     override in this file). */
+  .doc-outline-toggle, .doc-outline-toggle-spacer, #docList .doc-outline { display: none; }
 
   .mobile-sheet-backdrop {
     position: fixed;

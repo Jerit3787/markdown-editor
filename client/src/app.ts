@@ -19,7 +19,6 @@ import {
   renameDoc,
   saveActiveDocContent,
   setDocImage,
-  deleteDocImage,
   refreshDocNoteAnchors,
   findCollidingDoc,
   docsStore,
@@ -30,6 +29,7 @@ import { commentsPanelOpen } from "./stores/commentsPanel";
 import { docListActiveTab } from "./stores/docList";
 import { githubSignInModalOpen, githubSignInModalHint } from "./stores/githubSignInModal";
 import { linkModalOpen, linkModalPrefillText } from "./stores/linkModal";
+import { imagesModalOpen } from "./stores/imagesModal";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { computeBlockLineStarts } from "./scroll-sync";
@@ -1039,65 +1039,9 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   // ---------- Images manager ----------
   function initImagesManager() {
-    const btn = document.getElementById("imagesManagerBtn");
-    const modal = document.getElementById("imagesModal");
-    const closeBtn = document.getElementById("imagesCloseBtn");
-
-    btn.addEventListener("click", () => {
-      renderImagesList();
-      modal.hidden = false;
+    document.getElementById("imagesManagerBtn")?.addEventListener("click", () => {
+      imagesModalOpen.set(true);
     });
-    closeBtn.addEventListener("click", () => { modal.hidden = true; });
-    modal.addEventListener("click", (e) => { if (e.target === modal) modal.hidden = true; });
-  }
-
-  function renderImagesList() {
-    const doc = getActiveDoc();
-    const images = (doc && doc.images) || {};
-    const keys = Object.keys(images);
-    const list = document.getElementById("imagesList");
-    const emptyHint = document.getElementById("imagesEmptyHint");
-    list.innerHTML = "";
-    emptyHint.hidden = keys.length > 0;
-
-    // Removing an image's markdown reference from the text doesn't
-    // delete it from doc.images — same "don't destroy data the user
-    // might want back" stance orphaned comment anchors already take
-    // (see Note.orphaned) — but showing it identically to an
-    // actively-used image made it look like the manager just doesn't
-    // notice references being removed. Flagged here instead, against
-    // the live editor buffer (not the last-saved doc.content) so it's
-    // accurate immediately after an edit, before the debounced save.
-    const rawContent = cm.state.doc.toString();
-    keys.forEach((key) => {
-      const dataUrl = images[key];
-      const used = rawContent.includes(`](${key})`);
-      const item = document.createElement("div");
-      item.className = "image-item";
-      if (!used) item.classList.add("unused");
-      item.innerHTML = `
-        <img src="${dataUrl}" alt="">
-        <div class="image-meta">
-          <div class="image-name">${escapeHtml(key)}${used ? "" : ' <span class="image-unused-label">(not used in this document)</span>'}</div>
-          <div class="image-size">${formatBytes(dataUrl.length)}</div>
-        </div>
-        <button class="icon-btn" title="Delete image" aria-label="Delete ${escapeHtml(key)}"><svg class="icon"><use href="#icon-trash-2"></use></svg></button>
-      `;
-      item.querySelector("button").addEventListener("click", () => {
-        if (!confirm(`Delete "${key}"? Any reference to it in the text will show as a broken image.`)) return;
-        deleteDocImage(key);
-        updatePreview();
-        renderImagesList();
-      });
-      list.appendChild(item);
-    });
-  }
-
-  function formatBytes(base64Length: number) {
-    const bytes = Math.round(base64Length * 0.75);
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 
   // Toggles between the editor/preview panes and the empty-state welcome
@@ -2124,6 +2068,7 @@ ${bodyHtml}
     toggleDropdown,
     closeAllDropdowns,
     insertLinkIntoEditor,
+    updatePreview,
     requireGithubSignIn(hint) {
       if (hint) githubSignInModalHint.set(hint);
       githubSignInModalOpen.set(true);

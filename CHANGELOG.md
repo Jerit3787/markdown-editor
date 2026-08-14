@@ -4,6 +4,37 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.18.0] - 2026-08-14
+
+### Added
+
+- Mobile document sheet: a "Documents"/"Headings" tab bar replaces the
+  per-row expandable outline — Headings shows the active document's
+  full outline at the top level instead of nested under one row at a
+  time, the remaining piece of the mobile redesign mockup. Desktop is
+  unchanged; the tab bar and this behavior are mobile-only.
+
+### Fixed
+
+- Tapping a heading in the new Headings tab didn't close the mobile
+  sheet — it always targets the already-active document, so the
+  existing jump-to-line function's sheet-closing side effect (tied to
+  actually switching documents) never fired for it.
+- The Headings tab's own selection persisted across closing and
+  reopening the sheet instead of always resetting to "Documents" —
+  the sheet's open/closed state is a CSS transform, not conditional
+  rendering, so the component backing it never remounts.
+- The mobile sheets' dimming backdrops popped in/out instantly while
+  the sheet itself and the header's dim overlay both faded smoothly —
+  neither backdrop's visibility mechanism (the `hidden` attribute;
+  conditional Svelte rendering) could be CSS-transitioned. Both now
+  stay mounted and fade via an opacity class instead.
+- The mobile document sheet flashed fully open on every page load
+  before immediately sliding shut — the collapse only happened once a
+  deferred module script ran, well after the browser's first paint. A
+  blocking inline script now applies the collapsed state synchronously
+  during HTML parsing, before anything renders.
+
 ## [1.17.1] - 2026-08-14
 
 ### Fixed

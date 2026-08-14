@@ -36,6 +36,13 @@
   let expandedIds = $state(new Set<string>());
   let openMenuId = $state<string | null>(null);
   let menuPos = $state({ top: 0, left: 0 });
+  let activeTab = $state<"documents" | "headings">("documents");
+
+  // rows already computes {doc, headings} per document above; these just
+  // narrow it to whichever document is currently active, for the
+  // top-level Headings tab (mobile only — see style.css .doclist-tabs).
+  const activeDocHeadings = $derived(rows.find((r) => r.doc.id === $activeIdStore)?.headings ?? []);
+  const activeDocName = $derived(rows.find((r) => r.doc.id === $activeIdStore)?.doc.name || "Untitled");
 
   function select(id: string) {
     window.MDE.switchDoc(id);
@@ -105,45 +112,73 @@
   });
 </script>
 
-<ul id="docList">
-  {#each rows as { doc, headings } (doc.id)}
-    <li class:active={doc.id === $activeIdStore}>
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="doc-row" onclick={() => select(doc.id)}>
-        {#if headings.length > 0}
-          <button
-            type="button"
-            class="doc-outline-toggle"
-            class:expanded={expandedIds.has(doc.id)}
-            aria-label={expandedIds.has(doc.id) ? "Hide outline" : "Show outline"}
-            onclick={(e) => toggleOutline(doc.id, e)}
-          >
-            <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+<div class="doclist-tabs">
+  <button type="button" class:active={activeTab === "documents"} onclick={() => (activeTab = "documents")}>
+    Documents
+  </button>
+  <button type="button" class:active={activeTab === "headings"} onclick={() => (activeTab = "headings")}>
+    Headings
+  </button>
+</div>
+
+{#if activeTab === "documents"}
+  <ul id="docList">
+    {#each rows as { doc, headings } (doc.id)}
+      <li class:active={doc.id === $activeIdStore}>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="doc-row" onclick={() => select(doc.id)}>
+          {#if headings.length > 0}
+            <button
+              type="button"
+              class="doc-outline-toggle"
+              class:expanded={expandedIds.has(doc.id)}
+              aria-label={expandedIds.has(doc.id) ? "Hide outline" : "Show outline"}
+              onclick={(e) => toggleOutline(doc.id, e)}
+            >
+              <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+            </button>
+          {:else}
+            <span class="doc-outline-toggle-spacer"></span>
+          {/if}
+          <svg class="icon doc-icon"><use href="#icon-file"></use></svg>
+          <span class="doc-name">{doc.name || "Untitled"}</span>
+          <button type="button" class="doc-menu-btn" class:active={openMenuId === doc.id} aria-label="Document options" onclick={(e) => openMenu(doc.id, e)}>
+            <svg class="icon"><use href="#icon-ellipsis-vertical"></use></svg>
           </button>
-        {:else}
-          <span class="doc-outline-toggle-spacer"></span>
+        </div>
+        {#if headings.length > 0 && expandedIds.has(doc.id)}
+          <ul class="doc-outline">
+            {#each headings as h (h.line)}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+              <li class="outline-item" data-level={h.level} title={h.text} onclick={() => jump(doc.id, h.line)}>
+                {h.text}
+              </li>
+            {/each}
+          </ul>
         {/if}
-        <svg class="icon doc-icon"><use href="#icon-file"></use></svg>
-        <span class="doc-name">{doc.name || "Untitled"}</span>
-        <button type="button" class="doc-menu-btn" class:active={openMenuId === doc.id} aria-label="Document options" onclick={(e) => openMenu(doc.id, e)}>
-          <svg class="icon"><use href="#icon-ellipsis-vertical"></use></svg>
-        </button>
-      </div>
-      {#if headings.length > 0 && expandedIds.has(doc.id)}
-        <ul class="doc-outline">
-          {#each headings as h (h.line)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <li class="outline-item" data-level={h.level} title={h.text} onclick={() => jump(doc.id, h.line)}>
-              {h.text}
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </li>
-  {/each}
-</ul>
+      </li>
+    {/each}
+  </ul>
+{:else}
+  <div class="doclist-headings-tab">
+    <div class="doclist-headings-tab-label">{activeDocName}</div>
+    {#if activeDocHeadings.length === 0}
+      <p class="modal-hint">No headings in this document.</p>
+    {:else}
+      <ul class="doc-outline">
+        {#each activeDocHeadings as h (h.line)}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <li class="outline-item" data-level={h.level} title={h.text} onclick={() => jump($activeIdStore, h.line)}>
+            {h.text}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
+{/if}
 
 {#if openMenuId}
   {@const menuDocId = openMenuId}

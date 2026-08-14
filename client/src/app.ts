@@ -196,6 +196,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     initShortStatus();
     initImagesManager();
     initModalEscapeKey();
+    // Desktop can Escape out of Focus Mode; mobile has no such key, and
+    // #topbar (the View menu's own toggle) is itself hidden while Focus
+    // Mode is on, so this floating button (mobile-only, see style.css)
+    // is the only way back out there.
+    document.getElementById("focusModeExitBtn")?.addEventListener("click", toggleFocusMode);
     initEmptyState();
     initKeybindingIndicator();
 

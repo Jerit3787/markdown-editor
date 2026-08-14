@@ -85,6 +85,13 @@ body.focus-mode #statusbar {
   display: none;
 }
 
+/* Desktop can always exit Focus Mode via Escape — this button is for
+   mobile, which has no such key, and whose #topbar (the View menu's
+   own toggle) is itself hidden while Focus Mode is on above. Hidden by
+   default; only shown by the mobile media query below, and only while
+   Focus Mode is actually active. */
+.focus-mode-exit-btn { display: none; }
+
 /* Top bar: row 1 (brand/title/status/Share/Settings), row 2 (File/Edit/View/Help) */
 /* Google Docs-style header: logo and the action-icon cluster each span
    both rows as tall flanking columns, with the document title (row 1)
@@ -1815,6 +1822,24 @@ body.focus-mode #statusbar {
 
 /* Responsive */
 @media (max-width: 780px) {
+  body.focus-mode .focus-mode-exit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 50;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg);
+    box-shadow: var(--shadow);
+    color: var(--text);
+  }
+  .focus-mode-exit-btn .icon { width: 18px; height: 18px; }
+
   /* A flyout extending further right would overflow a phone screen —
      flow it inline (pushes the rest of the menu down) instead. The
      trigger + its panel share one background box (set on .menu-submenu

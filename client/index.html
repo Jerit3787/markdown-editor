@@ -424,6 +424,16 @@
   </footer>
 </div>
 
+<!-- Focus Mode's only exit path is Escape, which mobile has no key
+     for — #topbar (housing the View menu's toggle) is itself hidden by
+     body.focus-mode, leaving mobile users with no way back out at all.
+     Always in the DOM; shown only via CSS (body.focus-mode + the
+     mobile media query in style.css), matching every other mobile-only
+     element's pattern in this app. -->
+<button id="focusModeExitBtn" class="focus-mode-exit-btn" type="button" aria-label="Exit Focus Mode" title="Exit Focus Mode">
+  <svg class="icon"><use href="#icon-x"></use></svg>
+</button>
+
 <!-- Share / collaborate — Svelte component, mounted in main.ts; see
      client/src/components/Share.svelte -->
 <div id="share-mount"></div>

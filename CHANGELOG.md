@@ -4,6 +4,33 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.19.0] - 2026-08-14
+
+### Added
+
+- A shared `Modal` component now backs every simple dialog in the app
+  (Sign in, Insert link, Images manager, Open from GitHub Gist,
+  Keyboard Shortcuts, About, Terms, Privacy, Open Source Licenses,
+  Settings, Document info, Rename collision, Share) — one consistent
+  header (icon-only close button, title, optional quick-action link) /
+  scrollable body / optional footer structure, replacing 13 different
+  hand-rolled variants.
+- A reusable `ConfirmDialog`, replacing both native `window.confirm()`
+  popups in the app (deleting a document, deleting an image) with a
+  styled dialog matching the rest of the UI.
+
+### Fixed
+
+- Long-content modals (Open Source Licenses, Keyboard Shortcuts,
+  Settings) used to scroll the title and Close button away along with
+  the content — only the body scrolls now, header and footer stay
+  pinned.
+- File/Edit/View/Help dropdown menus rendered behind the mobile
+  formatting toolbar instead of above it (`#topbar` and `#toolbar` had
+  landed on the same z-index).
+- Version History's list and preview panes squeezed into an unreadable
+  two-column layout on mobile — now stacks list above preview.
+
 ## [1.18.0] - 2026-08-14
 
 ### Added

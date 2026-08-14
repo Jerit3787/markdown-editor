@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
+  import Toggletip from "./Toggletip.svelte";
   import { githubUsername } from "../stores/github";
   import { shareModalOpen, shareAccess, shareDocName } from "../stores/share";
   import {
@@ -26,7 +27,6 @@
 
   let addPeopleValue = $state("");
   let copied = $state(false);
-  let showHint = $state(false);
   let accessSelectEl: HTMLSelectElement | undefined = $state();
   let accessMirrorEl: HTMLSpanElement | undefined = $state();
 
@@ -111,9 +111,8 @@
 {#if $shareModalOpen}
   <Modal title={`Share "${$shareDocName}"`} labelledBy="shareModalTitle" onClose={closeShareModal}>
     {#snippet quickAction()}
-      <button type="button" class="hint-toggle-btn" class:active={showHint} aria-label="What is this?" onclick={() => (showHint = !showHint)}>?</button>
+      <Toggletip>Invite specific people by GitHub username, or turn on general access to share one link with anyone. Viewer can only look, Reviewer can also comment, Editor can change the document.</Toggletip>
     {/snippet}
-    {#if showHint}<p class="modal-hint">Invite specific people by GitHub username, or turn on general access to share one link with anyone. Viewer and Reviewer can look but not change anything; Editor can.</p>{/if}
 
     <input
       type="text"

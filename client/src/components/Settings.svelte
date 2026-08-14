@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
+  import Toggletip from "./Toggletip.svelte";
   import { githubUsername } from "../stores/github";
 
   const STORAGE_THEME = "mde:theme";
@@ -8,7 +9,6 @@
   const STORAGE_KEYBINDINGS = "mde:keybindings";
 
   let hidden = $state(true);
-  let showHint = $state(false);
   let theme = $state(localStorage.getItem(STORAGE_THEME) || "light");
   let customCss = $state(localStorage.getItem(STORAGE_CUSTOM_CSS) || "");
   let keybindings = $state(localStorage.getItem(STORAGE_KEYBINDINGS) || "normal");
@@ -69,9 +69,8 @@
 {#if !hidden}
   <Modal title="Settings" icon="icon-settings" labelledBy="settingsModalTitle" onClose={close}>
     {#snippet quickAction()}
-      <button type="button" class="hint-toggle-btn" class:active={showHint} aria-label="What is this?" onclick={() => (showHint = !showHint)}>?</button>
+      <Toggletip>Theme applies instantly and remembers your choice. Connecting GitHub is what gates both Publish to Gist and Share — it's optional otherwise.</Toggletip>
     {/snippet}
-    {#if showHint}<p class="modal-hint">Theme applies instantly and remembers your choice. Connecting GitHub only affects Publish to Gist — it's optional otherwise.</p>{/if}
     <div class="menu-section-label">Appearance</div>
     <div class="tab-switch" role="tablist" aria-label="Theme">
       <button type="button" class="tab-switch-btn" class:active={theme === "light"} role="tab" aria-selected={theme === "light"} onclick={() => applyTheme("light")}>

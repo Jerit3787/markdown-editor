@@ -1,11 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
+  import Toggletip from "./Toggletip.svelte";
   import { imagesModalOpen } from "../stores/imagesModal";
   import { docsStore, activeIdStore, deleteDocImage } from "../stores/docs";
   import { confirmAction } from "../stores/confirmDialog";
-
-  let showHint = $state(false);
 
   // Reads $docsStore/$activeIdStore directly (not getActiveDoc(), which
   // unwraps both via the non-reactive get() — invisible to $derived's
@@ -54,9 +53,8 @@
 {#if $imagesModalOpen}
   <Modal title="Images in this document" icon="icon-images" wide labelledBy="imagesModalTitle" onClose={close}>
     {#snippet quickAction()}
-      <button type="button" class="hint-toggle-btn" class:active={showHint} aria-label="What is this?" onclick={() => (showHint = !showHint)}>?</button>
+      <Toggletip>Images are stored inside this document, not uploaded anywhere, unless you publish it to a Gist.</Toggletip>
     {/snippet}
-    {#if showHint}<p class="modal-hint">Images are stored inside this document, not uploaded anywhere, unless you publish it to a Gist.</p>{/if}
     {#if images.length === 0}
       <p class="modal-hint">No images in this document yet. Paste, drop, or use the toolbar 🖼 button to add one.</p>
     {:else}

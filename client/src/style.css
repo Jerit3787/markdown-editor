@@ -1850,7 +1850,18 @@ body.focus-mode #statusbar {
      color as the real backdrops — sits on top of the header's own
      content instead: visually dimmed like the rest of the screen,
      without intercepting the clicks the elevation above exists for. */
-  #topbar, #toolbar { position: relative; z-index: 45; }
+  /* Different z-index values, not the same one — #topbar's File/Edit/
+     View/Help dropdowns (MenuBar.svelte) live inside #topbar and open
+     downward, overlapping into #toolbar's rectangle below. A dropdown's
+     own z-index only ranks it within its nearest stacking-context
+     ancestor; it does NOT let it escape that ancestor's rank against a
+     SIBLING stacking context. With both at the same z-index, #toolbar
+     (later in DOM order) painted over #topbar's entire subtree —
+     dropdown included — regardless of the dropdown's own higher
+     z-index. #topbar must outrank #toolbar so its dropdowns can
+     actually render over it. */
+  #topbar { position: relative; z-index: 46; }
+  #toolbar { position: relative; z-index: 45; }
   #topbar::after, #toolbar::after {
     content: "";
     position: absolute;

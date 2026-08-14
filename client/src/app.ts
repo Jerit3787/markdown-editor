@@ -27,6 +27,7 @@ import {
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
 import { commentsPanelOpen } from "./stores/commentsPanel";
+import { docListActiveTab } from "./stores/docList";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { computeBlockLineStarts } from "./scroll-sync";
@@ -1628,7 +1629,14 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const collapsed = document.getElementById("sidebar").classList.toggle("collapsed");
     document.getElementById("sidebarBackdrop").hidden = !isMobile() || collapsed;
     setSidebarToggleState(!collapsed);
-    if (isMobile() && !collapsed) commentsPanelOpen.set(false);
+    if (isMobile() && !collapsed) {
+      commentsPanelOpen.set(false);
+      // DocList.svelte stays mounted continuously (the sheet's open/closed
+      // state is a CSS transform, not conditional rendering), so its tab
+      // selection would otherwise persist across close/reopen — reset it
+      // here so the sheet always opens back on "Documents".
+      docListActiveTab.set("documents");
+    }
   }
 
   function initSidebar() {
@@ -1666,14 +1674,20 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     collapseSidebarForMobile();
   }
 
-  // Clicking a heading in a doc-row's outline (DocList.svelte) — switches
-  // to that doc first if it isn't already active, since CodeMirror only
-  // ever holds one buffer.
+  // Clicking a heading in DocList.svelte (either the desktop per-row
+  // outline or the mobile Headings tab) — switches to that doc first if
+  // it isn't already active, since CodeMirror only ever holds one buffer.
+  // The Headings tab always targets the *active* doc, so switchDoc(id)
+  // is a same-id no-op there and never triggers its own
+  // collapseSidebarForMobile() side effect — call it explicitly instead
+  // of relying on that, so tapping a heading always closes the mobile
+  // sheet regardless of whether a doc switch actually happened.
   function jumpToLine(id: string, line: number) {
     switchDoc(id);
     const lineInfo = cm.state.doc.line(Math.min(line + 1, cm.state.doc.lines));
     cm.dispatch({ selection: { anchor: lineInfo.from }, effects: EditorView.scrollIntoView(lineInfo.from, { y: "center" }) });
     cm.focus();
+    collapseSidebarForMobile();
   }
 
   function escapeHtml(str: string) {

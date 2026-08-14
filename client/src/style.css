@@ -1259,6 +1259,14 @@ body.focus-mode #statusbar {
    #menubar-mount above. */
 #toolbar-mount, #editor-mount { display: contents; }
 
+/* Wraps CommentsPanel.svelte's <div class="comments-panel"> — needs to
+   sit as a direct child of #body for its own grid-area:comments (see
+   #body's grid-template-areas) to actually place it in the comments
+   column instead of being ignored, same reasoning as #menubar-mount
+   above. Without this, the panel renders wherever plain block flow
+   puts an unstyled wrapper div instead of the grid's comments column. */
+#comments-panel-mount { display: contents; }
+
 .outline-list {
   list-style: none;
   margin: 0;

@@ -29,10 +29,13 @@
 </script>
 
 {#if $aboutModalOpen}
-  <Modal title={`Markdown Editor v${__APP_VERSION__}`} labelledBy="infoModalTitle" onClose={close}>
+  <Modal title="About" icon="icon-info" labelledBy="infoModalTitle" onClose={close}>
     <div class="about-brand">
       <img src="/logo.svg" width="40" height="40" alt="" />
-      <p class="modal-hint">A fast, free markdown editor with live preview and real-time collaboration.</p>
+      <div>
+        <div class="about-title">Markdown Editor <span class="about-version">v{__APP_VERSION__}</span></div>
+        <p class="modal-hint">A fast, free markdown editor with live preview and real-time collaboration.</p>
+      </div>
     </div>
     <div class="about-links">
       <button class="menu-link-item" type="button" onclick={openTerms}><svg class="icon"><use href="#icon-file"></use></svg> Terms of Service</button>

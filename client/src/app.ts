@@ -1621,13 +1621,21 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   function collapseSidebarForMobile() {
     if (!isMobile()) return;
     document.getElementById("sidebar").classList.add("collapsed");
-    document.getElementById("sidebarBackdrop").hidden = true;
+    document.getElementById("sidebarBackdrop").classList.remove("visible");
     setSidebarToggleState(false);
   }
 
+  // .visible drives an opacity transition (see style.css's mobile media
+  // query) instead of the old hidden-attribute toggle — display:none
+  // (which `hidden` sets) can't be transitioned, which is what made the
+  // backdrop snap in/out instantly while #sidebar's slide and the
+  // #topbar/#toolbar dim overlay both faded smoothly. The class's visual
+  // effect is itself scoped to that same mobile media query, so setting
+  // it outside mobile width is harmless — no need to also guard on
+  // isMobile() here the way the old hidden-attribute logic did.
   function toggleSidebar() {
     const collapsed = document.getElementById("sidebar").classList.toggle("collapsed");
-    document.getElementById("sidebarBackdrop").hidden = !isMobile() || collapsed;
+    document.getElementById("sidebarBackdrop").classList.toggle("visible", isMobile() && !collapsed);
     setSidebarToggleState(!collapsed);
     if (isMobile() && !collapsed) {
       commentsPanelOpen.set(false);

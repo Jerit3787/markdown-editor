@@ -166,6 +166,14 @@
   });
 </script>
 
+<!-- Always rendered (not inside the panel's own {#if} below) so its
+     opacity transition (see style.css's mobile media query) can actually
+     play — a conditionally-rendered element is added/removed from the
+     DOM outright, which skips CSS transitions entirely. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="mobile-sheet-backdrop" class:visible={$commentsPanelOpen} onclick={close}></div>
+
 {#if $commentsPanelOpen && $commentDraft.visible && $commentDraft.coords}
   <div class="comment-draft-anchor" style="left: {$commentDraft.coords.left}px; top: {$commentDraft.coords.bottom + 4}px;">
     {#if !creatingDraft}
@@ -183,7 +191,6 @@
 {/if}
 
 {#if $commentsPanelOpen}
-  <div class="mobile-sheet-backdrop" onclick={close}></div>
   <div class="comments-panel" role="complementary" aria-label="Comments">
     <div class="comments-panel-header">
       <h2>Comments</h2>

@@ -4,6 +4,31 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.19.1] - 2026-08-14
+
+### Added
+
+- Modal hints ("?" button) now show as a small click-to-open popover
+  anchored to the button, dismissing on outside click or Escape,
+  instead of inserting a paragraph into the modal body.
+
+### Fixed
+
+- The comments panel rendered in the wrong place on desktop (not as a
+  right-side column) — its Svelte mount wrapper was missing
+  `display: contents`, so its `grid-area` assignment was silently
+  ignored.
+- The About modal used the app name and version as its own dialog
+  title; it's "About" again, with "Markdown Editor" + version restored
+  as a heading in the body next to the logo.
+- No way to exit Focus Mode on mobile — the View menu's toggle lives
+  in `#topbar`, which Focus Mode itself hides, and mobile has no
+  Escape key. Added a small floating exit button, mobile-only.
+- Two modal hints no longer matched actual behavior: Settings claimed
+  GitHub sign-in "only affects Publish to Gist" (it also gates Share);
+  Insert Link claimed leaving Text blank inserts "the URL on its own"
+  (it always inserts `[link text](url)`, defaulting the text).
+
 ## [1.19.0] - 2026-08-14
 
 ### Added

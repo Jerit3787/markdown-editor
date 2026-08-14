@@ -472,17 +472,10 @@
      client/src/components/Toast.svelte -->
 <div id="toast-mount"></div>
 
-<!-- Generic GitHub sign-in gate, reused by Publish-to-Gist and Share -->
-<div id="githubSignInModal" class="modal-backdrop" hidden>
-  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="githubSignInModalTitle">
-    <h2 id="githubSignInModalTitle"><svg class="icon"><use href="#icon-github"></use></svg> Sign in required</h2>
-    <p id="githubSignInModalHint" class="modal-hint">This feature needs a connected GitHub account. Sign in to continue.</p>
-    <div class="modal-actions">
-      <button id="githubSignInModalCancelBtn" class="secondary-btn" type="button">Cancel</button>
-      <button id="githubSignInModalSignInBtn" class="primary-btn" type="button"><svg class="icon"><use href="#icon-github"></use></svg> Sign in with GitHub</button>
-    </div>
-  </div>
-</div>
+<!-- Generic GitHub sign-in gate, reused by Publish-to-Gist and Share —
+     Svelte component, mounted in main.ts; see
+     client/src/components/GithubSignInModal.svelte -->
+<div id="github-signin-modal-mount"></div>
 
 <!-- Insert link -->
 <div id="linkModal" class="modal-backdrop" hidden>

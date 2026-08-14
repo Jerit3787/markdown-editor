@@ -27,6 +27,7 @@ import RenameCollisionModal from "./components/RenameCollisionModal.svelte";
 import WikilinkMenu from "./components/WikilinkMenu.svelte";
 import DocInfoPanel from "./components/DocInfoPanel.svelte";
 import ConfirmDialog from "./components/ConfirmDialog.svelte";
+import GithubSignInModal from "./components/GithubSignInModal.svelte";
 
 // #settings-mount / #share-mount / #doclist-mount / #toast-mount /
 // #menubar-mount / #editor-mount / #toolbar-mount already exist by the
@@ -44,6 +45,7 @@ mount(Share, { target: document.getElementById("share-mount")! });
 mount(RenameCollisionModal, { target: document.getElementById("rename-collision-mount")! });
 mount(DocInfoPanel, { target: document.getElementById("doc-info-panel-mount")! });
 mount(ConfirmDialog, { target: document.getElementById("confirm-dialog-mount")! });
+mount(GithubSignInModal, { target: document.getElementById("github-signin-modal-mount")! });
 mount(DiagramEditor, { target: document.getElementById("diagram-editor-mount")! });
 mount(WhatsNew, { target: document.getElementById("whats-new-mount")! });
 mount(CommandPalette, { target: document.getElementById("command-palette-mount")! });

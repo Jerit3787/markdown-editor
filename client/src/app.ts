@@ -28,6 +28,7 @@ import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
 import { commentsPanelOpen } from "./stores/commentsPanel";
 import { docListActiveTab } from "./stores/docList";
+import { githubSignInModalOpen, githubSignInModalHint } from "./stores/githubSignInModal";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { computeBlockLineStarts } from "./scroll-sync";
@@ -195,7 +196,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     initShortcutsModal();
     initInfoModal();
     initModalHints();
-    initGithubSignInModal();
     initModalEscapeKey();
     initEmptyState();
     initKeybindingIndicator();
@@ -1933,34 +1933,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
 
 
-  // Shared by gist.ts (Publish to Gist) and collab.ts (Share) — both gate a
-  // feature behind GitHub sign-in and pop this same modal when signed out.
-  function initGithubSignInModal() {
-    const modal = document.getElementById("githubSignInModal");
-    document.getElementById("githubSignInModalCancelBtn").addEventListener("click", () => {
-      modal.hidden = true;
-    });
-    document.getElementById("githubSignInModalSignInBtn").addEventListener("click", () => {
-      openGithubSignInPopup();
-    });
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.hidden = true;
-    });
-
-    // Sign-in happens in a popup (src/github-auth.ts's callback page posts
-    // the result here and closes itself) instead of a full-page redirect,
-    // so the app never has to reload — just re-check the session in place.
-    window.addEventListener("message", (e) => {
-      if (e.origin !== location.origin || !e.data || e.data.type !== "mde-github-auth") return;
-      if (e.data.ok) {
-        modal.hidden = true;
-        window.MDE.onGithubAuthComplete && window.MDE.onGithubAuthComplete();
-      } else {
-        alert(`GitHub sign-in failed: ${e.data.message || "unknown error"}`);
-      }
-    });
-  }
-
   function openGithubSignInPopup() {
     const width = 600;
     const height = 700;
@@ -2178,9 +2150,8 @@ ${bodyHtml}
     toggleDropdown,
     closeAllDropdowns,
     requireGithubSignIn(hint) {
-      const modal = document.getElementById("githubSignInModal");
-      if (hint) document.getElementById("githubSignInModalHint").textContent = hint;
-      modal.hidden = false;
+      if (hint) githubSignInModalHint.set(hint);
+      githubSignInModalOpen.set(true);
     },
     openGithubSignInPopup,
     githubUsername: null, // kept in sync by gist.ts's checkSession()

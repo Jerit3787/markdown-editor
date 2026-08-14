@@ -1748,13 +1748,23 @@ body.focus-mode #statusbar {
   /* Anchored to #body (its own positioning context, already sized to
      exclude the topbar/footer by the flex layout) instead of a hardcoded
      pixel offset from the viewport, which would break if the topbar's
-     height ever changes. */
+     height ever changes.
+     Always rendered at opacity:0/pointer-events:none rather than
+     display:none (app.ts used to toggle the `hidden` attribute) — a
+     display:none element can't be transitioned, which made this backdrop
+     snap in/out instantly while #sidebar's slide and the #topbar/#toolbar
+     dim overlay both faded smoothly over the same 0.15s. app.ts now
+     toggles a .visible class instead. */
   #sidebarBackdrop {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
     z-index: 39;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
   }
+  #sidebarBackdrop.visible { opacity: 1; pointer-events: auto; }
 
   /* Flush to the screen's left/right/bottom edges, only the top corners
      rounded — matches the native iOS bottom-sheet look (e.g. Google
@@ -1813,12 +1823,21 @@ body.focus-mode #statusbar {
      override in this file). */
   .doc-outline-toggle, .doc-outline-toggle-spacer, #docList .doc-outline { display: none; }
 
+  /* Always rendered (see CommentsPanel.svelte — no longer inside the
+     {#if $commentsPanelOpen} block) at opacity:0/pointer-events:none by
+     default, toggled via .visible — a conditionally-rendered element is
+     added/removed from the DOM outright, which can't be transitioned
+     either, the same display:none problem #sidebarBackdrop had above. */
   .mobile-sheet-backdrop {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
     z-index: 39;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
   }
+  .mobile-sheet-backdrop.visible { opacity: 1; pointer-events: auto; }
 
   /* Both backdrops (#sidebarBackdrop and .mobile-sheet-backdrop) cover
      the full viewport at z-index:39, including the header — elevating

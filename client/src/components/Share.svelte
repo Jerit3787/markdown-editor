@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Modal from "./Modal.svelte";
   import { githubUsername } from "../stores/github";
   import { shareModalOpen, shareAccess, shareDocName } from "../stores/share";
   import {
@@ -25,6 +26,7 @@
 
   let addPeopleValue = $state("");
   let copied = $state(false);
+  let showHint = $state(false);
   let accessSelectEl: HTMLSelectElement | undefined = $state();
   let accessMirrorEl: HTMLSpanElement | undefined = $state();
 
@@ -93,10 +95,6 @@
       .catch(() => showToast("Couldn't copy the link", "error"));
   }
 
-  function backdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) closeShareModal();
-  }
-
   onMount(() => {
     // Same [data-svelte-modal] exclusion as Settings.svelte (see
     // app.ts's initModalEscapeKey) — this modal handles its own Escape key
@@ -111,77 +109,75 @@
 </script>
 
 {#if $shareModalOpen}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
-    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle">
-      <h2 id="shareModalTitle"><span>Share "<span>{$shareDocName}</span>"</span><button class="hint-toggle-btn" type="button" aria-label="What is this?">?</button></h2>
-      <p class="modal-hint hint-text" hidden>Invite specific people by GitHub username, or turn on general access to share one link with anyone. Viewer and Reviewer can look but not change anything; Editor can.</p>
+  <Modal title={`Share "${$shareDocName}"`} labelledBy="shareModalTitle" onClose={closeShareModal}>
+    {#snippet quickAction()}
+      <button type="button" class="hint-toggle-btn" class:active={showHint} aria-label="What is this?" onclick={() => (showHint = !showHint)}>?</button>
+    {/snippet}
+    {#if showHint}<p class="modal-hint">Invite specific people by GitHub username, or turn on general access to share one link with anyone. Viewer and Reviewer can look but not change anything; Editor can.</p>{/if}
 
-      <input
-        type="text"
-        class="share-add-people-input"
-        placeholder="Add people by GitHub username"
-        aria-label="Add people by GitHub username"
-        bind:value={addPeopleValue}
-        onkeydown={onAddPeopleKeydown}
-      />
+    <input
+      type="text"
+      class="share-add-people-input"
+      placeholder="Add people by GitHub username"
+      aria-label="Add people by GitHub username"
+      bind:value={addPeopleValue}
+      onkeydown={onAddPeopleKeydown}
+    />
 
-      <div class="menu-section-label">People with access</div>
-      <div class="share-people-list">
-        <div class="share-person share-person-owner">
-          <span class="presence-avatar" style:background={$githubUsername ? colorForUsername($githubUsername) : "var(--text-dim)"}>{initial($githubUsername || "")}</span>
-          <span class="share-person-name">{$githubUsername || "Not signed in"}</span>
-          <span class="share-person-role">Owner</span>
-        </div>
-        {#each access.invited as person (person.username)}
-          <div class="share-person">
-            <span class="presence-avatar" style:background="var(--text-dim)">{initial(person.username)}</span>
-            <span class="share-person-name">{person.username}</span>
-            <select
-              class="share-role-select"
-              aria-label={`Access level for ${person.username}`}
-              value={person.role}
-              onchange={(e) => onInviteRoleChange(person.username, e)}
-            >
-              <option value="viewer">Viewer</option>
-              <option value="reviewer">Reviewer</option>
-              <option value="editor">Editor</option>
-            </select>
-            <button type="button" class="share-person-remove" aria-label={`Remove ${person.username}`} onclick={() => removeInvite(person.username)}>
-              <svg class="icon"><use href="#icon-x"></use></svg>
-            </button>
-          </div>
-        {/each}
+    <div class="menu-section-label">People with access</div>
+    <div class="share-people-list">
+      <div class="share-person share-person-owner">
+        <span class="presence-avatar" style:background={$githubUsername ? colorForUsername($githubUsername) : "var(--text-dim)"}>{initial($githubUsername || "")}</span>
+        <span class="share-person-name">{$githubUsername || "Not signed in"}</span>
+        <span class="share-person-role">Owner</span>
       </div>
-
-      <div class="menu-divider"></div>
-      <div class="menu-section-label">General access</div>
-      <div class="share-access-row" class:active={isAnyone}>
-        <span class="share-access-icon"><svg class="icon"><use href={isAnyone ? "#icon-globe" : "#icon-lock"}></use></svg></span>
-        <div class="share-access-text">
-          <select bind:this={accessSelectEl} class="share-access-select" aria-label="General access" value={accessMode} onchange={onAccessModeChange}>
-            <option value="restricted">Restricted</option>
-            <option value="anyone-account">Anyone with an account</option>
-            <option value="anyone-link">Anyone with the link</option>
+      {#each access.invited as person (person.username)}
+        <div class="share-person">
+          <span class="presence-avatar" style:background="var(--text-dim)">{initial(person.username)}</span>
+          <span class="share-person-name">{person.username}</span>
+          <select
+            class="share-role-select"
+            aria-label={`Access level for ${person.username}`}
+            value={person.role}
+            onchange={(e) => onInviteRoleChange(person.username, e)}
+          >
+            <option value="viewer">Viewer</option>
+            <option value="reviewer">Reviewer</option>
+            <option value="editor">Editor</option>
           </select>
-          <span bind:this={accessMirrorEl} class="share-access-mirror" aria-hidden="true"></span>
-          <span class="modal-hint">{hint}</span>
+          <button type="button" class="share-person-remove" aria-label={`Remove ${person.username}`} onclick={() => removeInvite(person.username)}>
+            <svg class="icon"><use href="#icon-x"></use></svg>
+          </button>
         </div>
-        <select class="share-role-select" aria-label="Access level for people with the link" hidden={!isAnyone} value={access.role} onchange={onRoleChange}>
-          <option value="viewer">Viewer</option>
-          <option value="reviewer">Reviewer</option>
-          <option value="editor">Editor</option>
-        </select>
-      </div>
-
-      <div class="modal-actions modal-actions-share">
-        <button class="secondary-btn" type="button" disabled={linkDisabled} onclick={copyLink}>
-          <svg class="icon"><use href="#icon-link"></use></svg> <span>{copied ? "Copied!" : "Copy link"}</span>
-        </button>
-        <span class="spacer"></span>
-        <button class="primary-btn" type="button" onclick={closeShareModal}>Done</button>
-      </div>
+      {/each}
     </div>
-  </div>
+
+    <div class="menu-divider"></div>
+    <div class="menu-section-label">General access</div>
+    <div class="share-access-row" class:active={isAnyone}>
+      <span class="share-access-icon"><svg class="icon"><use href={isAnyone ? "#icon-globe" : "#icon-lock"}></use></svg></span>
+      <div class="share-access-text">
+        <select bind:this={accessSelectEl} class="share-access-select" aria-label="General access" value={accessMode} onchange={onAccessModeChange}>
+          <option value="restricted">Restricted</option>
+          <option value="anyone-account">Anyone with an account</option>
+          <option value="anyone-link">Anyone with the link</option>
+        </select>
+        <span bind:this={accessMirrorEl} class="share-access-mirror" aria-hidden="true"></span>
+        <span class="modal-hint">{hint}</span>
+      </div>
+      <select class="share-role-select" aria-label="Access level for people with the link" hidden={!isAnyone} value={access.role} onchange={onRoleChange}>
+        <option value="viewer">Viewer</option>
+        <option value="reviewer">Reviewer</option>
+        <option value="editor">Editor</option>
+      </select>
+    </div>
+
+    {#snippet footer()}
+      <button class="secondary-btn" type="button" disabled={linkDisabled} onclick={copyLink}>
+        <svg class="icon"><use href="#icon-link"></use></svg> <span>{copied ? "Copied!" : "Copy link"}</span>
+      </button>
+      <span class="spacer"></span>
+      <button class="primary-btn" type="button" onclick={closeShareModal}>Done</button>
+    {/snippet}
+  </Modal>
 {/if}

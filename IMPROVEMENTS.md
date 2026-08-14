@@ -110,7 +110,8 @@ sequenced relative to each other yet.
       viewer mode should fully hide the editor (no visible edit
       surface, comment-only), and a broader pass over collaboration-
       role behavior generally.
-- [ ] **Full UI redesign — desktop.** Restructure the chrome: logo +
+- [x] **Full UI redesign — desktop.** (Shipped v1.16.0, plus earlier
+      topbar work.) Restructure the chrome: logo +
       document name + sync icon + comment/history/share actions on
       one row, menu buttons below, toolset bar with a VS-Code-style
       view selector, then a four-pane row (document sidenav / editor /
@@ -143,7 +144,7 @@ sequenced relative to each other yet.
       </tbody>
   </table>
 
-- [ ] **Full UI redesign — mobile.** Same chrome restructuring,
+- [x] **Full UI redesign — mobile.** (Shipped v1.17.0 + v1.18.0.) Same chrome restructuring,
       stacked layout (editor above preview, not side-by-side), with
       the document sidenav and comments panel moving into bottom-sheet
       modals, and a tabbed document/headings switcher for faster

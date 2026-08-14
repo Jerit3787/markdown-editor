@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import Modal from "./Modal.svelte";
   import { renameCollision } from "../stores/renameCollision";
   import { docsStore, removeDocById } from "../stores/docs";
   import { ensureUniqueName } from "../doc-naming";
@@ -44,25 +46,25 @@
     commitName(state.previousName);
   }
 
-  // Clicking outside the dialog is a dismissal, same as every other
-  // modal in this app — this one was missing it entirely. Treated as
-  // equivalent to Cancel (revert to the pre-edit name), the same
-  // non-destructive default clicking outside a dialog implies elsewhere.
-  function backdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) cancel();
-  }
+  onMount(() => {
+    // Matches every other Svelte modal's own Escape handling (app.ts's
+    // generic handler skips [data-svelte-modal] elements) — this one was
+    // missing it entirely before this conversion.
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $renameCollision) cancel();
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
+  });
 </script>
 
 {#if $renameCollision}
-  <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
-    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="renameCollisionTitle">
-      <h2 id="renameCollisionTitle">Name already in use</h2>
-      <p>Another document is already named "{$renameCollision.pendingName}".</p>
-      <div class="modal-actions">
-        <button type="button" class="secondary-btn" onclick={cancel}>Cancel</button>
-        <button type="button" class="secondary-btn" onclick={saveAsSuffixed}>Save as "{suggestedName}"</button>
-        <button type="button" class="secondary-btn danger-btn" onclick={replace}>Replace</button>
-      </div>
-    </div>
-  </div>
+  <Modal title="Name already in use" labelledBy="renameCollisionTitle" onClose={cancel}>
+    <p>Another document is already named "{$renameCollision.pendingName}".</p>
+    {#snippet footer()}
+      <button type="button" class="secondary-btn" onclick={cancel}>Cancel</button>
+      <button type="button" class="secondary-btn" onclick={saveAsSuffixed}>Save as "{suggestedName}"</button>
+      <button type="button" class="secondary-btn danger-btn" onclick={replace}>Replace</button>
+    {/snippet}
+  </Modal>
 {/if}

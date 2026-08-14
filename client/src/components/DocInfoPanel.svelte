@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Modal from "./Modal.svelte";
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { activeIdStore, activeDocContent, getActiveDoc, docsStore, switchDoc } from "../stores/docs";
   import { findBacklinks } from "../wikilinks";
@@ -14,10 +15,6 @@
 
   function close() {
     docInfoPanelOpen.set(false);
-  }
-
-  function backdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) close();
   }
 
   function jumpTo(id: string) {
@@ -43,39 +40,31 @@
 </script>
 
 {#if $docInfoPanelOpen && doc}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
-    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="docInfoTitle">
-      <h2 id="docInfoTitle"><svg class="icon"><use href="#icon-info"></use></svg> Document info</h2>
-      <div class="doc-info-row">
-        <span>Created</span>
-        <span class="doc-info-value">
-          {window.MDE.formatRelativeTime(doc.createdAt)}
-          <span class="doc-info-timestamp">{formatFullTimestamp(doc.createdAt)}</span>
-        </span>
-      </div>
-      <div class="doc-info-row">
-        <span>Edited</span>
-        <span class="doc-info-value">
-          {window.MDE.formatRelativeTime(doc.updatedAt)}
-          <span class="doc-info-timestamp">{formatFullTimestamp(doc.updatedAt)}</span>
-        </span>
-      </div>
-      <div class="doc-info-row"><span>Length</span><span>{wordCount} word{wordCount === 1 ? "" : "s"}, {charCount} character{charCount === 1 ? "" : "s"}</span></div>
-      <div class="menu-section-label">Linked from</div>
-      {#if backlinks.length === 0}
-        <p class="modal-hint">No other documents link here yet.</p>
-      {:else}
-        <div class="doc-info-backlinks">
-          {#each backlinks as link (link.id)}
-            <button type="button" class="doc-info-backlink-row" onclick={() => jumpTo(link.id)}>{link.name}</button>
-          {/each}
-        </div>
-      {/if}
-      <div class="modal-actions">
-        <button type="button" class="secondary-btn" onclick={close}>Close</button>
-      </div>
+  <Modal title="Document info" icon="icon-info" labelledBy="docInfoTitle" onClose={close}>
+    <div class="doc-info-row">
+      <span>Created</span>
+      <span class="doc-info-value">
+        {window.MDE.formatRelativeTime(doc.createdAt)}
+        <span class="doc-info-timestamp">{formatFullTimestamp(doc.createdAt)}</span>
+      </span>
     </div>
-  </div>
+    <div class="doc-info-row">
+      <span>Edited</span>
+      <span class="doc-info-value">
+        {window.MDE.formatRelativeTime(doc.updatedAt)}
+        <span class="doc-info-timestamp">{formatFullTimestamp(doc.updatedAt)}</span>
+      </span>
+    </div>
+    <div class="doc-info-row"><span>Length</span><span>{wordCount} word{wordCount === 1 ? "" : "s"}, {charCount} character{charCount === 1 ? "" : "s"}</span></div>
+    <div class="menu-section-label">Linked from</div>
+    {#if backlinks.length === 0}
+      <p class="modal-hint">No other documents link here yet.</p>
+    {:else}
+      <div class="doc-info-backlinks">
+        {#each backlinks as link (link.id)}
+          <button type="button" class="doc-info-backlink-row" onclick={() => jumpTo(link.id)}>{link.name}</button>
+        {/each}
+      </div>
+    {/if}
+  </Modal>
 {/if}

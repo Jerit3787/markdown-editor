@@ -1011,9 +1011,12 @@ body.focus-mode #statusbar {
    secondary affordance next to the title, not competing with it. A
    plain text link (not the icon-in-a-circle button this used to be)
    to match Modal.svelte's header convention (icon-only close button
-   on the left, text-link quick action on the right). */
+   on the left, text-link quick action on the right). Wrapped in
+   .toggletip (see Toggletip.svelte) so the hint itself shows as a
+   small popover anchored to the button instead of pushing an inline
+   paragraph into the modal body. */
+.toggletip { position: relative; margin-left: auto; flex-shrink: 0; }
 .hint-toggle-btn {
-  margin-left: auto;
   border: none;
   background: transparent;
   color: var(--accent);
@@ -1026,6 +1029,36 @@ body.focus-mode #statusbar {
 }
 .hint-toggle-btn:hover, .hint-toggle-btn.active { background: var(--accent-dim); text-decoration: underline; }
 .hint-text { margin: -4px 0 12px; }
+
+.toggletip-bubble {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  width: 260px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.5;
+  z-index: 10;
+}
+.toggletip-bubble::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 12px;
+  width: 9px;
+  height: 9px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-right: none;
+  border-bottom: none;
+  transform: rotate(45deg);
+}
 
 .doc-info-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .doc-info-row span:first-child { color: var(--text-dim); }

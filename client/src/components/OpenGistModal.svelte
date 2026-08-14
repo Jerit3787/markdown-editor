@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
+  import Toggletip from "./Toggletip.svelte";
   import { openGistModalOpen } from "../stores/openGistModal";
   import { githubUsername } from "../stores/github";
   import { createDoc } from "../stores/docs";
@@ -14,7 +15,6 @@
   let failedKey = $state<string | null>(null);
   let gists = $state<any[]>([]);
   let listHint = $state("Sign in with GitHub to see your own gists here.");
-  let showHint = $state(false);
 
   function close() {
     openGistModalOpen.set(false);
@@ -99,9 +99,8 @@
 {#if $openGistModalOpen}
   <Modal title="Open from GitHub Gist" icon="icon-github" wide labelledBy="openGistModalTitle" onClose={close}>
     {#snippet quickAction()}
-      <button type="button" class="hint-toggle-btn" class:active={showHint} aria-label="What is this?" onclick={() => (showHint = !showHint)}>?</button>
+      <Toggletip>Works with any public Gist, or your own private ones once you're signed in — paste its URL/ID, or pick it from the list below.</Toggletip>
     {/snippet}
-    {#if showHint}<p class="modal-hint">Works with any public Gist, or your own private ones once you're signed in — paste its URL/ID, or pick it from the list below.</p>{/if}
 
     <label class="modal-field">
       <span>Gist URL or ID</span>

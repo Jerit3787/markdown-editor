@@ -2,11 +2,11 @@
   import { onMount } from "svelte";
   import { get } from "svelte/store";
   import Modal from "./Modal.svelte";
+  import Toggletip from "./Toggletip.svelte";
   import { linkModalOpen, linkModalPrefillText } from "../stores/linkModal";
 
   let text = $state("");
   let url = $state("");
-  let showHint = $state(false);
 
   $effect(() => {
     if ($linkModalOpen) {
@@ -35,9 +35,8 @@
 {#if $linkModalOpen}
   <Modal title="Insert link" icon="icon-link" labelledBy="linkModalTitle" onClose={close}>
     {#snippet quickAction()}
-      <button type="button" class="hint-toggle-btn" class:active={showHint} aria-label="What is this?" onclick={() => (showHint = !showHint)}>?</button>
+      <Toggletip>Select text first to prefill it as the link text — leave Text blank and it defaults to "link text" instead.</Toggletip>
     {/snippet}
-    {#if showHint}<p class="modal-hint">Select text first to turn it into a link, or leave Text blank to insert the URL on its own.</p>{/if}
     <label class="modal-field">
       <span>Text</span>
       <input type="text" placeholder="Link text" bind:value={text} onkeydown={(e) => e.key === "Enter" && confirmInsert()} />

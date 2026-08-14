@@ -30,6 +30,11 @@ import ConfirmDialog from "./components/ConfirmDialog.svelte";
 import GithubSignInModal from "./components/GithubSignInModal.svelte";
 import LinkModal from "./components/LinkModal.svelte";
 import ImagesModal from "./components/ImagesModal.svelte";
+import ShortcutsModal from "./components/ShortcutsModal.svelte";
+import AboutModal from "./components/AboutModal.svelte";
+import TermsModal from "./components/TermsModal.svelte";
+import PrivacyModal from "./components/PrivacyModal.svelte";
+import LicensesModal from "./components/LicensesModal.svelte";
 
 // #settings-mount / #share-mount / #doclist-mount / #toast-mount /
 // #menubar-mount / #editor-mount / #toolbar-mount already exist by the
@@ -50,6 +55,11 @@ mount(ConfirmDialog, { target: document.getElementById("confirm-dialog-mount")! 
 mount(GithubSignInModal, { target: document.getElementById("github-signin-modal-mount")! });
 mount(LinkModal, { target: document.getElementById("link-modal-mount")! });
 mount(ImagesModal, { target: document.getElementById("images-modal-mount")! });
+mount(ShortcutsModal, { target: document.getElementById("shortcuts-modal-mount")! });
+mount(AboutModal, { target: document.getElementById("about-modal-mount")! });
+mount(TermsModal, { target: document.getElementById("terms-modal-mount")! });
+mount(PrivacyModal, { target: document.getElementById("privacy-modal-mount")! });
+mount(LicensesModal, { target: document.getElementById("licenses-modal-mount")! });
 mount(DiagramEditor, { target: document.getElementById("diagram-editor-mount")! });
 mount(WhatsNew, { target: document.getElementById("whats-new-mount")! });
 mount(CommandPalette, { target: document.getElementById("command-palette-mount")! });

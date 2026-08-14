@@ -30,6 +30,8 @@ import { docListActiveTab } from "./stores/docList";
 import { githubSignInModalOpen, githubSignInModalHint } from "./stores/githubSignInModal";
 import { linkModalOpen, linkModalPrefillText } from "./stores/linkModal";
 import { imagesModalOpen } from "./stores/imagesModal";
+import { shortcutsModalOpen } from "./stores/shortcutsModal";
+import { aboutModalOpen } from "./stores/aboutModals";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { computeBlockLineStarts } from "./scroll-sync";
@@ -193,8 +195,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     initImport();
     initShortStatus();
     initImagesManager();
-    initShortcutsModal();
-    initInfoModal();
     initModalHints();
     initModalEscapeKey();
     initEmptyState();
@@ -1777,61 +1777,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
   }
 
-  function initShortcutsModal() {
-    const modal = document.getElementById("shortcutsModal");
-    document.getElementById("shortcutsCloseBtn").addEventListener("click", () => {
-      modal.hidden = true;
-    });
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.hidden = true;
-    });
-  }
-
-  function initInfoModal() {
-    document.getElementById("appVersion").textContent = `v${__APP_VERSION__}`;
-    const modal = document.getElementById("infoModal");
-    const termsModal = document.getElementById("termsModal");
-    const privacyModal = document.getElementById("privacyModal");
-    const licensesModal = document.getElementById("licensesModal");
-
-    document.getElementById("infoCloseBtn").addEventListener("click", () => { modal.hidden = true; });
-    modal.addEventListener("click", (e) => { if (e.target === modal) modal.hidden = true; });
-
-    document.getElementById("termsCloseBtn").addEventListener("click", () => { termsModal.hidden = true; });
-    termsModal.addEventListener("click", (e) => { if (e.target === termsModal) termsModal.hidden = true; });
-
-    document.getElementById("privacyCloseBtn").addEventListener("click", () => { privacyModal.hidden = true; });
-    privacyModal.addEventListener("click", (e) => { if (e.target === privacyModal) privacyModal.hidden = true; });
-
-    document.getElementById("licensesCloseBtn").addEventListener("click", () => { licensesModal.hidden = true; });
-    licensesModal.addEventListener("click", (e) => { if (e.target === licensesModal) licensesModal.hidden = true; });
-
-    document.getElementById("menuTerms").addEventListener("click", () => {
-      modal.hidden = true;
-      termsModal.hidden = false;
-    });
-    document.getElementById("menuPrivacy").addEventListener("click", () => {
-      modal.hidden = true;
-      privacyModal.hidden = false;
-    });
-    document.getElementById("menuLicenses").addEventListener("click", () => {
-      modal.hidden = true;
-      licensesModal.hidden = false;
-    });
-
-    renderLicensesList();
-  }
-
-  function renderLicensesList() {
-    const container = document.getElementById("licensesList");
-    container.innerHTML = __OSS_LICENSES__.map((entry) => {
-      const nameHtml = entry.url
-        ? `<a href="${escapeHtml(entry.url)}" target="_blank" rel="noopener">${escapeHtml(entry.name)}</a>`
-        : escapeHtml(entry.name);
-      return `<div class="shortcuts-row"><span>${nameHtml}</span><kbd>${escapeHtml(entry.license)} · v${escapeHtml(entry.version)}</kbd></div>`;
-    }).join("");
-  }
-
   // A small "?" toggle in a modal's own header, next to its title — reveals
   // a one-line explanation of what that modal is for. Delegated on
   // document so it works for both the plain HTML modals here and the
@@ -2119,14 +2064,13 @@ ${bodyHtml}
     toggleSidebar,
     collapseSidebarForMobile,
     openImagesManager() {
-      renderImagesList();
-      document.getElementById("imagesModal").hidden = false;
+      imagesModalOpen.set(true);
     },
     openShortcuts() {
-      document.getElementById("shortcutsModal").hidden = false;
+      shortcutsModalOpen.set(true);
     },
     openAbout() {
-      document.getElementById("infoModal").hidden = false;
+      aboutModalOpen.set(true);
     },
     setView,
     toggleFocusMode,

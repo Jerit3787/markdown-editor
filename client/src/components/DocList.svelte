@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { docsStore, activeIdStore, activeDocContent, duplicateDoc, deleteDoc } from "../stores/docs";
+  import { docListActiveTab } from "../stores/docList";
 
   const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
 
@@ -36,8 +37,6 @@
   let expandedIds = $state(new Set<string>());
   let openMenuId = $state<string | null>(null);
   let menuPos = $state({ top: 0, left: 0 });
-  let activeTab = $state<"documents" | "headings">("documents");
-
   // rows already computes {doc, headings} per document above; these just
   // narrow it to whichever document is currently active, for the
   // top-level Headings tab (mobile only — see style.css .doclist-tabs).
@@ -113,15 +112,15 @@
 </script>
 
 <div class="doclist-tabs">
-  <button type="button" class:active={activeTab === "documents"} onclick={() => (activeTab = "documents")}>
+  <button type="button" class:active={$docListActiveTab === "documents"} onclick={() => ($docListActiveTab = "documents")}>
     Documents
   </button>
-  <button type="button" class:active={activeTab === "headings"} onclick={() => (activeTab = "headings")}>
+  <button type="button" class:active={$docListActiveTab === "headings"} onclick={() => ($docListActiveTab = "headings")}>
     Headings
   </button>
 </div>
 
-{#if activeTab === "documents"}
+{#if $docListActiveTab === "documents"}
   <ul id="docList">
     {#each rows as { doc, headings } (doc.id)}
       <li class:active={doc.id === $activeIdStore}>

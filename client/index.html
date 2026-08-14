@@ -486,29 +486,9 @@
 <div id="images-modal-mount"></div>
 
 <!-- Open from GitHub Gist -->
-<div id="openGistModal" class="modal-backdrop" hidden>
-  <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="openGistModalTitle">
-    <h2 id="openGistModalTitle"><svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Gist<button class="hint-toggle-btn" type="button" aria-label="What is this?">?</button></h2>
-    <p class="modal-hint hint-text" hidden>Works with any public Gist, or your own private ones once you're signed in — paste its URL/ID, or pick it from the list below.</p>
-
-    <label class="modal-field">
-      <span>Gist URL or ID</span>
-      <div class="share-row">
-        <input id="gistOpenInput" type="text" placeholder="https://gist.github.com/... or ID" aria-label="Gist URL or ID">
-        <button id="gistOpenBtn" class="secondary-btn" type="button">Open</button>
-      </div>
-    </label>
-
-    <div class="menu-divider"></div>
-    <div class="menu-section-label">Your Gists</div>
-    <p id="gistListHint" class="modal-hint">Sign in with GitHub to see your own gists here.</p>
-    <div id="gistList" class="images-list"></div>
-
-    <div class="modal-actions">
-      <button id="openGistModalCloseBtn" class="secondary-btn" type="button">Close</button>
-    </div>
-  </div>
-</div>
+<!-- Open from GitHub Gist — Svelte component, mounted in main.ts; see
+     client/src/components/OpenGistModal.svelte -->
+<div id="open-gist-modal-mount"></div>
 
 <!-- Keyboard shortcuts — Svelte component, mounted in main.ts; see
      client/src/components/ShortcutsModal.svelte -->

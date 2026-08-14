@@ -195,7 +195,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     initImport();
     initShortStatus();
     initImagesManager();
-    initModalHints();
     initModalEscapeKey();
     initEmptyState();
     initKeybindingIndicator();
@@ -1774,23 +1773,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       };
       reader.readAsText(file);
       (e.target as HTMLInputElement).value = "";
-    });
-  }
-
-  // A small "?" toggle in a modal's own header, next to its title — reveals
-  // a one-line explanation of what that modal is for. Delegated on
-  // document so it works for both the plain HTML modals here and the
-  // Svelte-rendered ones (Share, Settings), whose markup doesn't exist in
-  // the DOM until they're first opened.
-  function initModalHints() {
-    document.addEventListener("click", (e) => {
-      const btn = (e.target as HTMLElement).closest(".hint-toggle-btn") as HTMLElement | null;
-      if (!btn) return;
-      const box = btn.closest(".modal-box");
-      const hint = box?.querySelector(".hint-text") as HTMLElement | null;
-      if (!hint) return;
-      hint.hidden = !hint.hidden;
-      btn.classList.toggle("active", !hint.hidden);
     });
   }
 

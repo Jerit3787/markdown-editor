@@ -8,6 +8,7 @@ import { get, writable } from "svelte/store";
 import type { Doc, Note } from "../types";
 import { showToast } from "./toast";
 import { deleteHistory } from "../history";
+import { confirmAction } from "./confirmDialog";
 import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
 
@@ -154,10 +155,10 @@ export function removeDocById(id: string) {
   void deleteHistory(id);
 }
 
-export function deleteDoc(id: string): Doc | undefined {
+export async function deleteDoc(id: string): Promise<Doc | undefined> {
   const doc = findDocById(id);
   if (!doc) return undefined;
-  if (!confirm(`Delete "${doc.name}"? This can't be undone.`)) return undefined;
+  if (!(await confirmAction(`Delete "${doc.name}"? This can't be undone.`))) return undefined;
   removeDocById(id);
   showToast(`Deleted "${doc.name || "Untitled"}"`, "success");
   return doc;

@@ -29,6 +29,7 @@ import { viewMode } from "./stores/view";
 import { commentsPanelOpen } from "./stores/commentsPanel";
 import { docListActiveTab } from "./stores/docList";
 import { githubSignInModalOpen, githubSignInModalHint } from "./stores/githubSignInModal";
+import { linkModalOpen, linkModalPrefillText } from "./stores/linkModal";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { computeBlockLineStarts } from "./scroll-sync";
@@ -192,7 +193,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     initImport();
     initShortStatus();
     initImagesManager();
-    initLinkModal();
     initShortcutsModal();
     initInfoModal();
     initModalHints();
@@ -1497,39 +1497,13 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // editor — friendlier for anyone not already fluent in markdown syntax.
   function insertLink() {
     const { from, to } = cm.state.selection.main;
-    const sel = cm.state.sliceDoc(from, to);
-    (document.getElementById("linkTextInput") as HTMLInputElement).value = sel || "";
-    (document.getElementById("linkUrlInput") as HTMLInputElement).value = "";
-    document.getElementById("linkModal").hidden = false;
-    document.getElementById(sel ? "linkUrlInput" : "linkTextInput").focus();
+    linkModalPrefillText.set(cm.state.sliceDoc(from, to));
+    linkModalOpen.set(true);
   }
 
-  function initLinkModal() {
-    const modal = document.getElementById("linkModal");
-    const textInput = document.getElementById("linkTextInput") as HTMLInputElement;
-    const urlInput = document.getElementById("linkUrlInput") as HTMLInputElement;
-
-    function close() {
-      modal.hidden = true;
-    }
-    function confirmInsert() {
-      const text = textInput.value.trim() || "link text";
-      const url = urlInput.value.trim() || "https://";
-      cm.dispatch(cm.state.replaceSelection(`[${text}](${url})`));
-      close();
-      cm.focus();
-    }
-
-    document.getElementById("linkCancelBtn").addEventListener("click", close);
-    document.getElementById("linkInsertBtn").addEventListener("click", confirmInsert);
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) close();
-    });
-    [textInput, urlInput].forEach((input) => {
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") confirmInsert();
-      });
-    });
+  function insertLinkIntoEditor(text: string, url: string) {
+    cm.dispatch(cm.state.replaceSelection(`[${text || "link text"}](${url || "https://"})`));
+    cm.focus();
   }
 
   function insertImage() {
@@ -2149,6 +2123,7 @@ ${bodyHtml}
     onImageAdded: null,
     toggleDropdown,
     closeAllDropdowns,
+    insertLinkIntoEditor,
     requireGithubSignIn(hint) {
       if (hint) githubSignInModalHint.set(hint);
       githubSignInModalOpen.set(true);

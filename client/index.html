@@ -394,7 +394,7 @@
            with nothing in storage yet, or after deleting the last
            remaining document. -->
       <div id="emptyState" class="empty-state" hidden>
-        <div class="empty-state-inner">
+        <div class="empty-state-inner empty-state-has-workspace">
           <img src="/logo.svg" width="52" height="52" alt="">
           <h1>Markdown Editor</h1>
           <p>A fast, distraction-free markdown editor that runs entirely in your browser — no server, no account, nothing leaves your machine.</p>
@@ -402,6 +402,14 @@
             <button type="button" id="emptyNewDocBtn" class="primary-btn"><svg class="icon"><use href="#icon-file-plus"></use></svg> New document</button>
             <button type="button" id="emptyOpenLocalBtn" class="secondary-btn"><svg class="icon"><use href="#icon-upload"></use></svg> Open from device</button>
             <button type="button" id="emptyOpenGistBtn" class="secondary-btn"><svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Gist</button>
+          </div>
+        </div>
+        <div class="empty-state-inner empty-state-no-workspace">
+          <img src="/logo.svg" width="52" height="52" alt="">
+          <h1>No workspace yet</h1>
+          <p>Create a workspace to start adding documents.</p>
+          <div class="empty-state-actions">
+            <button type="button" id="emptyNewWorkspaceBtn" class="primary-btn"><svg class="icon"><use href="#icon-plus"></use></svg> New workspace</button>
           </div>
         </div>
       </div>

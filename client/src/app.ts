@@ -23,6 +23,7 @@ import {
   findCollidingDoc,
   docsStore,
 } from "./stores/docs";
+import { workspacesStore, createWorkspace } from "./stores/workspaces";
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
 import { commentsPanelOpen } from "./stores/commentsPanel";
@@ -265,6 +266,13 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
     document.getElementById("emptyOpenGistBtn").addEventListener("click", () => {
       document.getElementById("menuOpenGist").click();
+    });
+    document.getElementById("emptyNewWorkspaceBtn").addEventListener("click", () => {
+      const ws = createWorkspace("New workspace");
+      updateMainView(true); // re-run the empty-state check now that a workspace exists
+      // Focus the new workspace's name for immediate renaming, same as
+      // the switcher's own "New workspace" button — see WorkspaceSwitcher.svelte.
+      document.getElementById("workspace-switcher-mount")?.querySelector("button")?.click();
     });
   }
 
@@ -1054,6 +1062,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // in storage yet (loadDocs() no longer seeds a Welcome doc).
   function updateMainView(empty: boolean) {
     document.getElementById("emptyState").hidden = !empty;
+    document.getElementById("emptyState").classList.toggle("no-workspace", get(workspacesStore).length === 0);
     (document.getElementById("editorPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("previewPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("divider") as HTMLElement).style.display = empty ? "none" : "";

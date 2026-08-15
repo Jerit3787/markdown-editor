@@ -1558,7 +1558,9 @@ body.focus-mode #statusbar {
 #previewPane { flex: 1; border-left: 1px solid var(--border); }
 
 .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; }
-.empty-state-inner { text-align: center; max-width: 380px; padding: 24px; }
+.empty-state-inner { text-align: center; max-width: 380px; padding: 24px; display: none; }
+.empty-state:not(.no-workspace) .empty-state-has-workspace { display: block; }
+.empty-state.no-workspace .empty-state-no-workspace { display: block; }
 .empty-state-inner img { opacity: 0.9; margin-bottom: 18px; }
 .empty-state-inner h1 { font-size: 21px; margin: 0 0 8px; color: var(--text); }
 .empty-state-inner p { color: var(--text-dim); font-size: 13.5px; line-height: 1.5; margin: 0 0 26px; }

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.20.1] - 2026-08-16
+
+### Fixed
+
+- **UI Polish.** Refined empty states across all modals and sidebars (Settings, Document Info, Images, Command Palette, Open Gist, Comments) with a unified, visually balanced layout featuring centered icons and prominent titles.
+- **Confirm Dialogs.** Upgraded confirmation dialogs to use descriptive header titles (e.g., "Delete Document?") instead of a generic "Confirm", backed by the new empty state body format and a trash can icon.
+- **GitHub Auth Flow.** Added a direct "Sign in with GitHub" button to the empty state of the Open Gist modal, completely wiring it to authenticate and reload gists automatically without closing the modal.
+
 ## [1.20.0] - 2026-08-16
 
 ### Added

@@ -4,6 +4,24 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.19.2] - 2026-08-15
+
+### Added
+
+- Modal header now has a bottom border separating it from the body,
+  matching the footer's existing top border.
+
+### Changed
+
+- What's New now uses the shared `Modal` component (Standardized modal
+  layout — Phase 2), closing out the modal-standardization work.
+
+### Fixed
+
+- On mobile, What's New's screenshot floated inset from the modal's
+  edges instead of filling the width edge-to-edge like a proper hero
+  image.
+
 ## [1.19.1] - 2026-08-14
 
 ### Added

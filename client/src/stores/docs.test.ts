@@ -147,4 +147,125 @@ describe("docs store — workspace integration", () => {
     expect(doc?.workspaceId).toBe(target.id);
     expect(doc?.content).toBe("hello");
   });
+
+  // Finding 1 (final whole-branch review): initialActiveId used to fall
+  // back to docs[0] (array-order-first, i.e. newest) regardless of
+  // workspace — repro is switching to an empty workspace (which removes
+  // mde:active entirely, see setActiveId), then reloading while another
+  // workspace still has documents.
+  it("initial load resolves activeIdStore to a doc in the active workspace, not the array-order-first doc from a different workspace", async () => {
+    localStorage.setItem(
+      "mde:workspaces",
+      JSON.stringify([
+        { id: "ws-a", name: "A", createdAt: 1 },
+        { id: "ws-b", name: "B", createdAt: 2 },
+      ])
+    );
+    localStorage.setItem("mde:activeWorkspace", "ws-a");
+    // No mde:active stored — matches the finding's repro (setActiveId(null)
+    // removes the key when the active workspace has no documents).
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([
+        // Newest / array-order-first, but belongs to the OTHER workspace.
+        { id: "b-doc", name: "B Doc", content: "", updatedAt: 2, createdAt: 2, workspaceId: "ws-b" },
+        { id: "a-doc", name: "A Doc", content: "", updatedAt: 1, createdAt: 1, workspaceId: "ws-a" },
+      ])
+    );
+    const { activeIdStore } = await import("./docs");
+    expect(get(activeIdStore)).toBe("a-doc");
+  });
+
+  // Finding 2 (final whole-branch review): normalizeLoadedDocs's fallback
+  // used to be workspacesStore[0], which is the NEWEST workspace
+  // (createWorkspace prepends) rather than the original default one.
+  it("normalizeLoadedDocs backfill fallback is the OLDEST workspace by createdAt, not workspacesStore[0]", async () => {
+    localStorage.setItem(
+      "mde:workspaces",
+      JSON.stringify([
+        { id: "newer", name: "Newer", createdAt: 200 },
+        { id: "older", name: "Older", createdAt: 100 },
+      ])
+    );
+    localStorage.setItem("mde:activeWorkspace", "newer");
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([{ id: "legacy", name: "Legacy", content: "", updatedAt: 1, createdAt: 1 }])
+    );
+    const { docsStore } = await import("./docs");
+    expect(get(docsStore).find((d) => d.id === "legacy")?.workspaceId).toBe("older");
+  });
+
+  it("persists a workspaceId backfill to localStorage immediately, not only in memory", async () => {
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([{ id: "legacy", name: "Legacy", content: "", updatedAt: 1, createdAt: 1 }])
+    );
+    await import("./docs");
+    const { workspacesStore } = await import("./workspaces");
+    const defaultWorkspaceId = get(workspacesStore)[0].id;
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!);
+    expect(persisted.find((d: { id: string }) => d.id === "legacy")?.workspaceId).toBe(defaultWorkspaceId);
+  });
+
+  it("does not rewrite mde:docs when no document needed a workspaceId backfill", async () => {
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([{ id: "tagged", name: "Tagged", content: "", updatedAt: 1, createdAt: 1, workspaceId: "some-other-ws" }])
+    );
+    await import("./docs");
+    // Storage should be untouched byte-for-byte (no backfill needed, so no
+    // persistDocs() call) — re-parsing and comparing the one field we care
+    // about is enough without over-asserting on exact JSON formatting.
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!);
+    expect(persisted[0].workspaceId).toBe("some-other-ws");
+  });
+
+  // Finding 3 (final whole-branch review, USER DECISION: cross-workspace
+  // navigation follows you to the target workspace): switchDoc is the
+  // single choke point every consumer (wikilinks, Command Palette, File >
+  // Recent, backlinks, shared-link join) funnels through.
+  it("switchDoc follows the target document's workspace when it differs from the active one", async () => {
+    const { docsStore, activeIdStore, switchDoc } = await import("./docs");
+    const { activeWorkspaceIdStore, createWorkspace } = await import("./workspaces");
+    const firstWorkspaceId = get(activeWorkspaceIdStore)!;
+    const second = createWorkspace("Second"); // now active
+    activeWorkspaceIdStore.set(firstWorkspaceId); // back to first, "second" is the "other" workspace
+    docsStore.set([
+      { id: "in-first", name: "A", content: "", updatedAt: 1, createdAt: 1, workspaceId: firstWorkspaceId },
+      { id: "in-second", name: "B", content: "", updatedAt: 2, createdAt: 2, workspaceId: second.id },
+    ]);
+    activeIdStore.set("in-first");
+    switchDoc("in-second");
+    expect(get(activeIdStore)).toBe("in-second");
+    expect(get(activeWorkspaceIdStore)).toBe(second.id);
+  });
+
+  it("switchDoc leaves activeWorkspaceIdStore untouched when the target is already in the active workspace", async () => {
+    const { docsStore, activeIdStore, switchDoc } = await import("./docs");
+    const { activeWorkspaceIdStore } = await import("./workspaces");
+    const activeWorkspaceId = get(activeWorkspaceIdStore)!;
+    docsStore.set([
+      { id: "doc-a", name: "A", content: "", updatedAt: 1, createdAt: 1, workspaceId: activeWorkspaceId },
+      { id: "doc-b", name: "B", content: "", updatedAt: 2, createdAt: 2, workspaceId: activeWorkspaceId },
+    ]);
+    activeIdStore.set("doc-a");
+    switchDoc("doc-b");
+    expect(get(activeIdStore)).toBe("doc-b");
+    expect(get(activeWorkspaceIdStore)).toBe(activeWorkspaceId);
+  });
+
+  // Finding 4 (final whole-branch review): createDoc used to stamp
+  // workspaceId: "" when called with zero workspaces existing (several
+  // entry points can reach createDoc even from the "no workspace" empty
+  // state) — an empty string can never match DocList's
+  // `d.workspaceId === $activeWorkspaceIdStore` filter, orphaning the doc.
+  it("createDoc self-heals by creating a workspace on demand when none exist", async () => {
+    localStorage.setItem("mde:workspaces", "[]");
+    const { createDoc } = await import("./docs");
+    const { workspacesStore } = await import("./workspaces");
+    const doc = createDoc();
+    expect(doc.workspaceId).toBeTruthy();
+    expect(get(workspacesStore).some((w) => w.id === doc.workspaceId)).toBe(true);
+  });
 });

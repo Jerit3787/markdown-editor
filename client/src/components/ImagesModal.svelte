@@ -3,18 +3,24 @@
   import Modal from "./Modal.svelte";
   import Toggletip from "./Toggletip.svelte";
   import { imagesModalOpen } from "../stores/imagesModal";
-  import { docsStore, activeIdStore, deleteDocImage } from "../stores/docs";
+  import { docsStore, activeIdStore, deleteDocImage, getActiveDoc } from "../stores/docs";
   import { confirmAction } from "../stores/confirmDialog";
 
-  // Reads $docsStore/$activeIdStore directly (not getActiveDoc(), which
-  // unwraps both via the non-reactive get() — invisible to $derived's
-  // dependency tracking, so the list would never refresh after a
-  // delete without a manual re-render call, the same trap
-  // app.ts's old renderImagesList() sidestepped by just re-running
-  // itself imperatively after every mutation).
+  // Reads $docsStore/$activeIdStore directly (not getActiveDoc() for the
+  // primary lookup, which unwraps both via the non-reactive get() —
+  // invisible to $derived's dependency tracking, so the list would never
+  // refresh after a delete without a manual re-render call, the same trap
+  // app.ts's old renderImagesList() sidestepped by just re-running itself
+  // imperatively after every mutation). $docsStore/$activeIdStore are
+  // still referenced directly above, so this $derived still re-runs
+  // whenever either changes — the fallback below just needs to resolve
+  // to the *active* document, not an arbitrary one, so it reuses
+  // getActiveDoc()'s own workspace-scoped fallback instead of the old
+  // `|| $docsStore[0]` (which could hand back a document from a
+  // different workspace than the one actually open).
   const images = $derived.by(() => {
     if (!$imagesModalOpen) return [];
-    const doc = $docsStore.find((d) => d.id === $activeIdStore) || $docsStore[0];
+    const doc = $docsStore.find((d) => d.id === $activeIdStore) || getActiveDoc();
     const imgs = (doc && doc.images) || {};
     const rawContent = window.MDE.getEditor().state.doc.toString();
     return Object.entries(imgs).map(([key, dataUrl]) => ({

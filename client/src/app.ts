@@ -228,9 +228,9 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       updateCounts();
     });
 
-    // updateMainView's "no-workspace" class depends on workspacesStore's
-    // length (see updateMainView below), but it's normally only re-run as a
-    // side effect of loadDocIntoEditor above, which only fires when
+    // updateEmptyStateVariant's "no-workspace" class depends on
+    // workspacesStore's length, but it's normally only re-run as a side
+    // effect of loadDocIntoEditor above, which only fires when
     // activeIdStore's value actually changes. Deleting the very last
     // workspace doesn't necessarily change activeIdStore (it's typically
     // already null — the workspace was empty of docs before it could be
@@ -238,8 +238,19 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // showing. Subscribe to workspacesStore directly so the variant is
     // re-evaluated any time the workspace count changes, independent of
     // whether the active document also changed.
+    //
+    // Deliberately calls only the narrow updateEmptyStateVariant, NOT the
+    // full updateMainView — every workspace mutation goes through
+    // workspacesStore (create/rename/delete, including renaming a
+    // workspace while sitting in an empty one, or the auto-focus into a
+    // rename input right after creating one), and updateMainView's other
+    // side effects (collapseSidebarForMobile() chief among them) must
+    // stay reachable only from genuine "which document is active"
+    // transitions via the activeIdStore subscription above — otherwise a
+    // workspace rename mid-interaction on mobile collapses the sidebar
+    // out from under the very input the user is typing into.
     workspacesStore.subscribe(() => {
-      updateMainView(!getActiveDoc());
+      updateEmptyStateVariant(!getActiveDoc());
     });
   }
 
@@ -1070,13 +1081,23 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
   }
 
+  // Just the #emptyState visibility + which-variant-shows ("no workspace"
+  // vs. "no document") class toggle — split out from updateMainView so
+  // the workspacesStore subscription above can re-evaluate this narrow
+  // bit on every workspace mutation without also re-running
+  // updateMainView's other DOM side effects (collapseSidebarForMobile()
+  // especially — see that subscription's own comment for why).
+  function updateEmptyStateVariant(empty: boolean) {
+    document.getElementById("emptyState").hidden = !empty;
+    document.getElementById("emptyState").classList.toggle("no-workspace", get(workspacesStore).length === 0);
+  }
+
   // Toggles between the editor/preview panes and the empty-state welcome
   // screen (#emptyState) — the only reachable "no document" case is
   // deleting the last remaining doc, or a brand-new visitor with nothing
   // in storage yet (loadDocs() no longer seeds a Welcome doc).
   function updateMainView(empty: boolean) {
-    document.getElementById("emptyState").hidden = !empty;
-    document.getElementById("emptyState").classList.toggle("no-workspace", get(workspacesStore).length === 0);
+    updateEmptyStateVariant(empty);
     (document.getElementById("editorPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("previewPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("divider") as HTMLElement).style.display = empty ? "none" : "";

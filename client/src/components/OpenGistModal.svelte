@@ -14,6 +14,7 @@
   let busyKey = $state<string | null>(null); // gist id, or INPUT_KEY, currently being opened — or null
   let failedKey = $state<string | null>(null);
   let gists = $state<any[]>([]);
+  let listTitle = $state("");
   let listHint = $state("Sign in with GitHub to see your own gists here.");
 
   function close() {
@@ -22,10 +23,12 @@
 
   async function loadGistList() {
     if (!$githubUsername) {
+      listTitle = "Sign in required";
       listHint = "Sign in with GitHub to see your own gists here.";
       gists = [];
       return;
     }
+    listTitle = "Loading…";
     listHint = "Loading your gists…";
     try {
       const res = await fetch("/api/gists");
@@ -33,8 +36,10 @@
       const all: any[] = await res.json();
       const withMd = all.filter((g) => Object.keys(g.files || {}).some((name: string) => /\.(md|markdown)$/i.test(name)));
       gists = withMd;
+      listTitle = withMd.length === 0 ? "No gists" : "";
       listHint = withMd.length === 0 ? "No markdown gists found." : "";
     } catch {
+      listTitle = "Error";
       listHint = "Couldn't load your gists.";
       gists = [];
     }
@@ -132,7 +137,7 @@
     {#if listHint}
       <div class="empty-state">
         <svg class="empty-state-icon"><use href="#icon-github"></use></svg>
-        <div class="empty-state-title">{!$githubUsername ? "Sign in required" : "No gists"}</div>
+        <div class="empty-state-title">{listTitle}</div>
         <div class="empty-state-desc">{listHint}</div>
         {#if !$githubUsername}
           <button type="button" class="primary-btn" onclick={() => window.MDE.openGithubSignInPopup()} style="margin-top: 8px;">

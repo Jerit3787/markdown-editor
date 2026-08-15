@@ -227,6 +227,20 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       updatePreview();
       updateCounts();
     });
+
+    // updateMainView's "no-workspace" class depends on workspacesStore's
+    // length (see updateMainView below), but it's normally only re-run as a
+    // side effect of loadDocIntoEditor above, which only fires when
+    // activeIdStore's value actually changes. Deleting the very last
+    // workspace doesn't necessarily change activeIdStore (it's typically
+    // already null — the workspace was empty of docs before it could be
+    // deleted), so that path alone can leave the wrong empty-state variant
+    // showing. Subscribe to workspacesStore directly so the variant is
+    // re-evaluated any time the workspace count changes, independent of
+    // whether the active document also changed.
+    workspacesStore.subscribe(() => {
+      updateMainView(!getActiveDoc());
+    });
   }
 
   function formatRelativeTime(ts: number) {

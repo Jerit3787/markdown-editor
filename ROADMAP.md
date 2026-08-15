@@ -82,6 +82,15 @@ commitments.
       dialogs (no backdrop/centered-box presentation) and forcing them
       into `Modal` would fight their own layouts rather than simplify
       them — left as-is, see the Backlog entry below (v1.19.2)
+- [x] **Workspace core.** First of four planned sub-projects toward
+      sharing a whole *workspace* (a named group of documents) instead
+      of one document at a time. Introduces `Workspace` as a real
+      container documents belong to: create/switch/rename/delete
+      workspaces from a new switcher in the sidebar header, one active
+      at a time (VS Code-style, not multi-root); documents filter to
+      the active workspace; a document can be moved between workspaces;
+      existing users migrate transparently onto a default "My
+      Workspace." Purely local — no sharing or external sync yet (v1.20.0).
 
 ## Backlog — quick wins
 
@@ -103,8 +112,22 @@ New infrastructure, backend, or scope — each its own project.
 - [ ] AI-generated diagrams from a text prompt (flagged as bigger-bets
       tier in the original diagram editor design doc — needs an LLM
       backend, cost/auth model)
+- [ ] **Workspace-level sharing** — sub-project 2 of the workspace pivot
+      (Workspace core shipped above). Redesign the collab-room/Share
+      feature so a whole workspace, not one document, syncs live to
+      invited collaborators; a "which of your workspaces should this
+      go into?" flow when opening a shared file/workspace. To share
+      just one file, the user moves it into its own workspace and
+      shares that.
+- [ ] **GitHub repo sync** — sub-project 3. Link a workspace to a GitHub
+      repo (building on the GitHub OAuth already used for Gists), pull
+      its contents in, push/save workspace state back out.
+- [ ] **Google Drive sync** — sub-project 4. Same idea as GitHub repo
+      sync, but Drive is a separate OAuth provider/API integration from
+      scratch. Supersedes the earlier "multi-provider cloud sync
+      (Drive, Dropbox, OneDrive)" idea — scoped down to just Drive,
+      since Dropbox/OneDrive were never actually requested.
 - [ ] Plugin / extension system
-- [ ] Multi-provider cloud sync (Drive, Dropbox, OneDrive)
 - [ ] Slide / presentation export
 - [ ] Tag system + graph view
 - [ ] End-to-end encryption

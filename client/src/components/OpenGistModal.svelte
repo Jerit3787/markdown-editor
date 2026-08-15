@@ -92,7 +92,22 @@
       if (e.key === "Escape" && $openGistModalOpen) close();
     };
     document.addEventListener("keydown", onKeydown);
-    return () => document.removeEventListener("keydown", onKeydown);
+
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== location.origin || !e.data || e.data.type !== "mde-github-auth") return;
+      if (e.data.ok) {
+        window.MDE.onGithubAuthComplete && window.MDE.onGithubAuthComplete();
+        void loadGistList();
+      } else {
+        alert(`GitHub sign-in failed: ${e.data.message || "unknown error"}`);
+      }
+    };
+    window.addEventListener("message", onMessage);
+
+    return () => {
+      document.removeEventListener("keydown", onKeydown);
+      window.removeEventListener("message", onMessage);
+    };
   });
 </script>
 
@@ -117,8 +132,13 @@
     {#if listHint}
       <div class="empty-state">
         <svg class="empty-state-icon"><use href="#icon-github"></use></svg>
-        <div class="empty-state-title">No gists</div>
+        <div class="empty-state-title">{!$githubUsername ? "Sign in required" : "No gists"}</div>
         <div class="empty-state-desc">{listHint}</div>
+        {#if !$githubUsername}
+          <button type="button" class="primary-btn" onclick={() => window.MDE.openGithubSignInPopup()} style="margin-top: 8px;">
+            <svg class="icon"><use href="#icon-github"></use></svg> Sign in with GitHub
+          </button>
+        {/if}
       </div>
     {/if}
     <div class="images-list">

@@ -71,48 +71,62 @@
     {#snippet quickAction()}
       <Toggletip>Theme applies instantly and remembers your choice. Connecting GitHub is what gates both Publish to Gist and Share — it's optional otherwise.</Toggletip>
     {/snippet}
-    <div class="menu-section-label">Appearance</div>
-    <div class="tab-switch" role="tablist" aria-label="Theme">
-      <button type="button" class="tab-switch-btn" class:active={theme === "light"} role="tab" aria-selected={theme === "light"} onclick={() => applyTheme("light")}>
-        <svg class="icon"><use href="#icon-sun"></use></svg> Light
-      </button>
-      <button type="button" class="tab-switch-btn" class:active={theme === "dark"} role="tab" aria-selected={theme === "dark"} onclick={() => applyTheme("dark")}>
-        <svg class="icon"><use href="#icon-moon"></use></svg> Dark
-      </button>
+    <div class="setting-row">
+      <div class="setting-label">
+        <span class="setting-title">Appearance</span>
+      </div>
+      <div class="tab-switch" role="tablist" aria-label="Theme" style="margin: 0; min-width: 160px;">
+        <button type="button" class="tab-switch-btn" class:active={theme === "light"} role="tab" aria-selected={theme === "light"} onclick={() => applyTheme("light")}>
+          <svg class="icon"><use href="#icon-sun"></use></svg> Light
+        </button>
+        <button type="button" class="tab-switch-btn" class:active={theme === "dark"} role="tab" aria-selected={theme === "dark"} onclick={() => applyTheme("dark")}>
+          <svg class="icon"><use href="#icon-moon"></use></svg> Dark
+        </button>
+      </div>
     </div>
-    <div class="menu-divider"></div>
-    <div class="menu-section-label">Editor</div>
-    <div class="tab-switch" role="tablist" aria-label="Keybindings">
-      <button type="button" class="tab-switch-btn" class:active={keybindings === "normal"} role="tab" aria-selected={keybindings === "normal"} onclick={() => applyKeybindings("normal")}>Normal</button>
-      <button type="button" class="tab-switch-btn" class:active={keybindings === "vim"} role="tab" aria-selected={keybindings === "vim"} onclick={() => applyKeybindings("vim")}>Vim</button>
-      <button type="button" class="tab-switch-btn" class:active={keybindings === "emacs"} role="tab" aria-selected={keybindings === "emacs"} onclick={() => applyKeybindings("emacs")}>Emacs</button>
+    
+    <div class="setting-row">
+      <div class="setting-label">
+        <span class="setting-title">Editor</span>
+      </div>
+      <div class="tab-switch" role="tablist" aria-label="Keybindings" style="margin: 0; min-width: 220px;">
+        <button type="button" class="tab-switch-btn" class:active={keybindings === "normal"} role="tab" aria-selected={keybindings === "normal"} onclick={() => applyKeybindings("normal")}>Normal</button>
+        <button type="button" class="tab-switch-btn" class:active={keybindings === "vim"} role="tab" aria-selected={keybindings === "vim"} onclick={() => applyKeybindings("vim")}>Vim</button>
+        <button type="button" class="tab-switch-btn" class:active={keybindings === "emacs"} role="tab" aria-selected={keybindings === "emacs"} onclick={() => applyKeybindings("emacs")}>Emacs</button>
+      </div>
     </div>
-    <div class="menu-divider"></div>
-    <div class="menu-section-label">GitHub</div>
-    <div class="share-row">
-      <span class="status-dot {$githubUsername ? 'status-shared' : 'status-idle'}"></span>
-      <span>{$githubUsername ? `Signed in as ${$githubUsername}` : "Not connected"}</span>
+
+    <div class="setting-row">
+      <div class="setting-label">
+        <span class="setting-title">GitHub</span>
+        <span class="setting-desc">
+          <span class="status-dot {$githubUsername ? 'status-shared' : 'status-idle'}"></span>
+          {$githubUsername ? `Signed in as ${$githubUsername}` : "Not connected"}
+        </span>
+      </div>
+      {#if !$githubUsername}
+        <button class="secondary-btn" type="button" onclick={signIn} style="margin: 0; width: auto;">
+          <svg class="icon"><use href="#icon-github"></use></svg> Sign in
+        </button>
+      {:else}
+        <button class="secondary-btn" type="button" onclick={disconnect} style="margin: 0; width: auto;">
+          <svg class="icon"><use href="#icon-log-out"></use></svg> Disconnect
+        </button>
+      {/if}
     </div>
-    {#if !$githubUsername}
-      <button class="secondary-btn" type="button" onclick={signIn}>
-        <svg class="icon"><use href="#icon-github"></use></svg> Sign in with GitHub
-      </button>
-    {:else}
-      <button class="secondary-btn" type="button" onclick={disconnect}>
-        <svg class="icon"><use href="#icon-log-out"></use></svg> Disconnect
-      </button>
-    {/if}
-    <div class="menu-divider"></div>
-    <div class="menu-section-label">Export</div>
-    <p class="hint-text">
-      Custom CSS applied to HTML and PDF exports only — the live preview is unaffected.
-    </p>
-    <textarea
-      class="custom-css-input"
-      rows="6"
-      placeholder={"e.g. body { font-family: Georgia, serif; }"}
-      value={customCss}
-      oninput={(e) => saveCustomCss((e.target as HTMLTextAreaElement).value)}
-    ></textarea>
+
+    <div class="setting-row stacked">
+      <div class="setting-label">
+        <span class="setting-title">Custom CSS</span>
+        <span class="setting-desc">Applied to HTML and PDF exports only — live preview is unaffected.</span>
+      </div>
+      <textarea
+        class="custom-css-input"
+        rows="6"
+        placeholder={"e.g. body { font-family: Georgia, serif; }"}
+        value={customCss}
+        oninput={(e) => saveCustomCss((e.target as HTMLTextAreaElement).value)}
+      ></textarea>
+    </div>
   </Modal>
 {/if}

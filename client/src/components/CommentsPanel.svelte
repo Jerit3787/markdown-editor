@@ -198,9 +198,16 @@
     </div>
     <div class="comments-panel-list">
       {#if loading}
-        <p class="modal-hint">Loading…</p>
+        <div class="empty-state">
+          <svg class="empty-state-icon"><use href="#icon-message-square"></use></svg>
+          <div class="empty-state-title">Loading…</div>
+        </div>
       {:else if entries.length === 0}
-        <p class="modal-hint">No comments yet — select text and click "Add comment" to start one.</p>
+        <div class="empty-state">
+          <svg class="empty-state-icon"><use href="#icon-message-square"></use></svg>
+          <div class="empty-state-title">No comments yet</div>
+          <div class="empty-state-desc">Select text and click "Add comment" to start one.</div>
+        </div>
       {:else}
         {#each entries as entry (entry.id)}
           <div class="comment-entry" class:orphaned={entry.orphaned}>

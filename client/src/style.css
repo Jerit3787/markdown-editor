@@ -2341,27 +2341,27 @@ body.focus-mode #statusbar {
   line-height: 1.4;
 }
 
-/* Modal Empty State */
-.modal-box-v2 .empty-state {
+/* Empty State */
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   padding: 24px 0;
 }
-.modal-box-v2 .empty-state-title {
+.empty-state-title {
   font-size: 18px;
   font-weight: 600;
   margin: 16px 0 8px;
   color: var(--text);
 }
-.modal-box-v2 .empty-state-desc {
+.empty-state-desc {
   color: var(--text-dim);
   font-size: 13.5px;
   max-width: 320px;
   margin: 0 auto 24px;
 }
-.modal-box-v2 .empty-state-icon {
+.empty-state-icon {
   width: 48px;
   height: 48px;
   color: var(--text-dim);

@@ -42,7 +42,7 @@
   }
 
   async function removeImage(key: string) {
-    if (!(await confirmAction(`Delete "${key}"? Any reference to it in the text will show as a broken image.`))) return;
+    if (!(await confirmAction("Delete Image?", `Delete "${key}"? Any reference to it in the text will show as a broken image.`))) return;
     deleteDocImage(key);
     window.MDE.updatePreview();
   }
@@ -62,7 +62,11 @@
       <Toggletip>Images are stored inside this document, not uploaded anywhere, unless you publish it to a Gist.</Toggletip>
     {/snippet}
     {#if images.length === 0}
-      <p class="modal-hint">No images in this document yet. Paste, drop, or use the toolbar 🖼 button to add one.</p>
+      <div class="empty-state">
+        <svg class="empty-state-icon"><use href="#icon-images"></use></svg>
+        <div class="empty-state-title">No images yet</div>
+        <div class="empty-state-desc">Paste, drop, or use the toolbar button to add one.</div>
+      </div>
     {:else}
       <div class="images-list">
         {#each images as img (img.key)}

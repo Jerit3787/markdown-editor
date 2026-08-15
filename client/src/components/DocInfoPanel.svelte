@@ -55,7 +55,11 @@
     </div>
     <div class="menu-section-label">Linked from</div>
     {#if backlinks.length === 0}
-      <p class="modal-hint">No other documents link here yet.</p>
+      <div class="empty-state">
+        <svg class="empty-state-icon"><use href="#icon-link"></use></svg>
+        <div class="empty-state-title">No backlinks</div>
+        <div class="empty-state-desc">No other documents link here yet.</div>
+      </div>
     {:else}
       <div class="doc-info-backlinks">
         {#each backlinks as link (link.id)}

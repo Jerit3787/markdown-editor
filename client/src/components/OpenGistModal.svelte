@@ -114,7 +114,13 @@
 
     <div class="menu-divider"></div>
     <div class="menu-section-label">Your Gists</div>
-    {#if listHint}<p class="modal-hint">{listHint}</p>{/if}
+    {#if listHint}
+      <div class="empty-state">
+        <svg class="empty-state-icon"><use href="#icon-github"></use></svg>
+        <div class="empty-state-title">No gists</div>
+        <div class="empty-state-desc">{listHint}</div>
+      </div>
+    {/if}
     <div class="images-list">
       {#each gists as gist (gist.id)}
         <div class="gist-item">

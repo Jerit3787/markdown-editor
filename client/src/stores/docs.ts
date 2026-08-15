@@ -222,7 +222,7 @@ export function removeDocById(id: string) {
 export async function deleteDoc(id: string): Promise<Doc | undefined> {
   const doc = findDocById(id);
   if (!doc) return undefined;
-  if (!(await confirmAction(`Delete "${doc.name}"? This can't be undone.`))) return undefined;
+  if (!(await confirmAction("Delete Document?", `Delete "${doc.name}"? This can't be undone.`))) return undefined;
   removeDocById(id);
   showToast(`Deleted "${doc.name || "Untitled"}"`, "success");
   return doc;

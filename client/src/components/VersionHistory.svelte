@@ -112,9 +112,16 @@
     <div class="version-history-body">
       <div class="version-history-list">
         {#if loading}
-          <p class="modal-hint">Loading…</p>
+          <div class="empty-state">
+            <svg class="empty-state-icon"><use href="#icon-clock"></use></svg>
+            <div class="empty-state-title">Loading…</div>
+          </div>
         {:else if versions.length === 0}
-          <p class="modal-hint">No versions yet — history builds up automatically as you edit.</p>
+          <div class="empty-state">
+            <svg class="empty-state-icon"><use href="#icon-clock"></use></svg>
+            <div class="empty-state-title">No versions yet</div>
+            <div class="empty-state-desc">History builds up automatically as you edit.</div>
+          </div>
         {:else}
           {#each versions as v, i (v.id)}
             <button

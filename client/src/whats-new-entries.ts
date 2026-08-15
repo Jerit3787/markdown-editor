@@ -44,4 +44,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Type [[Document Name]] (autocompleted as you type) to link between documents — click a link in the preview to jump there, or create it if it doesn't exist yet. Document names are now unique, and a new Document Info panel shows a document's metadata plus which other documents link to it.",
     screenshot: "/whats-new/wikilinks.png",
   },
+  {
+    version: "1.20.0",
+    title: "Workspaces",
+    description:
+      "Documents now live inside a named workspace — switch, create, rename, or delete one from the new switcher in the sidebar. Existing documents move onto a default \"My Workspace\" automatically, and you can move a document to a different workspace from its \"⋮\" menu.",
+    screenshot: "/whats-new/workspaces.png",
+  },
 ];

@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.20.0] - 2026-08-16
+
+### Added
+
+- **Workspaces.** Documents now live inside a named workspace — create,
+  switch, rename, and delete workspaces from a new switcher in the
+  sidebar header (one active at a time). Existing documents migrate
+  transparently onto a default "My Workspace." A document can be moved
+  to another workspace from its "⋮" menu. Deleting a workspace deletes
+  its documents too, after a confirmation showing the count. This is
+  purely local for now — the first step toward sharing an entire
+  workspace with collaborators, not just one document at a time.
+
 ## [1.19.2] - 2026-08-15
 
 ### Added

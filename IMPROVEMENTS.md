@@ -194,3 +194,8 @@ sequenced relative to each other yet.
       History, the Comments mobile sheet, Command Palette, and the
       Diagram Editor's header are intentionally left as-is — see
       ROADMAP.md.
+- [x] **Workspace core.** (Shipped v1.20.0.) First of four sub-projects
+      toward workspace-level sharing (see ROADMAP.md) — the `Workspace`
+      container itself, purely local: create/switch/rename/delete,
+      documents scoped and movable between workspaces, transparent
+      migration for existing users.

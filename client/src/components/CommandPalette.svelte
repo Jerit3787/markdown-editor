@@ -203,7 +203,11 @@
       </div>
       <div class="command-palette-results">
         {#if filteredEntries.length === 0}
-          <p class="modal-hint">No matching commands or documents.</p>
+        <div class="empty-state">
+          <svg class="empty-state-icon"><use href="#icon-search"></use></svg>
+          <div class="empty-state-title">No results</div>
+          <div class="empty-state-desc">No matching commands or documents.</div>
+        </div>
         {:else}
           {#each filteredEntries as entry, i (entry.kind + entry.id)}
             {#if i === 0 || filteredEntries[i - 1].kind !== entry.kind}

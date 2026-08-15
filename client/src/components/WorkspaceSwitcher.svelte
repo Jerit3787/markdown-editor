@@ -61,7 +61,7 @@
       count > 0
         ? `Delete "${name}" and its ${count} document${count === 1 ? "" : "s"}? This can't be undone.`
         : `Delete "${name}"? This can't be undone.`;
-    if (!(await confirmAction(message))) return;
+    if (!(await confirmAction("Delete Workspace?", message))) return;
     const docIds = $docsStore.filter((d) => d.workspaceId === id).map((d) => d.id);
     docIds.forEach(removeDocById);
     deleteWorkspaceRecord(id);

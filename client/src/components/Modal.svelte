@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
 
   interface Props {
-    title: string;
+    title?: string;
     icon?: string;
     wide?: boolean;
     // Raw CSS length overriding the wide/non-wide width tiers above —
@@ -44,10 +44,12 @@
       <button type="button" class="modal-close-btn" onclick={onClose} aria-label="Close">
         <svg class="icon"><use href="#icon-x"></use></svg>
       </button>
-      <h2 id={labelledBy}>
-        {#if icon}<svg class="icon"><use href="#{icon}"></use></svg>{/if}
-        {title}
-      </h2>
+      {#if title}
+        <h2 id={labelledBy}>
+          {#if icon}<svg class="icon"><use href="#{icon}"></use></svg>{/if}
+          {title}
+        </h2>
+      {/if}
       {#if quickAction}{@render quickAction()}{/if}
     </div>
     {#if tabs}

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.20.2] - 2026-08-16
+
+### Fixed
+
+- **UI Polish.** Fixed the dynamic empty state title in the Open Gist modal to accurately reflect loading and error states instead of defaulting to "No gists". Upgraded the Version History and Document Headings (TOC) sidebars to use the new global empty state layout.
+
 ## [1.20.1] - 2026-08-16
 
 ### Fixed

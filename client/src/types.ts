@@ -34,6 +34,12 @@ export interface Note {
   createdAt: number;
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
 export interface Doc {
   id: string;
   name: string;

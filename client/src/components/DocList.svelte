@@ -1,6 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { docsStore, activeIdStore, activeDocContent, duplicateDoc, deleteDoc } from "../stores/docs";
+  import {
+    docsStore,
+    activeIdStore,
+    activeDocContent,
+    duplicateDoc,
+    deleteDoc,
+    findDocById,
+    moveDocToWorkspace,
+    ensureActiveDocInWorkspace,
+  } from "../stores/docs";
+  import { activeWorkspaceIdStore, workspacesStore } from "../stores/workspaces";
   import { docListActiveTab } from "../stores/docList";
 
   const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
@@ -20,7 +30,9 @@
     return headings;
   }
 
-  const sorted = $derived([...$docsStore].sort((a, b) => b.updatedAt - a.updatedAt));
+  const sorted = $derived(
+    [...$docsStore].filter((d) => d.workspaceId === $activeWorkspaceIdStore).sort((a, b) => b.updatedAt - a.updatedAt)
+  );
 
   // Each row's heading outline, Google-Docs "Document tabs" style — nested
   // under the doc itself rather than a separate global panel. The active
@@ -95,6 +107,14 @@
   function duplicate(id: string) {
     closeMenu();
     duplicateDoc(id);
+  }
+
+  function move(id: string, workspaceId: string) {
+    closeMenu();
+    moveDocToWorkspace(id, workspaceId);
+    // Moving the currently-open document out of the active workspace
+    // needs the same active-doc fixup switching workspaces does.
+    if (id === $activeIdStore && $activeWorkspaceIdStore) ensureActiveDocInWorkspace($activeWorkspaceIdStore);
   }
 
   function del(id: string) {
@@ -181,6 +201,7 @@
 
 {#if openMenuId}
   {@const menuDocId = openMenuId}
+  {@const menuDoc = findDocById(menuDocId)}
   <div class="doc-menu-popover" style:top="{menuPos.top}px" style:left="{menuPos.left}px">
     <button type="button" onclick={() => rename(menuDocId)}>
       <svg class="icon"><use href="#icon-pencil"></use></svg> Rename
@@ -188,6 +209,12 @@
     <button type="button" onclick={() => duplicate(menuDocId)}>
       <svg class="icon"><use href="#icon-copy"></use></svg> Duplicate
     </button>
+    {#if $workspacesStore.length > 1}
+      <div class="doc-menu-submenu-label">Move to workspace</div>
+      {#each $workspacesStore.filter((w) => w.id !== menuDoc?.workspaceId) as ws (ws.id)}
+        <button type="button" onclick={() => move(menuDocId, ws.id)}>{ws.name}</button>
+      {/each}
+    {/if}
     <button type="button" class="danger" onclick={() => del(menuDocId)}>
       <svg class="icon"><use href="#icon-trash-2"></use></svg> Delete
     </button>

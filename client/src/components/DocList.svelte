@@ -184,7 +184,11 @@
   <div class="doclist-headings-tab">
     <div class="doclist-headings-tab-label">{activeDocName}</div>
     {#if activeDocHeadings.length === 0}
-      <p class="modal-hint">No headings in this document.</p>
+      <div class="empty-state">
+        <svg class="empty-state-icon"><use href="#icon-list"></use></svg>
+        <div class="empty-state-title">No headings</div>
+        <div class="empty-state-desc">Add headings (like # Title) to your document to see an outline here.</div>
+      </div>
     {:else}
       <ul class="doc-outline">
         {#each activeDocHeadings as h (h.line)}

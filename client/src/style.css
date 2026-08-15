@@ -1061,7 +1061,7 @@ body.focus-mode #statusbar {
   transform: rotate(45deg);
 }
 
-.doc-info-row { display: flex; flex-direction: column; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.doc-info-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .doc-info-row:last-of-type { border-bottom: none; }
 .doc-info-primary { font-size: 14.5px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
 .doc-info-secondary { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
@@ -2307,4 +2307,36 @@ body.focus-mode #statusbar {
 
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
+}
+
+/* Settings Layout */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+.setting-row:last-child {
+  border-bottom: none;
+}
+.setting-row.stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+.setting-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.setting-title {
+  font-weight: 500;
+  color: var(--text);
+  font-size: 14.5px;
+}
+.setting-desc {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.4;
 }

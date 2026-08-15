@@ -42,20 +42,17 @@
 {#if $docInfoPanelOpen && doc}
   <Modal title="Document info" icon="icon-info" labelledBy="docInfoTitle" onClose={close}>
     <div class="doc-info-row">
-      <span>Created</span>
-      <span class="doc-info-value">
-        {window.MDE.formatRelativeTime(doc.createdAt)}
-        <span class="doc-info-timestamp">{formatFullTimestamp(doc.createdAt)}</span>
-      </span>
+      <span class="doc-info-primary">Created</span>
+      <span class="doc-info-secondary">{window.MDE.formatRelativeTime(doc.createdAt)} • {formatFullTimestamp(doc.createdAt)}</span>
     </div>
     <div class="doc-info-row">
-      <span>Edited</span>
-      <span class="doc-info-value">
-        {window.MDE.formatRelativeTime(doc.updatedAt)}
-        <span class="doc-info-timestamp">{formatFullTimestamp(doc.updatedAt)}</span>
-      </span>
+      <span class="doc-info-primary">Edited</span>
+      <span class="doc-info-secondary">{window.MDE.formatRelativeTime(doc.updatedAt)} • {formatFullTimestamp(doc.updatedAt)}</span>
     </div>
-    <div class="doc-info-row"><span>Length</span><span>{wordCount} word{wordCount === 1 ? "" : "s"}, {charCount} character{charCount === 1 ? "" : "s"}</span></div>
+    <div class="doc-info-row">
+      <span class="doc-info-primary">Length</span>
+      <span class="doc-info-secondary">{wordCount} word{wordCount === 1 ? "" : "s"}, {charCount} character{charCount === 1 ? "" : "s"}</span>
+    </div>
     <div class="menu-section-label">Linked from</div>
     {#if backlinks.length === 0}
       <p class="modal-hint">No other documents link here yet.</p>

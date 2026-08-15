@@ -49,6 +49,11 @@ export interface Doc {
   // field (see stores/docs.ts's loadDocsFromStorage normalization
   // pass) — always present on every doc in docsStore after load.
   createdAt: number;
+  // Which Workspace (see stores/workspaces.ts) this document belongs
+  // to — every doc has exactly one. Backfilled for pre-workspace docs
+  // by docs.ts's normalizeLoadedDocs, same pattern as the createdAt
+  // backfill above.
+  workspaceId: string;
   images?: Record<string, string>;
   diagrams?: Record<string, string>;
   gistId?: string;

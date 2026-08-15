@@ -11,7 +11,7 @@ import { deleteHistory } from "../history";
 import { confirmAction } from "./confirmDialog";
 import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
-import { activeWorkspaceIdStore, workspacesStore } from "./workspaces";
+import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace } from "./workspaces";
 
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
@@ -25,10 +25,13 @@ const STORAGE_ACTIVE = "mde:active";
 // output every time until the next real save writes it back for good.
 function normalizeLoadedDocs(docs: Doc[]): Doc[] {
   const seen = new Set<string>();
-  // Always exists — workspaces.ts guarantees at least one workspace on
-  // first-ever run, which is the only time a doc can be missing
-  // workspaceId in the first place (see workspaces.ts's own comment).
-  const fallbackWorkspaceId = get(workspacesStore)[0]?.id ?? "";
+  // The OLDEST workspace by createdAt, not workspacesStore[0] — that
+  // array is newest-first (createWorkspace prepends), so [0] would be
+  // the most recently created workspace rather than the original
+  // default one a pre-workspace user's documents actually belong to.
+  // Matches the same fallback-by-createdAt pattern deleteWorkspaceRecord
+  // already uses in workspaces.ts.
+  const fallbackWorkspaceId = [...get(workspacesStore)].sort((a, b) => a.createdAt - b.createdAt)[0]?.id ?? "";
   return docs.map((d) => {
     const name = nextAvailableName(d.name || "Untitled", seen);
     seen.add(name);
@@ -36,10 +39,21 @@ function normalizeLoadedDocs(docs: Doc[]): Doc[] {
   });
 }
 
+// Set by loadDocsFromStorage (below) whenever normalizeLoadedDocs actually
+// had to backfill a missing workspaceId onto at least one loaded doc.
+// normalizeLoadedDocs itself stays pure/side-effect-free (it's also
+// exercised in isolation from tests) — the actual persistence of that
+// backfill happens once, right after docsStore is constructed below.
+let neededWorkspaceBackfill = false;
+
 function loadDocsFromStorage(): Doc[] {
   try {
     const raw = localStorage.getItem(STORAGE_DOCS);
-    if (raw) return normalizeLoadedDocs(JSON.parse(raw));
+    if (raw) {
+      const parsed = JSON.parse(raw) as Doc[];
+      neededWorkspaceBackfill = Array.isArray(parsed) && parsed.some((d) => !d.workspaceId);
+      return normalizeLoadedDocs(parsed);
+    }
   } catch (e) { /* ignore corrupt storage */ }
   // No seeded Welcome doc — a brand-new visitor (or someone who deletes
   // every document) sees the empty state instead, same as VS Code with no
@@ -48,15 +62,32 @@ function loadDocsFromStorage(): Doc[] {
 }
 
 function initialActiveId(docs: Doc[]): string | null {
+  const activeWorkspaceId = get(activeWorkspaceIdStore);
   const stored = localStorage.getItem(STORAGE_ACTIVE);
-  if (stored && docs.find((d) => d.id === stored)) return stored;
-  return docs[0] ? docs[0].id : null;
+  const storedDoc = stored ? docs.find((d) => d.id === stored) : undefined;
+  // The stored id only counts if it's still in the currently-active
+  // workspace — otherwise (e.g. the last-active doc was in a workspace
+  // that's now empty/switched away from) fall back to *some* doc in the
+  // active workspace rather than docs[0], which could belong to any
+  // workspace at all (docsStore is newest-first). Mirrors getActiveDoc()'s
+  // own workspace-scoped fallback just below.
+  if (storedDoc && storedDoc.workspaceId === activeWorkspaceId) return storedDoc.id;
+  return docs.find((d) => d.workspaceId === activeWorkspaceId)?.id ?? null;
 }
 
 const initialDocs = loadDocsFromStorage();
 
 export const docsStore = writable<Doc[]>(initialDocs);
 export const activeIdStore = writable<string | null>(initialActiveId(initialDocs));
+
+// Persist immediately if normalizeLoadedDocs had to backfill a missing
+// workspaceId onto any loaded doc — otherwise that backfill only ever
+// lives in memory until some unrelated save happens to fire, which may
+// never occur before a workspace-count change reshuffles which workspace
+// would be picked as the fallback on the next load. persistDocs (defined
+// below) is a hoisted function declaration, safe to call here.
+if (neededWorkspaceBackfill) persistDocs();
+
 // The active doc's live CodeMirror content, pushed on every editor change
 // (undebounced) by app.ts's update listener — doc.content itself only
 // syncs from CodeMirror on the debounced save (see saveActiveDocContent),
@@ -127,7 +158,15 @@ export function saveActiveDocContent() {
 
 export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string }): Doc {
   saveActiveDocContent();
-  const workspaceId = get(activeWorkspaceIdStore) ?? get(workspacesStore)[0]?.id ?? "";
+  // Several call sites (sidebar "+", File > New, import-from-device,
+  // Open-from-Gist, wikilink auto-create, shared-link join) can all reach
+  // this with zero workspaces existing (the empty state only hides the
+  // editor panes, not those entry points). Rather than ever stamping ""
+  // — which DocList's `d.workspaceId === $activeWorkspaceIdStore` filter
+  // can never match, orphaning the doc invisibly — self-heal by creating
+  // a workspace on demand.
+  let workspaceId = get(activeWorkspaceIdStore) ?? get(workspacesStore)[0]?.id;
+  if (!workspaceId) workspaceId = createWorkspace("My Workspace").id;
   const doc: Doc = Object.assign(
     { id: uid(), name: "Untitled", content: "", updatedAt: Date.now(), createdAt: Date.now(), workspaceId },
     partial
@@ -143,9 +182,21 @@ export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string 
 // active) — callers with extra UI to run only on a real switch (e.g.
 // collapsing the sidebar on mobile) branch on this instead of duplicating
 // the guard themselves.
+//
+// This is the single choke point for cross-workspace document navigation
+// (wikilink resolution/autocomplete, Command Palette, File > Recent,
+// backlinks panel, shared-link join, etc. — every one of them ends up
+// calling this, directly or via window.MDE.switchDoc). None of those
+// callers know or care which workspace their target document lives in,
+// so if it's not in the currently-active workspace, follow it there first
+// — otherwise activeId and activeWorkspaceId end up desynchronized (the
+// editor shows the doc, but the sidebar/switcher still show the old
+// workspace, whose doc list filters the newly-active doc out entirely).
 export function switchDoc(id: string): boolean {
   if (id === get(activeIdStore)) return false;
   saveActiveDocContent();
+  const target = findDocById(id);
+  if (target && target.workspaceId !== get(activeWorkspaceIdStore)) switchWorkspace(target.workspaceId);
   setActiveId(id);
   return true;
 }

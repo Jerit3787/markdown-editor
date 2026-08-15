@@ -345,7 +345,9 @@
                collapses off-screen along with the rest of #sidebar, no
                manual positioning needed. -->
           <button id="sidebarToggleIn" class="icon-btn" title="Hide documents panel" aria-label="Hide documents panel"><svg class="icon"><use href="#icon-chevron-left"></use></svg></button>
-          <span>Documents</span>
+          <!-- WorkspaceSwitcher Svelte component mounts here — see
+               client/src/components/WorkspaceSwitcher.svelte -->
+          <div id="workspace-switcher-mount"></div>
         </div>
         <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document"><svg class="icon"><use href="#icon-plus"></use></svg></button>
       </div>

@@ -11,6 +11,7 @@ import { deleteHistory } from "../history";
 import { confirmAction } from "./confirmDialog";
 import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
+import { activeWorkspaceIdStore, workspacesStore } from "./workspaces";
 
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
@@ -24,10 +25,14 @@ const STORAGE_ACTIVE = "mde:active";
 // output every time until the next real save writes it back for good.
 function normalizeLoadedDocs(docs: Doc[]): Doc[] {
   const seen = new Set<string>();
+  // Always exists — workspaces.ts guarantees at least one workspace on
+  // first-ever run, which is the only time a doc can be missing
+  // workspaceId in the first place (see workspaces.ts's own comment).
+  const fallbackWorkspaceId = get(workspacesStore)[0]?.id ?? "";
   return docs.map((d) => {
     const name = nextAvailableName(d.name || "Untitled", seen);
     seen.add(name);
-    return { ...d, name, createdAt: d.createdAt ?? d.updatedAt };
+    return { ...d, name, createdAt: d.createdAt ?? d.updatedAt, workspaceId: d.workspaceId ?? fallbackWorkspaceId };
   });
 }
 
@@ -69,7 +74,10 @@ function uid() {
 export function getActiveDoc(): Doc | undefined {
   const docs = get(docsStore);
   const activeId = get(activeIdStore);
-  return docs.find((d) => d.id === activeId) || docs[0];
+  const found = docs.find((d) => d.id === activeId);
+  if (found) return found;
+  const activeWorkspaceId = get(activeWorkspaceIdStore);
+  return docs.find((d) => d.workspaceId === activeWorkspaceId);
 }
 
 export function findDocById(id: string): Doc | undefined {
@@ -119,7 +127,11 @@ export function saveActiveDocContent() {
 
 export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string }): Doc {
   saveActiveDocContent();
-  const doc: Doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now(), createdAt: Date.now() }, partial);
+  const workspaceId = get(activeWorkspaceIdStore) ?? get(workspacesStore)[0]?.id ?? "";
+  const doc: Doc = Object.assign(
+    { id: uid(), name: "Untitled", content: "", updatedAt: Date.now(), createdAt: Date.now(), workspaceId },
+    partial
+  );
   doc.name = ensureUniqueName(doc.name, get(docsStore));
   docsStore.update((docs) => [doc, ...docs]);
   setActiveId(doc.id);
@@ -143,12 +155,13 @@ export function switchDoc(id: string): boolean {
 // (where the modal itself is already the confirmation). Exported so
 // that component can call it directly.
 export function removeDocById(id: string) {
+  const removedWorkspaceId = findDocById(id)?.workspaceId;
   docsStore.update((docs) => docs.filter((d) => d.id !== id));
   // Deleting the last remaining doc leaves docs empty and activeId null —
   // the reactive editor subscription shows the empty state rather than
   // force-creating a placeholder "Untitled" doc.
   if (get(activeIdStore) === id) {
-    const remaining = get(docsStore);
+    const remaining = get(docsStore).filter((d) => d.workspaceId === removedWorkspaceId);
     setActiveId(remaining[0] ? remaining[0].id : null);
   }
   persistDocs();
@@ -297,5 +310,27 @@ export function refreshDocNoteAnchors(content: string) {
     return { ...n, from: relocated.from, to: relocated.to, orphaned: false };
   });
   updateDoc(doc.id, { notes });
+  persistDocs();
+}
+
+// Called after switching/deleting the active workspace (see
+// WorkspaceSwitcher.svelte) or moving the active document out of its
+// workspace (see DocList.svelte) — the previously-active document may
+// not belong to the target workspace, in which case fall back to that
+// workspace's own most-recently-updated document, or the empty state
+// (null) if it has none. No-op if the active doc already belongs there.
+export function ensureActiveDocInWorkspace(workspaceId: string) {
+  const docs = get(docsStore);
+  const activeId = get(activeIdStore);
+  if (docs.find((d) => d.id === activeId)?.workspaceId === workspaceId) return;
+  saveActiveDocContent();
+  const inWorkspace = [...docs].filter((d) => d.workspaceId === workspaceId).sort((a, b) => b.updatedAt - a.updatedAt);
+  setActiveId(inWorkspace[0] ? inWorkspace[0].id : null);
+}
+
+// Doc-row "..." menu action (DocList.svelte) — moves a document to a
+// different workspace in place.
+export function moveDocToWorkspace(id: string, workspaceId: string) {
+  updateDoc(id, { workspaceId });
   persistDocs();
 }

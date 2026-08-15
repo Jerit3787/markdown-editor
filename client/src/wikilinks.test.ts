@@ -21,7 +21,7 @@ describe("transformWikilinks", () => {
 });
 
 describe("resolveWikilinkTarget", () => {
-  const docs: Doc[] = [{ id: "1", name: "Recipes", content: "", updatedAt: 0, createdAt: 0 }];
+  const docs: Doc[] = [{ id: "1", name: "Recipes", content: "", updatedAt: 0, createdAt: 0, workspaceId: "ws1" }];
 
   it("finds an exact name match", () => {
     expect(resolveWikilinkTarget("Recipes", docs)?.id).toBe("1");
@@ -34,9 +34,9 @@ describe("resolveWikilinkTarget", () => {
 
 describe("findBacklinks", () => {
   const docs: Doc[] = [
-    { id: "1", name: "Target", content: "", updatedAt: 0, createdAt: 0 },
-    { id: "2", name: "Linker", content: "See [[Target]] here", updatedAt: 0, createdAt: 0 },
-    { id: "3", name: "NonLinker", content: "no links here", updatedAt: 0, createdAt: 0 },
+    { id: "1", name: "Target", content: "", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+    { id: "2", name: "Linker", content: "See [[Target]] here", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+    { id: "3", name: "NonLinker", content: "no links here", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
   ];
 
   it("finds a document referencing the target", () => {
@@ -44,7 +44,7 @@ describe("findBacklinks", () => {
   });
 
   it("excludes the target document itself even if it self-references", () => {
-    const selfRef: Doc[] = [{ id: "1", name: "Target", content: "[[Target]]", updatedAt: 0, createdAt: 0 }];
+    const selfRef: Doc[] = [{ id: "1", name: "Target", content: "[[Target]]", updatedAt: 0, createdAt: 0, workspaceId: "ws1" }];
     expect(findBacklinks("Target", selfRef, "1")).toEqual([]);
   });
 });

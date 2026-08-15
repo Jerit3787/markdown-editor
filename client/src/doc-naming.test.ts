@@ -18,8 +18,8 @@ describe("nextAvailableName", () => {
 
 describe("ensureUniqueName", () => {
   const docs: Doc[] = [
-    { id: "a", name: "Notes", content: "", updatedAt: 0, createdAt: 0 },
-    { id: "b", name: "Notes-2", content: "", updatedAt: 0, createdAt: 0 },
+    { id: "a", name: "Notes", content: "", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+    { id: "b", name: "Notes-2", content: "", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
   ];
 
   it("suffixes a colliding name", () => {

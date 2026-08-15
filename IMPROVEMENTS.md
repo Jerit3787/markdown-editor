@@ -69,6 +69,10 @@ its own, same process as every feature shipped this session.
 - [ ] Split the Format and Insert menu concerns apart (currently
       combined).
 - [ ] MultiMarkdown syntax support.
+- [ ] Support all flavors of Markdown (CommonMark, GFM, MultiMarkdown,
+      etc.) and add a Markdown compatibility checker under the
+      Document Info panel — flag syntax that's flavor-specific or
+      won't render the same elsewhere.
 - [ ] **Shared document name sync.** Only document *content* syncs
       between collaborators today (via Yjs's `ytext`) — the document
       name is purely local per-browser and never touches the collab
@@ -185,6 +189,8 @@ sequenced relative to each other yet.
       title, quick action), scrollable content area, optional footer
       action row (e.g. a carousel's Back/Next). Currently each modal
       composes this somewhat differently.
-      Phase 2 (reconciling Version History, What's New, the Comments
-      mobile sheet, Command Palette, and the Diagram Editor's header to
-      the same shared component) remains — see ROADMAP.md.
+- [x] **Standardized modal layout — Phase 2.** (Shipped v1.19.2.)
+      Converted What's New to the shared `Modal` component too. Version
+      History, the Comments mobile sheet, Command Palette, and the
+      Diagram Editor's header are intentionally left as-is — see
+      ROADMAP.md.

@@ -5,6 +5,12 @@
     title: string;
     icon?: string;
     wide?: boolean;
+    // Raw CSS length overriding the wide/non-wide width tiers above —
+    // for the rare consumer that needs something in between or wider
+    // (currently just What's New, whose screenshot+text layout crowds
+    // the text out at the standard 560px wide tier). Prefer wide for
+    // anything that just needs "a bit more room."
+    maxWidth?: string;
     // For dialogs that can be triggered from inside an already-open
     // modal (currently just ConfirmDialog) — every modal shares the
     // same base z-index, so without this, which one paints on top is
@@ -23,7 +29,7 @@
     footer?: Snippet;
     children: Snippet;
   }
-  let { title, icon, wide = false, elevated = false, labelledBy, onClose, quickAction, tabs, footer, children }: Props = $props();
+  let { title, icon, wide = false, maxWidth, elevated = false, labelledBy, onClose, quickAction, tabs, footer, children }: Props = $props();
 
   function backdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) onClose();
@@ -33,7 +39,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="modal-backdrop" class:elevated data-svelte-modal onclick={backdropClick}>
-  <div class="modal-box-v2" class:modal-box-wide={wide} role="dialog" aria-modal="true" aria-labelledby={labelledBy}>
+  <div class="modal-box-v2" class:modal-box-wide={wide} style:max-width={maxWidth} role="dialog" aria-modal="true" aria-labelledby={labelledBy}>
     <div class="modal-header">
       <button type="button" class="modal-close-btn" onclick={onClose} aria-label="Close">
         <svg class="icon"><use href="#icon-x"></use></svg>

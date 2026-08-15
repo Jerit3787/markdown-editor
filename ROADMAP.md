@@ -75,6 +75,13 @@ commitments.
       hand-rolled variants; also replaces both native `window.confirm()`
       popups (delete document, delete image) with a matching
       `ConfirmDialog` (v1.19.0)
+- [x] Standardized modal layout — Phase 2 — converted What's New to the
+      shared `Modal` component too; scoped narrower than originally
+      planned after investigation showed Version History, the Comments
+      panel, Command Palette, and the Diagram Editor aren't structurally
+      dialogs (no backdrop/centered-box presentation) and forcing them
+      into `Modal` would fight their own layouts rather than simplify
+      them — left as-is, see the Backlog entry below (v1.19.2)
 
 ## Backlog — quick wins
 
@@ -258,14 +265,13 @@ to matter later.
       instantly since it's conditionally rendered rather than a
       persistent node; animating it would mean adopting a Svelte
       transition for just this one case
-- [ ] Standardized modal layout — Phase 2 — reconciling Version
-      History, What's New, the mobile Comments sheet, and Command
-      Palette (each already has its own hand-built sticky header/body/
-      footer, just not through the shared `Modal` component) plus the
-      Diagram Editor's header/close-button area to the same shared
-      structure Phase 1 established — deferred since those four
-      already work today, lower priority than the 13 modals Phase 1
-      actually fixed
+- [ ] Standardized modal layout — Version History, the mobile Comments
+      sheet, Command Palette, and the Diagram Editor's header each keep
+      their own hand-built structure rather than the shared `Modal`
+      component — explicitly left out of Phase 2 (see Shipped above):
+      none of the four is a centered-box-with-backdrop dialog the way
+      Modal assumes, so converting them would mean fighting their own
+      layouts rather than simplifying them
 - [ ] Tab-bar support in `Modal` (built in Phase 1, unused so far) has
       no real consumer yet — no modal in the app currently needs
       internal sub-sections

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Modal from "./Modal.svelte";
   import { whatsNewOpen } from "../stores/whatsNew";
   import { WHATS_NEW_ENTRIES } from "../whats-new-entries";
   import { missedEntries } from "../whats-new";
@@ -38,9 +39,6 @@
   function dismiss() {
     whatsNewOpen.set(false);
     localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
-  }
-  function backdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) dismiss();
   }
   function next() {
     if (isLast) {
@@ -87,18 +85,15 @@
 </script>
 
 {#if $whatsNewOpen && slides[slideIndex]}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" data-svelte-modal onclick={backdropClick}>
-    <div class="modal-box modal-box-wide whats-new-modal" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
-      <h2 id="whatsNewTitle"><svg class="icon"><use href="#icon-rocket"></use></svg> What's new</h2>
-      <div class="whats-new-slide">
-        <img class="whats-new-screenshot" src={slides[slideIndex].screenshot} alt={slides[slideIndex].title} />
-        <div class="whats-new-text">
-          <div class="menu-section-label">{slides[slideIndex].title}</div>
-          <p class="hint-text">{slides[slideIndex].description}</p>
-        </div>
+  <Modal title="What's new" icon="icon-rocket" maxWidth="680px" labelledBy="whatsNewTitle" onClose={dismiss}>
+    <div class="whats-new-slide">
+      <img class="whats-new-screenshot" src={slides[slideIndex].screenshot} alt={slides[slideIndex].title} />
+      <div class="whats-new-text">
+        <div class="menu-section-label">{slides[slideIndex].title}</div>
+        <p class="hint-text">{slides[slideIndex].description}</p>
       </div>
+    </div>
+    {#snippet footer()}
       {#if slides.length > 1}
         <div class="whats-new-nav">
           <button type="button" class="secondary-btn" disabled={slideIndex === 0} onclick={prev}>← Back</button>
@@ -106,10 +101,8 @@
           <button type="button" class="primary-btn" onclick={next}>{isLast ? "Got it" : "Next →"}</button>
         </div>
       {:else}
-        <div class="modal-actions">
-          <button class="primary-btn" type="button" onclick={dismiss}>Got it</button>
-        </div>
+        <button class="primary-btn" type="button" onclick={dismiss}>Got it</button>
       {/if}
-    </div>
-  </div>
+    {/snippet}
+  </Modal>
 {/if}

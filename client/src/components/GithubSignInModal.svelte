@@ -38,11 +38,10 @@
 </script>
 
 {#if $githubSignInModalOpen}
-  <Modal labelledBy="githubSignInModalTitle" maxWidth="380px" onClose={close}>
+  <Modal title="Sign in required" icon="icon-github" labelledBy="githubSignInModalTitle" maxWidth="380px" onClose={close}>
     <div class="empty-state" style="padding: 12px 0 24px;">
       <svg class="empty-state-icon" style="opacity: 0.8;"><use href="#icon-github"></use></svg>
-      <div class="empty-state-title" id="githubSignInModalTitle">Sign in required</div>
-      <div class="empty-state-desc" style="margin-bottom: 0;">{$githubSignInModalHint || "This feature needs a connected GitHub account. Sign in to continue."}</div>
+      <div class="empty-state-desc" style="margin-bottom: 0; margin-top: 16px;" id="githubSignInModalTitle">{$githubSignInModalHint || "This feature needs a connected GitHub account. Sign in to continue."}</div>
     </div>
     {#snippet footer()}
       <button type="button" class="secondary-btn" onclick={close}>Cancel</button>

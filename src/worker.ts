@@ -1,4 +1,5 @@
 export { CollabRoom } from "./collab-room.js";
+export { WorkspaceRoom } from "./workspace-room.js";
 import {
   handleLogin,
   handleCallback,

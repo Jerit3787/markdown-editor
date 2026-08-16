@@ -49,12 +49,14 @@
   // R2 bucket or upload quota is needed.
   "durable_objects": {
     "bindings": [
-      { "name": "COLLAB_ROOM", "class_name": "CollabRoom" }
+      { "name": "COLLAB_ROOM", "class_name": "CollabRoom" },
+      { "name": "WORKSPACE_ROOM", "class_name": "WorkspaceRoom" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["CollabRoom"] },
     { "tag": "v2", "new_sqlite_classes": ["ImageQuota"] },
-    { "tag": "v3", "deleted_classes": ["ImageQuota"] }
+    { "tag": "v3", "deleted_classes": ["ImageQuota"] },
+    { "tag": "v4", "new_sqlite_classes": ["WorkspaceRoom"] }
   ]
 }

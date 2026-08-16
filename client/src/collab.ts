@@ -24,6 +24,7 @@ import { getActiveDoc, findDocById, createDoc, markActiveDocShared } from "./sto
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
+const MESSAGE_PRESENCE = 2;
 
 const COLORS = ["#e64980", "#f76707", "#f59f00", "#40c057", "#12b886", "#228be6", "#7950f2", "#e8590c"];
 export const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
@@ -31,17 +32,23 @@ const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment"
 export const ROLE_TO_SEGMENT: Record<string, string> = { viewer: "view", reviewer: "review", editor: "edit" };
 export const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] };
 
-const room = {
-  id: null as string | null,
+interface DocBinding {
+  ydoc: Y.Doc;
+  ytext: Y.Text;
+  imagesMap: Y.Map<string>;
+  awareness: awarenessProtocol.Awareness;
+  undoManager: Y.UndoManager | null;
+  ydocUpdateHandler: (update: Uint8Array, origin: unknown) => void;
+  role: string;
+}
+
+const workspaceRoom = {
+  workspaceId: null as string | null,
   ws: null as WebSocket | null,
-  ydoc: null as Y.Doc | null,
-  ytext: null as Y.Text | null,
-  imagesMap: null as Y.Map<string> | null,
-  awareness: null as awarenessProtocol.Awareness | null,
-  undoManager: null as Y.UndoManager | null,
+  docs: new Map<string, DocBinding>(),
+  activeDocId: null as string | null,
   reconnectTimer: null as ReturnType<typeof setTimeout> | null,
   reconnectDelay: 1000,
-  ydocUpdateHandler: null as ((update: Uint8Array, origin: unknown) => void) | null,
 };
 
 // The server-side access record for the room currently shown in the Share
@@ -51,13 +58,14 @@ let currentAccess: typeof DEFAULT_ACCESS | null = null;
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
-  window.MDE.onBeforeDocLoad = teardown;
+  window.MDE.onBeforeDocLoad = teardownWorkspace;
   window.MDE.onActiveDocChanged = handleDocChanged;
   // Local image inserts (see app.ts's insertImageWithUpload) get mirrored
-  // into the room's Yjs map so collaborators receive the image too — same
-  // Y.Doc as the text, just a separate top-level type.
+  // into the active document's Yjs map so collaborators receive the image
+  // too — same Y.Doc as the text, just a separate top-level type.
   window.MDE.onImageAdded = (key, dataUrl) => {
-    if (room.imagesMap) room.ydoc.transact(() => room.imagesMap.set(key, dataUrl), "local");
+    const binding = workspaceRoom.activeDocId ? workspaceRoom.docs.get(workspaceRoom.activeDocId) : undefined;
+    if (binding) binding.ydoc.transact(() => binding.imagesMap.set(key, dataUrl), "local");
   };
 
   setupShareUI();
@@ -139,196 +147,187 @@ async function rejoinKnownRoom(doc: any) {
   joinRoom(doc.id, { seedFromLocal: false, role });
 }
 
-function joinRoom(roomId: string, { seedFromLocal, role }: { seedFromLocal: boolean; role: string }) {
-  teardown();
-  room.id = roomId;
-  room.ydoc = new Y.Doc();
-  room.ytext = room.ydoc.getText("content");
-  room.imagesMap = room.ydoc.getMap("images");
-  room.imagesMap.observe((event, tr) => {
+// Opens the one WebSocket for a whole shared workspace and creates a
+// Y.Doc binding for every document currently in it — all of them start
+// syncing immediately, not just whichever one ends up on screen (see
+// bindActiveDoc, called separately once this resolves).
+async function joinWorkspace(workspaceId: string, { role }: { role: string }): Promise<void> {
+  teardownWorkspace();
+  workspaceRoom.workspaceId = workspaceId;
+
+  const docIds = await fetchWorkspaceDocIds(workspaceId);
+  for (const docId of docIds) createDocBinding(docId, role);
+
+  connectWorkspace();
+}
+
+function createDocBinding(docId: string, role: string): DocBinding {
+  const existing = workspaceRoom.docs.get(docId);
+  if (existing) return existing;
+
+  const ydoc = new Y.Doc();
+  const ytext = ydoc.getText("content");
+  const imagesMap = ydoc.getMap<string>("images");
+  imagesMap.observe((event, tr) => {
     if (tr.origin === "local") return;
     event.changes.keys.forEach((change, key) => {
       if (change.action === "delete") return;
-      const dataUrl = room.imagesMap.get(key);
-      if (dataUrl) window.MDE.setDocImage(key, dataUrl); // needs the bridge: also refreshes the preview
+      const dataUrl = imagesMap.get(key);
+      if (dataUrl && workspaceRoom.activeDocId === docId) window.MDE.setDocImage(key, dataUrl);
     });
   });
-  room.awareness = new awarenessProtocol.Awareness(room.ydoc);
+  const awareness = new awarenessProtocol.Awareness(ydoc);
 
-  const view = window.MDE.getEditor();
-  if (seedFromLocal) {
-    // The room doesn't have any real content yet — this client's current
-    // local copy IS the room's starting content, so it's pushed in before
-    // the sync extension attaches (nothing to reconcile: both already
-    // agree once yCollab starts observing).
-    const content = view.state.doc.toString();
-    if (content) room.ydoc.transact(() => room.ytext.insert(0, content), "local");
-    seedImagesIntoRoom();
-  } else {
-    // Joining an existing room: its real content arrives asynchronously
-    // via the sync handshake below (see handleServerMessage) and gets
-    // inserted by yCollab's own sync extension once it does. Clearing the
-    // editor first — rather than trusting whatever's currently in it,
-    // e.g. a stale local copy from a previous visit to this same link —
-    // means that insert always lands on an empty buffer instead of
-    // potentially landing on top of already-matching content and
-    // doubling it (the exact cause of a real content-duplication bug
-    // fixed earlier in this project).
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "" } });
-  }
-
-  bindEditor(role);
-
-  const username = window.MDE.githubUsername;
-  const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
-  // No `cursor` field here — yCollab's yRemoteSelections plugin maintains
-  // that itself (as a Yjs relative position, which stays correct through
-  // concurrent edits in a way a raw character index can't) the moment the
-  // editor has focus or a selection.
-  room.awareness.setLocalState({ user: identity, role, username });
-  room.awareness.on("update", onLocalAwarenessUpdate);
-
-  connect();
-  syncShareStores();
-}
-
-function teardown() {
-  window.MDE.setReadOnly(false);
-  window.MDE.exitCollabMode();
-  if (room.reconnectTimer) {
-    clearTimeout(room.reconnectTimer);
-    room.reconnectTimer = null;
-  }
-  if (room.ws) {
-    room.ws.onclose = null;
-    room.ws.onerror = null;
-    try { room.ws.close(); } catch (e) { /* already closed */ }
-  }
-  if (room.awareness) room.awareness.destroy();
-  if (room.ydoc && room.ydocUpdateHandler) room.ydoc.off("update", room.ydocUpdateHandler);
-  if (room.undoManager) room.undoManager.destroy();
-  if (room.ydoc) room.ydoc.destroy();
-
-  room.id = null;
-  room.ws = null;
-  room.ydoc = null;
-  room.ytext = null;
-  room.imagesMap = null;
-  room.awareness = null;
-  room.undoManager = null;
-  room.reconnectDelay = 1000;
-  room.ydocUpdateHandler = null;
-}
-
-// ---------- CodeMirror <-> Y.Text binding ----------
-// y-codemirror.next's yCollab extension owns the actual bidirectional
-// sync and remote cursor/selection rendering (previously hand-rolled
-// here as a diff-the-full-text-on-every-change scheme, needed because
-// CM5's changeObj positions couldn't be reconstructed after the fact —
-// CM6 exposes real position-mapped changes, which is what yCollab's own
-// sync plugin uses directly). This just wires it up per room and keeps
-// the transport-level broadcast of local Y.Doc updates to the server,
-// which is independent of how the editor itself binds to the Y.Text.
-
-function bindEditor(role: string) {
-  const undoManager = new Y.UndoManager(room.ytext);
-  room.undoManager = undoManager;
-  window.MDE.enterCollabMode([yCollab(room.ytext, room.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)], undoManager);
-  window.MDE.setReadOnly(role !== "editor");
-
-  // Mutating room.ydoc (seedImagesIntoRoom, the onImageAdded bridge, and
-  // now yCollab's own local-edit transactions) only updates this client's
-  // own in-memory copy — nothing else constructs and sends a sync message
-  // carrying that update, so this is the only thing that actually
-  // broadcasts a local change to collaborators. The server already has
-  // full broadcast support for receiving it (see handleDocUpdate in
-  // collab-room.ts).
-  room.ydocUpdateHandler = (update: Uint8Array, origin: unknown) => {
-    if (origin === "server") return; // don't echo back what the server just sent us
+  const ydocUpdateHandler = (update: Uint8Array, origin: unknown) => {
+    if (origin === "server") return;
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    encoding.writeVarString(encoder, docId);
     syncProtocol.writeUpdate(encoder, update);
     send(encoding.toUint8Array(encoder));
   };
-  room.ydoc.on("update", room.ydocUpdateHandler);
+  ydoc.on("update", ydocUpdateHandler);
+
+  const binding: DocBinding = { ydoc, ytext, imagesMap, awareness, undoManager: null, ydocUpdateHandler, role };
+  workspaceRoom.docs.set(docId, binding);
+  return binding;
 }
 
-function seedImagesIntoRoom() {
-  const doc = getActiveDoc();
-  if (!doc || !doc.images) return;
-  room.ydoc.transact(() => {
-    Object.entries(doc.images).forEach(([key, dataUrl]) => room.imagesMap.set(key, dataUrl));
-  }, "local");
+// Rebinds the editor to a different document already syncing within the
+// active workspace — no connection/reconnection involved, only which
+// Y.Doc CodeMirror's yCollab extension is attached to.
+function bindActiveDoc(docId: string): void {
+  const binding = workspaceRoom.docs.get(docId);
+  if (!binding) return;
+  workspaceRoom.activeDocId = docId;
+
+  const undoManager = binding.undoManager || new Y.UndoManager(binding.ytext);
+  binding.undoManager = undoManager;
+  window.MDE.enterCollabMode([yCollab(binding.ytext, binding.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)], undoManager);
+  window.MDE.setReadOnly(binding.role !== "editor");
+
+  const username = window.MDE.githubUsername;
+  const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
+  binding.awareness.setLocalState({ user: identity, role: binding.role, username });
+  binding.awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
+    sendAwareness(docId, binding.awareness, added.concat(updated, removed));
+    updatePresence();
+  });
+
+  sendPresence(docId);
+}
+
+function teardownWorkspace(): void {
+  window.MDE.setReadOnly(false);
+  window.MDE.exitCollabMode();
+  if (workspaceRoom.reconnectTimer) {
+    clearTimeout(workspaceRoom.reconnectTimer);
+    workspaceRoom.reconnectTimer = null;
+  }
+  if (workspaceRoom.ws) {
+    workspaceRoom.ws.onclose = null;
+    workspaceRoom.ws.onerror = null;
+    try { workspaceRoom.ws.close(); } catch (e) { /* already closed */ }
+  }
+  for (const binding of workspaceRoom.docs.values()) {
+    binding.awareness.destroy();
+    binding.ydoc.off("update", binding.ydocUpdateHandler);
+    if (binding.undoManager) binding.undoManager.destroy();
+    binding.ydoc.destroy();
+  }
+  workspaceRoom.docs.clear();
+  workspaceRoom.workspaceId = null;
+  workspaceRoom.ws = null;
+  workspaceRoom.activeDocId = null;
+  workspaceRoom.reconnectDelay = 1000;
 }
 
 // ---------- WebSocket transport (Yjs sync + awareness protocol) ----------
 
-function connect() {
+function connectWorkspace(): void {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const ws = new WebSocket(`${proto}//${location.host}/api/collab/${encodeURIComponent(room.id)}`);
+  const ws = new WebSocket(`${proto}//${location.host}/api/workspace/${encodeURIComponent(workspaceRoom.workspaceId!)}`);
   ws.binaryType = "arraybuffer";
-  room.ws = ws;
+  workspaceRoom.ws = ws;
 
   ws.onopen = () => {
-    room.reconnectDelay = 1000;
-    // Replying to the server's own step1 (below, in handleServerMessage)
-    // only tells the SERVER what it's missing from us — it never delivers
-    // the server's content back to us. We have to independently request it
-    // by sending our own step1, or a freshly-joining client with an empty
-    // local doc would never receive any pre-existing room content.
-    const encoder = encoding.createEncoder();
-    encoding.writeVarUint(encoder, MESSAGE_SYNC);
-    syncProtocol.writeSyncStep1(encoder, room.ydoc);
-    send(encoding.toUint8Array(encoder));
-
-    if (room.awareness.getLocalState() !== null) {
-      sendAwareness([room.awareness.clientID]);
+    workspaceRoom.reconnectDelay = 1000;
+    for (const [docId, binding] of workspaceRoom.docs.entries()) {
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, MESSAGE_SYNC);
+      encoding.writeVarString(encoder, docId);
+      syncProtocol.writeSyncStep1(encoder, binding.ydoc);
+      send(encoding.toUint8Array(encoder));
+      if (binding.awareness.getLocalState() !== null) sendAwareness(docId, binding.awareness, [binding.awareness.clientID]);
     }
+    if (workspaceRoom.activeDocId) sendPresence(workspaceRoom.activeDocId);
   };
 
   ws.onmessage = (event) => handleServerMessage(new Uint8Array(event.data as ArrayBuffer));
-
-  ws.onclose = () => {
-    scheduleReconnect();
-  };
+  ws.onclose = () => scheduleReconnect();
   ws.onerror = () => ws.close();
 }
 
-function scheduleReconnect() {
-  if (!room.id || room.reconnectTimer) return;
-  room.reconnectTimer = setTimeout(() => {
-    room.reconnectTimer = null;
-    connect();
-  }, room.reconnectDelay);
-  room.reconnectDelay = Math.min(room.reconnectDelay * 1.6, 10000);
+function scheduleReconnect(): void {
+  if (!workspaceRoom.workspaceId || workspaceRoom.reconnectTimer) return;
+  workspaceRoom.reconnectTimer = setTimeout(() => {
+    workspaceRoom.reconnectTimer = null;
+    connectWorkspace();
+  }, workspaceRoom.reconnectDelay);
+  workspaceRoom.reconnectDelay = Math.min(workspaceRoom.reconnectDelay * 1.6, 10000);
 }
 
-function handleServerMessage(data: Uint8Array) {
+function handleServerMessage(data: Uint8Array): void {
   const decoder = decoding.createDecoder(data);
   const messageType = decoding.readVarUint(decoder);
+
+  if (messageType === MESSAGE_PRESENCE) {
+    const username = decoding.readVarString(decoder);
+    const docId = decoding.readVarString(decoder);
+    handleRemotePresence(username, docId);
+    return;
+  }
+
+  const docId = decoding.readVarString(decoder);
+  const binding = workspaceRoom.docs.get(docId);
+  if (!binding) return;
 
   if (messageType === MESSAGE_SYNC) {
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_SYNC);
-    syncProtocol.readSyncMessage(decoder, encoder, room.ydoc, "server");
-    if (encoding.length(encoder) > 1) send(encoding.toUint8Array(encoder));
+    encoding.writeVarString(encoder, docId);
+    // Baseline-measured, not a fixed byte count — the docId prefix's own
+    // encoded length varies with the string, so "was a reply appended"
+    // has to be measured from after it was written (see the identical
+    // fix on the server side, src/workspace-room.ts).
+    const baseLength = encoding.length(encoder);
+    syncProtocol.readSyncMessage(decoder, encoder, binding.ydoc, "server");
+    if (encoding.length(encoder) > baseLength) send(encoding.toUint8Array(encoder));
   } else if (messageType === MESSAGE_AWARENESS) {
     const update = decoding.readVarUint8Array(decoder);
-    awarenessProtocol.applyAwarenessUpdate(room.awareness, update, "server");
-    updatePresence();
+    awarenessProtocol.applyAwarenessUpdate(binding.awareness, update, "server");
+    if (docId === workspaceRoom.activeDocId) updatePresence();
   }
 }
 
-function onLocalAwarenessUpdate({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) {
-  sendAwareness(added.concat(updated, removed));
-  updatePresence();
+function handleRemotePresence(_username: string, _docId: string): void {
+  // Populated in Task 13 (presence-across-files UI).
 }
 
-function sendAwareness(clientIDs: number[]) {
-  if (!room.awareness || clientIDs.length === 0) return;
+function sendAwareness(docId: string, awareness: awarenessProtocol.Awareness, clientIDs: number[]): void {
+  if (clientIDs.length === 0) return;
   const encoder = encoding.createEncoder();
   encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
-  encoding.writeVarUint8Array(encoder, awarenessProtocol.encodeAwarenessUpdate(room.awareness, clientIDs));
+  encoding.writeVarString(encoder, docId);
+  encoding.writeVarUint8Array(encoder, awarenessProtocol.encodeAwarenessUpdate(awareness, clientIDs));
+  send(encoding.toUint8Array(encoder));
+}
+
+function sendPresence(docId: string): void {
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, MESSAGE_PRESENCE);
+  encoding.writeVarString(encoder, "");
+  encoding.writeVarString(encoder, docId);
   send(encoding.toUint8Array(encoder));
 }
 
@@ -337,7 +336,7 @@ function send(bytes: Uint8Array) {
   // (could theoretically be SharedArrayBuffer-backed); WebSocket.send()'s DOM
   // lib type wants the narrower ArrayBuffer-backed variant specifically. It's
   // always a plain ArrayBuffer at runtime here — this cast doesn't change that.
-  if (room.ws && room.ws.readyState === WebSocket.OPEN) room.ws.send(bytes as Uint8Array<ArrayBuffer>);
+  if (workspaceRoom.ws && workspaceRoom.ws.readyState === WebSocket.OPEN) workspaceRoom.ws.send(bytes as Uint8Array<ArrayBuffer>);
 }
 
 // ---------- User identity ----------
@@ -391,6 +390,40 @@ async function putAccess(roomId: string, body: unknown): Promise<AccessRecord | 
     return { ...DEFAULT_ACCESS, ...(await res.json()) };
   } catch (err) {
     return null;
+  }
+}
+
+async function fetchWorkspaceAccess(workspaceId: string): Promise<AccessRecord> {
+  try {
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/access`);
+    if (!res.ok) return { ...DEFAULT_ACCESS };
+    return { ...DEFAULT_ACCESS, ...(await res.json()) };
+  } catch (err) {
+    return { ...DEFAULT_ACCESS };
+  }
+}
+
+async function putWorkspaceAccess(workspaceId: string, body: unknown): Promise<AccessRecord | null> {
+  try {
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/access`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return { ...DEFAULT_ACCESS, ...(await res.json()) };
+  } catch (err) {
+    return null;
+  }
+}
+
+async function fetchWorkspaceDocIds(workspaceId: string): Promise<string[]> {
+  try {
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs`);
+    if (!res.ok) return [];
+    return (await res.json()) as string[];
+  } catch (err) {
+    return [];
   }
 }
 
@@ -629,15 +662,16 @@ function syncShareStores() {
   shareAccess.set(access);
   const doc = getActiveDoc();
   shareDocName.set((doc && doc.name) || "Untitled");
-  document.getElementById("shareBtn").classList.toggle("active", !!room.id);
-  document.getElementById("shareDropdownBtn")?.classList.toggle("active", !!room.id);
+  document.getElementById("shareBtn").classList.toggle("active", !!workspaceRoom.workspaceId);
+  document.getElementById("shareDropdownBtn")?.classList.toggle("active", !!workspaceRoom.workspaceId);
   updatePresence();
 }
 
 function updatePresence() {
   const bar = document.getElementById("presenceBar");
-  const connected = room.awareness
-    ? Array.from(room.awareness.getStates().entries()).filter(([id, s]: [number, any]) => s && s.user && id !== room.awareness.clientID)
+  const activeAwareness = workspaceRoom.activeDocId ? workspaceRoom.docs.get(workspaceRoom.activeDocId)?.awareness : undefined;
+  const connected = activeAwareness
+    ? Array.from(activeAwareness.getStates().entries()).filter(([id, s]: [number, any]) => s && s.user && id !== activeAwareness.clientID)
     : [];
 
   if (bar) {

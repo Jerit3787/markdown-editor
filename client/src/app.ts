@@ -35,7 +35,7 @@ import { shortcutsModalOpen } from "./stores/shortcutsModal";
 import { aboutModalOpen } from "./stores/aboutModals";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
-import { computeBlockLineStarts } from "./scroll-sync";
+import { computeBlockLineStarts, computeListItemLineStarts } from "./scroll-sync";
 import { activeParagraphRange } from "./focus-mode";
 import { focusMode } from "./stores/focusMode";
 import { slashMenu } from "./stores/slashMenu";
@@ -809,6 +809,20 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     }));
   }
 
+  // element.offsetTop for a direct (or, since list items are now also
+  // tagged, indirectly-but-unpositioned) descendant of #preview is
+  // already measured from #preview's own border edge — the same
+  // reference frame #preview.scrollTop uses. Padding sits *inside* that
+  // border edge, so a descendant positioned right after the padding
+  // already has that padding baked into its own offsetTop; adding it
+  // again double-counts it. Verified empirically: setting
+  // `preview.scrollTop = element.offsetTop` (no padding term) lands
+  // that element's own top exactly at the viewport's top edge — adding
+  // paddingTop on top of that overshot by exactly paddingTop every
+  // time, which is what made cursor-follow/scroll-sync land content
+  // consistently ~40px (this app's #preview padding) above where it
+  // needed to be, compounding with every block change through a
+  // document.
   function previewBlockForLine(preview: HTMLElement, line: number, totalLines: number): PreviewBlockMatch | undefined {
     const blocks = taggedPreviewBlocks(preview);
     let idx = -1;
@@ -817,30 +831,24 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       else break; // tagged elements are in document order — line numbers are non-decreasing
     }
     if (idx === -1) return undefined;
-    
-    // offsetTop is relative to the inner padding edge, but scrollTop starts from the outer padding edge.
-    // We must add the container's top padding to offsetTop to get the true physical scroll position.
-    const paddingTop = parseFloat(getComputedStyle(preview).paddingTop) || 0;
-    
+
     const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
-    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop + paddingTop : preview.scrollHeight;
-    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop + paddingTop, bottom };
+    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
+    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
   }
 
   function previewBlockForScrollTop(preview: HTMLElement, scrollTop: number, totalLines: number): PreviewBlockMatch | undefined {
     const blocks = taggedPreviewBlocks(preview);
     if (blocks.length === 0) return undefined;
-    
-    const paddingTop = parseFloat(getComputedStyle(preview).paddingTop) || 0;
-    
+
     let idx = 0;
     for (let i = 0; i < blocks.length; i++) {
-      if (blocks[i].element.offsetTop + paddingTop <= scrollTop) idx = i;
+      if (blocks[i].element.offsetTop <= scrollTop) idx = i;
       else break;
     }
     const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
-    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop + paddingTop : preview.scrollHeight;
-    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop + paddingTop, bottom };
+    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
+    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
   }
 
   // .cm-content's own CSS top padding (style.css). CodeMirror's line-block
@@ -1421,6 +1429,24 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const previewChildren = Array.from(previewEl.children);
     for (let i = 0; i < lineStarts.length && i < previewChildren.length; i++) {
       previewChildren[i].setAttribute("data-line", String(lineStarts[i]));
+    }
+    // A list block's own single tag only anchors interpolation at its
+    // first item — for any list with more than a couple of items, the
+    // editor's fixed-width wrapping and the preview's proportional-font
+    // wrapping diverge per item, not just once per block, which left
+    // scroll-sync/cursor-follow landing well off from the item actually
+    // being edited the deeper into a list you went. Tagging each <li>
+    // with its own start line (same [data-line] convention everything
+    // else already keys off) gives the same interpolation one anchor
+    // per item instead of one per whole list.
+    const listItemLineStarts = computeListItemLineStarts(raw);
+    for (let i = 0; i < listItemLineStarts.length && i < previewChildren.length; i++) {
+      const itemLines = listItemLineStarts[i];
+      if (!itemLines) continue;
+      const liEls = Array.from(previewChildren[i].children).filter((el): el is HTMLElement => el.tagName === "LI");
+      for (let j = 0; j < itemLines.length && j < liEls.length; j++) {
+        liEls[j].setAttribute("data-line", String(itemLines[j]));
+      }
     }
     mermaidRenderScheduler.trigger();
     mathRenderScheduler.trigger();

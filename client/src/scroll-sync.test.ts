@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeBlockLineStarts } from "./scroll-sync";
+import { computeBlockLineStarts, computeListItemLineStarts } from "./scroll-sync";
 
 describe("computeBlockLineStarts", () => {
   it("returns an empty array for empty input", () => {
@@ -38,5 +38,30 @@ describe("computeBlockLineStarts", () => {
   it("handles multiple consecutive blank lines between blocks", () => {
     const raw = "First.\n\n\n\nSecond.";
     expect(computeBlockLineStarts(raw)).toEqual([0, 4]);
+  });
+});
+
+describe("computeListItemLineStarts", () => {
+  it("returns null for non-list blocks", () => {
+    const raw = "# Heading\n\nA paragraph.";
+    expect(computeListItemLineStarts(raw)).toEqual([null, null]);
+  });
+
+  it("computes each item's own start line for a simple list", () => {
+    const raw = "- item one\n- item two\n- item three";
+    // line 0: "- item one", line 1: "- item two", line 2: "- item three"
+    expect(computeListItemLineStarts(raw)).toEqual([[0, 1, 2]]);
+  });
+
+  it("computes item start lines for a list with multi-line items", () => {
+    const raw = "- item one\n  continues here\n- item two\n- item three";
+    // item one spans lines 0-1, item two starts at line 2, item three at line 3
+    expect(computeListItemLineStarts(raw)).toEqual([[0, 2, 3]]);
+  });
+
+  it("keeps list and non-list blocks aligned with computeBlockLineStarts' own order", () => {
+    const raw = "# Heading\n\n- a\n- b\n\nA trailing paragraph.";
+    expect(computeBlockLineStarts(raw)).toEqual([0, 2, 5]);
+    expect(computeListItemLineStarts(raw)).toEqual([null, [2, 3], null]);
   });
 });

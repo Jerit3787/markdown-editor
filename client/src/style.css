@@ -504,6 +504,18 @@ body.focus-mode #statusbar {
 
 .presence-avatar:first-child { margin-left: 0; }
 
+.doclist-presence {
+  display: inline-flex;
+  margin-left: 6px;
+}
+.presence-avatar-sm {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+  margin-left: -4px;
+  border: 1px solid var(--bg);
+}
+
 .share-row {
   display: flex;
   align-items: center;

@@ -23,6 +23,7 @@ import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "./stor
 import { showToast } from "./stores/toast";
 import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs } from "./stores/docs";
 import { pendingJoin } from "./stores/joinWorkspace";
+import { workspacePresence } from "./stores/workspacePresence";
 import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace } from "./stores/workspaces";
 import { confirmAction } from "./stores/confirmDialog";
 
@@ -133,17 +134,31 @@ function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): 
 // ---------- Room lifecycle ----------
 
 function handleDocChanged(doc: any) {
-  teardownWorkspace();
   if (!doc) {
+    teardownWorkspace();
     syncShareStores();
     return;
   }
   const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
   if (ws && ws.shared && ws.remoteId) {
+    // Switching between documents that are BOTH in the same
+    // already-connected shared workspace should just rebind the editor —
+    // every document in the workspace is already syncing live over the
+    // one open connection (see Task 9), so tearing it down and
+    // reconnecting on every doc switch would defeat that and cause a
+    // visible flicker/reconnect for every collaborator's presence too.
+    if (workspaceRoom.workspaceId === ws.remoteId) {
+      bindActiveDoc(doc.id);
+      syncShareStores();
+      return;
+    }
+    teardownWorkspace();
     rejoinKnownWorkspace(ws.remoteId, doc.id);
   } else if (doc.shared) {
+    teardownWorkspace();
     migrateLegacyDoc(doc.id);
   } else {
+    teardownWorkspace();
     syncShareStores();
   }
 }
@@ -265,6 +280,8 @@ function bindActiveDoc(docId: string): void {
 }
 
 function teardownWorkspace(): void {
+  remotePresenceByUsername.clear();
+  workspacePresence.set(new Map());
   window.MDE.setReadOnly(false);
   window.MDE.exitCollabMode();
   if (workspaceRoom.reconnectTimer) {
@@ -357,8 +374,25 @@ function handleServerMessage(data: Uint8Array): void {
   }
 }
 
-function handleRemotePresence(_username: string, _docId: string): void {
-  // Populated in Task 13 (presence-across-files UI).
+// Tracks each remote session's current doc by username (good enough for
+// this indicator's purpose — the doc list shows "who", not "which of
+// their possibly-multiple tabs"). An empty docId means that user has
+// disconnected or is no longer viewing anything in this workspace (see
+// WorkspaceRoom.handleClose's own presence broadcast on disconnect).
+const remotePresenceByUsername = new Map<string, string>();
+
+function handleRemotePresence(username: string, docId: string): void {
+  if (!username) return;
+  if (docId) remotePresenceByUsername.set(username, docId);
+  else remotePresenceByUsername.delete(username);
+
+  const byDoc = new Map<string, { username: string; color: string }[]>();
+  for (const [name, forDocId] of remotePresenceByUsername.entries()) {
+    const list = byDoc.get(forDocId) || [];
+    list.push({ username: name, color: colorForUsername(name) });
+    byDoc.set(forDocId, list);
+  }
+  workspacePresence.set(byDoc);
 }
 
 function sendAwareness(docId: string, awareness: awarenessProtocol.Awareness, clientIDs: number[]): void {

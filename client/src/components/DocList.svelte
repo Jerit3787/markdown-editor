@@ -12,6 +12,7 @@
   } from "../stores/docs";
   import { activeWorkspaceIdStore, workspacesStore } from "../stores/workspaces";
   import { docListActiveTab } from "../stores/docList";
+  import { workspacePresence } from "../stores/workspacePresence";
 
   const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
 
@@ -162,6 +163,13 @@
           {/if}
           <svg class="icon doc-icon"><use href="#icon-file"></use></svg>
           <span class="doc-name">{doc.name || "Untitled"}</span>
+          {#if ($workspacePresence.get(doc.id) || []).length > 0}
+            <span class="doclist-presence">
+              {#each ($workspacePresence.get(doc.id) || []).slice(0, 3) as p (p.username)}
+                <span class="presence-avatar presence-avatar-sm" style:background={p.color} title={p.username}>{p.username.charAt(0).toUpperCase()}</span>
+              {/each}
+            </span>
+          {/if}
           <button type="button" class="doc-menu-btn" class:active={openMenuId === doc.id} aria-label="Document options" onclick={(e) => openMenu(doc.id, e)}>
             <svg class="icon"><use href="#icon-ellipsis-vertical"></use></svg>
           </button>

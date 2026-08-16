@@ -17,12 +17,50 @@ const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
 const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
 const ROOM_VERSIONS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/versions(\/.*)?$/;
 const ROOM_COMMENTS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/comments(\/.*)?$/;
+const WORKSPACE_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})$/;
+const WORKSPACE_ACCESS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/access$/;
+const WORKSPACE_DOCS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs$/;
+const WORKSPACE_DOC_VERSIONS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/versions(\/.*)?$/;
+const WORKSPACE_DOC_COMMENTS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/comments(\/.*)?$/;
 const GIST_PATH = /^\/api\/gist\/([0-9a-f]+)$/i;
 const GIST_IMAGE_PATH = /^\/api\/gist\/([0-9a-f]+)\/image$/i;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    const workspaceAccessMatch = url.pathname.match(WORKSPACE_ACCESS_PATH);
+    if (workspaceAccessMatch) {
+      const id = env.WORKSPACE_ROOM.idFromName(workspaceAccessMatch[1]!);
+      return env.WORKSPACE_ROOM.get(id).fetch(request);
+    }
+
+    const workspaceDocsMatch = url.pathname.match(WORKSPACE_DOCS_PATH);
+    if (workspaceDocsMatch) {
+      const id = env.WORKSPACE_ROOM.idFromName(workspaceDocsMatch[1]!);
+      return env.WORKSPACE_ROOM.get(id).fetch(request);
+    }
+
+    const workspaceDocVersionsMatch = url.pathname.match(WORKSPACE_DOC_VERSIONS_PATH);
+    if (workspaceDocVersionsMatch) {
+      const id = env.WORKSPACE_ROOM.idFromName(workspaceDocVersionsMatch[1]!);
+      return env.WORKSPACE_ROOM.get(id).fetch(request);
+    }
+
+    const workspaceDocCommentsMatch = url.pathname.match(WORKSPACE_DOC_COMMENTS_PATH);
+    if (workspaceDocCommentsMatch) {
+      const id = env.WORKSPACE_ROOM.idFromName(workspaceDocCommentsMatch[1]!);
+      return env.WORKSPACE_ROOM.get(id).fetch(request);
+    }
+
+    const workspaceMatch = url.pathname.match(WORKSPACE_PATH);
+    if (workspaceMatch) {
+      if (request.headers.get("Upgrade") !== "websocket") {
+        return new Response("Expected websocket", { status: 426 });
+      }
+      const id = env.WORKSPACE_ROOM.idFromName(workspaceMatch[1]!);
+      return env.WORKSPACE_ROOM.get(id).fetch(request);
+    }
 
     const roomAccessMatch = url.pathname.match(ROOM_ACCESS_PATH);
     if (roomAccessMatch) {

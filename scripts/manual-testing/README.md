@@ -70,3 +70,21 @@ node scripts/manual-testing/simulate-collaborator-ws.mjs <workspaceId> <docId> <
 
 Get a `workspaceId`/`docId` from a real share link, and a
 `sessionCookie` via `curl -sD - "http://localhost:8787/api/dev/login?username=test-collaborator"`.
+
+### `repo-sync-e2e.mjs`
+
+Manual, interactive E2E for GitHub repo sync. Requires a real disposable
+test repo you're OK pushing test commits to, and a real GitHub OAuth
+sign-in (this script pauses and waits for you to sign in through the
+actual popup — repo-sync calls need a real GitHub API token with the
+`repo` scope, which the dev-login route's fake session cookie does not
+provide; see the Prerequisites note above about why `/api/auth/github/me`
+fails a fake token here even though the other two scripts work fine
+with it).
+
+```
+node scripts/manual-testing/repo-sync-e2e.mjs <your-username>/<test-repo>
+```
+
+Creates a doc, links the active workspace to the given repo, pushes, and
+prints the commits URL to verify by hand.

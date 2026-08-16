@@ -75,9 +75,12 @@ export interface Doc {
   // renaming the document after the first publish left the gist with
   // two files instead of one renamed one.
   gistFilename?: string;
-  // Set once a doc has ever been shared — its own id doubles as its collab
-  // room id (see collab.ts), so this is just a local "try to rejoin on
-  // load" flag, not the room id itself.
+  // Legacy-only: set on documents shared before workspace-level sharing
+  // shipped, under the old one-room-per-document model. New code never
+  // sets this — a document's shared state now lives on its containing
+  // Workspace (see Workspace.shared) — this flag exists only so
+  // collab.ts's migration trigger knows to migrate an old document to its
+  // own WorkspaceRoom the next time it's opened, then clears it.
   shared?: boolean;
   // Local, single-author annotations anchored to text — only meaningful
   // for a document that has never been shared (see comments.ts's own

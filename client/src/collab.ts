@@ -21,9 +21,9 @@ import "./types";
 import type { AccessRecord } from "./types";
 import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "./stores/share";
 import { showToast } from "./stores/toast";
-import { getActiveDoc, markActiveDocShared, switchDoc, docsStore, moveDocToWorkspace } from "./stores/docs";
+import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs } from "./stores/docs";
 import { pendingJoin } from "./stores/joinWorkspace";
-import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces } from "./stores/workspaces";
+import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace } from "./stores/workspaces";
 import { confirmAction } from "./stores/confirmDialog";
 
 const MESSAGE_SYNC = 0;
@@ -133,21 +133,65 @@ function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): 
 // ---------- Room lifecycle ----------
 
 function handleDocChanged(doc: any) {
-  teardown();
-  if (doc && doc.shared) rejoinKnownRoom(doc);
-  else syncShareStores();
+  teardownWorkspace();
+  if (!doc) {
+    syncShareStores();
+    return;
+  }
+  const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
+  if (ws && ws.shared && ws.remoteId) {
+    rejoinKnownWorkspace(ws.remoteId, doc.id);
+  } else if (doc.shared) {
+    migrateLegacyDoc(doc.id);
+  } else {
+    syncShareStores();
+  }
 }
 
-async function rejoinKnownRoom(doc: any) {
+async function rejoinKnownWorkspace(remoteId: string, docId: string) {
   await window.MDE.githubSessionReady;
-  const access = await fetchAccess(doc.id);
-  // computeMyRole's username==null branch still grants access for a
-  // public ("anyone") room, so this quietly reconnects an anonymous
-  // visitor's own previously-joined doc same as a signed-in one; a
-  // restricted room correctly stays unreachable without a session.
+  const access = await fetchWorkspaceAccess(remoteId);
   const role = computeMyRole(access, window.MDE.githubUsername);
   if (!role) return;
-  joinRoom(doc.id, { seedFromLocal: false, role });
+  await joinWorkspace(remoteId, { role });
+  bindActiveDoc(docId);
+  syncShareStores();
+}
+
+// A document still carrying the legacy per-document `shared` flag (see
+// types.ts) — migrate its CollabRoom into a fresh WorkspaceRoom, adopt the
+// resulting workspace locally (same shape as a fresh join, see Task 10's
+// adoptSharedWorkspace), then clear the legacy flag so this never runs
+// again for this document.
+async function migrateLegacyDoc(docId: string) {
+  try {
+    const res = await fetch(`/api/collab/${encodeURIComponent(docId)}/migrate`, { method: "POST" });
+    if (!res.ok) {
+      syncShareStores();
+      return;
+    }
+    const { workspaceId } = (await res.json()) as { workspaceId: string };
+    const doc = findDocById(docId);
+    if (!doc) return;
+
+    const existingLocal = get(workspacesStore).find((w) => w.remoteId === workspaceId);
+    const targetWorkspaceId = existingLocal ? existingLocal.id : adoptSharedWorkspace(workspaceId, doc.name || "Untitled").id;
+    if (targetWorkspaceId !== doc.workspaceId) {
+      // Fold this doc into the migrated workspace instead of leaving a
+      // duplicate behind — the migrate endpoint already copied its
+      // content server-side, so the local copy just needs to point at
+      // the same workspace and drop the legacy flag.
+      docsStore.update((docs) => docs.map((d) => (d.id === docId ? { ...d, workspaceId: targetWorkspaceId, shared: undefined } : d)));
+      persistDocs();
+    } else {
+      docsStore.update((docs) => docs.map((d) => (d.id === docId ? { ...d, shared: undefined } : d)));
+      persistDocs();
+    }
+
+    await rejoinKnownWorkspace(workspaceId, docId);
+  } catch (err) {
+    syncShareStores();
+  }
 }
 
 // Opens the one WebSocket for a whole shared workspace and creates a

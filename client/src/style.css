@@ -636,7 +636,11 @@ body.focus-mode #statusbar {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 200;
+  /* Must clear #topbar's z-index: 300 — otherwise the topbar's own
+     buttons/dropdowns (File/Edit/View/Help, Share, Settings) stay
+     clickable through the backdrop while a modal is supposedly
+     blocking interaction with the rest of the page. */
+  z-index: 320;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -647,7 +651,7 @@ body.focus-mode #statusbar {
    (e.g. Images manager's delete button) — every modal shares the same
    base z-index above, so which one paints on top would otherwise be
    decided by DOM/mount order rather than which opened more recently. */
-.modal-backdrop.elevated { z-index: 210; }
+.modal-backdrop.elevated { z-index: 330; }
 
 .modal-box {
   background: var(--bg);

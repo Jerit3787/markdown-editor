@@ -9,9 +9,13 @@
 </script>
 
 {#if $confirmRequest}
-  <Modal title={$confirmRequest.title} icon="icon-trash-2" labelledBy="confirmDialogTitle" onClose={() => respond(false)} elevated>
+  <Modal title={$confirmRequest.title} icon={$confirmRequest.danger ? "icon-trash-2" : "icon-info"} labelledBy="confirmDialogTitle" onClose={() => respond(false)} elevated>
     <div class="empty-state" style="padding: 12px 0 24px;">
-      <svg class="empty-state-icon" style="opacity: 0.8; color: var(--danger);"><use href="#icon-trash-2"></use></svg>
+      {#if $confirmRequest.danger}
+        <svg class="empty-state-icon" style="opacity: 0.8; color: var(--danger);"><use href="#icon-trash-2"></use></svg>
+      {:else}
+        <svg class="empty-state-icon"><use href="#icon-info"></use></svg>
+      {/if}
       <div class="empty-state-desc" style="margin-bottom: 0; margin-top: 16px;">{$confirmRequest.message}</div>
     </div>
     {#snippet footer()}

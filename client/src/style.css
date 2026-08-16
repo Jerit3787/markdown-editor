@@ -2443,11 +2443,11 @@ body.focus-mode #statusbar {
   to { opacity: 1; }
 }
 
-.modal-backdrop {
+.modal-backdrop, .version-history-overlay, .diagram-editor-overlay {
   animation: fade-in 0.15s ease-out forwards;
 }
 
-.modal-content, .modal-box, .modal-box-v2, .dropdown-menu.open, .slash-menu, .command-palette {
+.modal-content, .modal-box, .modal-box-v2, .dropdown-menu.open, .slash-menu, .command-palette, .doc-menu-popover, .menu-submenu.open .menu-submenu-panel {
   animation: popup-in 0.15s ease-out forwards;
 }
 

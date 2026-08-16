@@ -834,17 +834,31 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop + paddingTop, bottom };
   }
 
+  // .cm-content's own CSS top padding (style.css). CodeMirror's line-block
+  // coordinates (lineBlockAt/lineBlockAtHeight, and documentTop internally)
+  // are always relative to the top of the document text itself — 0 is the
+  // top of line 1, padding excluded, per CodeMirror's own source
+  // (EditorView.documentTop = contentDOM.getBoundingClientRect().top +
+  // viewState.paddingTop — "points directly to the top of the first line,
+  // not above the padding"). cm.scrollDOM.scrollTop, by contrast, is a
+  // physical DOM scroll position that DOES include that padding as
+  // scrollable space above line 1. Every conversion between the two needs
+  // this same offset, applied in a consistent direction — read from one
+  // place so a future padding change can't silently desync one call site
+  // from another the way it previously did (see CHANGELOG.md).
+  function editorPaddingTop(): number {
+    return parseFloat(getComputedStyle(cm.contentDOM).paddingTop) || 0;
+  }
+
   // The editor's own rendered pixel range for a block's [startLine, endLine)
   // span — e.g. a heavily-wrapped single-line paragraph reports a tall
   // range here despite being one source line, which is exactly the
-  // signal line-count interpolation was blind to.
+  // signal line-count interpolation was blind to. Converts CodeMirror's
+  // document-relative top into scrollDOM's physical scroll-pixel space —
+  // see editorPaddingTop()'s comment for why the offset is needed.
   function editorPixelRangeForLines(startLine: number, endLine: number): { top: number; bottom: number } {
     const totalLines = cm.state.doc.lines;
-    // cm.lineBlockAt().top is relative to the document text (0 = top of first line).
-    // But scrollDOM.scrollTop includes the top padding of .cm-content.
-    // We must offset the CodeMirror coordinates by the padding to match physical scroll pixels.
-    const paddingTop = parseFloat(getComputedStyle(cm.contentDOM).paddingTop) || 0;
-    
+    const paddingTop = editorPaddingTop();
     const top = cm.lineBlockAt(cm.state.doc.line(Math.min(startLine + 1, totalLines)).from).top + paddingTop;
     const bottom = endLine < totalLines
       ? cm.lineBlockAt(cm.state.doc.line(endLine + 1).from).top + paddingTop
@@ -890,7 +904,13 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         requestAnimationFrame(() => { syncingScroll = false; });
         return;
       }
-      const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(el.scrollTop).from).number - 1;
+      // el.scrollTop is physical scroll-pixel space; lineBlockAtHeight
+      // expects document-relative space (see editorPaddingTop()) — without
+      // subtracting the padding back out here, every topLine resolution
+      // was off by roughly one editorPaddingTop() worth of content,
+      // independently of the +paddingTop compensation applied everywhere
+      // coordinates flow the other way (document-relative -> scroll-pixel).
+      const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(Math.max(0, el.scrollTop - editorPaddingTop())).from).number - 1;
       const match = previewBlockForLine(preview, topLine, cm.state.doc.lines);
       if (!match) return;
       const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
@@ -960,7 +980,10 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const match = previewBlockForLine(preview, cursorLine, cm.state.doc.lines);
     if (!match) return;
     const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
-    const cursorEditorTop = cm.lineBlockAt(cursorPos).top;
+    // cursorEditorTop must be in the same scroll-pixel space as
+    // editorRange.top/bottom (both already +paddingTop) for interpolation
+    // across them to be meaningful — see editorPaddingTop()'s comment.
+    const cursorEditorTop = cm.lineBlockAt(cursorPos).top + editorPaddingTop();
     const targetScrollTop = interpolateAcross(cursorEditorTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
     if (targetScrollTop >= preview.scrollTop && targetScrollTop <= preview.scrollTop + preview.clientHeight) return; // already visible
     syncingScroll = true;

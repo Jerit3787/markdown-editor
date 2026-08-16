@@ -962,6 +962,10 @@ body.focus-mode #statusbar {
   display: flex;
   flex-direction: column;
 }
+
+#body:not(.comments-open) .comments-panel {
+  grid-area: main;
+}
 .comments-panel-header {
   display: flex;
   align-items: center;

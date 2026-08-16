@@ -121,9 +121,9 @@ export async function deleteHistory(docId: string): Promise<void> {
 // relative-fetch, try/catch-with-safe-fallback style as collab.ts's own
 // fetchAccess/putAccess.
 
-export async function listSharedVersions(roomId: string): Promise<VersionSummary[]> {
+export async function listSharedVersions(workspaceId: string, docId: string): Promise<VersionSummary[]> {
   try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/versions`);
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions`);
     if (!res.ok) return [];
     return (await res.json()) as VersionSummary[];
   } catch (err) {
@@ -131,9 +131,9 @@ export async function listSharedVersions(roomId: string): Promise<VersionSummary
   }
 }
 
-export async function getSharedVersionContent(roomId: string, versionId: string): Promise<string | undefined> {
+export async function getSharedVersionContent(workspaceId: string, docId: string, versionId: string): Promise<string | undefined> {
   try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/versions/${encodeURIComponent(versionId)}`);
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions/${encodeURIComponent(versionId)}`);
     if (!res.ok) return undefined;
     const snap = (await res.json()) as Snapshot;
     return snap.content;
@@ -146,9 +146,9 @@ export async function getSharedVersionContent(roomId: string, versionId: string)
 // connected client (including this one) through the normal Yjs sync
 // channel once the server applies it, same as any other collaborator's
 // edit. The caller only needs to know whether the request succeeded.
-export async function restoreSharedVersion(roomId: string, versionId: string): Promise<boolean> {
+export async function restoreSharedVersion(workspaceId: string, docId: string, versionId: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/versions/${encodeURIComponent(versionId)}/restore`, { method: "POST" });
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions/${encodeURIComponent(versionId)}/restore`, { method: "POST" });
     return res.ok;
   } catch (err) {
     return false;

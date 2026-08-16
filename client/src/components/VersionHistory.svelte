@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { get } from "svelte/store";
   import { onMount } from "svelte";
   import { versionHistoryOpen } from "../stores/versionHistory";
   import { getActiveDoc } from "../stores/docs";
+  import { workspacesStore } from "../stores/workspaces";
   import {
     listVersions,
     getVersionContent,
@@ -13,6 +15,10 @@
   } from "../history";
   import { renderVersionPreview } from "../version-preview";
   import { showToast } from "../stores/toast";
+
+  function isDocShared(doc: ReturnType<typeof getActiveDoc>): boolean {
+    return !!(doc && get(workspacesStore).find((w) => w.id === doc.workspaceId)?.shared);
+  }
 
   let versions = $state<VersionSummary[]>([]);
   let selectedId = $state<string | null>(null);
@@ -32,7 +38,7 @@
   async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, id: string) {
     selectedId = id;
     if (!doc || !previewEl) return;
-    const content = isShared ? await getSharedVersionContent(doc.id, id) : await getVersionContent(doc.id, id);
+    const content = isShared ? await getSharedVersionContent(doc.workspaceId, doc.id, id) : await getVersionContent(doc.id, id);
     if (content !== undefined && previewEl) await renderVersionPreview(content, doc, previewEl);
   }
 
@@ -42,10 +48,10 @@
       versions = [];
       return;
     }
-    const isShared = !!doc.shared;
+    const isShared = isDocShared(doc);
     restoreAllowed = !isShared || !window.MDE.getEditor().state.readOnly;
     loading = true;
-    versions = isShared ? await listSharedVersions(doc.id) : await listVersions(doc.id);
+    versions = isShared ? await listSharedVersions(doc.workspaceId, doc.id) : await listVersions(doc.id);
     loading = false;
     if (versions.length > 0) await selectVersion(doc, isShared, versions[0]!.id);
     else selectedId = null;
@@ -55,9 +61,9 @@
     const doc = getActiveDoc();
     if (!doc || !selectedId || restoring) return;
     restoring = true;
-    const isShared = !!doc.shared;
+    const isShared = isDocShared(doc);
     if (isShared) {
-      const ok = await restoreSharedVersion(doc.id, selectedId);
+      const ok = await restoreSharedVersion(doc.workspaceId, doc.id, selectedId);
       if (ok) {
         showToast("Version restored", "success");
         close();
@@ -128,7 +134,7 @@
               type="button"
               class="version-history-row"
               class:active={v.id === selectedId}
-              onclick={() => selectVersion(getActiveDoc(), !!getActiveDoc()?.shared, v.id)}
+              onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), v.id)}
             >
               <span>{formatTimestamp(v.timestamp)}</span>
               {#if i === 0}<span class="version-history-current">(current)</span>{/if}

@@ -4,6 +4,7 @@
   import { commentsPanelOpen } from "../stores/commentsPanel";
   import { commentDraft } from "../stores/commentDraft";
   import { activeIdStore, getActiveDoc, addDocNote, deleteDocNote } from "../stores/docs";
+  import { workspacesStore } from "../stores/workspaces";
   import { listComments, createComment, replyToComment, resolveComment, deleteComment, type CommentThread } from "../comments";
   import { relocateAnchor } from "../anchor";
   import { showToast } from "../stores/toast";
@@ -19,7 +20,9 @@
 
   function currentDocContext() {
     const doc = getActiveDoc();
-    return doc ? { doc, isShared: !!doc.shared } : null;
+    if (!doc) return null;
+    const isShared = !!get(workspacesStore).find((w) => w.id === doc.workspaceId)?.shared;
+    return { doc, isShared };
   }
 
   async function loadEntries() {
@@ -31,7 +34,7 @@
     }
     loading = true;
     if (ctx.isShared) {
-      const threads = await listComments(ctx.doc.id);
+      const threads = await listComments(ctx.doc.workspaceId, ctx.doc.id);
       entries = threads.map((t) => ({ ...t, kind: "thread" as const }));
     } else {
       entries = (ctx.doc.notes || []).map((n) => ({ ...n, kind: "note" as const }));
@@ -65,7 +68,7 @@
     const cm = window.MDE.getEditor();
     const quote = cm.state.sliceDoc($commentDraft.from, $commentDraft.to);
     if (ctx.isShared) {
-      const thread = await createComment(ctx.doc.id, $commentDraft.from, $commentDraft.to, quote, draftBody.trim());
+      const thread = await createComment(ctx.doc.workspaceId, ctx.doc.id, $commentDraft.from, $commentDraft.to, quote, draftBody.trim());
       if (!thread) showToast("Couldn't add comment", "error");
     } else {
       addDocNote($commentDraft.from, $commentDraft.to, quote, draftBody.trim());
@@ -81,7 +84,7 @@
     if (!ctx || !ctx.isShared) return;
     const body = (replyBodies[threadId] || "").trim();
     if (!body) return;
-    await replyToComment(ctx.doc.id, threadId, body);
+    await replyToComment(ctx.doc.workspaceId, ctx.doc.id, threadId, body);
     replyBodies = { ...replyBodies, [threadId]: "" };
     await loadEntries();
   }
@@ -89,7 +92,7 @@
   async function toggleResolve(thread: CommentThread) {
     const ctx = currentDocContext();
     if (!ctx || !ctx.isShared) return;
-    await resolveComment(ctx.doc.id, thread.id, !thread.resolved);
+    await resolveComment(ctx.doc.workspaceId, ctx.doc.id, thread.id, !thread.resolved);
     await loadEntries();
   }
 
@@ -99,7 +102,7 @@
     if (entry.kind === "note") {
       deleteDocNote(entry.id);
     } else {
-      const ok = await deleteComment(ctx.doc.id, entry.id);
+      const ok = await deleteComment(ctx.doc.workspaceId, ctx.doc.id, entry.id);
       if (!ok) {
         showToast("Couldn't delete comment", "error");
         return;

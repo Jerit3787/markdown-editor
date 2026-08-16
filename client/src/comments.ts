@@ -23,9 +23,9 @@ export interface CommentThread {
   comments: CommentReply[];
 }
 
-export async function listComments(roomId: string): Promise<CommentThread[]> {
+export async function listComments(workspaceId: string, docId: string): Promise<CommentThread[]> {
   try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/comments`);
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments`);
     if (!res.ok) return [];
     return (await res.json()) as CommentThread[];
   } catch (err) {
@@ -33,9 +33,9 @@ export async function listComments(roomId: string): Promise<CommentThread[]> {
   }
 }
 
-export async function createComment(roomId: string, from: number, to: number, quote: string, body: string): Promise<CommentThread | undefined> {
+export async function createComment(workspaceId: string, docId: string, from: number, to: number, quote: string, body: string): Promise<CommentThread | undefined> {
   try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/comments`, {
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ from, to, quote, body }),
@@ -47,9 +47,9 @@ export async function createComment(roomId: string, from: number, to: number, qu
   }
 }
 
-export async function replyToComment(roomId: string, threadId: string, body: string): Promise<CommentThread | undefined> {
+export async function replyToComment(workspaceId: string, docId: string, threadId: string, body: string): Promise<CommentThread | undefined> {
   try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/comments/${encodeURIComponent(threadId)}/reply`, {
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}/reply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body }),
@@ -61,9 +61,9 @@ export async function replyToComment(roomId: string, threadId: string, body: str
   }
 }
 
-export async function resolveComment(roomId: string, threadId: string, resolved: boolean): Promise<CommentThread | undefined> {
+export async function resolveComment(workspaceId: string, docId: string, threadId: string, resolved: boolean): Promise<CommentThread | undefined> {
   try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/comments/${encodeURIComponent(threadId)}/resolve`, {
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}/resolve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ resolved }),
@@ -75,9 +75,9 @@ export async function resolveComment(roomId: string, threadId: string, resolved:
   }
 }
 
-export async function deleteComment(roomId: string, threadId: string): Promise<boolean> {
+export async function deleteComment(workspaceId: string, docId: string, threadId: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/comments/${encodeURIComponent(threadId)}`, { method: "DELETE" });
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}`, { method: "DELETE" });
     return res.ok;
   } catch (err) {
     return false;

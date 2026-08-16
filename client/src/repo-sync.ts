@@ -4,7 +4,7 @@
 // without mocking fetch — the same reasoning src/github-repo.ts's
 // computeNewTreeEntries follows server-side.
 import type { Doc } from "./types";
-import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths } from "./stores/docs";
+import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById } from "./stores/docs";
 
 export function slugifyDocName(name: string): string {
   const slug = (name || "")
@@ -175,6 +175,150 @@ export async function pullFromRepo(
     for (const conflict of plan.conflicts) {
       if (resolutions[conflict.docId] === "theirs") await fetchAndApply(conflict.repoPath, conflict.remoteSha);
     }
+  }
+
+  return { plan, applyResolved };
+}
+
+export interface PushConflict {
+  docId: string;
+  repoPath: string;
+  remoteSha: string;
+}
+
+export interface PushPlan {
+  changes: { docId: string; repoPath: string; content: string; assets: ImageAsset[] }[];
+  deletions: string[];
+  conflicts: PushConflict[];
+}
+
+// The images-folder slug is always derived from the doc's FINAL repoPath
+// (after dedupeRepoPath), not recomputed from doc.name — pull's own
+// docSlugFor() derives its slug the same way, from the path it finds in
+// the tree. If this instead used slugifyDocName(doc.name) directly, a
+// deduped path (e.g. notes-2.md, when another doc already claimed
+// notes.md) would push images under assets/notes/ while pull would later
+// look for them under assets/notes-2/ — silently failing to round-trip.
+function slugFromRepoPath(repoPath: string): string {
+  return repoPath.replace(/\.md$/i, "").split("/").pop() || "untitled";
+}
+
+// Git's own blob-object hash: sha1("blob " + byteLength + "\0" + content).
+// Used to detect "this doc's pushable content is byte-identical to what's
+// already at this path" — doc.repoSha matching the tree's current sha only
+// proves the REMOTE hasn't moved since our last sync, not that the LOCAL
+// content is actually unchanged since then. Comparing against the real git
+// blob sha (rather than just trusting doc.repoSha) is what lets planPush
+// skip a doc with no real edits instead of pushing a no-op commit on every
+// call.
+async function gitBlobSha(content: string): Promise<string> {
+  const bytes = new TextEncoder().encode(content);
+  const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+  const combined = new Uint8Array(header.length + bytes.length);
+  combined.set(header);
+  combined.set(bytes, header.length);
+  const digest = await crypto.subtle.digest("SHA-1", combined);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export async function planPush(docs: Doc[], mdEntries: TreeEntry[]): Promise<PushPlan> {
+  const plan: PushPlan = { changes: [], deletions: [], conflicts: [] };
+  const treeShaByPath = new Map(mdEntries.filter((e) => e.type === "blob").map((e) => [e.path, e.sha]));
+  const usedPaths = new Set(mdEntries.map((e) => e.path));
+
+  for (const doc of docs) {
+    let repoPath = doc.repoPath;
+    let isNewPath = false;
+    if (!repoPath) {
+      const base = `${slugifyDocName(doc.name)}.md`;
+      repoPath = dedupeRepoPath(base, usedPaths);
+      usedPaths.add(repoPath);
+      isNewPath = true;
+    } else {
+      const treeSha = treeShaByPath.get(repoPath);
+      if (treeSha !== undefined && treeSha !== doc.repoSha) {
+        plan.conflicts.push({ docId: doc.id, repoPath, remoteSha: treeSha });
+        continue;
+      }
+    }
+    const { content, assets } = rewriteImagesForPush(doc.content, slugFromRepoPath(repoPath), doc.images, doc.diagrams);
+    if (!isNewPath) {
+      const currentSha = treeShaByPath.get(repoPath);
+      if (currentSha !== undefined && (await gitBlobSha(content)) === currentSha) continue;
+    }
+    plan.changes.push({ docId: doc.id, repoPath, content, assets });
+  }
+
+  return plan;
+}
+
+function toBase64(str: string): string {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+function dataUrlToBase64(dataUrl: string): string {
+  const match = dataUrl.match(/^data:[^;]+;base64,(.*)$/);
+  return match ? match[1]! : "";
+}
+
+export async function pushToRepo(
+  workspaceId: string,
+  repoLink: { owner: string; repo: string; branch: string }
+): Promise<{ plan: PushPlan; applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void> }> {
+  const treeRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/tree?branch=${encodeURIComponent(repoLink.branch)}`);
+  if (!treeRes.ok) throw new Error(`Couldn't read the repo tree: HTTP ${treeRes.status}`);
+  const treeData = await treeRes.json();
+  const entries: TreeEntry[] = treeData.tree || [];
+  const docs = docsInWorkspace(workspaceId);
+  const plan = await planPush(docs, entries);
+
+  async function sendChanges(changes: PushPlan["changes"]): Promise<void> {
+    if (changes.length === 0) return;
+    const blobs: { path: string; contentBase64: string }[] = [];
+    for (const change of changes) {
+      blobs.push({ path: change.repoPath, contentBase64: toBase64(change.content) });
+      for (const asset of change.assets) blobs.push({ path: asset.path, contentBase64: dataUrlToBase64(asset.dataUrl) });
+    }
+    // Fetched fresh here, not reused from `entries` above (which was read
+    // for planning and could be stale by the time a push actually goes
+    // out) — matches the spec's "fetch the current tree fresh" push step.
+    // handleRepoTree's response carries both the tree sha (base_tree for
+    // the new tree) and the branch's commit sha (parents[0] for the new
+    // commit) — these are two different values and both are needed.
+    const branchRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/tree?branch=${encodeURIComponent(repoLink.branch)}`);
+    const branchTree = await branchRes.json();
+    const pushRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        branch: repoLink.branch,
+        baseTreeSha: branchTree.treeSha,
+        parentCommitSha: branchTree.commitSha,
+        blobs,
+        deletePaths: [],
+      }),
+    });
+    if (pushRes.status === 409) throw new Error("The repo changed since this push started — pull first, then try again.");
+    if (!pushRes.ok) throw new Error(`Push failed: HTTP ${pushRes.status}`);
+    const pushData = await pushRes.json();
+    for (const change of changes) {
+      // Every asset's path was included in the same `blobs` array sent
+      // above, so its new sha comes back under its own path key in
+      // pushData.blobShas alongside the doc's own — no second round trip
+      // needed to learn the pushed images' SHAs.
+      const repoImageShas = Object.fromEntries(change.assets.map((a) => [a.path, pushData.blobShas[a.path]]));
+      setDocRepoLinkById(change.docId, change.repoPath, pushData.blobShas[change.repoPath], change.assets.length ? repoImageShas : undefined);
+    }
+  }
+
+  await sendChanges(plan.changes);
+
+  async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
+    const winningDocs = plan.conflicts.filter((c) => resolutions[c.docId] === "mine").map((c) => docs.find((d) => d.id === c.docId)!);
+    const retryPlan = await planPush(winningDocs, []);
+    await sendChanges(retryPlan.changes);
   }
 
   return { plan, applyResolved };

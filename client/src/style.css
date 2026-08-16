@@ -1752,6 +1752,7 @@ body.focus-mode #statusbar {
   padding: 40px;
   line-height: 1.7;
   font-size: 15.5px;
+  overflow-wrap: break-word;
 }
 
 #preview h1, #preview h2, #preview h3 { line-height: 1.3; }

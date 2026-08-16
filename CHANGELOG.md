@@ -4,6 +4,27 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.21.1] - 2026-08-17
+
+### Fixed
+
+- **Workspace sharing didn't seed content or sync new documents both
+  ways.** Sharing a document for the first time could leave
+  collaborators looking at an empty doc, and newly created documents
+  inside a shared workspace only synced from collaborator to owner,
+  not back — both are now fixed and covered by regression tests.
+- **GitHub sign-in could fail closed on transient errors.** Logging
+  out now always clears the local session even if revoking the
+  GitHub OAuth grant fails, and a network blip or rate-limited
+  response no longer signs you out — only a definite invalid-token
+  response does.
+- **Preview scrolled to the wrong place while typing.** A coordinate
+  math bug double-counted the preview pane's padding, causing a
+  systematic offset between the cursor's position and what the
+  preview showed. Lists also now track each item individually
+  instead of only the list's first line, so long lists stay in sync
+  too.
+
 ## [1.21.0] - 2026-08-16
 
 ### Added

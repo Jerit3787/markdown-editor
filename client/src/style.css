@@ -2139,47 +2139,6 @@ body.focus-mode #statusbar {
   }
   .mobile-sheet-backdrop.visible { opacity: 1; pointer-events: auto; }
 
-  /* Both backdrops (#sidebarBackdrop and .mobile-sheet-backdrop) cover
-     the full viewport at z-index:39, including the header — elevating
-     the header above them keeps its buttons clickable no matter which
-     sheet (if any) is open (tapping the *other* panel's trigger should
-     switch directly to it, not just hit the backdrop and close the
-     current sheet). But a fully sharp, undimmed header while
-     everything below it is dimmed reads as broken/inconsistent, so a
-     second layer — a plain pointer-events:none dim overlay, the same
-     color as the real backdrops — sits on top of the header's own
-     content instead: visually dimmed like the rest of the screen,
-     without intercepting the clicks the elevation above exists for. */
-  /* Different z-index values, not the same one — #topbar's File/Edit/
-     View/Help dropdowns (MenuBar.svelte) live inside #topbar and open
-     downward, overlapping into #toolbar's rectangle below. A dropdown's
-     own z-index only ranks it within its nearest stacking-context
-     ancestor; it does NOT let it escape that ancestor's rank against a
-     SIBLING stacking context. With both at the same z-index, #toolbar
-     (later in DOM order) painted over #topbar's entire subtree —
-     dropdown included — regardless of the dropdown's own higher
-     z-index. #topbar must outrank #toolbar so its dropdowns can
-     actually render over it. */
-  #topbar { position: relative; z-index: 46; }
-  #toolbar { position: relative; z-index: 45; }
-  #topbar::after, #toolbar::after {
-    content: "";
-    position: absolute;
-    /* inset:0 alone stops at the parent's padding edge, leaving its own
-       border-bottom (1px, outside the padding box) showing through as
-       an undimmed line — extend 1px past the bottom to cover it too. */
-    inset: 0 0 -1px 0;
-    background: rgba(0, 0, 0, 0.5);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s ease;
-  }
-  body:has(#sidebarBackdrop.visible) #topbar::after,
-  body:has(#sidebarBackdrop.visible) #toolbar::after,
-  body:has(.mobile-sheet-backdrop.visible) #topbar::after,
-  body:has(.mobile-sheet-backdrop.visible) #toolbar::after {
-    opacity: 1;
-  }
 
   /* Flush to the screen's left/right/bottom edges, only the top corners
      rounded (not the desktop 320px side panel either — that rule

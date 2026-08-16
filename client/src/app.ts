@@ -808,22 +808,30 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       else break; // tagged elements are in document order — line numbers are non-decreasing
     }
     if (idx === -1) return undefined;
+    
+    // offsetTop is relative to the inner padding edge, but scrollTop starts from the outer padding edge.
+    // We must add the container's top padding to offsetTop to get the true physical scroll position.
+    const paddingTop = parseFloat(getComputedStyle(preview).paddingTop) || 0;
+    
     const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
-    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
-    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
+    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop + paddingTop : preview.scrollHeight;
+    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop + paddingTop, bottom };
   }
 
   function previewBlockForScrollTop(preview: HTMLElement, scrollTop: number, totalLines: number): PreviewBlockMatch | undefined {
     const blocks = taggedPreviewBlocks(preview);
     if (blocks.length === 0) return undefined;
+    
+    const paddingTop = parseFloat(getComputedStyle(preview).paddingTop) || 0;
+    
     let idx = 0;
     for (let i = 0; i < blocks.length; i++) {
-      if (blocks[i].element.offsetTop <= scrollTop) idx = i;
+      if (blocks[i].element.offsetTop + paddingTop <= scrollTop) idx = i;
       else break;
     }
     const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
-    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
-    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
+    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop + paddingTop : preview.scrollHeight;
+    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop + paddingTop, bottom };
   }
 
   // The editor's own rendered pixel range for a block's [startLine, endLine)
@@ -832,9 +840,14 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // signal line-count interpolation was blind to.
   function editorPixelRangeForLines(startLine: number, endLine: number): { top: number; bottom: number } {
     const totalLines = cm.state.doc.lines;
-    const top = cm.lineBlockAt(cm.state.doc.line(Math.min(startLine + 1, totalLines)).from).top;
+    // cm.lineBlockAt().top is relative to the document text (0 = top of first line).
+    // But scrollDOM.scrollTop includes the top padding of .cm-content.
+    // We must offset the CodeMirror coordinates by the padding to match physical scroll pixels.
+    const paddingTop = parseFloat(getComputedStyle(cm.contentDOM).paddingTop) || 0;
+    
+    const top = cm.lineBlockAt(cm.state.doc.line(Math.min(startLine + 1, totalLines)).from).top + paddingTop;
     const bottom = endLine < totalLines
-      ? cm.lineBlockAt(cm.state.doc.line(endLine + 1).from).top
+      ? cm.lineBlockAt(cm.state.doc.line(endLine + 1).from).top + paddingTop
       : cm.scrollDOM.scrollHeight;
     return { top, bottom };
   }

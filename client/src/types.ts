@@ -38,6 +38,15 @@ export interface Workspace {
   id: string;
   name: string;
   createdAt: number;
+  // Set once this workspace has ever been shared or joined from a share
+  // link — mirrors the same "try to reconnect on load" role Doc.shared
+  // plays for local documents, just at workspace scope.
+  shared?: boolean;
+  // The WorkspaceRoom Durable Object's name, once shared/joined.
+  // Deliberately separate from `id`: a workspace joined via "merge into an
+  // existing workspace" keeps its own local id/name but still needs to
+  // know which remote room to connect to.
+  remoteId?: string;
 }
 
 export interface Doc {

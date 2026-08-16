@@ -126,4 +126,16 @@ describe("workspaces store — mutations", () => {
     expect(get(activeWorkspaceIdStore)).toBe(second.id);
     expect(get(workspacesStore).map((w) => w.id)).toEqual([second.id]);
   });
+
+  it("persists shared and remoteId through createWorkspace + reload", async () => {
+    const { workspacesStore, createWorkspace, persistWorkspaces } = await import("./workspaces");
+    const ws = createWorkspace("Team Docs");
+    workspacesStore.update((all) => all.map((w) => (w.id === ws.id ? { ...w, shared: true, remoteId: "room-abc" } : w)));
+    persistWorkspaces();
+
+    const stored = JSON.parse(localStorage.getItem("mde:workspaces")!);
+    const found = stored.find((w: { id: string }) => w.id === ws.id);
+    expect(found.shared).toBe(true);
+    expect(found.remoteId).toBe("room-abc");
+  });
 });

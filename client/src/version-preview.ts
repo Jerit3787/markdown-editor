@@ -28,14 +28,23 @@ function escapeHtml(str: string): string {
 
 export async function renderVersionPreview(content: string, doc: Doc | undefined, container: HTMLElement): Promise<void> {
   const renderer = new marked.Renderer();
-  renderer.image = (href: string, title: string | null, text: string) => {
+  // marked 18's renderer overrides take a single token object, not
+  // positional args (see app.ts's updatePreview() for the same change,
+  // verified against the actual loaded version's marked.d.ts).
+  renderer.image = ({ href, title, text }) => {
     const resolved = doc && doc.images && doc.images[href] ? doc.images[href] : href;
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
     return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || "")}"${titleAttr}>`;
   };
   const defaultCodeRenderer = marked.Renderer.prototype.code.bind(renderer);
-  renderer.code = (code: string, infostring: string | undefined, escaped: boolean) =>
-    mermaidCodeRenderer(code, infostring, escaped, defaultCodeRenderer, doc?.diagrams);
+  renderer.code = ({ text, lang, escaped }) =>
+    mermaidCodeRenderer(
+      text,
+      lang,
+      !!escaped,
+      (code, infostring, esc) => defaultCodeRenderer({ type: "code", raw: code, text: code, lang: infostring, escaped: esc }),
+      doc?.diagrams
+    );
 
   const { text: extractedRaw, sources } = extractMathSpans(content);
   const html = marked.parse(extractedRaw, { gfm: true, breaks: false, renderer }) as string;

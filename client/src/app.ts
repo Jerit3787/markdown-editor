@@ -1290,27 +1290,38 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const renderer = new marked.Renderer();
     // ![alt](refName) resolves against doc.images; anything not a known
     // ref (a real URL, or an old doc predating this feature that still has
-    // the full data URI inline) passes through untouched. marked 12's
-    // built-in image renderer takes positional (href, title, text), not a
-    // token object — verified against the actual loaded version.
-    renderer.image = (href: string, title: string | null, text: string) => {
+    // the full data URI inline) passes through untouched. marked 18's
+    // renderer overrides take a single token object, not positional args
+    // (changed across the marked 12 -> 18 upgrade — verified against the
+    // actual loaded version's marked.d.ts, not assumed).
+    renderer.image = ({ href, title, text }) => {
       const resolved = doc && doc.images && doc.images[href] ? doc.images[href] : href;
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
       return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || "")}"${titleAttr}>`;
     };
     // ```mermaid fences render as diagrams (see mermaid-preview.ts); every
     // other language falls through to marked's own default code renderer.
+    // mermaidCodeRenderer() itself keeps its original positional (code,
+    // infostring, escaped) signature — it's a plain, independently-tested
+    // utility with no marked-specific shape of its own — so the object <->
+    // positional conversion happens only here, at the marked boundary.
     const defaultCodeRenderer = marked.Renderer.prototype.code.bind(renderer);
-    renderer.code = (code: string, infostring: string | undefined, escaped: boolean) =>
-      mermaidCodeRenderer(code, infostring, escaped, defaultCodeRenderer, doc?.diagrams);
+    renderer.code = ({ text, lang, escaped }) =>
+      mermaidCodeRenderer(
+        text,
+        lang,
+        !!escaped,
+        (code, infostring, esc) => defaultCodeRenderer({ type: "code", raw: code, text: code, lang: infostring, escaped: esc }),
+        doc?.diagrams
+      );
     // [[Name]] links (see wikilinks.ts's transformWikilinks, applied
     // below) become "wikilink:"-scheme links — resolved against the
     // current document list at render time so a rename/delete elsewhere
     // is reflected on the next keystroke, same as every other preview
     // content.
     const defaultLinkRenderer = marked.Renderer.prototype.link.bind(renderer);
-    renderer.link = (href: string, title: string | null, text: string) => {
-      if (!href.startsWith("wikilink:")) return defaultLinkRenderer(href, title, text);
+    renderer.link = ({ href, title, text, tokens }) => {
+      if (!href.startsWith("wikilink:")) return defaultLinkRenderer({ type: "link", raw: href, href, title: title ?? null, text, tokens: tokens ?? [] });
       const name = decodeURIComponent(href.slice("wikilink:".length));
       const exists = !!resolveWikilinkTarget(name, get(docsStore));
       const cls = exists ? "wikilink" : "wikilink wikilink-missing";

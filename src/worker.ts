@@ -11,6 +11,7 @@ import {
   handleGistList,
 } from "./github-auth.js";
 import { handleGistImageUpload } from "./gist-images.js";
+import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoPush } from "./github-repo.js";
 import type { Env } from "./env";
 
 const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
@@ -25,6 +26,9 @@ const WORKSPACE_DOC_VERSIONS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/
 const WORKSPACE_DOC_COMMENTS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/comments(\/.*)?$/;
 const GIST_PATH = /^\/api\/gist\/([0-9a-f]+)$/i;
 const GIST_IMAGE_PATH = /^\/api\/gist\/([0-9a-f]+)\/image$/i;
+const REPO_TREE_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/tree$/;
+const REPO_BLOB_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/blob\/([0-9a-f]+)$/i;
+const REPO_PUSH_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/push$/;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -109,6 +113,21 @@ export default {
     const gistMatch = url.pathname.match(GIST_PATH);
     if (gistMatch && request.method === "PATCH") return handleGistUpdate(request, env, gistMatch[1]!);
     if (gistMatch && request.method === "GET") return handleGistGet(request, env, gistMatch[1]!);
+
+    if (url.pathname === "/api/repo/list" && request.method === "GET") return handleRepoList(request, env);
+    if (url.pathname === "/api/repo/create" && request.method === "POST") return handleRepoCreate(request, env);
+
+    const repoTreeMatch = url.pathname.match(REPO_TREE_PATH);
+    if (repoTreeMatch && request.method === "GET") {
+      const branch = url.searchParams.get("branch") || "";
+      return handleRepoTree(request, env, repoTreeMatch[1]!, repoTreeMatch[2]!, branch);
+    }
+
+    const repoBlobMatch = url.pathname.match(REPO_BLOB_PATH);
+    if (repoBlobMatch && request.method === "GET") return handleRepoBlob(request, env, repoBlobMatch[1]!, repoBlobMatch[2]!, repoBlobMatch[3]!);
+
+    const repoPushMatch = url.pathname.match(REPO_PUSH_PATH);
+    if (repoPushMatch && request.method === "POST") return handleRepoPush(request, env, repoPushMatch[1]!, repoPushMatch[2]!);
 
     return env.ASSETS.fetch(request);
   },

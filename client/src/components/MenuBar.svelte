@@ -9,6 +9,8 @@
   import { versionHistoryOpen } from "../stores/versionHistory";
   import { commentsPanelOpen } from "../stores/commentsPanel";
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
+  import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
+  import { repoSyncBusyLabel } from "../stores/repoSync";
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
   let editMenuBtn: HTMLButtonElement, editMenu: HTMLDivElement;
@@ -22,6 +24,9 @@
   const recentDocs = $derived([...$docsStore].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8));
   const viewEditorOn = $derived(isEditorOn($viewMode));
   const viewPreviewOn = $derived(isPreviewOn($viewMode));
+  const activeWorkspace = $derived($workspacesStore.find((w) => w.id === $activeWorkspaceIdStore));
+  const hasRepoLink = $derived(!!activeWorkspace?.repoLink);
+  const repoLinkLabel = $derived(activeWorkspace?.repoLink ? `${activeWorkspace.repoLink.owner}/${activeWorkspace.repoLink.repo}` : "");
 
   // Every action below closes the menu it came from afterward — matching
   // the old per-menu closeFileMenu()/closeEditMenu()/etc., which
@@ -114,6 +119,30 @@
           <a id="gistViewLink" class="menu-link-item" href={hasGist ? `https://gist.github.com/${activeDoc?.gistId}` : "#"} target="_blank" rel="noopener" hidden={!hasGist}>
             <svg class="icon"><use href="#icon-external-link"></use></svg> View Gist
           </a>
+        </div>
+      </div>
+
+      <div class="menu-submenu">
+        <button class="menu-submenu-trigger" type="button">
+          <svg class="icon"><use href="#icon-github"></use></svg> GitHub Repo <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
+        </button>
+        <div class="menu-submenu-panel">
+          {#if !hasRepoLink}
+            <button type="button" onclick={() => act(() => window.MDE.openRepoLinkModal?.())}>
+              <svg class="icon"><use href="#icon-github"></use></svg> Link Workspace to Repo...
+            </button>
+          {:else}
+            <div class="menu-section-label">{repoLinkLabel}</div>
+            <button type="button" disabled={!!$repoSyncBusyLabel} onclick={() => act(() => window.MDE.pullFromRepoAction?.())}>
+              <svg class="icon"><use href="#icon-download"></use></svg> {$repoSyncBusyLabel === "Pulling…" ? "Pulling…" : "Pull from Repo"}
+            </button>
+            <button type="button" disabled={!!$repoSyncBusyLabel} onclick={() => act(() => window.MDE.pushToRepoAction?.())}>
+              <svg class="icon"><use href="#icon-upload"></use></svg> {$repoSyncBusyLabel === "Pushing…" ? "Pushing…" : "Push to Repo"}
+            </button>
+            <button type="button" onclick={() => act(() => window.MDE.unlinkRepo?.())}>
+              <svg class="icon"><use href="#icon-x"></use></svg> Unlink Repo
+            </button>
+          {/if}
         </div>
       </div>
 

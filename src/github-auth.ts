@@ -26,7 +26,7 @@ export async function handleLogin(request: Request, env: Env): Promise<Response>
   const authorizeUrl = new URL(AUTHORIZE_URL);
   authorizeUrl.searchParams.set("client_id", env.GITHUB_CLIENT_ID);
   authorizeUrl.searchParams.set("redirect_uri", `${url.origin}/api/auth/github/callback`);
-  authorizeUrl.searchParams.set("scope", "gist");
+  authorizeUrl.searchParams.set("scope", "repo");
   authorizeUrl.searchParams.set("state", state);
 
   const headers = new Headers({ Location: authorizeUrl.toString() });
@@ -136,26 +136,29 @@ function escapeHtml(str: string): string {
 
 export async function handleMe(request: Request, env: Env): Promise<Response> {
   const session = await getSession(request, env);
-  if (!session) return Response.json({ connected: false });
+  if (!session) return Response.json({ connected: false, scopes: [] });
 
   // Only a 401 from GitHub means the token is definitely invalid/revoked
   // — a 403 (rate-limited), a transient 5xx, or the fetch itself failing
   // outright don't mean that, and signing the user out for any of those
   // would be a false positive. Fail open: trust the locally-decrypted
   // session unless GitHub explicitly says the token is no good.
+  let scopes: string[] = [];
   try {
     const userRes = await fetch(`${API}/user`, { headers: ghHeaders(session.token) });
     if (userRes.status === 401) {
       const headers = new Headers();
       headers.append("Set-Cookie", cookieHeader(SESSION_COOKIE, "", { maxAge: 0 }));
-      return Response.json({ connected: false }, { headers });
+      return Response.json({ connected: false, scopes: [] }, { headers });
     }
+    const scopeHeader = userRes.headers.get("X-OAuth-Scopes");
+    if (scopeHeader) scopes = scopeHeader.split(",").map((s) => s.trim()).filter(Boolean);
   } catch (err) {
     // Couldn't reach GitHub to verify — fall through and trust the
     // local session rather than signing the user out over a network blip.
   }
 
-  return Response.json({ connected: true, username: session.username });
+  return Response.json({ connected: true, username: session.username, scopes });
 }
 
 export async function handleGistCreate(request: Request, env: Env): Promise<Response> {

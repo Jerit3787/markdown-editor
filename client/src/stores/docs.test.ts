@@ -280,4 +280,59 @@ describe("docs store — workspace integration", () => {
     expect(docs).toHaveLength(2);
     expect(docs.find((d) => d.id === "remote-1")?.name).toBe("Notes-2");
   });
+
+  it("docsInWorkspace returns only docs belonging to the given workspace", async () => {
+    const { createDoc, docsInWorkspace } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const wsA = createWorkspace("A");
+    const docA = createDoc({ workspaceId: wsA.id, name: "a" });
+    const wsB = createWorkspace("B");
+    createDoc({ workspaceId: wsB.id, name: "b" });
+    expect(docsInWorkspace(wsA.id).map((d) => d.id)).toEqual([docA.id]);
+  });
+
+  it("upsertDocFromRepo creates a new doc when no doc in the workspace has this repoPath", async () => {
+    const { upsertDocFromRepo, docsInWorkspace } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    upsertDocFromRepo(ws.id, "notes.md", { name: "notes", content: "hello", repoSha: "sha1" });
+    const docs = docsInWorkspace(ws.id);
+    expect(docs).toHaveLength(1);
+    expect(docs[0]).toMatchObject({ name: "notes", content: "hello", repoPath: "notes.md", repoSha: "sha1", workspaceId: ws.id });
+  });
+
+  it("upsertDocFromRepo updates the existing doc in place when repoPath already matches", async () => {
+    const { upsertDocFromRepo, docsInWorkspace } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    upsertDocFromRepo(ws.id, "notes.md", { name: "notes", content: "v1", repoSha: "sha1" });
+    const firstId = docsInWorkspace(ws.id)[0]!.id;
+    upsertDocFromRepo(ws.id, "notes.md", { name: "notes", content: "v2", repoSha: "sha2" });
+    const docs = docsInWorkspace(ws.id);
+    expect(docs).toHaveLength(1);
+    expect(docs[0]!.id).toBe(firstId);
+    expect(docs[0]!.content).toBe("v2");
+    expect(docs[0]!.repoSha).toBe("sha2");
+  });
+
+  it("removeDocsByRepoPaths removes every doc in the workspace matching one of the given paths", async () => {
+    const { upsertDocFromRepo, removeDocsByRepoPaths, docsInWorkspace } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    upsertDocFromRepo(ws.id, "a.md", { name: "a", content: "", repoSha: "s1" });
+    upsertDocFromRepo(ws.id, "b.md", { name: "b", content: "", repoSha: "s2" });
+    removeDocsByRepoPaths(ws.id, ["a.md"]);
+    const docs = docsInWorkspace(ws.id);
+    expect(docs.map((d) => d.repoPath)).toEqual(["b.md"]);
+  });
+
+  it("setDocRepoLinkById sets repoPath/repoSha/repoImageShas on the given doc id", async () => {
+    const { createDoc, setDocRepoLinkById, docsInWorkspace } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "a" });
+    setDocRepoLinkById(doc.id, "a.md", "sha1", { "img-1": "imgsha1" });
+    const found = docsInWorkspace(ws.id).find((d) => d.id === doc.id);
+    expect(found).toMatchObject({ repoPath: "a.md", repoSha: "sha1", repoImageShas: { "img-1": "imgsha1" } });
+  });
 });

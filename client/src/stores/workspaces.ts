@@ -98,6 +98,16 @@ export function mergeSharedWorkspaceInto(workspaceId: string, remoteId: string):
   persistWorkspaces();
 }
 
+export function setWorkspaceRepoLink(id: string, repoLink: { owner: string; repo: string; branch: string }): void {
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink } : w)));
+  persistWorkspaces();
+}
+
+export function clearWorkspaceRepoLink(id: string): void {
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink: undefined } : w)));
+  persistWorkspaces();
+}
+
 export function renameWorkspace(id: string, name: string) {
   workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, name: name || "Untitled workspace" } : w)));
   persistWorkspaces();

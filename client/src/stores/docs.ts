@@ -408,3 +408,60 @@ export function moveDocToWorkspace(id: string, workspaceId: string) {
   updateDoc(id, { workspaceId });
   persistDocs();
 }
+
+export function docsInWorkspace(workspaceId: string): Doc[] {
+  return get(docsStore).filter((d) => d.workspaceId === workspaceId);
+}
+
+export function upsertDocFromRepo(
+  workspaceId: string,
+  repoPath: string,
+  data: {
+    name: string;
+    content: string;
+    images?: Record<string, string>;
+    diagrams?: Record<string, string>;
+    repoSha: string;
+    repoImageShas?: Record<string, string>;
+  }
+): void {
+  const existing = docsInWorkspace(workspaceId).find((d) => d.repoPath === repoPath);
+  if (existing) {
+    updateDoc(existing.id, {
+      content: data.content,
+      images: data.images,
+      diagrams: data.diagrams,
+      repoSha: data.repoSha,
+      repoImageShas: data.repoImageShas,
+      updatedAt: Date.now(),
+    });
+  } else {
+    const doc: Doc = {
+      id: uid(),
+      name: data.name,
+      content: data.content,
+      images: data.images,
+      diagrams: data.diagrams,
+      updatedAt: Date.now(),
+      createdAt: Date.now(),
+      workspaceId,
+      repoPath,
+      repoSha: data.repoSha,
+      repoImageShas: data.repoImageShas,
+    };
+    doc.name = ensureUniqueName(doc.name, get(docsStore));
+    docsStore.update((docs) => [doc, ...docs]);
+  }
+  persistDocs();
+}
+
+export function removeDocsByRepoPaths(workspaceId: string, repoPaths: string[]): void {
+  const paths = new Set(repoPaths);
+  const toRemove = docsInWorkspace(workspaceId).filter((d) => d.repoPath && paths.has(d.repoPath));
+  for (const doc of toRemove) removeDocById(doc.id);
+}
+
+export function setDocRepoLinkById(id: string, repoPath: string, repoSha: string, repoImageShas: Record<string, string> | undefined): void {
+  updateDoc(id, { repoPath, repoSha, repoImageShas });
+  persistDocs();
+}

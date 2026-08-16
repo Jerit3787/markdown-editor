@@ -179,3 +179,39 @@ describe("WorkspaceRoom.handleAccessRequest", () => {
     expect(res.status).toBe(403);
   });
 });
+
+const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
+
+describe("WorkspaceRoom version snapshots", () => {
+  it("takes an initial snapshot on the first check", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "v1"), "storage");
+    await room.maybeSnapshot("docA", docRoom, 1000);
+    const snapshots = await room.getSnapshots("docA");
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0]!.content).toBe("v1");
+  });
+
+  it("throttles snapshots within the interval", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "v1"), "storage");
+    await room.maybeSnapshot("docA", docRoom, 1000);
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(2, "v2"), "storage");
+    await room.maybeSnapshot("docA", docRoom, 1000 + SNAPSHOT_INTERVAL_MS - 1);
+    expect(await room.getSnapshots("docA")).toHaveLength(1);
+  });
+
+  it("keeps docA's and docB's snapshots independent", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docA = await room.loadDocRoom("docA");
+    const docB = await room.loadDocRoom("docB");
+    docA.doc.transact(() => docA.doc.getText("content").insert(0, "A"), "storage");
+    docB.doc.transact(() => docB.doc.getText("content").insert(0, "B"), "storage");
+    await room.maybeSnapshot("docA", docA, 1000);
+    await room.maybeSnapshot("docB", docB, 1000);
+    expect((await room.getSnapshots("docA"))[0]!.content).toBe("A");
+    expect((await room.getSnapshots("docB"))[0]!.content).toBe("B");
+  });
+});

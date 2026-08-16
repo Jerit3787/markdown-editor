@@ -175,6 +175,13 @@ export class WorkspaceRoom {
     const url = new URL(request.url);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
 
+    const restoreMatch = url.pathname.match(/\/docs\/([^/]+)\/versions\/([^/]+)\/restore$/);
+    if (restoreMatch) return this.handleVersionRestoreRequest(request, restoreMatch[1]!, restoreMatch[2]!);
+    const versionMatch = url.pathname.match(/\/docs\/([^/]+)\/versions\/([^/]+)$/);
+    if (versionMatch) return this.handleVersionContentRequest(request, versionMatch[1]!, versionMatch[2]!);
+    const versionsListMatch = url.pathname.match(/\/docs\/([^/]+)\/versions$/);
+    if (versionsListMatch) return this.handleVersionsListRequest(request, versionsListMatch[1]!);
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected websocket", { status: 426 });
     }
@@ -383,6 +390,7 @@ export class WorkspaceRoom {
     this.broadcast(encoding.toUint8Array(encoder), origin);
     if (origin === "storage") return;
     this.schedulePersist(docId, docRoom);
+    if (origin !== "restore") void this.maybeSnapshot(docId, docRoom);
   }
 
   handleAwarenessUpdate(docId: string, docRoom: DocRoom, added: number[], updated: number[], removed: number[], origin: unknown): void {
@@ -421,5 +429,76 @@ export class WorkspaceRoom {
       docRoom.persistScheduled = false;
       await this.state.storage.put(docStorageKey(docId, "update"), Y.encodeStateAsUpdate(docRoom.doc));
     }
+  }
+
+  // ---------- Version snapshots ----------
+
+  async getSnapshots(docId: string): Promise<Snapshot[]> {
+    const stored = await this.state.storage.get<Snapshot[]>(docStorageKey(docId, "snapshots"));
+    return stored || [];
+  }
+
+  async maybeSnapshot(docId: string, docRoom: DocRoom, now: number = Date.now()): Promise<void> {
+    const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
+    if (docRoom.lastSnapshotAt !== undefined && now - docRoom.lastSnapshotAt < SNAPSHOT_INTERVAL_MS) return;
+    const content = docRoom.doc.getText("content").toString();
+    const snapshots = await this.getSnapshots(docId);
+    const last = snapshots[snapshots.length - 1];
+    if (last && last.content === content) {
+      docRoom.lastSnapshotAt = last.timestamp;
+      return;
+    }
+    snapshots.push({ id: uid(), timestamp: now, content });
+    while (snapshots.length > 50) snapshots.shift();
+    await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);
+    docRoom.lastSnapshotAt = now;
+  }
+
+  async forceSnapshot(docId: string, docRoom: DocRoom, content: string, now: number = Date.now()): Promise<Snapshot> {
+    const snapshots = await this.getSnapshots(docId);
+    const snap: Snapshot = { id: uid(), timestamp: now, content };
+    snapshots.push(snap);
+    while (snapshots.length > 50) snapshots.shift();
+    await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);
+    docRoom.lastSnapshotAt = now;
+    return snap;
+  }
+
+  async handleVersionsListRequest(request: Request, docId: string): Promise<Response> {
+    if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const snapshots = await this.getSnapshots(docId);
+    const list = snapshots.map((s) => ({ id: s.id, timestamp: s.timestamp })).reverse();
+    return Response.json(list);
+  }
+
+  async handleVersionContentRequest(request: Request, docId: string, versionId: string): Promise<Response> {
+    if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const snapshots = await this.getSnapshots(docId);
+    const snap = snapshots.find((s) => s.id === versionId);
+    if (!snap) return new Response("Version not found.", { status: 404 });
+    return Response.json(snap);
+  }
+
+  async handleVersionRestoreRequest(request: Request, docId: string, versionId: string): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (auth.role !== "editor") return new Response("Only an editor can restore a version.", { status: 403 });
+    const snapshots = await this.getSnapshots(docId);
+    const snap = snapshots.find((s) => s.id === versionId);
+    if (!snap) return new Response("Version not found.", { status: 404 });
+
+    const docRoom = await this.loadDocRoom(docId);
+    const text = docRoom.doc.getText("content");
+    docRoom.doc.transact(() => {
+      text.delete(0, text.length);
+      text.insert(0, snap.content);
+    }, "restore");
+    const created = await this.forceSnapshot(docId, docRoom, snap.content);
+    return Response.json(created);
   }
 }

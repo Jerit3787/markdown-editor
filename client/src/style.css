@@ -707,7 +707,6 @@ body.focus-mode #statusbar {
   overflow: hidden;
 }
 .modal-box-v2.modal-box-wide { max-width: 560px; }
-.modal-box-v2.modal-box-full-height { height: 100%; }
 
 .modal-header {
   display: flex;
@@ -756,14 +755,6 @@ body.focus-mode #statusbar {
 .modal-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 .modal-body { flex: 1; overflow-y: auto; padding: 16px 24px 24px; }
-.modal-body.flush {
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
 .modal-body p { margin: 0 0 12px; color: var(--text-dim); font-size: 13.5px; line-height: 1.5; }
 
 .modal-footer {
@@ -914,6 +905,14 @@ body.focus-mode #statusbar {
   overflow: auto;
   padding: 20px;
 }
+.version-history-actions {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+.version-history-actions .primary-btn { width: auto; margin-bottom: 0; }
 
 /* Comments Panel (client/src/components/CommentsPanel.svelte) */
 .comment-draft-anchor {
@@ -1767,9 +1766,6 @@ body.focus-mode #statusbar {
   overflow-wrap: break-word;
 }
 
-/* Base CodeMirror Content Padding (matches #preview for visual balance) */
-.cm-content { padding: 40px 40px 4px 40px !important; }
-
 #preview h1, #preview h2, #preview h3 { line-height: 1.3; }
 #preview h1 { font-size: 1.9em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
 #preview h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
@@ -1896,7 +1892,6 @@ body.focus-mode #statusbar {
   display: grid;
   grid-template-columns: 1fr 1fr;
   overflow: hidden;
-  position: relative;
 }
 .diagram-editor-code-host {
   overflow: auto;
@@ -1954,6 +1949,7 @@ body.focus-mode #statusbar {
 .diagram-template-picker {
   position: absolute;
   inset: 0;
+  top: 57px;
   background: var(--bg);
   display: flex;
   flex-direction: column;
@@ -2209,8 +2205,11 @@ body.focus-mode #statusbar {
   input, textarea, select { font-size: 16px; }
   .cm-content { font-size: 16px; }
 
-  /* Mobile-friendly padding to avoid wasting horizontal space */
-  .cm-content { padding: 24px 16px 4px 16px !important; }
+  /* Mobile-friendly padding to avoid wasting horizontal space. Scoped to
+     the main editor's own mount point, not a bare .cm-content selector —
+     DiagramEditor.svelte's separate CodeMirror instance lives outside
+     #editor-mount and must not inherit this. */
+  #editor-mount .cm-content { padding: 24px 16px 4px 16px !important; }
   #preview {
   position: relative; padding: 24px 16px !important; }
 

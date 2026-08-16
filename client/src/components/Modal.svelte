@@ -11,10 +11,6 @@
     // the text out at the standard 560px wide tier). Prefer wide for
     // anything that just needs "a bit more room."
     maxWidth?: string;
-    // Stretch the modal to its maximum vertical height (85vh) instead of hugging its content
-    fullHeight?: boolean;
-    // Remove padding from the modal body and make it a flex container, perfect for split-pane editors
-    flush?: boolean;
     // For dialogs that can be triggered from inside an already-open
     // modal (currently just ConfirmDialog) — every modal shares the
     // same base z-index, so without this, which one paints on top is
@@ -33,7 +29,7 @@
     footer?: Snippet;
     children: Snippet;
   }
-  let { title, icon, wide = false, maxWidth, fullHeight = false, flush = false, elevated = false, labelledBy, onClose, quickAction, tabs, footer, children }: Props = $props();
+  let { title, icon, wide = false, maxWidth, elevated = false, labelledBy, onClose, quickAction, tabs, footer, children }: Props = $props();
 
   function backdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) onClose();
@@ -43,7 +39,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="modal-backdrop" class:elevated data-svelte-modal onclick={backdropClick}>
-  <div class="modal-box-v2" class:modal-box-wide={wide} class:modal-box-full-height={fullHeight} style:max-width={maxWidth} role="dialog" aria-modal="true" aria-labelledby={labelledBy}>
+  <div class="modal-box-v2" class:modal-box-wide={wide} style:max-width={maxWidth} role="dialog" aria-modal="true" aria-labelledby={labelledBy}>
     <div class="modal-header">
       <button type="button" class="modal-close-btn" onclick={onClose} aria-label="Close">
         <svg class="icon"><use href="#icon-x"></use></svg>
@@ -59,7 +55,7 @@
     {#if tabs}
       <div class="modal-tabs" role="tablist">{@render tabs()}</div>
     {/if}
-    <div class="modal-body" class:flush>
+    <div class="modal-body">
       {@render children()}
     </div>
     {#if footer}

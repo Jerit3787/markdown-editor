@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import Modal from "./Modal.svelte";
   import { versionHistoryOpen } from "../stores/versionHistory";
   import { getActiveDoc } from "../stores/docs";
   import {
@@ -105,13 +104,11 @@
 </script>
 
 {#if $versionHistoryOpen}
-  <Modal title="Version history" icon="icon-clock" maxWidth="900px" flush={true} fullHeight={true} labelledBy="versionHistoryTitle" onClose={close}>
-    {#snippet footer()}
-      <button type="button" class="primary-btn" disabled={!selectedId || restoring || !restoreAllowed} onclick={restore}>
-        Restore this version
-      </button>
-    {/snippet}
-
+  <div class="version-history-overlay" role="dialog" aria-modal="true" aria-labelledby="versionHistoryTitle">
+    <div class="version-history-header">
+      <h2 id="versionHistoryTitle">Version history</h2>
+      <button type="button" class="secondary-btn" onclick={close}>Close</button>
+    </div>
     <div class="version-history-body">
       <div class="version-history-list">
         {#if loading}
@@ -141,7 +138,12 @@
       </div>
       <div class="version-history-preview-wrap">
         <div class="version-history-preview" bind:this={previewEl}></div>
+        <div class="version-history-actions">
+          <button type="button" class="primary-btn" disabled={!selectedId || restoring || !restoreAllowed} onclick={restore}>
+            Restore this version
+          </button>
+        </div>
       </div>
     </div>
-  </Modal>
+  </div>
 {/if}

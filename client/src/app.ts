@@ -312,7 +312,16 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // ---------- Editor (CodeMirror 6) ----------
   const editorTheme = EditorView.theme({
     "&": { color: "var(--text)", backgroundColor: "var(--bg)", height: "100%" },
-    ".cm-content": { fontFamily: "var(--mono)", fontSize: "14.5px", lineHeight: "1.6", caretColor: "var(--text)" },
+    // Equal top/side padding matching #preview's own 40px, for visual
+    // balance between the two panes; bottom kept small (not also 40px) —
+    // a full 40px bottom padding left a gap at the editor's true scroll
+    // end large enough to visibly desync from the preview's own end.
+    // Scoped to only this editor instance via this theme extension
+    // (not a global `.cm-content` CSS rule) — DiagramEditor.svelte builds
+    // a separate CodeMirror instance with its own extensions and never
+    // includes this theme, so a global rule would have (and previously
+    // did) leak 40px of padding into that unrelated, much smaller editor.
+    ".cm-content": { fontFamily: "var(--mono)", fontSize: "14.5px", lineHeight: "1.6", padding: "40px 40px 4px 40px", caretColor: "var(--text)" },
     ".cm-scroller": { overflow: "auto", fontFamily: "var(--mono)" },
     "&.cm-focused": { outline: "none" },
     ".cm-cursor": { borderLeftColor: "var(--text)" },
@@ -904,6 +913,22 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         requestAnimationFrame(() => { syncingScroll = false; });
         return;
       }
+      // Mirrors the true-end case above, at the top: the interpolation
+      // below maps the editor's first visible block onto the preview's
+      // matching block, but the two panes' leading whitespace (their own
+      // independent top padding/margins, plus per-block gaps that don't
+      // scale identically between the editor's monospace layout and the
+      // preview's own typography) doesn't cancel out exactly at the
+      // boundary — pos 0 in the editor can still interpolate to a few tens
+      // of pixels short of true 0 in the preview. Snap explicitly instead
+      // of accepting whatever the interpolation lands on, exactly like the
+      // true-end case already does.
+      if (el.scrollTop <= SYNC_SCROLL_END_SLACK_PX) {
+        syncingScroll = true;
+        preview.scrollTop = 0;
+        requestAnimationFrame(() => { syncingScroll = false; });
+        return;
+      }
       // el.scrollTop is physical scroll-pixel space; lineBlockAtHeight
       // expects document-relative space (see editorPaddingTop()) — without
       // subtracting the padding back out here, every topLine resolution
@@ -927,6 +952,23 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       if (preview.scrollTop >= previewMax - SYNC_SCROLL_END_SLACK_PX) {
         syncingScroll = true;
         cm.dispatch({ effects: EditorView.scrollIntoView(cm.state.doc.length, { y: "end" }) });
+        requestAnimationFrame(() => { syncingScroll = false; });
+        return;
+      }
+      // Mirrors the true-end case above, and the editor-side true-start
+      // case in the other listener — same interpolation-doesn't-land-
+      // exactly-on-0 reasoning, from the preview side. A direct scrollTop
+      // assignment, not EditorView.scrollIntoView(0, {y:"start"}) (unlike
+      // the true-end case's cm.dispatch below) — scrollIntoView aligns
+      // document position 0 (which sits *after* .cm-content's own top
+      // padding) to the viewport edge, which scrolls past some of that
+      // padding rather than resting at the true scrollTop-0 position that
+      // shows all of it. That slack scales with the padding value: a few
+      // px for the small 4px bottom padding the true-end case deals with,
+      // but tens of px for the 40px top padding here.
+      if (preview.scrollTop <= SYNC_SCROLL_END_SLACK_PX) {
+        syncingScroll = true;
+        cm.scrollDOM.scrollTop = 0;
         requestAnimationFrame(() => { syncingScroll = false; });
         return;
       }

@@ -91,6 +91,21 @@ commitments.
       the active workspace; a document can be moved between workspaces;
       existing users migrate transparently onto a default "My
       Workspace." Purely local — no sharing or external sync yet (v1.20.0).
+- [x] **Workspace-level sharing.** Second sub-project. Sharing now
+      happens at the workspace level instead of one document at a
+      time — every document inside a shared workspace syncs live to
+      collaborators simultaneously. Sharing a single document moves it
+      into its own workspace first, then shares that. Opening a shared
+      workspace link for the first time asks whether to add it as a
+      new workspace or merge into one you already have (v1.21.0).
+- [x] **GitHub repo sync.** Third sub-project. Link a workspace to a
+      GitHub repo (`repo` OAuth scope), pull its `.md` files in as
+      docs (recursively, whole tree), and push local changes back out
+      as one atomic commit via the Git Data API. Per-file SHA-based
+      conflict detection — a changed-on-both-sides file always prompts
+      "keep mine / take theirs," never silently resolved. Independent
+      of live workspace sharing; the two features don't interact
+      (v1.22.0).
 
 ## Backlog — quick wins
 
@@ -112,21 +127,13 @@ New infrastructure, backend, or scope — each its own project.
 - [ ] AI-generated diagrams from a text prompt (flagged as bigger-bets
       tier in the original diagram editor design doc — needs an LLM
       backend, cost/auth model)
-- [ ] **Workspace-level sharing** — sub-project 2 of the workspace pivot
-      (Workspace core shipped above). Redesign the collab-room/Share
-      feature so a whole workspace, not one document, syncs live to
-      invited collaborators; a "which of your workspaces should this
-      go into?" flow when opening a shared file/workspace. To share
-      just one file, the user moves it into its own workspace and
-      shares that.
-- [ ] **GitHub repo sync** — sub-project 3. Link a workspace to a GitHub
-      repo (building on the GitHub OAuth already used for Gists), pull
-      its contents in, push/save workspace state back out.
-- [ ] **Google Drive sync** — sub-project 4. Same idea as GitHub repo
-      sync, but Drive is a separate OAuth provider/API integration from
-      scratch. Supersedes the earlier "multi-provider cloud sync
-      (Drive, Dropbox, OneDrive)" idea — scoped down to just Drive,
-      since Dropbox/OneDrive were never actually requested.
+- [ ] **Google Drive sync** — sub-project 4 of the workspace pivot
+      (Workspace core, workspace-level sharing, and GitHub repo sync
+      shipped above). Same idea as GitHub repo sync, but Drive is a
+      separate OAuth provider/API integration from scratch. Supersedes
+      the earlier "multi-provider cloud sync (Drive, Dropbox,
+      OneDrive)" idea — scoped down to just Drive, since Dropbox/
+      OneDrive were never actually requested.
 - [ ] Plugin / extension system
 - [ ] Slide / presentation export
 - [ ] Tag system + graph view
@@ -298,3 +305,19 @@ to matter later.
 - [ ] Tab-bar support in `Modal` (built in Phase 1, unused so far) has
       no real consumer yet — no modal in the app currently needs
       internal sub-sections
+- [ ] Fine-grained per-document roles within one shared workspace (e.g.
+      "editor on doc A, viewer on doc B" for the same person) — explicitly
+      out of scope for workspace-level sharing (v1.21.0); one role per
+      person applies uniformly to every document in the workspace
+- [ ] A dedicated conflict-resolution UI for name collisions when
+      merging a shared workspace into an existing one — v1.21.0 reuses
+      the existing rename-on-collision flow instead; reconsider if users
+      want to see/choose which side wins per document rather than an
+      automatic silent-suffix rename
+- [ ] Continuous/automatic GitHub repo sync — v1.22.0 is explicit
+      pull/push only (like the Gist flow), not a background process, and
+      doesn't interact with live workspace sharing even when both are
+      active on the same workspace
+- [ ] Subfolder-scoped or non-recursive GitHub repo linking — v1.22.0
+      always maps a linked workspace to the whole repo tree on a chosen
+      branch, recursively; no way to link to just a subfolder

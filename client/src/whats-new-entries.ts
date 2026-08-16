@@ -51,4 +51,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Documents now live inside a named workspace — switch, create, rename, or delete one from the new switcher in the sidebar. Existing documents move onto a default \"My Workspace\" automatically, and you can move a document to a different workspace from its \"⋮\" menu.",
     screenshot: "/whats-new/workspaces.png",
   },
+  {
+    version: "1.22.0",
+    title: "GitHub Repo Sync",
+    description:
+      "Link a workspace to a GitHub repo from File > GitHub Repo — every .md file in the repo becomes a doc, recursively. Push local changes back out as one commit, or pull the latest from GitHub, with per-file conflict detection: anything changed on both sides always asks you to pick a side, never silently overwrites.",
+    screenshot: "/whats-new/github-repo-sync.png",
+  },
 ];

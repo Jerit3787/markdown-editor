@@ -4,6 +4,31 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.22.0] - 2026-08-17
+
+### Added
+
+- **GitHub repo sync.** Link a workspace to a GitHub repo from File >
+  GitHub Repo — every `.md` file in the repo becomes a doc, recursively
+  through the whole tree. Pull the latest from the repo, or push local
+  changes back out as a single commit; embedded images push alongside
+  their doc as real files and resolve back on pull. Conflicts (a file
+  changed on both sides since the last sync) always prompt a per-file
+  "keep mine / take theirs" choice, never a silent overwrite. Deletions
+  sync both directions. Requires re-connecting your GitHub account once
+  (the sign-in scope changed from `gist` to `repo` to allow this).
+
+### Fixed
+
+- **The topbar stayed clickable behind an open modal.** A stacking-order
+  bug meant the topbar's own menus (File/Edit/View/Help, Share,
+  Settings) sat visually above every dialog's backdrop, so a click meant
+  for the backdrop could still reach a topbar button while a modal was
+  supposedly blocking the rest of the page.
+- **A non-destructive confirmation ("Move to its own workspace?" when
+  sharing a document) showed a delete-warning icon.** The confirm
+  dialog's icon now matches whether the action is actually destructive.
+
 ## [1.21.1] - 2026-08-17
 
 ### Fixed

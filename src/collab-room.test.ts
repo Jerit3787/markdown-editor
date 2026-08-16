@@ -611,3 +611,40 @@ describe("CollabRoom.handleMessage — read-only enforcement", () => {
     expect(room.doc.getText("content").toString()).toBe("hello");
   });
 });
+
+describe("CollabRoom.handleMigrateRequest", () => {
+  it("creates a tombstone and returns a workspace id on first migration", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
+
+    const seeded: unknown[] = [];
+    const fakeWorkspaceRoomFetch = async (req: Request) => {
+      seeded.push(await req.json());
+      return new Response(null, { status: 204 });
+    };
+    const envWithBinding = {
+      ...fakeEnv,
+      WORKSPACE_ROOM: { idFromName: (name: string) => name, get: () => ({ fetch: fakeWorkspaceRoomFetch }) },
+    } as unknown as Env;
+    room.env = envWithBinding;
+
+    const res = await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { workspaceId: string };
+    expect(body.workspaceId).toBeTruthy();
+    expect(seeded).toHaveLength(1);
+
+    const tombstone = await room.state.storage.get("migratedTo");
+    expect(tombstone).toBe(body.workspaceId);
+  });
+
+  it("returns the existing tombstone on a second migration call instead of migrating again", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await room.state.storage.put("migratedTo", "ws-existing");
+    const res = await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { workspaceId: string };
+    expect(body.workspaceId).toBe("ws-existing");
+  });
+});

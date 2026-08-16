@@ -287,3 +287,30 @@ describe("WorkspaceRoom document membership", () => {
     expect(room.docIds).toEqual(["docB"]);
   });
 });
+
+describe("WorkspaceRoom.handleInternalSeedRequest", () => {
+  it("seeds a document's Yjs state, access, snapshots, and comments from a migration payload", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "migrated content");
+    const update = Array.from(Y.encodeStateAsUpdate(scratch));
+
+    const request = new Request("https://example.com/internal/seed", {
+      method: "POST",
+      body: JSON.stringify({
+        docId: "docA",
+        update,
+        access: { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] },
+        snapshots: [{ id: "s1", timestamp: 1000, content: "migrated content" }],
+        comments: [],
+      }),
+    });
+    const res = await room.handleInternalSeedRequest(request);
+    expect(res.status).toBe(204);
+    expect(room.docIds).toEqual(["docA"]);
+    const docRoom = await room.loadDocRoom("docA");
+    expect(docRoom.doc.getText("content").toString()).toBe("migrated content");
+    expect(await room.getAccess()).toMatchObject({ owner: "alice" });
+    expect(await room.getSnapshots("docA")).toHaveLength(1);
+  });
+});

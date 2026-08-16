@@ -163,6 +163,7 @@ export class CollabRoom {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
+    if (url.pathname.endsWith("/migrate")) return this.handleMigrateRequest(request);
 
     const restoreMatch = url.pathname.match(/\/versions\/([^/]+)\/restore$/);
     if (restoreMatch) return this.handleVersionRestoreRequest(request, restoreMatch[1]!);
@@ -404,6 +405,42 @@ export class CollabRoom {
       return Response.json(next);
     }
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  // ---------- Migration to WorkspaceRoom ----------
+  // Lazy, per-document — there's no server-side index of "every document
+  // that has ever been shared" to bulk-migrate from (CollabRoom instances
+  // are addressed by name with no registry), so this runs the first time
+  // any collaborator opens a legacy shared document after this feature
+  // ships. Idempotent via the `migratedTo` tombstone: a second caller
+  // (another collaborator opening the same old link) gets the first
+  // caller's result instead of creating a duplicate workspace.
+  async handleMigrateRequest(request: Request): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+    const existingTombstone = await this.state.storage.get<string>("migratedTo");
+    if (existingTombstone) return Response.json({ workspaceId: existingTombstone });
+
+    const workspaceId = uid() + uid(); // wider than a doc id's own uid() to avoid any collision with existing workspace ids
+    const access = await this.getAccess();
+    const snapshots = await this.getSnapshots();
+    const docId = new URL(request.url).pathname.split("/")[3]!; // /api/collab/<docId>/migrate
+
+    const seedBody = {
+      docId,
+      update: Array.from(Y.encodeStateAsUpdate(this.doc)),
+      access,
+      snapshots,
+      comments: this.commentThreads,
+    };
+    const workspaceRoomId = this.env.WORKSPACE_ROOM.idFromName(workspaceId);
+    const res = await this.env.WORKSPACE_ROOM.get(workspaceRoomId).fetch(
+      new Request("https://internal/internal/seed", { method: "POST", body: JSON.stringify(seedBody) })
+    );
+    if (!res.ok) return new Response("Migration failed.", { status: 500 });
+
+    await this.state.storage.put("migratedTo", workspaceId);
+    return Response.json({ workspaceId });
   }
 
   // ---------- WebSocket session ----------

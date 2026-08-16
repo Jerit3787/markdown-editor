@@ -176,6 +176,7 @@ export class WorkspaceRoom {
     const url = new URL(request.url);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
     if (url.pathname.endsWith("/docs")) return this.handleDocsRequest(request);
+    if (url.pathname.endsWith("/internal/seed")) return this.handleInternalSeedRequest(request);
 
     const replyMatch = url.pathname.match(/\/docs\/([^/]+)\/comments\/([^/]+)\/reply$/);
     if (replyMatch) return this.handleCommentReplyRequest(request, replyMatch[1]!, replyMatch[2]!);
@@ -680,5 +681,44 @@ export class WorkspaceRoom {
     }
 
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  // ---------- Internal: seeding from a CollabRoom migration ----------
+  // Not part of the public API surface — only ever called by
+  // CollabRoom.handleMigrateRequest's own internal fetch(), never reachable
+  // from worker.ts's routing (see src/worker.ts's WORKSPACE_* patterns,
+  // none of which match "/internal/...").
+  async handleInternalSeedRequest(request: Request): Promise<Response> {
+    let body: { docId?: unknown; update?: unknown; access?: unknown; snapshots?: unknown; comments?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      return new Response("Invalid JSON.", { status: 400 });
+    }
+    if (typeof body.docId !== "string" || !Array.isArray(body.update)) {
+      return new Response("Invalid seed payload.", { status: 400 });
+    }
+    const docId = body.docId;
+
+    if (body.access) await this.state.storage.put("access", body.access);
+
+    const docRoom = await this.loadDocRoom(docId);
+    docRoom.doc.transact(() => Y.applyUpdate(docRoom.doc, new Uint8Array(body.update as number[]), "storage"), "storage");
+    if (Array.isArray(body.snapshots)) {
+      docRoom.snapshots = body.snapshots as Snapshot[];
+      await this.state.storage.put(docStorageKey(docId, "snapshots"), body.snapshots);
+    }
+    if (Array.isArray(body.comments)) {
+      docRoom.commentThreads = body.comments as CommentThread[];
+      await this.persistComments(docId, docRoom);
+    }
+
+    if (!this.docIds.includes(docId)) {
+      this.docIds = [...this.docIds, docId];
+      await this.state.storage.put("docs", this.docIds);
+    }
+    await this.state.storage.put(docStorageKey(docId, "update"), Y.encodeStateAsUpdate(docRoom.doc));
+
+    return new Response(null, { status: 204 });
   }
 }

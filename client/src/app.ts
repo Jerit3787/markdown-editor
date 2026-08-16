@@ -1284,9 +1284,21 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   // Everything always lives in this browser's localStorage first; the
   // status text just also surfaces whether it's *also* linked elsewhere,
-  // since that's the part that's easy to lose track of.
+  // since that's the part that's easy to lose track of. A doc's repo
+  // link isn't on the doc itself (repoPath/repoLink live one level up,
+  // on its containing Workspace — see types.ts) — resolve through
+  // workspacesStore rather than checking doc.repoPath alone, since a
+  // workspace can be repo-linked before any of its docs have actually
+  // synced to a path yet.
+  function docWorkspaceRepoLinked(doc: Doc | undefined): boolean {
+    if (!doc) return false;
+    return !!get(workspacesStore).find((w) => w.id === doc.workspaceId)?.repoLink;
+  }
+
   function savedLabel(doc: Doc | undefined) {
-    return doc && doc.gistId ? "Saved locally · linked to Gist" : "Saved locally";
+    if (!doc) return "Saved locally";
+    const links = [doc.gistId && "linked to Gist", docWorkspaceRepoLinked(doc) && "linked to repo"].filter(Boolean);
+    return links.length ? `Saved locally · ${links.join(" · ")}` : "Saved locally";
   }
 
   function setSaveStatus(text: string) {
@@ -1331,6 +1343,19 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const hasGist = doc && doc.gistId;
     gistLink.hidden = !hasGist;
     if (hasGist) gistLink.href = `https://gist.github.com/${doc.gistId}`;
+
+    const repoLink = document.getElementById("saveStatusRepoLink") as HTMLAnchorElement;
+    const workspaceRepoLink = doc && get(workspacesStore).find((w) => w.id === doc.workspaceId)?.repoLink;
+    repoLink.hidden = !workspaceRepoLink;
+    if (workspaceRepoLink) {
+      // Links straight to this doc's own file once it's actually synced
+      // to a path (repoPath is set the first time it's pulled or
+      // pushed) — falls back to the repo's root for a doc that's in a
+      // repo-linked workspace but hasn't synced yet itself.
+      repoLink.href = doc.repoPath
+        ? `https://github.com/${workspaceRepoLink.owner}/${workspaceRepoLink.repo}/blob/${workspaceRepoLink.branch}/${doc.repoPath}`
+        : `https://github.com/${workspaceRepoLink.owner}/${workspaceRepoLink.repo}`;
+    }
   }
 
   // ---------- Preview ----------

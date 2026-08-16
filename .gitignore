@@ -3,7 +3,7 @@ node_modules/
 .DS_Store
 *.log
 .claude/
-docs/
+
 .worktrees/
 .dev.vars
 client/dist/

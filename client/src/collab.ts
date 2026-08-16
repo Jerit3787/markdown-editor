@@ -407,6 +407,65 @@ export { colorForUsername };
 
 function setupShareUI() {
   document.getElementById("shareBtn").addEventListener("click", openShareModal);
+  
+  const dropdownBtn = document.getElementById("shareDropdownBtn");
+  const dropdownMenu = document.getElementById("shareDropdownMenu");
+  const copyBtn = document.getElementById("shareCopyLinkBtn");
+
+  dropdownBtn?.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const isOpen = dropdownMenu.classList.contains("open");
+    
+    // Close other dropdowns if we had a central registry, but here we just toggle this one
+    if (!isOpen) {
+      dropdownMenu.classList.add("open");
+      dropdownBtn.setAttribute("aria-expanded", "true");
+      
+      const doc = getActiveDoc();
+      if (doc) {
+        // Fetch access to display correct label in dropdown
+        currentAccess = await fetchAccess(doc.id);
+        const titleEl = document.getElementById("shareAccessTitle");
+        const descEl = document.getElementById("shareAccessDesc");
+        
+        if (currentAccess.generalAccess === "anyone") {
+          if (currentAccess.requireAccount) {
+            titleEl.textContent = "Anyone with an account";
+            descEl.textContent = "Anyone with a GitHub account and the link can access.";
+          } else {
+            titleEl.textContent = "Anyone with the link";
+            descEl.textContent = "Anyone who has the link can access. No sign-in required.";
+          }
+        } else {
+          titleEl.textContent = "Restricted";
+          descEl.textContent = "Only people with access can open with the link.";
+        }
+      }
+    } else {
+      dropdownMenu.classList.remove("open");
+      dropdownBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  copyBtn?.addEventListener("click", async () => {
+    const link = buildShareLink();
+    if (link) {
+      await navigator.clipboard.writeText(link);
+      showToast("Link copied to clipboard", "success");
+    } else {
+      showToast("Document must be shared first", "error");
+    }
+    dropdownMenu.classList.remove("open");
+    dropdownBtn.setAttribute("aria-expanded", "false");
+  });
+
+  document.addEventListener("click", (e) => {
+    if (dropdownMenu?.classList.contains("open") && !dropdownBtn.contains(e.target as Node) && !dropdownMenu.contains(e.target as Node)) {
+      dropdownMenu.classList.remove("open");
+      dropdownBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+
   syncShareStores();
 }
 
@@ -571,6 +630,7 @@ function syncShareStores() {
   const doc = getActiveDoc();
   shareDocName.set((doc && doc.name) || "Untitled");
   document.getElementById("shareBtn").classList.toggle("active", !!room.id);
+  document.getElementById("shareDropdownBtn")?.classList.toggle("active", !!room.id);
   updatePresence();
 }
 

@@ -1621,6 +1621,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     collapseSidebarForMobile();
     setSidebarToggleState(!document.getElementById("sidebar").classList.contains("collapsed"));
 
+    const mql = window.matchMedia("(max-width: 780px)");
+    mql.addEventListener("change", (e) => {
+      if (e.matches) collapseSidebarForMobile();
+    });
+
     document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarToggleOut").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarBackdrop").addEventListener("click", toggleSidebar);

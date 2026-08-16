@@ -1626,6 +1626,10 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       if (e.matches) collapseSidebarForMobile();
     });
 
+    commentsPanelOpen.subscribe((open) => {
+      document.getElementById("body")?.classList.toggle("comments-open", open);
+    });
+
     document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarToggleOut").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarBackdrop").addEventListener("click", toggleSidebar);

@@ -99,6 +99,7 @@ body.focus-mode #statusbar {
    them — matching the mockup's rowspan=2 logo/actions cells exactly,
    rather than approximating it with padding on a stacked-flex layout. */
 #topbar {
+  z-index: 300;
   position: relative;
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -2220,7 +2221,8 @@ body.focus-mode #statusbar {
      brand, title content, and the actions cluster share the first
      line (wrapping as needed), and the menu bar is forced onto its
      own full-width line below via flex-basis. */
-  #topbar { display: flex; flex-wrap: wrap; align-items: center; padding: 6px 10px; }
+  #topbar {
+  z-index: 300; display: flex; flex-wrap: wrap; align-items: center; padding: 6px 10px; }
   #brand { order: 1; border-right: none; padding: 0 8px 0 0; }
   #brand img { width: 22px; height: 22px; }
   #topbarRow1 { order: 2; flex: 1; padding: 0; min-width: 0; }

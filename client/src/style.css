@@ -2193,6 +2193,16 @@ body.focus-mode #statusbar {
   #body.mode-split #divider { display: none; }
   #docTitle { max-width: 120px; }
 
+  /* Redefine grid on mobile so #main spans full width. #sidebar and
+     .comments-panel are position: fixed on mobile, so they don't need
+     grid areas. This prevents an empty column under .view-selector. */
+  #body {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "toolbar view-selector"
+      "main    main";
+  }
+
   /* iOS Safari auto-zooms the whole page in when a focused input's
      computed font-size is under 16px, and never zooms back out on
      blur. Catches every text field in the app generically — comment

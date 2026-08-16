@@ -4,6 +4,26 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.21.0] - 2026-08-16
+
+### Added
+
+- **Workspace-level sharing.** Sharing now happens at the workspace
+  level instead of one document at a time — every document inside a
+  shared workspace syncs live to collaborators simultaneously, not
+  just whichever one is currently open. Sharing a single document
+  (from its existing Share button) moves it into its own new
+  workspace first if it isn't already alone in one, then shares that.
+  Opening a shared workspace link for the first time now asks whether
+  to add it as a new workspace of its own or merge its documents into
+  one you already have. Version history and comments keep working
+  exactly as before, just re-scoped to the workspace. The doc list
+  shows a small presence indicator next to whichever document each
+  collaborator currently has open, across the whole workspace.
+  Documents shared before this release keep working — they migrate
+  to the new model automatically and transparently the next time
+  anyone opens them.
+
 ## [1.20.3] - 2026-08-16
 
 ### Fixed

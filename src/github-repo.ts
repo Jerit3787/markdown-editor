@@ -63,3 +63,45 @@ async function safeJson<T>(res: Response): Promise<T | null> {
     return null;
   }
 }
+
+export interface TreeEntry {
+  path: string;
+  sha: string;
+  type: "blob" | "tree";
+}
+
+export function filterMarkdownEntries(entries: TreeEntry[]): TreeEntry[] {
+  return entries.filter((e) => e.type === "blob" && /\.md$/i.test(e.path));
+}
+
+// Resolves the branch to its current commit sha first, then fetches that
+// exact commit's tree — rather than passing the branch name straight to
+// the trees endpoint (which GitHub also accepts and resolves internally).
+// The two-step version costs one extra request but means the response can
+// hand back the commit sha too: the push endpoint below needs it (as
+// parents[0] for the new commit) and has no other way to get it, since
+// nothing else in this file resolves a branch to a commit.
+export async function handleRepoTree(request: Request, env: Env, owner: string, repo: string, branch: string): Promise<Response> {
+  const session = await getSession(request, env);
+  if (!session) return new Response("Not signed in", { status: 401 });
+  const headers = ghHeaders(session.token);
+  const refRes = await fetch(`${API}/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, { headers });
+  if (!refRes.ok) return proxyJson(refRes);
+  const refData = await safeJson<{ object: { sha: string } }>(refRes);
+  if (!refData) return new Response("Failed to resolve branch: invalid response", { status: 502 });
+  const commitSha = refData.object.sha;
+
+  const treeRes = await fetch(`${API}/repos/${owner}/${repo}/git/trees/${commitSha}?recursive=1`, { headers });
+  if (!treeRes.ok) return proxyJson(treeRes);
+  const treeData = await safeJson<{ sha: string; tree: TreeEntry[] }>(treeRes);
+  if (!treeData) return new Response("Failed to fetch tree: invalid response", { status: 502 });
+
+  return Response.json({ commitSha, treeSha: treeData.sha, tree: treeData.tree });
+}
+
+export async function handleRepoBlob(request: Request, env: Env, owner: string, repo: string, sha: string): Promise<Response> {
+  const session = await getSession(request, env);
+  if (!session) return new Response("Not signed in", { status: 401 });
+  const res = await fetch(`${API}/repos/${owner}/${repo}/git/blobs/${sha}`, { headers: ghHeaders(session.token) });
+  return proxyJson(res);
+}

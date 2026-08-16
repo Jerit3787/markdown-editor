@@ -4,6 +4,7 @@ import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
+import { relocateAnchor } from "./anchor";
 import type { Env } from "./env";
 
 const MESSAGE_SYNC = 0;
@@ -174,6 +175,15 @@ export class WorkspaceRoom {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
+
+    const replyMatch = url.pathname.match(/\/docs\/([^/]+)\/comments\/([^/]+)\/reply$/);
+    if (replyMatch) return this.handleCommentReplyRequest(request, replyMatch[1]!, replyMatch[2]!);
+    const resolveMatch = url.pathname.match(/\/docs\/([^/]+)\/comments\/([^/]+)\/resolve$/);
+    if (resolveMatch) return this.handleCommentResolveRequest(request, resolveMatch[1]!, resolveMatch[2]!);
+    const commentIdMatch = url.pathname.match(/\/docs\/([^/]+)\/comments\/([^/]+)$/);
+    if (commentIdMatch) return this.handleCommentDeleteRequest(request, commentIdMatch[1]!, commentIdMatch[2]!);
+    const commentsMatch = url.pathname.match(/\/docs\/([^/]+)\/comments$/);
+    if (commentsMatch) return this.handleCommentsRequest(request, commentsMatch[1]!);
 
     const restoreMatch = url.pathname.match(/\/docs\/([^/]+)\/versions\/([^/]+)\/restore$/);
     if (restoreMatch) return this.handleVersionRestoreRequest(request, restoreMatch[1]!, restoreMatch[2]!);
@@ -389,6 +399,7 @@ export class WorkspaceRoom {
     syncProtocol.writeUpdate(encoder, update);
     this.broadcast(encoding.toUint8Array(encoder), origin);
     if (origin === "storage") return;
+    this.refreshCommentAnchors(docRoom, docRoom.doc.getText("content").toString());
     this.schedulePersist(docId, docRoom);
     if (origin !== "restore") void this.maybeSnapshot(docId, docRoom);
   }
@@ -428,6 +439,7 @@ export class WorkspaceRoom {
       if (!docRoom.persistScheduled && this.sessions.size > 0) continue;
       docRoom.persistScheduled = false;
       await this.state.storage.put(docStorageKey(docId, "update"), Y.encodeStateAsUpdate(docRoom.doc));
+      await this.persistComments(docId, docRoom);
     }
   }
 
@@ -500,5 +512,134 @@ export class WorkspaceRoom {
     }, "restore");
     const created = await this.forceSnapshot(docId, docRoom, snap.content);
     return Response.json(created);
+  }
+
+  // ---------- Comment threads ----------
+
+  getComments(docId: string): CommentThread[] {
+    return this.docs.get(docId)?.commentThreads || [];
+  }
+
+  async persistComments(docId: string, docRoom: DocRoom): Promise<void> {
+    await this.state.storage.put(docStorageKey(docId, "comments"), docRoom.commentThreads);
+  }
+
+  createThread(docId: string, docRoom: DocRoom, from: number, to: number, quote: string, author: string, body: string, now: number = Date.now()): CommentThread {
+    const thread: CommentThread = {
+      id: uid(),
+      from,
+      to,
+      quote,
+      orphaned: false,
+      resolved: false,
+      comments: [{ id: uid(), author, body, createdAt: now }],
+    };
+    docRoom.commentThreads = [...docRoom.commentThreads, thread];
+    return thread;
+  }
+
+  addReply(docRoom: DocRoom, threadId: string, author: string, body: string, now: number = Date.now()): CommentThread | null {
+    const thread = docRoom.commentThreads.find((t) => t.id === threadId);
+    if (!thread) return null;
+    thread.comments = [...thread.comments, { id: uid(), author, body, createdAt: now }];
+    return thread;
+  }
+
+  resolveThread(docRoom: DocRoom, threadId: string, resolved: boolean): CommentThread | null {
+    const thread = docRoom.commentThreads.find((t) => t.id === threadId);
+    if (!thread) return null;
+    thread.resolved = resolved;
+    return thread;
+  }
+
+  deleteThread(docRoom: DocRoom, threadId: string, username: string | null, isOwner: boolean): "deleted" | "not_found" | "forbidden" {
+    const thread = docRoom.commentThreads.find((t) => t.id === threadId);
+    if (!thread) return "not_found";
+    const startedBy = thread.comments[0]?.author;
+    if (!isOwner && startedBy !== username) return "forbidden";
+    docRoom.commentThreads = docRoom.commentThreads.filter((t) => t.id !== threadId);
+    return "deleted";
+  }
+
+  refreshCommentAnchors(docRoom: DocRoom, content: string): void {
+    docRoom.commentThreads = docRoom.commentThreads.map((t) => {
+      const relocated = relocateAnchor(content, t);
+      if (!relocated) return { ...t, orphaned: true };
+      return { ...t, from: relocated.from, to: relocated.to, orphaned: false };
+    });
+  }
+
+  async handleCommentsRequest(request: Request, docId: string): Promise<Response> {
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const docRoom = await this.loadDocRoom(docId);
+    if (request.method === "GET") return Response.json(this.getComments(docId));
+    if (request.method === "POST") {
+      if (auth.role === "viewer") return new Response("Viewers can't comment.", { status: 403 });
+      let body: { from?: unknown; to?: unknown; quote?: unknown; body?: unknown };
+      try {
+        body = await request.json();
+      } catch (err) {
+        return new Response("Invalid JSON.", { status: 400 });
+      }
+      if (typeof body.from !== "number" || typeof body.to !== "number" || typeof body.quote !== "string" || typeof body.body !== "string" || !body.body.trim()) {
+        return new Response("Invalid comment.", { status: 400 });
+      }
+      const thread = this.createThread(docId, docRoom, body.from, body.to, body.quote, auth.username || "Anonymous", body.body);
+      await this.persistComments(docId, docRoom);
+      return Response.json(thread);
+    }
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  async handleCommentReplyRequest(request: Request, docId: string, threadId: string): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (auth.role === "viewer") return new Response("Viewers can't comment.", { status: 403 });
+    let body: { body?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      return new Response("Invalid JSON.", { status: 400 });
+    }
+    if (typeof body.body !== "string" || !body.body.trim()) return new Response("Invalid reply.", { status: 400 });
+    const docRoom = await this.loadDocRoom(docId);
+    const thread = this.addReply(docRoom, threadId, auth.username || "Anonymous", body.body);
+    if (!thread) return new Response("Thread not found.", { status: 404 });
+    await this.persistComments(docId, docRoom);
+    return Response.json(thread);
+  }
+
+  async handleCommentResolveRequest(request: Request, docId: string, threadId: string): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (auth.role === "viewer") return new Response("Viewers can't resolve comments.", { status: 403 });
+    let body: { resolved?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      return new Response("Invalid JSON.", { status: 400 });
+    }
+    const docRoom = await this.loadDocRoom(docId);
+    const thread = this.resolveThread(docRoom, threadId, body.resolved !== false);
+    if (!thread) return new Response("Thread not found.", { status: 404 });
+    await this.persistComments(docId, docRoom);
+    return Response.json(thread);
+  }
+
+  async handleCommentDeleteRequest(request: Request, docId: string, threadId: string): Promise<Response> {
+    if (request.method !== "DELETE") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const access = await this.getAccess();
+    const isOwner = auth.username !== null && auth.username === access.owner;
+    const docRoom = await this.loadDocRoom(docId);
+    const result = this.deleteThread(docRoom, threadId, auth.username, isOwner);
+    if (result === "not_found") return new Response("Thread not found.", { status: 404 });
+    if (result === "forbidden") return new Response("Only the thread's author or the workspace owner can delete it.", { status: 403 });
+    await this.persistComments(docId, docRoom);
+    return new Response(null, { status: 204 });
   }
 }

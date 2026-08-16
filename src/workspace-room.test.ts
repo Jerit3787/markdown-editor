@@ -215,3 +215,31 @@ describe("WorkspaceRoom version snapshots", () => {
     expect((await room.getSnapshots("docB"))[0]!.content).toBe("B");
   });
 });
+
+describe("WorkspaceRoom comment threads", () => {
+  it("creates a thread and persists it under the doc's own storage key", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    room.createThread("docA", docRoom, 0, 5, "hello", "alice", "nice edit");
+    await room.persistComments("docA", docRoom);
+    const stored = await room.state.storage.get("doc:docA:comments");
+    expect(stored).toHaveLength(1);
+  });
+
+  it("keeps docA's and docB's threads independent", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docA = await room.loadDocRoom("docA");
+    const docB = await room.loadDocRoom("docB");
+    room.createThread("docA", docA, 0, 5, "a", "alice", "on A");
+    expect(room.getComments("docB")).toHaveLength(0);
+    expect(room.getComments("docA")).toHaveLength(1);
+  });
+
+  it("only the thread's author or the workspace owner can delete it", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    const thread = room.createThread("docA", docRoom, 0, 5, "a", "alice", "note");
+    expect(room.deleteThread(docRoom, thread.id, "bob", false)).toBe("forbidden");
+    expect(room.deleteThread(docRoom, thread.id, "alice", false)).toBe("deleted");
+  });
+});

@@ -76,19 +76,26 @@ export async function handleCallback(request: Request, env: Env): Promise<Respon
 export async function handleLogout(request: Request, env: Env): Promise<Response> {
   const session = await getSession(request, env);
   if (session && session.token) {
-    // Revoke the authorization grant via GitHub API
-    const credentials = btoa(`${env.GITHUB_CLIENT_ID}:${env.GITHUB_CLIENT_SECRET}`);
-    await fetch(`${API}/applications/${env.GITHUB_CLIENT_ID}/grant`, {
-      method: "DELETE",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Basic ${credentials}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": USER_AGENT,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ access_token: session.token }),
-    });
+    // Best-effort: revoking the grant server-side is a nice-to-have on
+    // top of clearing the local session below, not a precondition for
+    // it. A network blip or GitHub-side hiccup here must never leave
+    // the user still signed in locally with no indication logout failed.
+    try {
+      const credentials = btoa(`${env.GITHUB_CLIENT_ID}:${env.GITHUB_CLIENT_SECRET}`);
+      await fetch(`${API}/applications/${env.GITHUB_CLIENT_ID}/grant`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Basic ${credentials}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": USER_AGENT,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ access_token: session.token }),
+      });
+    } catch (err) {
+      // ignored — see comment above
+    }
   }
 
   const headers = new Headers();
@@ -131,11 +138,21 @@ export async function handleMe(request: Request, env: Env): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return Response.json({ connected: false });
 
-  const userRes = await fetch(`${API}/user`, { headers: ghHeaders(session.token) });
-  if (!userRes.ok) {
-    const headers = new Headers();
-    headers.append("Set-Cookie", cookieHeader(SESSION_COOKIE, "", { maxAge: 0 }));
-    return Response.json({ connected: false }, { headers });
+  // Only a 401 from GitHub means the token is definitely invalid/revoked
+  // — a 403 (rate-limited), a transient 5xx, or the fetch itself failing
+  // outright don't mean that, and signing the user out for any of those
+  // would be a false positive. Fail open: trust the locally-decrypted
+  // session unless GitHub explicitly says the token is no good.
+  try {
+    const userRes = await fetch(`${API}/user`, { headers: ghHeaders(session.token) });
+    if (userRes.status === 401) {
+      const headers = new Headers();
+      headers.append("Set-Cookie", cookieHeader(SESSION_COOKIE, "", { maxAge: 0 }));
+      return Response.json({ connected: false }, { headers });
+    }
+  } catch (err) {
+    // Couldn't reach GitHub to verify — fall through and trust the
+    // local session rather than signing the user out over a network blip.
   }
 
   return Response.json({ connected: true, username: session.username });

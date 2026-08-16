@@ -319,7 +319,24 @@
       <div class="topbar-actions">
         <button id="commentsBtn" class="icon-btn" type="button" title="Comments" aria-label="Comments"><svg class="icon"><use href="#icon-message-square"></use></svg></button>
         <button id="versionHistoryBtn" class="icon-btn" type="button" title="Version history" aria-label="Version history"><svg class="icon"><use href="#icon-history"></use></svg></button>
-        <button id="shareBtn" class="share-pill" type="button"><svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span></button>
+        <div class="share-btn-group" id="shareBtnGroup">
+          <button id="shareBtn" class="share-pill share-pill-main" type="button" title="Share">
+            <svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span>
+          </button>
+          <button id="shareDropdownBtn" class="share-pill share-pill-dropdown desktop-only" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Share options">
+            <svg class="icon"><use href="#icon-chevron-down"></use></svg>
+          </button>
+          <div id="shareDropdownMenu" class="dropdown-menu" style="right: 0; min-width: 260px;">
+            <button type="button" class="dropdown-item" id="shareCopyLinkBtn">
+              <svg class="icon"><use href="#icon-link"></use></svg> Copy link
+            </button>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-text">
+              <div class="dropdown-text-title" id="shareAccessTitle">Restricted</div>
+              <div class="dropdown-text-desc" id="shareAccessDesc">Only people with access can open with the link.</div>
+            </div>
+          </div>
+        </div>
         <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
       </div>
     </div>

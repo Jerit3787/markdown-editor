@@ -137,6 +137,25 @@ body.focus-mode #statusbar {
 #topbarActionsCol .share-pill { height: 40px; padding: 0 24px; font-size: 14px; border-radius: 20px; background: var(--accent-dim); color: var(--accent); }
 #topbarActionsCol .share-pill .icon { width: 18px; height: 18px; }
 
+.share-btn-group {
+  display: inline-flex;
+  position: relative;
+  background: var(--accent-dim);
+  border-radius: 999px;
+}
+#topbarActionsCol .share-btn-group {
+  height: 40px;
+  border-radius: 20px;
+}
+
+.desktop-only { display: none !important; }
+@media (min-width: 781px) {
+  .desktop-only { display: inline-flex !important; }
+  #topbarActionsCol .share-pill-main { border-radius: 20px 0 0 20px; padding: 0 16px 0 24px; }
+  #topbarActionsCol .share-pill-dropdown { border-radius: 0 20px 20px 0; padding: 0 12px; border-left: 1px solid rgba(0, 0, 0, 0.1); }
+  [data-theme="dark"] #topbarActionsCol .share-pill-dropdown { border-left-color: rgba(255, 255, 255, 0.1); }
+}
+
 .share-pill {
   display: inline-flex;
   align-items: center;
@@ -418,9 +437,33 @@ body.focus-mode #statusbar {
 
 .dropdown-menu.open { display: block; }
 
+.dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.dropdown-text {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.dropdown-text-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.dropdown-text-desc {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
 /* Excludes .primary-btn/.secondary-btn (e.g. Start/Stop collaborating,
    Copy) — those keep their real button styling; this flat/transparent
    look is only for plain list-style items like the export menu rows. */
+.dropdown-menu button.dropdown-item,
 .dropdown-menu button:not(.primary-btn):not(.secondary-btn) {
   display: block;
   width: 100%;
@@ -431,6 +474,12 @@ body.focus-mode #statusbar {
   color: var(--text);
   font-size: 13.5px;
   cursor: pointer;
+}
+
+.dropdown-menu button.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .dropdown-menu button:not(.primary-btn):not(.secondary-btn):hover { background: var(--accent-dim); color: var(--accent); }
@@ -1642,6 +1691,7 @@ body.focus-mode #statusbar {
   grid-area: view-selector;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 2px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
@@ -2280,7 +2330,7 @@ body.focus-mode #statusbar {
   font-size: 13.5px;
   color: var(--text);
   pointer-events: auto;
-  animation: toast-in 0.18s ease;
+  animation: toast-slide-up 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 .toast-success { border-left-color: #12b886; }
 .toast-error { border-left-color: var(--danger); }
@@ -2300,8 +2350,8 @@ body.focus-mode #statusbar {
 .toast-close:hover { background: var(--bg-alt); color: var(--text); }
 .toast-close .icon { width: 13px; height: 13px; }
 
-@keyframes toast-in {
-  from { opacity: 0; transform: translateY(6px); }
+@keyframes toast-slide-up {
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -2371,4 +2421,88 @@ body.focus-mode #statusbar {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* Micro-interactions: Button Feedback */
+.icon-btn, .share-pill, .primary-btn, .secondary-btn, .danger-btn {
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.icon-btn:active, .share-pill:active, .primary-btn:active, .secondary-btn:active, .danger-btn:active {
+  transform: scale(0.96);
+}
+
+/* Micro-interactions: Popup Transitions */
+@keyframes popup-in {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-backdrop {
+  animation: fade-in 0.15s ease-out forwards;
+}
+
+.modal-content, .modal-box, .modal-box-v2, .dropdown-menu.open, .slash-menu, .command-palette {
+  animation: popup-in 0.15s ease-out forwards;
+}
+
+/* Micro-interactions: Global Animations */
+
+/* Hover Transitions */
+.workspace-row, .doc-row, .menu-item {
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+#sidebar {
+  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Button Feedback */
+.icon-btn, .share-pill, .primary-btn, .secondary-btn, .danger-btn {
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.icon-btn:active, .share-pill:active, .primary-btn:active, .secondary-btn:active, .danger-btn:active {
+  transform: scale(0.96);
+}
+
+/* Input Focus Transitions */
+input, textarea, select {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Theme Switching */
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Skeleton Loader Shimmer */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.skeleton {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(to right, var(--bg-alt) 4%, var(--border) 25%, var(--bg-alt) 36%);
+  background-size: 1000px 100%;
+}
+
+/* Comments Panel */
+.comments-panel {
+  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0s, opacity 0.15s ease;
+  opacity: 1;
+  visibility: visible;
+}
+
+.comments-panel.collapsed {
+  margin-right: -321px; /* 320px width + 1px border */
+  opacity: 0;
+  visibility: hidden;
+  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0.25s, opacity 0.15s ease;
 }

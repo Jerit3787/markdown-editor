@@ -190,8 +190,7 @@
   </div>
 {/if}
 
-{#if $commentsPanelOpen}
-  <div class="comments-panel" role="complementary" aria-label="Comments">
+  <div class="comments-panel" class:collapsed={!$commentsPanelOpen} role="complementary" aria-label="Comments">
     <div class="comments-panel-header">
       <h2>Comments</h2>
       <button type="button" class="secondary-btn" onclick={close}>Close</button>
@@ -241,4 +240,3 @@
       {/if}
     </div>
   </div>
-{/if}

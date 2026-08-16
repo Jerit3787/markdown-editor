@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.22.1] - 2026-08-17
+
+### Fixed
+
+- **The What's New carousel's screenshot left dead space instead of
+  filling its slide.** It now fills the slide's full height and sits
+  flush against the header and footer, matching the mobile layout's
+  existing full-bleed treatment.
+- **Workspace-level sharing (v1.21.0) never got a What's New entry** —
+  added, with a real screenshot of the Share dialog.
+
 ## [1.22.0] - 2026-08-17
 
 ### Added

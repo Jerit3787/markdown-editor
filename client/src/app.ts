@@ -842,8 +842,8 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // Maps pos's fraction through [fromTop, fromBottom) onto [toTop, toBottom).
   function interpolateAcross(pos: number, fromTop: number, fromBottom: number, toTop: number, toBottom: number): number {
     const span = Math.max(1, fromBottom - fromTop);
-    const fraction = Math.min(1, Math.max(0, (pos - fromTop) / span));
-    return toTop + fraction * (toBottom - toTop);
+    const fraction = Math.min(1, (pos - fromTop) / span);
+    return Math.max(0, toTop + fraction * (toBottom - toTop));
   }
 
   // How close to a pane's absolute max scrollTop still counts as "at the

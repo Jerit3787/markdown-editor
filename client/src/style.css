@@ -1755,6 +1755,7 @@ body.focus-mode #statusbar {
 #editorWrap .cm-host { height: 100%; }
 
 #preview {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   /* Equal top/bottom (was 28px top, leaving the first line sitting
@@ -2210,7 +2211,8 @@ body.focus-mode #statusbar {
 
   /* Mobile-friendly padding to avoid wasting horizontal space */
   .cm-content { padding: 24px 16px 4px 16px !important; }
-  #preview { padding: 24px 16px !important; }
+  #preview {
+  position: relative; padding: 24px 16px !important; }
 
   /* Plain wrap, not scroll: overflow-x:auto here would also clip the
      File/Edit/View/Help dropdowns vertically, since they're absolutely

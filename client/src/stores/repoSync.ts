@@ -7,3 +7,13 @@ import { writable } from "svelte/store";
 
 export const repoLinkModalOpen = writable(false);
 export const repoSyncBusyLabel = writable<string | null>(null);
+
+export interface RepoConflictState {
+  kind: "pull" | "push";
+  conflicts: { docId: string; docName: string; repoPath: string }[];
+  deletions: { docId: string; docName: string; repoPath: string }[];
+  onResolve: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>;
+}
+
+export const repoConflictModalOpen = writable(false);
+export const repoConflictState = writable<RepoConflictState | null>(null);

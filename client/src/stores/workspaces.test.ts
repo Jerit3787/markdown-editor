@@ -156,4 +156,22 @@ describe("workspaces store — mutations", () => {
     expect(updated?.shared).toBe(true);
     expect(updated?.remoteId).toBe("room-xyz");
   });
+
+  it("setWorkspaceRepoLink sets repoLink on the matching workspace, leaves others untouched", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceRepoLink } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    const other = createWorkspace("Other");
+    setWorkspaceRepoLink(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+    const all = get(workspacesStore);
+    expect(all.find((w) => w.id === ws.id)?.repoLink).toEqual({ owner: "alice", repo: "notes", branch: "main" });
+    expect(all.find((w) => w.id === other.id)?.repoLink).toBeUndefined();
+  });
+
+  it("clearWorkspaceRepoLink removes repoLink from the matching workspace", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceRepoLink, clearWorkspaceRepoLink } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    setWorkspaceRepoLink(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+    clearWorkspaceRepoLink(ws.id);
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.repoLink).toBeUndefined();
+  });
 });

@@ -109,6 +109,8 @@ function processReleases() {
 
   console.log(`Checking ${tagsToProcess.length} tag(s)...`);
 
+  let createdHighestAsLatest = false;
+
   for (const tag of tagsToProcess) {
     if (existingReleases.includes(tag)) {
       console.log(`Release for ${tag} already exists. Skipping.`);
@@ -135,6 +137,9 @@ function processReleases() {
         stdio: 'inherit'
       });
       console.log(`Successfully published release for ${tag}.`);
+      if (isLatest) {
+        createdHighestAsLatest = true;
+      }
     } catch (err) {
       console.error(`Failed to create release for ${tag}:`, err.message);
     } finally {
@@ -144,12 +149,25 @@ function processReleases() {
     }
   }
 
-  if (highestTag) {
-    try {
-      console.log(`Ensuring ${highestTag} is set as Latest release...`);
-      execSync(`gh release edit "${highestTag}" --latest`, { stdio: 'inherit' });
-    } catch (err) {
-      console.warn(`Could not set ${highestTag} as latest release:`, err.message);
+  // `gh release create ... --latest` above already marks highestTag as
+  // latest — re-running the edit here is redundant and, right after
+  // creation, races GitHub's read-after-write consistency for the
+  // release's published state (edit can 422 "cannot be draft or
+  // prerelease" on a release that was, in fact, just published).
+  if (highestTag && !createdHighestAsLatest) {
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`Ensuring ${highestTag} is set as Latest release (attempt ${attempt}/${maxAttempts})...`);
+        execSync(`gh release edit "${highestTag}" --latest`, { stdio: 'inherit' });
+        break;
+      } catch (err) {
+        if (attempt === maxAttempts) {
+          console.warn(`Could not set ${highestTag} as latest release:`, err.message);
+        } else {
+          execSync('sleep 3');
+        }
+      }
     }
   }
 }

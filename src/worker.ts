@@ -98,7 +98,7 @@ export default {
 
     if (url.pathname === "/api/auth/github/login") return handleLogin(request, env);
     if (url.pathname === "/api/auth/github/callback") return handleCallback(request, env);
-    if (url.pathname === "/api/auth/github/logout") return handleLogout(request);
+    if (url.pathname === "/api/auth/github/logout") return handleLogout(request, env);
     if (url.pathname === "/api/auth/github/me") return handleMe(request, env);
 
     if (url.pathname === "/api/gist" && request.method === "POST") return handleGistCreate(request, env);

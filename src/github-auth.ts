@@ -73,9 +73,30 @@ export async function handleCallback(request: Request, env: Env): Promise<Respon
   return new Response(popupHtml(true, null), { headers });
 }
 
-export async function handleLogout(request: Request): Promise<Response> {
-  const headers = new Headers({ Location: "/" });
+export async function handleLogout(request: Request, env: Env): Promise<Response> {
+  const session = await getSession(request, env);
+  if (session && session.token) {
+    // Revoke the authorization grant via GitHub API
+    const credentials = btoa(`${env.GITHUB_CLIENT_ID}:${env.GITHUB_CLIENT_SECRET}`);
+    await fetch(`${API}/applications/${env.GITHUB_CLIENT_ID}/grant`, {
+      method: "DELETE",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Basic ${credentials}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": USER_AGENT,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ access_token: session.token }),
+    });
+  }
+
+  const headers = new Headers();
   headers.append("Set-Cookie", cookieHeader(SESSION_COOKIE, "", { maxAge: 0 }));
+  if (request.method === "POST") {
+    return new Response(null, { status: 200, headers });
+  }
+  headers.set("Location", "/");
   return new Response(null, { status: 302, headers });
 }
 
@@ -108,7 +129,16 @@ function escapeHtml(str: string): string {
 
 export async function handleMe(request: Request, env: Env): Promise<Response> {
   const session = await getSession(request, env);
-  return Response.json(session ? { connected: true, username: session.username } : { connected: false });
+  if (!session) return Response.json({ connected: false });
+
+  const userRes = await fetch(`${API}/user`, { headers: ghHeaders(session.token) });
+  if (!userRes.ok) {
+    const headers = new Headers();
+    headers.append("Set-Cookie", cookieHeader(SESSION_COOKIE, "", { maxAge: 0 }));
+    return Response.json({ connected: false }, { headers });
+  }
+
+  return Response.json({ connected: true, username: session.username });
 }
 
 export async function handleGistCreate(request: Request, env: Env): Promise<Response> {

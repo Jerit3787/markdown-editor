@@ -54,5 +54,6 @@ export function getCookie(request: Request, name: string): string | null {
 export function cookieHeader(name: string, value: string, { maxAge }: { maxAge?: number } = {}): string {
   let cookie = `${name}=${encodeURIComponent(value)}; Path=/; Secure; HttpOnly; SameSite=Lax`;
   if (maxAge != null) cookie += `; Max-Age=${maxAge}`;
+  if (maxAge === 0) cookie += `; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
   return cookie;
 }

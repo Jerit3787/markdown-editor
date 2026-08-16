@@ -42,8 +42,9 @@
   function signIn() {
     window.MDE.openGithubSignInPopup();
   }
-  function disconnect() {
-    location.href = "/api/auth/github/logout";
+  async function disconnect() {
+    await fetch("/api/auth/github/logout", { method: "POST" });
+    location.reload();
   }
 
   onMount(() => {

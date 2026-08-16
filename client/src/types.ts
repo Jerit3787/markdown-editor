@@ -47,6 +47,14 @@ export interface Workspace {
   // existing workspace" keeps its own local id/name but still needs to
   // know which remote room to connect to.
   remoteId?: string;
+  // Set once this workspace has been linked to a GitHub repo — see
+  // client/src/repo-sync.ts. Independent of `shared`/`remoteId`: a
+  // workspace can be live-shared, repo-linked, both, or neither.
+  repoLink?: {
+    owner: string;
+    repo: string;
+    branch: string;
+  };
 }
 
 export interface Doc {
@@ -75,6 +83,18 @@ export interface Doc {
   // renaming the document after the first publish left the gist with
   // two files instead of one renamed one.
   gistFilename?: string;
+  // Path within the linked workspace's repo (e.g. "docs/notes.md"),
+  // once this doc has been pulled from or pushed to it at least once.
+  // Parallel to gistId/gistFilename above.
+  repoPath?: string;
+  // The blob SHA this doc's content was last synced at — repo-sync's
+  // conflict-detection signal: a mismatch against the repo's current
+  // tree means something else changed the file since last sync.
+  repoSha?: string;
+  // Same idea as repoSha, but per embedded image/diagram ref (see
+  // doc.images/doc.diagrams) — each pushed image is its own blob with
+  // its own SHA to track.
+  repoImageShas?: Record<string, string>;
   // Legacy-only: set on documents shared before workspace-level sharing
   // shipped, under the old one-room-per-document model. New code never
   // sets this — a document's shared state now lives on its containing

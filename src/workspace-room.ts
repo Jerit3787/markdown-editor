@@ -175,6 +175,7 @@ export class WorkspaceRoom {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
+    if (url.pathname.endsWith("/docs")) return this.handleDocsRequest(request);
 
     const replyMatch = url.pathname.match(/\/docs\/([^/]+)\/comments\/([^/]+)\/reply$/);
     if (replyMatch) return this.handleCommentReplyRequest(request, replyMatch[1]!, replyMatch[2]!);
@@ -641,5 +642,43 @@ export class WorkspaceRoom {
     if (result === "forbidden") return new Response("Only the thread's author or the workspace owner can delete it.", { status: 403 });
     await this.persistComments(docId, docRoom);
     return new Response(null, { status: 204 });
+  }
+
+  // ---------- Document membership ----------
+
+  async handleDocsRequest(request: Request): Promise<Response> {
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+
+    if (request.method === "GET") return Response.json(this.docIds);
+
+    if (request.method === "POST") {
+      if (auth.role !== "editor") return new Response("Only an editor can add a document.", { status: 403 });
+      let body: { docId?: unknown };
+      try {
+        body = await request.json();
+      } catch (err) {
+        return new Response("Invalid JSON.", { status: 400 });
+      }
+      if (typeof body.docId !== "string" || !body.docId) return new Response("Invalid docId.", { status: 400 });
+      if (!this.docIds.includes(body.docId)) {
+        this.docIds = [...this.docIds, body.docId];
+        await this.state.storage.put("docs", this.docIds);
+        await this.loadDocRoom(body.docId);
+      }
+      return Response.json(this.docIds);
+    }
+
+    if (request.method === "DELETE") {
+      if (auth.role !== "editor") return new Response("Only an editor can remove a document.", { status: 403 });
+      const docId = new URL(request.url).searchParams.get("docId");
+      if (!docId) return new Response("Missing docId.", { status: 400 });
+      this.docIds = this.docIds.filter((id) => id !== docId);
+      await this.state.storage.put("docs", this.docIds);
+      this.docs.delete(docId);
+      return new Response(null, { status: 204 });
+    }
+
+    return new Response("Method not allowed", { status: 405 });
   }
 }

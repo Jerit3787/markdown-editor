@@ -243,3 +243,47 @@ describe("WorkspaceRoom comment threads", () => {
     expect(room.deleteThread(docRoom, thread.id, "alice", false)).toBe("deleted");
   });
 });
+
+describe("WorkspaceRoom document membership", () => {
+  it("adding a doc makes it appear in the docs list and loadable", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ docId: "docA" }),
+    });
+    const res = await room.handleDocsRequest(request);
+    expect(res.status).toBe(200);
+    expect(room.docIds).toContain("docA");
+  });
+
+  it("a viewer can't add a document", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    const request = new Request("https://example.com/w/ws1/docs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ docId: "docA" }),
+    });
+    const res = await room.handleDocsRequest(request);
+    expect(res.status).toBe(403);
+    expect(room.docIds).not.toContain("docA");
+  });
+
+  it("removing a doc drops it from the docs list", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    await room.state.storage.put("docs", ["docA", "docB"]);
+    room.docIds = ["docA", "docB"];
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs?docId=docA", {
+      method: "DELETE",
+      headers: { Cookie: `mde_gh_session=${cookie}` },
+    });
+    const res = await room.handleDocsRequest(request);
+    expect(res.status).toBe(204);
+    expect(room.docIds).toEqual(["docB"]);
+  });
+});

@@ -66,6 +66,21 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
+export function normalizeInvited(raw: unknown[]): InvitedPerson[] {
+  const seen = new Set<string>();
+  const result: InvitedPerson[] = [];
+  for (const entry of raw) {
+    const username = typeof entry === "string" ? entry.trim() : String((entry as any)?.username || "").trim();
+    if (!username || seen.has(username)) continue;
+    const rawRole = typeof entry === "string" ? "editor" : (entry as any)?.role;
+    const role: Role = (["viewer", "reviewer", "editor"] as const).includes(rawRole) ? rawRole : "editor";
+    seen.add(username);
+    result.push({ username, role });
+    if (result.length >= 100) break;
+  }
+  return result;
+}
+
 // One entry per document currently in the workspace — same per-document
 // state CollabRoom held at the top level of one DO instance, now nested
 // one level so a single WorkspaceRoom instance can hold several.
@@ -157,6 +172,9 @@ export class WorkspaceRoom {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected websocket", { status: 426 });
     }
@@ -173,8 +191,81 @@ export class WorkspaceRoom {
   // Placeholder until Task 3 replaces it — every connection is treated as
   // an editor with no identity check, so this task's sync/awareness
   // plumbing can be built and tested in isolation from access control.
-  async authorize(_request: Request): Promise<{ ok: true; username: string | null; role: Role } | { ok: false; status: number; message: string }> {
-    return { ok: true, username: null, role: "editor" };
+  // ---------- Access control ----------
+
+  async getAccess(): Promise<AccessRecord> {
+    const stored = await this.state.storage.get<Record<string, unknown>>("access");
+    if (!stored) return { ...DEFAULT_ACCESS };
+    const rawInvited = Array.isArray(stored.invited) ? stored.invited : [];
+    const invited: InvitedPerson[] = rawInvited.map((entry) =>
+      typeof entry === "string" ? { username: entry, role: "editor" } : (entry as InvitedPerson)
+    );
+    return { ...DEFAULT_ACCESS, ...stored, invited } as AccessRecord;
+  }
+
+  async getSession(request: Request) {
+    const cookie = getCookie(request, SESSION_COOKIE);
+    if (!cookie) return null;
+    return decryptSession(this.env, cookie);
+  }
+
+  async authorize(request: Request): Promise<{ ok: true; username: string | null; role: Role } | { ok: false; status: number; message: string }> {
+    const session = await this.getSession(request);
+    const access = await this.getAccess();
+    if (!access.owner) {
+      return { ok: false, status: 403, message: "This workspace hasn't been shared." };
+    }
+    if (session && session.username === access.owner) {
+      return { ok: true, username: session.username, role: "editor" };
+    }
+    if (access.generalAccess === "anyone") {
+      if (access.requireAccount && (!session || !session.username)) {
+        return { ok: false, status: 401, message: "Sign in with GitHub to join this workspace." };
+      }
+      return { ok: true, username: session ? session.username : null, role: access.role };
+    }
+    if (!session || !session.username) {
+      return { ok: false, status: 401, message: "Sign in with GitHub to join this workspace." };
+    }
+    const invited = access.invited.find((p) => p.username === session.username);
+    if (invited) {
+      return { ok: true, username: session.username, role: invited.role };
+    }
+    return { ok: false, status: 403, message: "You don't have access to this workspace." };
+  }
+
+  async handleAccessRequest(request: Request): Promise<Response> {
+    if (request.method === "GET") {
+      const access = await this.getAccess();
+      return Response.json(access);
+    }
+    if (request.method === "PUT") {
+      let body: { generalAccess?: unknown; requireAccount?: unknown; role?: unknown; invited?: unknown };
+      try {
+        body = await request.json();
+      } catch (err) {
+        return new Response("Invalid JSON.", { status: 400 });
+      }
+
+      const session = await this.getSession(request);
+      if (!session || !session.username) return new Response("Sign in with GitHub first.", { status: 401 });
+
+      const access = await this.getAccess();
+      if (access.owner && access.owner !== session.username) {
+        return new Response("Only the owner can change access.", { status: 403 });
+      }
+
+      const next: AccessRecord = {
+        owner: access.owner || session.username,
+        generalAccess: body.generalAccess === "anyone" ? "anyone" : "restricted",
+        requireAccount: body.requireAccount === true,
+        role: (["viewer", "reviewer", "editor"] as const).includes(body.role as Role) ? (body.role as Role) : "viewer",
+        invited: Array.isArray(body.invited) ? normalizeInvited(body.invited) : access.invited,
+      };
+      await this.state.storage.put("access", next);
+      return Response.json(next);
+    }
+    return new Response("Method not allowed", { status: 405 });
   }
 
   // ---------- WebSocket session ----------

@@ -2170,12 +2170,9 @@ body.focus-mode #statusbar {
   /* Flush to the screen's left/right/bottom edges, only the top corners
      rounded (not the desktop 320px side panel either — that rule
      otherwise squeezes the editor down to almost nothing on a phone) —
-     matches #sidebar's native bottom-sheet look. No slide transition
-     here (unlike #sidebar): .comments-panel is conditionally rendered
-     ({#if $commentsPanelOpen}), not a persistent node, so animating
-     its entrance would mean adopting a Svelte transition just for this
-     — matches its own existing desktop behavior (instant show/hide)
-     instead. */
+     matches #sidebar's native bottom-sheet look. Like #sidebar, it uses
+     transform to animate sliding up from the bottom, overriding the
+     desktop margin-right slide. */
   .comments-panel {
     position: fixed;
     left: 0;
@@ -2187,6 +2184,11 @@ body.focus-mode #statusbar {
     z-index: 40;
     box-shadow: var(--shadow);
     border-left: none;
+    transition: transform 0.15s ease, opacity 0.15s ease, visibility 0s 0s;
+  }
+  .comments-panel.collapsed {
+    transform: translateY(100%);
+    margin-right: 0;
   }
 
   #body.mode-split #main { flex-direction: column; }

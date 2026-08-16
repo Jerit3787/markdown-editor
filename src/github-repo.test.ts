@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, filterMarkdownEntries } from "./github-repo";
+import {
+  handleRepoList,
+  handleRepoCreate,
+  handleRepoTree,
+  handleRepoBlob,
+  filterMarkdownEntries,
+  handleRepoPush,
+  computeNewTreeEntries,
+} from "./github-repo";
 import { encryptSession } from "./auth";
 import type { Env } from "./env";
 
@@ -133,5 +141,104 @@ describe("handleRepoBlob", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { content: string };
     expect(data.content).toBe("aGVsbG8=");
+  });
+});
+
+describe("computeNewTreeEntries", () => {
+  it("adds new blob paths and updates existing ones", () => {
+    const result = computeNewTreeEntries(
+      [{ path: "a.md", sha: "old-a", type: "blob" }],
+      [
+        { path: "a.md", sha: "new-a" },
+        { path: "b.md", sha: "new-b" },
+      ],
+      []
+    );
+    expect(result).toEqual([
+      { path: "a.md", mode: "100644", type: "blob", sha: "new-a" },
+      { path: "b.md", mode: "100644", type: "blob", sha: "new-b" },
+    ]);
+  });
+
+  it("marks deleted paths with a null sha, leaves untouched paths out entirely", () => {
+    const result = computeNewTreeEntries([{ path: "a.md", sha: "old-a", type: "blob" }], [], ["a.md"]);
+    expect(result).toEqual([{ path: "a.md", mode: "100644", type: "blob", sha: null }]);
+  });
+});
+
+describe("handleRepoPush", () => {
+  it("returns 401 when signed out", async () => {
+    const req = new Request("https://example.com/api/repo/alice/notes/push", { method: "POST", body: "{}" });
+    const res = await handleRepoPush(req, fakeEnv, "alice", "notes");
+    expect(res.status).toBe(401);
+  });
+
+  it("builds one commit from blobs+tree+commit+ref calls, returns new blob shas", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push(url);
+        if (url.endsWith("/git/blobs")) {
+          const body = JSON.parse(init!.body as string);
+          return new Response(JSON.stringify({ sha: `sha-${body.content.slice(0, 4)}` }), { status: 201 });
+        }
+        if (url.endsWith("/git/trees")) return new Response(JSON.stringify({ sha: "new-tree-sha" }), { status: 201 });
+        if (url.endsWith("/git/commits")) return new Response(JSON.stringify({ sha: "new-commit-sha" }), { status: 201 });
+        if (url.includes("/git/refs/heads/")) return new Response(JSON.stringify({ ref: "refs/heads/main" }), { status: 200 });
+        throw new Error(`unexpected fetch: ${url}`);
+      })
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/push", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({
+        branch: "main",
+        baseTreeSha: "base-tree",
+        parentCommitSha: "parent-commit-sha",
+        blobs: [{ path: "a.md", contentBase64: "aGVsbG8=" }],
+        deletePaths: [],
+      }),
+    });
+    const res = await handleRepoPush(req, fakeEnv, "alice", "notes");
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { commitSha: string; blobShas: Record<string, string> };
+    expect(data.commitSha).toBe("new-commit-sha");
+    expect(data.blobShas["a.md"]).toBe("sha-aGVs");
+    expect(calls).toEqual([
+      "https://api.github.com/repos/alice/notes/git/blobs",
+      "https://api.github.com/repos/alice/notes/git/trees",
+      "https://api.github.com/repos/alice/notes/git/commits",
+      "https://api.github.com/repos/alice/notes/git/refs/heads/main",
+    ]);
+  });
+
+  it("returns 409 with conflict:true when the ref update is rejected", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/git/blobs")) return new Response(JSON.stringify({ sha: "s" }), { status: 201 });
+        if (url.endsWith("/git/trees")) return new Response(JSON.stringify({ sha: "t" }), { status: 201 });
+        if (url.endsWith("/git/commits")) return new Response(JSON.stringify({ sha: "c" }), { status: 201 });
+        return new Response(JSON.stringify({ message: "Update is not a fast forward" }), { status: 422 });
+      })
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/push", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({
+        branch: "main",
+        baseTreeSha: "base-tree",
+        parentCommitSha: "parent-commit-sha",
+        blobs: [{ path: "a.md", contentBase64: "aGk=" }],
+        deletePaths: [],
+      }),
+    });
+    const res = await handleRepoPush(req, fakeEnv, "alice", "notes");
+    expect(res.status).toBe(409);
+    const data = (await res.json()) as { conflict: boolean };
+    expect(data.conflict).toBe(true);
   });
 });

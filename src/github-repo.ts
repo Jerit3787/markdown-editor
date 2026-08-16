@@ -105,3 +105,93 @@ export async function handleRepoBlob(request: Request, env: Env, owner: string, 
   const res = await fetch(`${API}/repos/${owner}/${repo}/git/blobs/${sha}`, { headers: ghHeaders(session.token) });
   return proxyJson(res);
 }
+
+export function computeNewTreeEntries(
+  baseTreeEntries: TreeEntry[],
+  blobShas: { path: string; sha: string }[],
+  deletePaths: string[]
+): { path: string; mode: "100644"; type: "blob"; sha: string | null }[] {
+  const entries: { path: string; mode: "100644"; type: "blob"; sha: string | null }[] = [];
+  for (const { path, sha } of blobShas) entries.push({ path, mode: "100644", type: "blob", sha });
+  for (const path of deletePaths) entries.push({ path, mode: "100644", type: "blob", sha: null });
+  return entries;
+}
+
+export async function handleRepoPush(request: Request, env: Env, owner: string, repo: string): Promise<Response> {
+  const session = await getSession(request, env);
+  if (!session) return new Response("Not signed in", { status: 401 });
+
+  let body: { branch?: unknown; baseTreeSha?: unknown; parentCommitSha?: unknown; blobs?: unknown; deletePaths?: unknown };
+  try {
+    body = await request.json();
+  } catch (err) {
+    return new Response("Invalid JSON.", { status: 400 });
+  }
+  const branch = typeof body.branch === "string" ? body.branch : "";
+  // baseTreeSha (a *tree* sha) becomes the new tree's base_tree below;
+  // parentCommitSha (a *commit* sha — the branch head's current commit,
+  // distinct from its tree) becomes the new commit's parents[0]. Mixing
+  // these up produces a commit whose parent doesn't match its own tree's
+  // base, which the ref-update step below would then reject.
+  const baseTreeSha = typeof body.baseTreeSha === "string" ? body.baseTreeSha : "";
+  const parentCommitSha = typeof body.parentCommitSha === "string" ? body.parentCommitSha : "";
+  const blobs = Array.isArray(body.blobs) ? (body.blobs as { path: string; contentBase64: string }[]) : [];
+  const deletePaths = Array.isArray(body.deletePaths) ? (body.deletePaths as string[]) : [];
+  if (!branch || !baseTreeSha || !parentCommitSha) {
+    return new Response("branch, baseTreeSha, and parentCommitSha are required.", { status: 400 });
+  }
+
+  const headers = { ...ghHeaders(session.token), "Content-Type": "application/json" };
+  const base = `${API}/repos/${owner}/${repo}`;
+
+  const blobShas: Record<string, string> = {};
+  for (const blob of blobs) {
+    const res = await fetch(`${base}/git/blobs`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ content: blob.contentBase64, encoding: "base64" }),
+    });
+    if (!res.ok) return new Response(`Failed to create blob for ${blob.path}: ${await res.text()}`, { status: 502 });
+    const data = await safeJson<{ sha: string }>(res);
+    if (!data) return new Response(`Failed to create blob for ${blob.path}: invalid response`, { status: 502 });
+    blobShas[blob.path] = data.sha;
+  }
+
+  const treeEntries = computeNewTreeEntries(
+    [],
+    blobs.map((b) => ({ path: b.path, sha: blobShas[b.path]! })),
+    deletePaths
+  );
+  const treeRes = await fetch(`${base}/git/trees`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ base_tree: baseTreeSha, tree: treeEntries }),
+  });
+  if (!treeRes.ok) return new Response(`Failed to build tree: ${await treeRes.text()}`, { status: 502 });
+  const treeData = await safeJson<{ sha: string }>(treeRes);
+  if (!treeData) return new Response("Failed to build tree: invalid response", { status: 502 });
+
+  const commitRes = await fetch(`${base}/git/commits`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      message: "Update from Markdown Editor",
+      tree: treeData.sha,
+      parents: [parentCommitSha],
+    }),
+  });
+  if (!commitRes.ok) return new Response(`Failed to create commit: ${await commitRes.text()}`, { status: 502 });
+  const commitData = await safeJson<{ sha: string }>(commitRes);
+  if (!commitData) return new Response("Failed to create commit: invalid response", { status: 502 });
+
+  const refRes = await fetch(`${base}/git/refs/heads/${encodeURIComponent(branch)}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ sha: commitData.sha, force: false }),
+  });
+  if (!refRes.ok) {
+    return Response.json({ conflict: true, message: await refRes.text() }, { status: 409 });
+  }
+
+  return Response.json({ commitSha: commitData.sha, blobShas });
+}

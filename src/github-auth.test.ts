@@ -23,7 +23,7 @@ describe("handleMe", () => {
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/auth/github/me", { headers: { Cookie: cookie } });
     const res = await handleMe(req, fakeEnv);
-    const data = await res.json();
+    const data = (await res.json()) as { connected: boolean; username?: string; scopes: string[] };
     expect(data.connected).toBe(true);
     expect(data.scopes).toEqual(["repo", "gist"]);
   });
@@ -33,14 +33,14 @@ describe("handleMe", () => {
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/auth/github/me", { headers: { Cookie: cookie } });
     const res = await handleMe(req, fakeEnv);
-    const data = await res.json();
+    const data = (await res.json()) as { connected: boolean; username?: string; scopes: string[] };
     expect(data.scopes).toEqual([]);
   });
 
   it("reports an empty scopes array when signed out", async () => {
     const req = new Request("https://example.com/api/auth/github/me");
     const res = await handleMe(req, fakeEnv);
-    const data = await res.json();
+    const data = (await res.json()) as { connected: boolean; username?: string; scopes: string[] };
     expect(data.connected).toBe(false);
     expect(data.scopes).toEqual([]);
   });

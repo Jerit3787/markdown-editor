@@ -52,6 +52,13 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/workspaces.png",
   },
   {
+    version: "1.21.0",
+    title: "Workspace-Level Sharing",
+    description:
+      "Sharing now happens at the workspace level — every document inside a shared workspace syncs live to collaborators at once, not just whichever one is open. Add people by GitHub username or share a link, and set per-person or general-access roles right from the Share dialog. Sharing a single document just moves it into its own workspace first, then shares that.",
+    screenshot: "/whats-new/workspace-sharing.png",
+  },
+  {
     version: "1.22.0",
     title: "GitHub Repo Sync",
     description:

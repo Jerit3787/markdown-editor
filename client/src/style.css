@@ -671,20 +671,39 @@ body.focus-mode #statusbar {
 .whats-new-slide {
   display: flex;
   gap: 16px;
-  align-items: flex-start;
+  align-items: stretch;
   margin-bottom: 16px;
 }
-/* Sized to the image's own natural aspect ratio (capped, not forced
-   square) — object-fit:cover on a fixed 180x180 box was cropping any
-   screenshot that wasn't already square. */
+/* Fills the row's full height (matching whatever height the text
+   column beside it ends up needing) via flexbox stretch — a fixed
+   width, no explicit height, and object-fit:cover so a wide/landscape
+   screenshot crops to fit that height instead of shrinking back down
+   to its own aspect ratio and leaving dead space above/below (which a
+   plain width/height:auto box does whenever the row is taller than
+   the image's natural height at that width — the common case, since
+   the row's height is usually set by the description text next to
+   it). object-position:top keeps the crop anchored to a screenshot's
+   usually more information-dense upper region.
+
+   The negative margins then break the image out of .modal-body's own
+   padding (16px top, 24px bottom) plus this row's own 16px
+   margin-bottom below — the same full-bleed trick the mobile layout
+   below already uses horizontally (margin: 0 -24px against the body's
+   side padding), just applied to the other two edges here so the
+   image sits flush against the header/footer dividers instead of
+   floating with a visible gap above and below. overflow-y:auto on
+   .modal-body clips at its padding edge, not its content edge, so
+   content that only eats into the padding (rather than exceeding the
+   full padding box) never gets clipped — exactly what these values do. */
 .whats-new-screenshot {
-  max-width: 320px;
-  max-height: 320px;
-  width: auto;
-  height: auto;
+  width: 260px;
+  align-self: stretch;
+  margin: -16px 0 -40px 0;
+  object-fit: cover;
+  object-position: top;
   display: block;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border-radius: 0;
+  border: none;
   flex-shrink: 0;
   background: var(--bg-alt);
 }

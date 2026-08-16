@@ -21,9 +21,10 @@ import "./types";
 import type { AccessRecord } from "./types";
 import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "./stores/share";
 import { showToast } from "./stores/toast";
-import { getActiveDoc, markActiveDocShared, switchDoc } from "./stores/docs";
+import { getActiveDoc, markActiveDocShared, switchDoc, docsStore, moveDocToWorkspace } from "./stores/docs";
 import { pendingJoin } from "./stores/joinWorkspace";
-import { workspacesStore, switchWorkspace } from "./stores/workspaces";
+import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces } from "./stores/workspaces";
+import { confirmAction } from "./stores/confirmDialog";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -554,12 +555,27 @@ export async function openShareModal() {
     window.MDE.requireGithubSignIn("Sharing needs a connected GitHub account. Sign in to continue.");
     return;
   }
-  shareModalOpen.set(true);
   const doc = getActiveDoc();
-  if (doc) {
-    currentAccess = await fetchAccess(doc.id);
-    syncShareStores();
+  if (!doc) return;
+
+  const siblingCount = get(docsStore).filter((d) => d.workspaceId === doc.workspaceId).length;
+  let targetWorkspaceId = doc.workspaceId;
+  if (siblingCount > 1) {
+    const confirmed = await confirmAction(
+      "Move to its own workspace?",
+      "Sharing this document moves it into its own workspace so it can be shared. Continue?",
+      "Continue",
+      false
+    );
+    if (!confirmed) return;
+    const ws = createWorkspace(doc.name || "Untitled");
+    moveDocToWorkspace(doc.id, ws.id);
+    targetWorkspaceId = ws.id;
   }
+
+  shareModalOpen.set(true);
+  currentAccess = await fetchWorkspaceAccess(targetWorkspaceId);
+  syncShareStores();
 }
 
 export function closeShareModal() {
@@ -580,7 +596,7 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
   const doc = getActiveDoc();
   if (!doc) return false;
   const wantAnyone = mode !== "restricted";
-  const access = await putAccess(doc.id, {
+  const access = await putWorkspaceAccess(doc.workspaceId, {
     generalAccess: wantAnyone ? "anyone" : "restricted",
     requireAccount: mode === "anyone-account",
     role: fallbackRole || (currentAccess && currentAccess.role) || "viewer",
@@ -591,9 +607,13 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
     return false;
   }
   currentAccess = access;
-  markActiveDocShared(wantAnyone || access.invited.length > 0);
-  if (wantAnyone && !room.id) joinRoom(doc.id, { seedFromLocal: true, role: "editor" });
-  if (!wantAnyone) teardown();
+  workspacesStore.update((all) => all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: wantAnyone || access.invited.length > 0 || w.shared, remoteId: w.remoteId || doc.workspaceId } : w)));
+  persistWorkspaces();
+  if ((wantAnyone || access.invited.length > 0) && !workspaceRoom.workspaceId) {
+    await joinWorkspace(doc.workspaceId, { role: "editor" });
+    bindActiveDoc(doc.id);
+  }
+  if (!wantAnyone && access.invited.length === 0) teardownWorkspace();
   syncShareStores();
   showToast(ACCESS_MODE_TOAST[mode], "info");
   return true;
@@ -602,7 +622,7 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
 export async function setRole(role: string) {
   const doc = getActiveDoc();
   if (!doc || !currentAccess) return;
-  const access = await putAccess(doc.id, {
+  const access = await putWorkspaceAccess(doc.workspaceId, {
     generalAccess: "anyone",
     requireAccount: currentAccess.requireAccount,
     role,
@@ -629,7 +649,7 @@ export function buildShareLink(): string | null {
   // Invited-only (restricted) links always resolve to editor access per
   // authorize() server-side; "anyone" links carry whatever role is set.
   const segment = isAnyone ? ROLE_TO_SEGMENT[currentAccess.role] || "view" : "edit";
-  return `${location.origin}/d/${encodeURIComponent(doc.id)}/${segment}`;
+  return `${location.origin}/w/${encodeURIComponent(doc.workspaceId)}/${encodeURIComponent(doc.id)}/${segment}`;
 }
 
 export async function addPerson(rawUsername: string) {
@@ -640,7 +660,7 @@ export async function addPerson(rawUsername: string) {
   const existing = currentAccess ? currentAccess.invited : [];
   if (existing.some((p) => p.username === username)) return;
   const invited = [...existing, { username, role: "editor" }];
-  const access = await putAccess(doc.id, {
+  const access = await putWorkspaceAccess(doc.workspaceId, {
     generalAccess: currentAccess ? currentAccess.generalAccess : "restricted",
     requireAccount: currentAccess ? currentAccess.requireAccount : false,
     role: currentAccess ? currentAccess.role : "viewer",
@@ -648,14 +668,18 @@ export async function addPerson(rawUsername: string) {
   });
   if (access) {
     currentAccess = access;
-    markActiveDocShared(true);
-    // Restricted access never otherwise triggers joinRoom (only switching
-    // to "anyone" does, see setAccessMode) — without this, an invited
-    // person could join and authorize successfully but find the room's
-    // Y.doc completely empty, since the owner's content was never seeded
-    // into it. First invite on a still-unconnected doc needs to seed it,
-    // same as opening general access does.
-    if (!room.id) joinRoom(doc.id, { seedFromLocal: true, role: "editor" });
+    workspacesStore.update((all) => all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: true, remoteId: w.remoteId || doc.workspaceId } : w)));
+    persistWorkspaces();
+    // Restricted access never otherwise triggers joinWorkspace (only
+    // switching to "anyone" does, see setAccessMode) — without this, an
+    // invited person could join and authorize successfully but find the
+    // workspace's docs completely empty, since the owner's content was
+    // never seeded into it. First invite on a still-unconnected workspace
+    // needs to seed it, same as opening general access does.
+    if (!workspaceRoom.workspaceId) {
+      await joinWorkspace(doc.workspaceId, { role: "editor" });
+      bindActiveDoc(doc.id);
+    }
     syncShareStores();
     showToast(`Invited @${username}`, "success");
   } else {
@@ -667,7 +691,7 @@ export async function setInviteRole(username: string, role: string) {
   const doc = getActiveDoc();
   if (!doc || !currentAccess) return;
   const invited = currentAccess.invited.map((p) => (p.username === username ? { ...p, role } : p));
-  const access = await putAccess(doc.id, {
+  const access = await putWorkspaceAccess(doc.workspaceId, {
     generalAccess: currentAccess.generalAccess,
     requireAccount: currentAccess.requireAccount,
     role: currentAccess.role,
@@ -686,7 +710,7 @@ export async function removeInvite(username: string) {
   const doc = getActiveDoc();
   if (!doc || !currentAccess) return;
   const invited = currentAccess.invited.filter((p) => p.username !== username);
-  const access = await putAccess(doc.id, {
+  const access = await putWorkspaceAccess(doc.workspaceId, {
     generalAccess: currentAccess.generalAccess,
     requireAccount: currentAccess.requireAccount,
     role: currentAccess.role,

@@ -1994,6 +1994,20 @@ body.focus-mode #statusbar {
 
 .keybinding-mode-indicator { font-weight: 600; color: var(--accent); letter-spacing: 0.03em; }
 
+/* Comments Panel */
+.comments-panel {
+  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0s, opacity 0.15s ease;
+  opacity: 1;
+  visibility: visible;
+}
+
+.comments-panel.collapsed {
+  margin-right: -321px; /* 320px width + 1px border */
+  opacity: 0;
+  visibility: hidden;
+  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0.25s, opacity 0.15s ease;
+}
+
 /* Responsive */
 @media (max-width: 780px) {
   body.focus-mode .focus-mode-exit-btn {
@@ -2505,18 +2519,4 @@ body {
   animation: shimmer 2s infinite linear;
   background: linear-gradient(to right, var(--bg-alt) 4%, var(--border) 25%, var(--bg-alt) 36%);
   background-size: 1000px 100%;
-}
-
-/* Comments Panel */
-.comments-panel {
-  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0s, opacity 0.15s ease;
-  opacity: 1;
-  visibility: visible;
-}
-
-.comments-panel.collapsed {
-  margin-right: -321px; /* 320px width + 1px border */
-  opacity: 0;
-  visibility: hidden;
-  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0.25s, opacity 0.15s ease;
 }

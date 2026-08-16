@@ -3,7 +3,8 @@ node_modules/
 .DS_Store
 *.log
 .claude/
-
+.superpowers/
 .worktrees/
 .dev.vars
 client/dist/
+recovered_images/

@@ -4,6 +4,39 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.20.3] - 2026-08-16
+
+### Fixed
+
+- **Scroll sync between editor and preview.** A prior change increasing
+  the editor's own top padding (for visual balance with the preview
+  pane) exposed a coordinate-space bug in the scroll-sync math: some
+  conversions between CodeMirror's document-relative coordinates and
+  the DOM's physical scroll position were inconsistent, causing the
+  preview to lag or overshoot the editor's actual scroll position.
+  Fixed at the root (a shared, consistently-applied padding offset)
+  rather than patched around, and both panes now reliably reach the
+  true top/bottom of the document together, not just approximately.
+- **Diagram Editor and Version History are full-screen tools again**,
+  not small floating dialogs — an in-progress UI pass had wrapped both
+  in the shared modal component, which doesn't fit either one's layout
+  (a code+preview split pane, and a list+preview split pane).
+- **`marked` (the Markdown parser) upgrade to v18 actually verified.**
+  The dependency had been bumped in `package.json` but never installed
+  or tested — doing so surfaced a real breaking change in the library's
+  custom-renderer API (images, code blocks, and links would have
+  rendered blank) that's now fixed and verified against images, links,
+  wikilinks, code blocks (plain and Mermaid), tables, task lists, and
+  footnotes.
+- Mobile comments panel positioning, animation, and layout polish;
+  minor desktop layout gap and z-index fixes.
+
+### Changed
+
+- Dependency updates: `svelte`, `wrangler`, `@cloudflare/workers-types`,
+  `@sveltejs/vite-plugin-svelte`, `isomorphic-git`, `undici`, `marked`.
+  Renovate now manages dependency update PRs for this repo.
+
 ## [1.20.2] - 2026-08-16
 
 ### Fixed

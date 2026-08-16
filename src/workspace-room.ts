@@ -345,6 +345,12 @@ export class WorkspaceRoom {
       const isWrite = syncType === SYNC_STEP2 || syncType === SYNC_UPDATE;
       if (isWrite && session && session.role !== "editor") return; // read-only: drop silently
 
+      // A docId this instance has never seen before is about to be
+      // auto-vivified by withDocRoom below — captured now, before that
+      // mutates docIds, so the reciprocal-step1 logic further down knows
+      // whether this is the doc's first contact with this server.
+      const isNewDoc = !this.docIds.includes(docId);
+
       await this.withDocRoom(docId, (docRoom) => {
         const encoder = encoding.createEncoder();
         encoding.writeVarUint(encoder, MESSAGE_SYNC);
@@ -357,6 +363,28 @@ export class WorkspaceRoom {
         const baseLength = encoding.length(encoder);
         syncProtocol.readSyncMessage(decoder, encoder, docRoom.doc, ws);
         if (encoding.length(encoder) > baseLength) ws.send(encoding.toUint8Array(encoder));
+
+        // Step1 only pulls the RECIPIENT's content down to the sender —
+        // it never pushes the sender's own content anywhere. CollabRoom's
+        // single-document model got a full bidirectional handshake for
+        // free because its one Y.Doc object always "exists" and
+        // handleSession unconditionally step1's it to every new
+        // connection; a lazily-created doc room here has no such moment,
+        // since it isn't registered until THIS message arrives — one
+        // message too late for that per-connection loop to have included
+        // it. Without this, a freshly-seeded client's content (see
+        // collab.ts's seedDocBindingFromEditor) would never actually
+        // reach the server: the client only ever gets asked what it's
+        // missing, never asked what it has. Sent as its own frame, not
+        // appended to the reply above — one sync sub-message per frame is
+        // the wire format both sides expect.
+        if (isNewDoc) {
+          const step1Encoder = encoding.createEncoder();
+          encoding.writeVarUint(step1Encoder, MESSAGE_SYNC);
+          encoding.writeVarString(step1Encoder, docId);
+          syncProtocol.writeSyncStep1(step1Encoder, docRoom.doc);
+          ws.send(encoding.toUint8Array(step1Encoder));
+        }
       });
     } else if (messageType === MESSAGE_AWARENESS) {
       const update = decoding.readVarUint8Array(decoder);

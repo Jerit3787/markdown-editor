@@ -50,7 +50,10 @@ function decodeEnvelope(data: ArrayBuffer): { type: number; docId: string; decod
 describe("WorkspaceRoom multiplexed sync", () => {
   it("routes an update for docA to docA's Y.Doc without touching docB", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnv);
-    const fakeWs = {} as WebSocket;
+    // A first-contact message for a new doc now also gets a reciprocal
+    // step1 reply from the server (see the regression test below) — this
+    // fake WS just needs to tolerate that, not inspect it.
+    const fakeWs = { send: () => {} } as unknown as WebSocket;
     room.sessions.set(fakeWs, { username: "alice", role: "editor", viewingDocId: null });
 
     const scratch = new Y.Doc();
@@ -67,7 +70,10 @@ describe("WorkspaceRoom multiplexed sync", () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnv);
     const sentByReceiver: ArrayBuffer[] = [];
     const receiverWs = { send: (data: ArrayBuffer) => sentByReceiver.push(data) } as unknown as WebSocket;
-    const senderWs = {} as WebSocket;
+    // The sender also gets its own reciprocal step1 reply for this new
+    // doc (see the regression test below) — only receiverWs's inbox is
+    // asserted on here, so the sender just needs a no-op send().
+    const senderWs = { send: () => {} } as unknown as WebSocket;
     room.sessions.set(receiverWs, { username: "bob", role: "editor", viewingDocId: null });
     room.sessions.set(senderWs, { username: "alice", role: "editor", viewingDocId: null });
 
@@ -84,7 +90,7 @@ describe("WorkspaceRoom multiplexed sync", () => {
 
   it("keeps two documents' content independent within the same room", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnv);
-    const fakeWs = {} as WebSocket;
+    const fakeWs = { send: () => {} } as unknown as WebSocket;
     room.sessions.set(fakeWs, { username: "alice", role: "editor", viewingDocId: null });
 
     const scratchA = new Y.Doc();
@@ -97,6 +103,58 @@ describe("WorkspaceRoom multiplexed sync", () => {
 
     expect(room.docs.get("docA")?.doc.getText("content").toString()).toBe("A content");
     expect(room.docs.get("docB")?.doc.getText("content").toString()).toBe("B content");
+  });
+
+  // Regression test for a real bug found via live testing: a client
+  // joining a brand-new doc room (one this WorkspaceRoom instance has
+  // never seen before) only ever sent step1 — which pulls the SERVER's
+  // content down to the CLIENT, never the other direction — so a
+  // freshly-seeded client's own content was silently never transmitted.
+  // The fix: on first contact with a docId, the server also sends its
+  // own step1 back, completing the reciprocal handshake that pulls the
+  // client's content up (same as CollabRoom's single-doc model got for
+  // free from always proactively step1-ing on connect).
+  it("pulls a freshly-seeded client's content up to the server on first contact with a new doc", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const sent: ArrayBuffer[] = [];
+    const clientWs = { send: (data: ArrayBuffer) => sent.push(data) } as unknown as WebSocket;
+    room.sessions.set(clientWs, { username: "alice", role: "editor", viewingDocId: null });
+
+    // Client's local doc already has real, pre-seeded content — never
+    // told to the server before now.
+    const clientDoc = new Y.Doc();
+    clientDoc.getText("content").insert(0, "seeded content that must reach the server");
+
+    // Client's first contact with this docId: a plain step1 (its own
+    // state vector), exactly what connectWorkspace()'s ws.onopen sends.
+    const step1Encoder = encoding.createEncoder();
+    encoding.writeVarUint(step1Encoder, MESSAGE_SYNC);
+    encoding.writeVarString(step1Encoder, "docA");
+    syncProtocol.writeSyncStep1(step1Encoder, clientDoc);
+    await room.handleMessage(clientWs, encoding.toUint8Array(step1Encoder).buffer as ArrayBuffer);
+
+    // Server should have replied with its OWN step1 (a second, separate
+    // frame — not appended to any step2 reply), asking the client what
+    // IT has that the server doesn't.
+    expect(sent.length).toBeGreaterThan(0);
+    const serverStep1 = decodeEnvelope(sent[sent.length - 1]!);
+    expect(serverStep1.type).toBe(MESSAGE_SYNC);
+    expect(serverStep1.docId).toBe("docA");
+    const syncSubType = decoding.readVarUint(serverStep1.decoder);
+    expect(syncSubType).toBe(0); // SYNC_STEP1
+
+    // Client replies to the server's step1 with its own step2, carrying
+    // its seeded content — exactly what handleServerMessage does.
+    const replyEncoder = encoding.createEncoder();
+    encoding.writeVarUint(replyEncoder, MESSAGE_SYNC);
+    encoding.writeVarString(replyEncoder, "docA");
+    const rewound = decoding.createDecoder(new Uint8Array(sent[sent.length - 1]!));
+    decoding.readVarUint(rewound);
+    decoding.readVarString(rewound);
+    syncProtocol.readSyncMessage(rewound, replyEncoder, clientDoc, "server");
+    await room.handleMessage(clientWs, encoding.toUint8Array(replyEncoder).buffer as ArrayBuffer);
+
+    expect(room.docs.get("docA")?.doc.getText("content").toString()).toBe("seeded content that must reach the server");
   });
 });
 

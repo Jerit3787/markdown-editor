@@ -213,14 +213,48 @@ async function migrateLegacyDoc(docId: string) {
 // Y.Doc binding for every document currently in it — all of them start
 // syncing immediately, not just whichever one ends up on screen (see
 // bindActiveDoc, called separately once this resolves).
-async function joinWorkspace(workspaceId: string, { role }: { role: string }): Promise<void> {
+//
+// seedDocId: a document being shared for the very first time isn't in
+// the workspace's existing doc list yet (it's fetched below), so its
+// binding has to be created and pushed the current local editor content
+// BEFORE connecting — the initial sync handshake then carries that
+// content to the server as part of its own state vector. Seeding after
+// the socket is already open would instead rely on a live "local
+// update" broadcast via send(), which is silently dropped if the socket
+// isn't OPEN yet (a real gap this fixes: turning on sharing previously
+// created an empty room server-side and never actually sent the
+// document's content, only the framing for it).
+async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: string; seedDocId?: string }): Promise<void> {
   teardownWorkspace();
   workspaceRoom.workspaceId = workspaceId;
 
   const docIds = await fetchWorkspaceDocIds(workspaceId);
   for (const docId of docIds) createDocBinding(docId, role);
 
+  if (seedDocId && !docIds.includes(seedDocId)) {
+    createDocBinding(seedDocId, role);
+    seedDocBindingFromEditor(seedDocId);
+  }
+
   connectWorkspace();
+}
+
+// Pushes the currently-open editor's live content (and any local
+// images) into a freshly-created, still-unconnected doc binding — same
+// idea as the old single-document room's seedFromLocal, just scoped to
+// one binding within the multi-doc workspace connection.
+function seedDocBindingFromEditor(docId: string): void {
+  const binding = workspaceRoom.docs.get(docId);
+  if (!binding) return;
+  const view = window.MDE.getEditor();
+  const content = view.state.doc.toString();
+  if (content) binding.ydoc.transact(() => binding.ytext.insert(0, content), "local");
+  const doc = getActiveDoc();
+  if (doc && doc.id === docId && doc.images) {
+    binding.ydoc.transact(() => {
+      Object.entries(doc.images!).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
+    }, "local");
+  }
 }
 
 function createDocBinding(docId: string, role: string): DocBinding {
@@ -688,7 +722,7 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
   workspacesStore.update((all) => all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: wantAnyone || access.invited.length > 0 || w.shared, remoteId: w.remoteId || doc.workspaceId } : w)));
   persistWorkspaces();
   if ((wantAnyone || access.invited.length > 0) && !workspaceRoom.workspaceId) {
-    await joinWorkspace(doc.workspaceId, { role: "editor" });
+    await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
     bindActiveDoc(doc.id);
   }
   if (!wantAnyone && access.invited.length === 0) teardownWorkspace();
@@ -755,7 +789,7 @@ export async function addPerson(rawUsername: string) {
     // never seeded into it. First invite on a still-unconnected workspace
     // needs to seed it, same as opening general access does.
     if (!workspaceRoom.workspaceId) {
-      await joinWorkspace(doc.workspaceId, { role: "editor" });
+      await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
       bindActiveDoc(doc.id);
     }
     syncShareStores();

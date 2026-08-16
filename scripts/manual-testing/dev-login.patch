@@ -1,0 +1,40 @@
+diff --git a/src/worker.ts b/src/worker.ts
+index 9614b6c..be8fb8c 100644
+--- a/src/worker.ts
++++ b/src/worker.ts
+@@ -11,8 +11,19 @@ import {
+   handleGistList,
+ } from "./github-auth.js";
+ import { handleGistImageUpload } from "./gist-images.js";
++import { encryptSession, cookieHeader, SESSION_COOKIE } from "./auth.js";
+ import type { Env } from "./env";
+ 
++// TEMPORARY, local-testing-only: mints a real, validly-encrypted session
++// cookie for a fake username without going through GitHub OAuth at all —
++// see scripts/manual-testing/README.md. Applied/removed via
++// scripts/manual-testing/{enable,disable}-dev-login.sh — never hand-edit
++// this block in place and never commit it (that happened once already;
++// see git history around 2026-08-17 if curious). Not reachable in
++// production (SESSION_SECRET there is a real Wrangler secret, not this
++// repo's .dev.vars value).
++const DEV_LOGIN_PATH = "/api/dev/login";
++
+ const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
+ const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
+ const ROOM_MIGRATE_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/migrate$/;
+@@ -30,6 +41,15 @@ export default {
+   async fetch(request: Request, env: Env): Promise<Response> {
+     const url = new URL(request.url);
+ 
++    if (url.pathname === DEV_LOGIN_PATH) {
++      const username = url.searchParams.get("username") || "dev-user";
++      const cookie = await encryptSession(env, { token: "dev-fake-token", username });
++      return new Response(`Signed in locally as ${username}`, {
++        status: 200,
++        headers: { "Set-Cookie": cookieHeader(SESSION_COOKIE, cookie), "Content-Type": "text/plain" },
++      });
++    }
++
+     const workspaceAccessMatch = url.pathname.match(WORKSPACE_ACCESS_PATH);
+     if (workspaceAccessMatch) {
+       const id = env.WORKSPACE_ROOM.idFromName(workspaceAccessMatch[1]!);

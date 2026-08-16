@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import Modal from "./Modal.svelte";
   import { EditorState } from "@codemirror/state";
   import { EditorView, keymap, lineNumbers } from "@codemirror/view";
   import { history, historyKeymap, defaultKeymap } from "@codemirror/commands";
@@ -265,12 +264,21 @@
 </script>
 
 {#if $diagramEditorOpen}
-  <Modal title={$diagramEditorRef ? "Edit diagram" : "New diagram"} maxWidth="1000px" flush={true} fullHeight={true} labelledBy="diagramEditorTitle" onClose={close}>
-    {#snippet quickAction()}
+  <div class="diagram-editor-overlay" role="dialog" aria-modal="true" aria-labelledby="diagramEditorTitle">
+    <div class="diagram-editor-header">
+      <h2 id="diagramEditorTitle">{$diagramEditorRef ? "Edit diagram" : "New diagram"}</h2>
       <button type="button" class="secondary-btn" onclick={() => (showReference = !showReference)}>
         {showReference ? "Hide reference" : "Syntax reference"}
       </button>
       <div class="dropdown">
+        <!-- stopPropagation matches app.ts's toggleDropdown() button handler
+             — without it, this click bubbles to document, where
+             closeDropdownsOnOutsideClick() (registered for the File/Edit/
+             View/Help menus) sees a click that didn't land inside an
+             *already-open* .dropdown-menu (this button is a sibling of
+             .dropdown-menu, never a descendant of it) and immediately
+             strips the "open" class this same click just added, in the
+             same event's bubble phase — the menu never visibly opens. -->
         <button type="button" class="secondary-btn" disabled={!lastRenderedSvg} onclick={(e) => { e.stopPropagation(); showExportMenu = !showExportMenu; }}>
           Export
         </button>
@@ -279,12 +287,9 @@
           <button type="button" onclick={downloadPng}>Download PNG</button>
         </div>
       </div>
-    {/snippet}
-    {#snippet footer()}
       <button type="button" class="secondary-btn" onclick={close}>Cancel</button>
       <button type="button" class="primary-btn" disabled={!hasCode} onclick={save}>Save</button>
-    {/snippet}
-
+    </div>
     <div class="diagram-editor-body" class:with-reference={showReference}>
       <div class="diagram-editor-code-host" bind:this={codeHostEl}></div>
       <div class="diagram-editor-preview-wrap">
@@ -304,18 +309,17 @@
           {/each}
         </div>
       {/if}
-      
-      {#if showPicker}
-        <div class="diagram-template-picker">
-          <p>Start from a template</p>
-          <div class="diagram-template-grid">
-            {#each TEMPLATES as t (t.name)}
-              <button type="button" class="diagram-template-card" onclick={() => pickTemplate(t.code)}>{t.name}</button>
-            {/each}
-          </div>
-          <p class="diagram-template-or">or <button type="button" class="secondary-btn" onclick={startBlank}>start new</button></p>
-        </div>
-      {/if}
     </div>
-  </Modal>
+    {#if showPicker}
+      <div class="diagram-template-picker">
+        <p>Start from a template</p>
+        <div class="diagram-template-grid">
+          {#each TEMPLATES as t (t.name)}
+            <button type="button" class="diagram-template-card" onclick={() => pickTemplate(t.code)}>{t.name}</button>
+          {/each}
+        </div>
+        <p class="diagram-template-or">or <button type="button" class="secondary-btn" onclick={startBlank}>start new</button></p>
+      </div>
+    {/if}
+  </div>
 {/if}

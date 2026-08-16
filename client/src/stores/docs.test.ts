@@ -268,4 +268,16 @@ describe("docs store — workspace integration", () => {
     expect(doc.workspaceId).toBeTruthy();
     expect(get(workspacesStore).some((w) => w.id === doc.workspaceId)).toBe(true);
   });
+
+  it("importRemoteDocs adds remote docs into the target workspace, renaming on name collision", async () => {
+    const { createDoc, docsStore, importRemoteDocs } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Shared");
+    createDoc({ id: "local-1", name: "Notes", workspaceId: ws.id });
+    importRemoteDocs(ws.id, [{ id: "remote-1", name: "Notes", content: "remote content", updatedAt: 1, createdAt: 1 }]);
+
+    const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
+    expect(docs).toHaveLength(2);
+    expect(docs.find((d) => d.id === "remote-1")?.name).toBe("Notes-2");
+  });
 });

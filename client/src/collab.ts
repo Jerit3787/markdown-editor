@@ -14,13 +14,16 @@ import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
+import { get } from "svelte/store";
 import { keymap } from "@codemirror/view";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord } from "./types";
 import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "./stores/share";
 import { showToast } from "./stores/toast";
-import { getActiveDoc, findDocById, createDoc, markActiveDocShared } from "./stores/docs";
+import { getActiveDoc, markActiveDocShared, switchDoc } from "./stores/docs";
+import { pendingJoin } from "./stores/joinWorkspace";
+import { workspacesStore, switchWorkspace } from "./stores/workspaces";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -73,47 +76,46 @@ function init() {
   const shareUrlMatch = location.pathname.match(SHARE_PATH);
   if (shareUrlMatch) {
     history.replaceState(null, "", "/" + location.search + location.hash);
-    joinSharedLink(shareUrlMatch[1]);
+    joinSharedLink(shareUrlMatch[1]!, shareUrlMatch[2]!);
   } else {
     handleDocChanged(getActiveDoc());
   }
 }
 
-// Share links look like /d/<docId>/<view|review|edit> (Google-Docs-style),
-// not query params. The mode segment is purely informational for whoever's
-// reading the link — actual access is always resolved server-side from the
-// room's access record (see computeMyRole), never trusted from the URL.
-const SHARE_PATH = /^\/d\/([A-Za-z0-9_-]{1,128})\/(?:view|review|edit)$/;
+// Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
+// (Google-Docs-style), not query params. The mode segment is purely
+// informational for whoever's reading the link — actual access is always
+// resolved server-side from the workspace's access record (see
+// computeMyRole), never trusted from the URL.
+const SHARE_PATH = /^\/w\/([A-Za-z0-9_-]{1,128})\/([A-Za-z0-9_-]{1,128})\/(?:view|review|edit)$/;
 
-// A doc's own id doubles as its room id (see src/collab-room.ts) — a share
-// link is stable the moment the doc exists, not a fresh id minted only once
-// sharing is turned on.
-async function joinSharedLink(roomId: string) {
-  const existing = findDocById(roomId);
-  // createDoc() already activates the new doc; switchDoc() only needed to
-  // bring an already-known local copy back into view.
-  if (existing) window.MDE.switchDoc(existing.id);
-  else createDoc({ id: roomId, name: "Shared document" });
-
-  // Checked before requiring sign-in, not after: a link with general
-  // access set to "anyone" needs no account at all — only a restricted
-  // (invite-only) room needs a real identity to check against the
-  // invited list, which computeMyRole()'s username==null branch already
-  // falls through to correctly either way.
-  const access = await fetchAccess(roomId);
+async function joinSharedLink(workspaceId: string, landOnDocId: string) {
+  const localMatch = get(workspacesStore).find((w) => w.remoteId === workspaceId);
+  const access = await fetchWorkspaceAccess(workspaceId);
   await window.MDE.githubSessionReady;
   const username = window.MDE.githubUsername;
   const role = computeMyRole(access, username);
   if (!role) {
     if (!username) {
-      window.MDE.requireGithubSignIn("Sign in with GitHub to open this shared document.");
+      window.MDE.requireGithubSignIn("Sign in with GitHub to open this shared workspace.");
     } else {
-      alert("You don't have access to this document. Ask the owner to invite your GitHub username, or share a link with general access turned on.");
+      alert("You don't have access to this workspace. Ask the owner to invite your GitHub username, or share a link with general access turned on.");
     }
     return;
   }
-  markActiveDocShared(true);
-  joinRoom(roomId, { seedFromLocal: false, role });
+
+  if (localMatch) {
+    // Already joined this remote workspace before — just switch to it.
+    switchWorkspace(localMatch.id);
+    switchDoc(landOnDocId);
+    await joinWorkspace(workspaceId, { role });
+    bindActiveDoc(landOnDocId);
+    return;
+  }
+
+  const docIds = await fetchWorkspaceDocIds(workspaceId);
+  const docs = await Promise.all(docIds.map((id) => fetchRemoteDocContent(workspaceId, id)));
+  pendingJoin.set({ remoteId: workspaceId, workspaceName: "Shared workspace", docs: docs.filter((d): d is NonNullable<typeof d> => !!d), landOnDocId });
 }
 
 function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): string | null {
@@ -425,6 +427,50 @@ async function fetchWorkspaceDocIds(workspaceId: string): Promise<string[]> {
   } catch (err) {
     return [];
   }
+}
+
+type RemoteDocPreview = { id: string; name: string; content: string; updatedAt: number; createdAt: number };
+
+// Fetches a document's current text via a throwaway sync handshake over a
+// short-lived WebSocket — there's no plain HTTP "get current content"
+// endpoint (the DO only speaks the Yjs sync protocol for content), so this
+// opens one, waits for the first sync reply, and closes it again. Used
+// only for the one-time "download the list to show in the join prompt"
+// step; the real, persistent connection is opened afterward by
+// joinWorkspace once the user has actually chosen to join.
+async function fetchRemoteDocContent(workspaceId: string, docId: string): Promise<RemoteDocPreview | null> {
+  return new Promise((resolve) => {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${proto}//${location.host}/api/workspace/${encodeURIComponent(workspaceId)}`);
+    ws.binaryType = "arraybuffer";
+    const scratchDoc = new Y.Doc();
+    let settled = false;
+    const finish = (result: RemoteDocPreview | null) => {
+      if (settled) return;
+      settled = true;
+      try { ws.close(); } catch (e) { /* already closed */ }
+      resolve(result);
+    };
+    ws.onopen = () => {
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, MESSAGE_SYNC);
+      encoding.writeVarString(encoder, docId);
+      syncProtocol.writeSyncStep1(encoder, scratchDoc);
+      ws.send(encoding.toUint8Array(encoder));
+    };
+    ws.onmessage = (event) => {
+      const decoder = decoding.createDecoder(new Uint8Array(event.data as ArrayBuffer));
+      const type = decoding.readVarUint(decoder);
+      if (type !== MESSAGE_SYNC) return;
+      const gotDocId = decoding.readVarString(decoder);
+      if (gotDocId !== docId) return;
+      syncProtocol.readSyncMessage(decoder, encoding.createEncoder(), scratchDoc, "server");
+      const now = Date.now();
+      finish({ id: docId, name: "Shared document", content: scratchDoc.getText("content").toString(), updatedAt: now, createdAt: now });
+    };
+    ws.onerror = () => finish(null);
+    setTimeout(() => finish(null), 5000);
+  });
 }
 
 // ---------- UI ----------

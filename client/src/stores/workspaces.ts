@@ -79,6 +79,25 @@ export function createWorkspace(name: string): Workspace {
   return ws;
 }
 
+// Opening a shared workspace link for the first time and choosing "add as
+// a new workspace" — creates a fresh local Workspace record pointed at the
+// remote room, distinct from anything the user already has.
+export function adoptSharedWorkspace(remoteId: string, name: string): Workspace {
+  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), shared: true, remoteId };
+  workspacesStore.update((all) => [ws, ...all]);
+  setActiveWorkspaceId(ws.id);
+  persistWorkspaces();
+  return ws;
+}
+
+// Opening a shared workspace link and choosing "merge into an existing
+// workspace" — the chosen local workspace keeps its own id/name but
+// starts pointing at the remote room too.
+export function mergeSharedWorkspaceInto(workspaceId: string, remoteId: string): void {
+  workspacesStore.update((all) => all.map((w) => (w.id === workspaceId ? { ...w, shared: true, remoteId } : w)));
+  persistWorkspaces();
+}
+
 export function renameWorkspace(id: string, name: string) {
   workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, name: name || "Untitled workspace" } : w)));
   persistWorkspaces();

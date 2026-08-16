@@ -138,4 +138,22 @@ describe("workspaces store — mutations", () => {
     expect(found.shared).toBe(true);
     expect(found.remoteId).toBe("room-abc");
   });
+
+  it("adoptSharedWorkspace creates a new local workspace tagged shared+remoteId", async () => {
+    const { workspacesStore, adoptSharedWorkspace } = await import("./workspaces");
+    const ws = adoptSharedWorkspace("room-xyz", "Team Docs");
+    expect(ws.shared).toBe(true);
+    expect(ws.remoteId).toBe("room-xyz");
+    expect(ws.name).toBe("Team Docs");
+    expect(get(workspacesStore).find((w) => w.id === ws.id)).toBeTruthy();
+  });
+
+  it("mergeSharedWorkspaceInto tags an existing workspace with shared+remoteId", async () => {
+    const { workspacesStore, createWorkspace, mergeSharedWorkspaceInto } = await import("./workspaces");
+    const existing = createWorkspace("My Notes");
+    mergeSharedWorkspaceInto(existing.id, "room-xyz");
+    const updated = get(workspacesStore).find((w) => w.id === existing.id);
+    expect(updated?.shared).toBe(true);
+    expect(updated?.remoteId).toBe("room-xyz");
+  });
 });

@@ -178,6 +178,29 @@ export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string 
   return doc;
 }
 
+// Merges a shared workspace's document list into a local workspace —
+// used both by the "merge into an existing workspace" join choice and by
+// "add as a new workspace" (against the freshly-created empty workspace).
+// Name collisions go through the same silent-suffix primitive used
+// everywhere else in the app (create/rename/duplicate) rather than new
+// conflict-resolution UI, per the design spec's Non-goals — and, like
+// every other caller of that primitive (createDoc, findCollidingDoc),
+// checked against every document in the app, not just this workspace's:
+// document names are a global-uniqueness invariant here, not a
+// per-workspace one.
+export function importRemoteDocs(workspaceId: string, remoteDocs: Pick<Doc, "id" | "name" | "content" | "updatedAt" | "createdAt">[]): void {
+  docsStore.update((docs) => {
+    const seen = new Set(docs.map((d) => d.name));
+    const added = remoteDocs.map((rd) => {
+      const name = nextAvailableName(rd.name || "Untitled", seen);
+      seen.add(name);
+      return { ...rd, name, workspaceId, shared: undefined } as Doc;
+    });
+    return [...added, ...docs];
+  });
+  persistDocs();
+}
+
 // Returns whether the switch actually happened (false if `id` was already
 // active) — callers with extra UI to run only on a real switch (e.g.
 // collapsing the sidebar on mobile) branch on this instead of duplicating

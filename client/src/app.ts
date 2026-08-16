@@ -312,7 +312,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // ---------- Editor (CodeMirror 6) ----------
   const editorTheme = EditorView.theme({
     "&": { color: "var(--text)", backgroundColor: "var(--bg)", height: "100%" },
-    ".cm-content": { fontFamily: "var(--mono)", fontSize: "14.5px", lineHeight: "1.6", padding: "4px 0", caretColor: "var(--text)" },
+    ".cm-content": { fontFamily: "var(--mono)", fontSize: "14.5px", lineHeight: "1.6", caretColor: "var(--text)" },
     ".cm-scroller": { overflow: "auto", fontFamily: "var(--mono)" },
     "&.cm-focused": { outline: "none" },
     ".cm-cursor": { borderLeftColor: "var(--text)" },

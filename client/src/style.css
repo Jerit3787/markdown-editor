@@ -1755,6 +1755,9 @@ body.focus-mode #statusbar {
   overflow-wrap: break-word;
 }
 
+/* Base CodeMirror Content Padding (matches #preview for visual balance) */
+.cm-content { padding: 40px; }
+
 #preview h1, #preview h2, #preview h3 { line-height: 1.3; }
 #preview h1 { font-size: 1.9em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
 #preview h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
@@ -2193,6 +2196,9 @@ body.focus-mode #statusbar {
      everyone — a real accessibility regression. */
   input, textarea, select { font-size: 16px; }
   .cm-content { font-size: 16px; }
+
+  /* Mobile-friendly padding to avoid wasting horizontal space */
+  .cm-content, #preview { padding: 24px 16px !important; }
 
   /* Plain wrap, not scroll: overflow-x:auto here would also clip the
      File/Edit/View/Help dropdowns vertically, since they're absolutely

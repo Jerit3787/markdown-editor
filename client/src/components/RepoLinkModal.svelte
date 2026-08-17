@@ -3,20 +3,42 @@
   import Modal from "./Modal.svelte";
   import Toggletip from "./Toggletip.svelte";
   import RepoPicker from "./RepoPicker.svelte";
-  import { repoLinkModalOpen } from "../stores/repoSync";
-  import { activeWorkspaceIdStore, setWorkspaceRepoLink } from "../stores/workspaces";
+  import { repoLinkModalOpen, repoSyncBusyLabel, repoConflictModalOpen, repoConflictState } from "../stores/repoSync";
+  import { activeWorkspaceIdStore } from "../stores/workspaces";
+  import { docsInWorkspace } from "../stores/docs";
+  import { linkWorkspaceAndSync } from "../repo-sync";
   import { showToast } from "../stores/toast";
 
   function close() {
     repoLinkModalOpen.set(false);
   }
 
-  function linkWorkspace(owner: string, repo: string, branch: string) {
+  function docNameFor(workspaceId: string, docId: string): string {
+    return docsInWorkspace(workspaceId).find((d) => d.id === docId)?.name || "Untitled";
+  }
+
+  async function linkWorkspace(owner: string, repo: string, branch: string) {
     const workspaceId = $activeWorkspaceIdStore;
     if (!workspaceId) return;
-    setWorkspaceRepoLink(workspaceId, { owner, repo, branch });
-    close();
-    showToast(`Linked to ${owner}/${repo}`, "success");
+    try {
+      const { pullPlan, applyPullResolved } = await linkWorkspaceAndSync(workspaceId, { owner, repo, branch });
+      close();
+      if (pullPlan.conflicts.length > 0 || pullPlan.deletions.length > 0) {
+        repoConflictState.set({
+          kind: "pull",
+          conflicts: pullPlan.conflicts.map((c) => ({ docId: c.docId, docName: docNameFor(workspaceId, c.docId), repoPath: c.repoPath })),
+          deletions: pullPlan.deletions.map((d) => ({ docId: d.docId, docName: docNameFor(workspaceId, d.docId), repoPath: d.repoPath })),
+          onResolve: applyPullResolved,
+        });
+        repoConflictModalOpen.set(true);
+      } else {
+        showToast(`Linked to ${owner}/${repo}`, "success");
+      }
+    } catch (err: any) {
+      showToast(err.message || "Couldn't sync after linking", "error");
+    } finally {
+      repoSyncBusyLabel.set(null);
+    }
   }
 
   onMount(() => {

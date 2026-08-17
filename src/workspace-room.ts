@@ -189,6 +189,8 @@ export class WorkspaceRoom {
 
     const restoreMatch = url.pathname.match(/\/docs\/([^/]+)\/versions\/([^/]+)\/restore$/);
     if (restoreMatch) return this.handleVersionRestoreRequest(request, restoreMatch[1]!, restoreMatch[2]!);
+    const restoreContentMatch = url.pathname.match(/\/docs\/([^/]+)\/versions\/restore-content$/);
+    if (restoreContentMatch) return this.handleVersionRestoreContentRequest(request, restoreContentMatch[1]!);
     const versionMatch = url.pathname.match(/\/docs\/([^/]+)\/versions\/([^/]+)$/);
     if (versionMatch) return this.handleVersionContentRequest(request, versionMatch[1]!, versionMatch[2]!);
     const versionsListMatch = url.pathname.match(/\/docs\/([^/]+)\/versions$/);
@@ -541,6 +543,34 @@ export class WorkspaceRoom {
       text.insert(0, snap.content);
     }, "restore");
     const created = await this.forceSnapshot(docId, docRoom, snap.content);
+    return Response.json(created);
+  }
+
+  // Same as handleVersionRestoreRequest above, but for content that
+  // didn't come from an existing tracked snapshot (e.g. fetched fresh
+  // from a repo commit) — takes the content directly instead of
+  // looking it up by versionId.
+  async handleVersionRestoreContentRequest(request: Request, docId: string): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (auth.role !== "editor") return new Response("Only an editor can restore a version.", { status: 403 });
+    let body: { content?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      return new Response("Invalid JSON.", { status: 400 });
+    }
+    const content = typeof body.content === "string" ? body.content : undefined;
+    if (content === undefined) return new Response("content is required.", { status: 400 });
+
+    const docRoom = await this.loadDocRoom(docId);
+    const text = docRoom.doc.getText("content");
+    docRoom.doc.transact(() => {
+      text.delete(0, text.length);
+      text.insert(0, content);
+    }, "restore");
+    const created = await this.forceSnapshot(docId, docRoom, content);
     return Response.json(created);
   }
 

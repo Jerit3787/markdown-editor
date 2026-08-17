@@ -274,6 +274,60 @@ describe("WorkspaceRoom version snapshots", () => {
   });
 });
 
+describe("WorkspaceRoom.handleVersionRestoreContentRequest", () => {
+  it("replaces the doc's content and records a new snapshot", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "old content"), "storage");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/versions/restore-content", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "restored content" }),
+    });
+    const res = await room.handleVersionRestoreContentRequest(request, "docA");
+    expect(res.status).toBe(200);
+    expect(docRoom.doc.getText("content").toString()).toBe("restored content");
+    const snapshots = await room.getSnapshots("docA");
+    expect(snapshots[snapshots.length - 1]!.content).toBe("restored content");
+  });
+
+  it("rejects a non-editor", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: "reviewer" }],
+    });
+    await room.loadDocRoom("docA");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "bob" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/versions/restore-content", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "restored content" }),
+    });
+    const res = await room.handleVersionRestoreContentRequest(request, "docA");
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects a request with no content", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    await room.loadDocRoom("docA");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/versions/restore-content", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const res = await room.handleVersionRestoreContentRequest(request, "docA");
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("WorkspaceRoom comment threads", () => {
   it("creates a thread and persists it under the doc's own storage key", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);

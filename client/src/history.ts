@@ -106,6 +106,15 @@ export async function restoreLocalVersion(docId: string, versionId: string, now:
   return content;
 }
 
+// For restoring content that didn't come from an existing local
+// snapshot (e.g. fetched fresh from a repo commit) — same
+// force-append-for-undo-safety guarantee as restoreLocalVersion above,
+// just skipping the snapshot lookup since the caller already has the
+// content in hand.
+export async function restoreLocalVersionContent(docId: string, content: string, now: number = Date.now()): Promise<void> {
+  await appendSnapshot(docId, content, now);
+}
+
 export async function deleteHistory(docId: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -149,6 +158,19 @@ export async function getSharedVersionContent(workspaceId: string, docId: string
 export async function restoreSharedVersion(workspaceId: string, docId: string, versionId: string): Promise<boolean> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions/${encodeURIComponent(versionId)}/restore`, { method: "POST" });
+    return res.ok;
+  } catch (err) {
+    return false;
+  }
+}
+
+export async function restoreSharedVersionContent(workspaceId: string, docId: string, content: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions/restore-content`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
     return res.ok;
   } catch (err) {
     return false;

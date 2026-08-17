@@ -32,7 +32,7 @@ export async function handleRepoCreate(request: Request, env: Env): Promise<Resp
   const res = await fetch(`${API}/user/repos`, {
     method: "POST",
     headers: { ...ghHeaders(session.token), "Content-Type": "application/json" },
-    body: JSON.stringify({ name, private: isPrivate, auto_init: true }),
+    body: JSON.stringify({ name, private: isPrivate, auto_init: false }),
   });
   return proxyJson(res);
 }
@@ -86,6 +86,13 @@ export async function handleRepoTree(request: Request, env: Env, owner: string, 
   if (!session) return new Response("Not signed in", { status: 401 });
   const headers = ghHeaders(session.token);
   const refRes = await fetch(`${API}/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, { headers });
+  if (refRes.status === 404) {
+    // A freshly created repo (or any repo with no commits yet on this
+    // branch) has no ref to resolve — this is a legitimate empty state,
+    // not an error. handleRepoPush knows how to build a repo's very
+    // first commit when it receives no baseTreeSha/parentCommitSha.
+    return Response.json({ commitSha: null, treeSha: null, tree: [] });
+  }
   if (!refRes.ok) return proxyJson(refRes);
   const refData = await safeJson<{ object: { sha: string } }>(refRes);
   if (!refData) return new Response("Failed to resolve branch: invalid response", { status: 502 });
@@ -132,13 +139,18 @@ export async function handleRepoPush(request: Request, env: Env, owner: string, 
   // parentCommitSha (a *commit* sha — the branch head's current commit,
   // distinct from its tree) becomes the new commit's parents[0]. Mixing
   // these up produces a commit whose parent doesn't match its own tree's
-  // base, which the ref-update step below would then reject.
+  // base, which the ref-update step below would then reject. Both empty
+  // together means "this repo/branch has no commits yet" —
+  // handleRepoTree returns them as null/empty in exactly that case (see
+  // its own comment). One present without the other is a client bug,
+  // not a legitimate empty-repo push, so it's still rejected below.
   const baseTreeSha = typeof body.baseTreeSha === "string" ? body.baseTreeSha : "";
   const parentCommitSha = typeof body.parentCommitSha === "string" ? body.parentCommitSha : "";
   const blobs = Array.isArray(body.blobs) ? (body.blobs as { path: string; contentBase64: string }[]) : [];
   const deletePaths = Array.isArray(body.deletePaths) ? (body.deletePaths as string[]) : [];
-  if (!branch || !baseTreeSha || !parentCommitSha) {
-    return new Response("branch, baseTreeSha, and parentCommitSha are required.", { status: 400 });
+  const isFirstCommit = !baseTreeSha && !parentCommitSha;
+  if (!branch || (!isFirstCommit && (!baseTreeSha || !parentCommitSha))) {
+    return new Response("branch is required, and baseTreeSha/parentCommitSha must both be present or both absent.", { status: 400 });
   }
 
   const headers = { ...ghHeaders(session.token), "Content-Type": "application/json" };
@@ -162,33 +174,43 @@ export async function handleRepoPush(request: Request, env: Env, owner: string, 
     blobs.map((b) => ({ path: b.path, sha: blobShas[b.path]! })),
     deletePaths
   );
+  const treeBody: { tree: typeof treeEntries; base_tree?: string } = { tree: treeEntries };
+  if (!isFirstCommit) treeBody.base_tree = baseTreeSha;
   const treeRes = await fetch(`${base}/git/trees`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ base_tree: baseTreeSha, tree: treeEntries }),
+    body: JSON.stringify(treeBody),
   });
   if (!treeRes.ok) return new Response(`Failed to build tree: ${await treeRes.text()}`, { status: 502 });
   const treeData = await safeJson<{ sha: string }>(treeRes);
   if (!treeData) return new Response("Failed to build tree: invalid response", { status: 502 });
 
+  const commitBody: { message: string; tree: string; parents?: string[] } = { message: "Update from Markdown Editor", tree: treeData.sha };
+  if (!isFirstCommit) commitBody.parents = [parentCommitSha];
   const commitRes = await fetch(`${base}/git/commits`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      message: "Update from Markdown Editor",
-      tree: treeData.sha,
-      parents: [parentCommitSha],
-    }),
+    body: JSON.stringify(commitBody),
   });
   if (!commitRes.ok) return new Response(`Failed to create commit: ${await commitRes.text()}`, { status: 502 });
   const commitData = await safeJson<{ sha: string }>(commitRes);
   if (!commitData) return new Response("Failed to create commit: invalid response", { status: 502 });
 
-  const refRes = await fetch(`${base}/git/refs/heads/${encodeURIComponent(branch)}`, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify({ sha: commitData.sha, force: false }),
-  });
+  // A first commit has no ref yet to update — it has to be created, not
+  // patched. Any later push against the same branch always has
+  // isFirstCommit false (handleRepoTree found a real ref by then), so
+  // this only ever runs once per branch.
+  const refRes = isFirstCommit
+    ? await fetch(`${base}/git/refs`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commitData.sha }),
+      })
+    : await fetch(`${base}/git/refs/heads/${encodeURIComponent(branch)}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ sha: commitData.sha, force: false }),
+      });
   if (!refRes.ok) {
     return Response.json({ conflict: true, message: await refRes.text() }, { status: 409 });
   }

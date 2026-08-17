@@ -51,10 +51,10 @@ describe("handleRepoCreate", () => {
     expect(res.status).toBe(401);
   });
 
-  it("creates a repo with the requested visibility", async () => {
+  it("creates a repo with the requested visibility, without auto-initializing it", async () => {
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
       const body = JSON.parse(init.body as string);
-      expect(body).toEqual({ name: "notes", private: true, auto_init: true });
+      expect(body).toEqual({ name: "notes", private: true, auto_init: false });
       return new Response(JSON.stringify({ full_name: "alice/notes", private: true, default_branch: "main" }), { status: 201 });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -118,6 +118,24 @@ describe("handleRepoTree", () => {
       "https://api.github.com/repos/alice/notes/git/refs/heads/main",
       "https://api.github.com/repos/alice/notes/git/trees/commit-sha?recursive=1",
     ]);
+  });
+
+  it("returns an empty tree instead of an error when the branch has no commits yet", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "https://api.github.com/repos/alice/notes/git/refs/heads/main") {
+          return new Response(JSON.stringify({ message: "Not Found" }), { status: 404 });
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      })
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/tree?branch=main", { headers: { Cookie: cookie } });
+    const res = await handleRepoTree(req, fakeEnv, "alice", "notes", "main");
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toEqual({ commitSha: null, treeSha: null, tree: [] });
   });
 });
 
@@ -242,6 +260,49 @@ describe("handleRepoPush", () => {
     const data = (await res.json()) as { conflict: boolean };
     expect(data.conflict).toBe(true);
   });
+
+  it("builds a first commit (no base_tree, no parents) and creates the ref via POST when baseTreeSha/parentCommitSha are both absent", async () => {
+    const calls: { url: string; method: string; body?: any }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const body = init?.body ? JSON.parse(init.body as string) : undefined;
+        calls.push({ url, method: init?.method || "GET", body });
+        if (url.endsWith("/git/blobs")) return new Response(JSON.stringify({ sha: "blob-sha" }), { status: 201 });
+        if (url.endsWith("/git/trees")) return new Response(JSON.stringify({ sha: "new-tree-sha" }), { status: 201 });
+        if (url.endsWith("/git/commits")) return new Response(JSON.stringify({ sha: "new-commit-sha" }), { status: 201 });
+        if (url.endsWith("/git/refs")) return new Response(JSON.stringify({ ref: "refs/heads/main", object: { sha: "new-commit-sha" } }), { status: 201 });
+        throw new Error(`unexpected fetch: ${url}`);
+      })
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/push", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ branch: "main", blobs: [{ path: "a.md", contentBase64: "aGVsbG8=" }], deletePaths: [] }),
+    });
+    const res = await handleRepoPush(req, fakeEnv, "alice", "notes");
+    expect(res.status).toBe(200);
+
+    const treeCall = calls.find((c) => c.url.endsWith("/git/trees"))!;
+    expect(treeCall.body.base_tree).toBeUndefined();
+    const commitCall = calls.find((c) => c.url.endsWith("/git/commits"))!;
+    expect(commitCall.body.parents).toBeUndefined();
+    const refCall = calls.find((c) => c.url.endsWith("/git/refs"))!;
+    expect(refCall.method).toBe("POST");
+    expect(refCall.body).toEqual({ ref: "refs/heads/main", sha: "new-commit-sha" });
+  });
+
+  it("returns 400 when exactly one of baseTreeSha/parentCommitSha is present", async () => {
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/push", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ branch: "main", baseTreeSha: "base-tree", blobs: [], deletePaths: [] }),
+    });
+    const res = await handleRepoPush(req, fakeEnv, "alice", "notes");
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("handleRepoPush against a real fake GitHub server", () => {
@@ -288,5 +349,30 @@ describe("handleRepoPush against a real fake GitHub server", () => {
     const followUpRes = await handleRepoTree(followUpReq, fakeEnv, "alice", "notes", "main");
     const followUpData = (await followUpRes.json()) as { tree: { path: string }[] };
     expect(followUpData.tree.map((e) => e.path).sort()).toEqual(["existing.md", "new.md"]);
+  });
+
+  it("pushes a genuine first commit to a brand-new (never-seeded) repo with no prior ref", async () => {
+    const cookie = await sessionCookieHeader("tok", "alice");
+    // No seedRepo call — getRepo() lazily creates empty state, matching a
+    // freshly-created (no longer auto_init'd) real GitHub repo exactly.
+
+    const treeReq = new Request("https://example.com/api/repo/alice/notes/tree?branch=main", { headers: { Cookie: cookie } });
+    const treeRes = await handleRepoTree(treeReq, fakeEnv, "alice", "notes", "main");
+    expect(treeRes.status).toBe(200);
+    const treeData = (await treeRes.json()) as { commitSha: string | null; treeSha: string | null; tree: unknown[] };
+    expect(treeData).toEqual({ commitSha: null, treeSha: null, tree: [] });
+
+    const pushReq = new Request("https://example.com/api/repo/alice/notes/push", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ branch: "main", blobs: [{ path: "notes.md", contentBase64: Buffer.from("hello").toString("base64") }], deletePaths: [] }),
+    });
+    const pushRes = await handleRepoPush(pushReq, fakeEnv, "alice", "notes");
+    expect(pushRes.status).toBe(200);
+
+    const followUpReq = new Request("https://example.com/api/repo/alice/notes/tree?branch=main", { headers: { Cookie: cookie } });
+    const followUpRes = await handleRepoTree(followUpReq, fakeEnv, "alice", "notes", "main");
+    const followUpData = (await followUpRes.json()) as { tree: { path: string }[] };
+    expect(followUpData.tree.map((e) => e.path)).toEqual(["notes.md"]);
   });
 });

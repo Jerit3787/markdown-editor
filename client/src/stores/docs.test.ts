@@ -365,4 +365,44 @@ describe("docs store — workspace integration", () => {
     expect(b.repoPath).toBe("b.md");
     expect(b.repoSha).toBe("sha-b");
   });
+
+  it("syncRemoteDocContent writes new content and bumps updatedAt when content differs", async () => {
+    const { createDoc, syncRemoteDocContent, findDocById } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "a" });
+    const before = findDocById(doc.id)!.updatedAt;
+    const wrote = syncRemoteDocContent(doc.id, "new content", undefined);
+    expect(wrote).toBe(true);
+    const after = findDocById(doc.id)!;
+    expect(after.content).toBe("new content");
+    expect(after.updatedAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it("syncRemoteDocContent writes new images and bumps updatedAt when images differ", async () => {
+    const { createDoc, syncRemoteDocContent, findDocById } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "a", content: "same" });
+    const wrote = syncRemoteDocContent(doc.id, "same", { "img-1": "data-a" });
+    expect(wrote).toBe(true);
+    expect(findDocById(doc.id)!.images).toEqual({ "img-1": "data-a" });
+  });
+
+  it("syncRemoteDocContent is a no-op when content and images are unchanged, even with images in a different key order", async () => {
+    const { createDoc, syncRemoteDocContent, findDocById } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "a", content: "same" });
+    syncRemoteDocContent(doc.id, "same", { "img-1": "data-a", "img-2": "data-b" });
+    const before = findDocById(doc.id)!.updatedAt;
+    const wrote = syncRemoteDocContent(doc.id, "same", { "img-2": "data-b", "img-1": "data-a" });
+    expect(wrote).toBe(false);
+    expect(findDocById(doc.id)!.updatedAt).toBe(before);
+  });
+
+  it("syncRemoteDocContent returns false when the doc id doesn't exist", async () => {
+    const { syncRemoteDocContent } = await import("./docs");
+    expect(syncRemoteDocContent("does-not-exist", "content", undefined)).toBe(false);
+  });
 });

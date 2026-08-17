@@ -11,7 +11,7 @@ import {
   handleGistList,
 } from "./github-auth.js";
 import { handleGistImageUpload } from "./gist-images.js";
-import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoPush } from "./github-repo.js";
+import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
 import type { Env } from "./env";
 
 const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
@@ -30,6 +30,7 @@ const REPO_TREE_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/tree$/;
 const REPO_BLOB_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/blob\/([0-9a-f]+)$/i;
 const REPO_PUSH_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/push$/;
 const REPO_COMMITS_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/commits$/;
+const REPO_FILE_AT_REF_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/contents\/(.+)$/;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -132,6 +133,12 @@ export default {
       const branch = url.searchParams.get("branch") || "";
       const page = Number(url.searchParams.get("page")) || 1;
       return handleRepoCommits(request, env, repoCommitsMatch[1]!, repoCommitsMatch[2]!, branch, page);
+    }
+
+    const repoFileAtRefMatch = url.pathname.match(REPO_FILE_AT_REF_PATH);
+    if (repoFileAtRefMatch && request.method === "GET") {
+      const ref = url.searchParams.get("ref") || "";
+      return handleRepoFileAtRef(request, env, repoFileAtRefMatch[1]!, repoFileAtRefMatch[2]!, repoFileAtRefMatch[3]!, ref);
     }
 
     const repoPushMatch = url.pathname.match(REPO_PUSH_PATH);

@@ -5,6 +5,7 @@ import {
   handleRepoTree,
   handleRepoBlob,
   handleRepoCommits,
+  handleRepoFileAtRef,
   filterMarkdownEntries,
   handleRepoPush,
   computeNewTreeEntries,
@@ -192,6 +193,38 @@ describe("handleRepoCommits", () => {
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=missing-branch", { headers: { Cookie: cookie } });
     const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "missing-branch", 1);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("handleRepoFileAtRef", () => {
+  it("returns 401 when signed out", async () => {
+    const req = new Request("https://example.com/api/repo/alice/notes/contents/Notes.md?ref=main");
+    const res = await handleRepoFileAtRef(req, fakeEnv, "alice", "notes", "Notes.md", "main");
+    expect(res.status).toBe(401);
+  });
+
+  it("constructs the correct upstream URL with per-segment encoding for a nested path", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        expect(url).toBe("https://api.github.com/repos/alice/notes/contents/folder%20a/My%20Notes.md?ref=abc123");
+        return new Response(JSON.stringify({ content: "aGVsbG8=", encoding: "base64" }), { status: 200 });
+      })
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/contents/folder%20a/My%20Notes.md?ref=abc123", { headers: { Cookie: cookie } });
+    const res = await handleRepoFileAtRef(req, fakeEnv, "alice", "notes", "folder a/My Notes.md", "abc123");
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { content: string };
+    expect(data.content).toBe("aGVsbG8=");
+  });
+
+  it("proxies a non-200 upstream response through unchanged", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ message: "Not Found" }), { status: 404 })));
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/contents/Missing.md?ref=main", { headers: { Cookie: cookie } });
+    const res = await handleRepoFileAtRef(req, fakeEnv, "alice", "notes", "Missing.md", "main");
     expect(res.status).toBe(404);
   });
 });

@@ -292,6 +292,9 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       // the switcher's own "New workspace" button — see WorkspaceSwitcher.svelte.
       document.getElementById("workspace-switcher-mount")?.querySelector("button")?.click();
     });
+    document.getElementById("emptyOpenRepoBtn").addEventListener("click", () => {
+      document.getElementById("menuOpenRepo").click();
+    });
   }
 
   // Theme is now owned by the Settings Svelte component (see

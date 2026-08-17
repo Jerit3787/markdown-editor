@@ -1372,7 +1372,14 @@ select:not(.share-access-select):not(.share-role-select) {
   position: relative;
   flex: 1;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  /* "comments" is a fixed 320px (matching .comments-panel's own width),
+     not auto — an auto track floors at its item's min-content width
+     (the "Comments" heading text can't shrink below ~80px), so no
+     amount of negative margin on .comments-panel.collapsed can shrink
+     an auto track to 0. Fixed width sidesteps that entirely; the panel
+     now slides off-screen via transform (see .comments-panel.collapsed
+     below), which doesn't participate in grid track sizing at all. */
+  grid-template-columns: auto 1fr 320px;
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "toolbar toolbar view-selector"
@@ -2079,11 +2086,17 @@ select:not(.share-access-select):not(.share-role-select) {
 
 /* Comments Panel */
 .comments-panel {
-  transition: margin-right 0.15s ease;
+  transition: transform 0.15s ease;
 }
 
 .comments-panel.collapsed {
-  margin-right: -321px; /* 320px width + 1px border */
+  /* transform, not margin — margin-right on a grid item only reduces
+     the trailing space reserved for it, it doesn't reposition the box
+     itself, so it could never actually slide the panel off-screen (see
+     #body's grid-template-columns comment above for the full story).
+     transform doesn't participate in grid layout at all, so this moves
+     the panel fully out of view without touching #main's width. */
+  transform: translateX(100%);
 }
 
 /* Responsive */

@@ -147,6 +147,9 @@
             <button type="button" disabled={!!$repoSyncBusyLabel} onclick={() => act(() => window.MDE.pushToRepoAction?.())}>
               <svg class="icon"><use href="#icon-upload"></use></svg> {$repoSyncBusyLabel === "Pushing…" ? "Pushing…" : "Push to Repo"}
             </button>
+            <button type="button" onclick={() => act(() => window.MDE.openRepoInfoPanel?.())}>
+              <svg class="icon"><use href="#icon-info"></use></svg> Repo info
+            </button>
             <button type="button" onclick={() => act(() => window.MDE.unlinkRepo?.())}>
               <svg class="icon"><use href="#icon-x"></use></svg> Unlink Repo
             </button>

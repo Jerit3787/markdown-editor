@@ -995,12 +995,15 @@ body.focus-mode #statusbar {
 .comment-draft-actions button { width: auto; margin-bottom: 0; }
 
 .comments-panel {
-  /* A real grid item in #body (see index.html), not a fixed-position
-     overlay — the panel takes up genuine layout space, so opening it
-     pushes #main's own content narrower/left instead of floating on top
-     of it like a modal. Its column is shared with the view selector
-     above it (see #body's grid-template-areas), so both stay the same
-     width automatically. */
+  /* A real grid item in #body (see index.html), permanently in its own
+     "comments" grid column (see #body's grid-template-areas) — not a
+     fixed-position overlay floating on top of the content like a modal.
+     Its column is shared with the view selector above it, so both stay
+     the same width automatically. Always occupies this column, even
+     while closed (.collapsed below slides it out of view via margin,
+     the same way #sidebar's own column stays reserved while it's
+     collapsed) — #main does not reclaim this space either way, matching
+     #sidebar's existing behavior exactly. */
   grid-area: comments;
   width: 320px;
   flex-shrink: 0;
@@ -1008,10 +1011,6 @@ body.focus-mode #statusbar {
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-}
-
-#body:not(.comments-open) .comments-panel {
-  grid-area: main;
 }
 .comments-panel-header {
   display: flex;
@@ -1362,14 +1361,8 @@ select:not(.share-access-select):not(.share-role-select) {
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "toolbar toolbar view-selector"
-    "sidebar main    main";
-  min-height: 0;
-}
-
-#body.comments-open {
-  grid-template-areas:
-    "toolbar toolbar view-selector"
     "sidebar main    comments";
+  min-height: 0;
 }
 
 #sidebar {
@@ -2071,16 +2064,11 @@ select:not(.share-access-select):not(.share-role-select) {
 
 /* Comments Panel */
 .comments-panel {
-  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0s, opacity 0.15s ease;
-  opacity: 1;
-  visibility: visible;
+  transition: margin-right 0.15s ease;
 }
 
 .comments-panel.collapsed {
   margin-right: -321px; /* 320px width + 1px border */
-  opacity: 0;
-  visibility: hidden;
-  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0.25s, opacity 0.15s ease;
 }
 
 /* Responsive */

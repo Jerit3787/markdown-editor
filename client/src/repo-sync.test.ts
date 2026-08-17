@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { slugifyDocName, dedupeRepoPath, rewriteImagesForPush, resolveImagesFromPull, planPull, planPush, type TreeEntry } from "./repo-sync";
-import type { Doc } from "./types";
+import {
+  slugifyDocName,
+  dedupeRepoPath,
+  rewriteImagesForPush,
+  resolveImagesFromPull,
+  planPull,
+  planPush,
+  planCreateWorkspaceFromRepo,
+  type TreeEntry,
+} from "./repo-sync";
+import type { Doc, Workspace } from "./types";
 
 function fakeDoc(overrides: Partial<Doc>): Doc {
   return { id: "d1", name: "a", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1", ...overrides };
@@ -166,5 +175,30 @@ describe("planPush", () => {
     expect(plan.changes[0]!.repoPath).toBe("notes-2.md");
     expect(plan.changes[0]!.assets).toEqual([{ path: "assets/notes-2/img-1.png", dataUrl: "data:image/png;base64,aGk=" }]);
     expect(plan.changes[0]!.content).toBe("![x](assets/notes-2/img-1.png)");
+  });
+});
+
+describe("planCreateWorkspaceFromRepo", () => {
+  it("plans to switch to an existing workspace already linked to the same owner/repo/branch", () => {
+    const workspaces: Workspace[] = [{ id: "w1", name: "notes", createdAt: 0, repoLink: { owner: "octocat", repo: "notes", branch: "main" } }];
+    const plan = planCreateWorkspaceFromRepo("octocat", "notes", "main", workspaces);
+    expect(plan).toEqual({ action: "switch", workspaceId: "w1" });
+  });
+
+  it("does not match a workspace linked to a different branch", () => {
+    const workspaces: Workspace[] = [{ id: "w1", name: "other", createdAt: 0, repoLink: { owner: "octocat", repo: "notes", branch: "dev" } }];
+    const plan = planCreateWorkspaceFromRepo("octocat", "notes", "main", workspaces);
+    expect(plan).toEqual({ action: "create", workspaceName: "notes" });
+  });
+
+  it("plans to create a new workspace named after the repo when nothing matches", () => {
+    const plan = planCreateWorkspaceFromRepo("octocat", "notes", "main", []);
+    expect(plan).toEqual({ action: "create", workspaceName: "notes" });
+  });
+
+  it("dedupes the new workspace name against existing workspace names", () => {
+    const workspaces: Workspace[] = [{ id: "w1", name: "notes", createdAt: 0 }];
+    const plan = planCreateWorkspaceFromRepo("octocat", "notes", "main", workspaces);
+    expect(plan).toEqual({ action: "create", workspaceName: "notes-2" });
   });
 });

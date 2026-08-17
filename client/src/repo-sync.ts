@@ -3,8 +3,11 @@
 // Kept pure-function-first so the diff/conflict logic is unit-testable
 // without mocking fetch — the same reasoning src/github-repo.ts's
 // computeNewTreeEntries follows server-side.
-import type { Doc } from "./types";
-import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById } from "./stores/docs";
+import type { Doc, Workspace } from "./types";
+import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById, ensureActiveDocInWorkspace } from "./stores/docs";
+import { get } from "svelte/store";
+import { nextAvailableName } from "./doc-naming";
+import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace } from "./stores/workspaces";
 
 export function slugifyDocName(name: string): string {
   const slug = (name || "")
@@ -322,4 +325,35 @@ export async function pushToRepo(
   }
 
   return { plan, applyResolved };
+}
+
+export type CreateFromRepoPlan = { action: "switch"; workspaceId: string } | { action: "create"; workspaceName: string };
+
+// Pure — no store reads, takes the workspace list as a parameter — so
+// this is directly unit-testable without touching real store state.
+// Two local workspaces both pointed at the same remote repo would fight
+// each other on push/pull (each tracking its own, inconsistent repoSha
+// per doc), so an exact owner/repo/branch match always wins over
+// creating a new one.
+export function planCreateWorkspaceFromRepo(owner: string, repo: string, branch: string, workspaces: Workspace[]): CreateFromRepoPlan {
+  const existing = workspaces.find((w) => w.repoLink?.owner === owner && w.repoLink?.repo === repo && w.repoLink?.branch === branch);
+  if (existing) return { action: "switch", workspaceId: existing.id };
+  const taken = new Set(workspaces.map((w) => w.name));
+  return { action: "create", workspaceName: nextAvailableName(repo, taken) };
+}
+
+export async function createWorkspaceFromRepo(owner: string, repo: string, branch: string): Promise<void> {
+  const plan = planCreateWorkspaceFromRepo(owner, repo, branch, get(workspacesStore));
+  if (plan.action === "switch") {
+    if (switchWorkspace(plan.workspaceId)) ensureActiveDocInWorkspace(plan.workspaceId);
+    return;
+  }
+  // createWorkspace() already switches activeWorkspaceIdStore to the new
+  // workspace — but the active *document* still points at whatever was
+  // open in the previous workspace until ensureActiveDocInWorkspace runs
+  // below, once the workspace actually has documents to land on.
+  const ws = createWorkspace(plan.workspaceName);
+  setWorkspaceRepoLink(ws.id, { owner, repo, branch });
+  await pullFromRepo(ws.id, { owner, repo, branch }, new Set());
+  ensureActiveDocInWorkspace(ws.id);
 }

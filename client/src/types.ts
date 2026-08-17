@@ -195,6 +195,7 @@ export interface MDEBridge {
   // Set by repo-sync-ui.ts at module load, same pattern as the two above.
   openRepoLinkModal?(): void;
   openRepoModal?(): void;
+  openRepoInfoPanel?(): void;
   pushToRepoAction?(): void;
   pullFromRepoAction?(): void;
   unlinkRepo?(): void;

@@ -1024,15 +1024,14 @@ body.focus-mode #statusbar {
 .comment-draft-actions button { width: auto; margin-bottom: 0; }
 
 .comments-panel {
-  /* A real grid item in #body (see index.html), permanently in its own
-     "comments" grid column (see #body's grid-template-areas) — not a
-     fixed-position overlay floating on top of the content like a modal.
-     Its column is shared with the view selector above it, so both stay
-     the same width automatically. Always occupies this column, even
-     while closed (.collapsed below slides it out of view via margin,
-     the same way #sidebar's own column stays reserved while it's
-     collapsed) — #main does not reclaim this space either way, matching
-     #sidebar's existing behavior exactly. */
+  /* A real grid item in #body (see index.html), in its own "comments"
+     grid column (see #body's grid-template-areas) — not a fixed-position
+     overlay floating on top of the content like a modal. Its column is
+     shared with the view selector above it, so both stay the same width
+     automatically while open. Unlike #sidebar's column (always reserved,
+     open or collapsed), this one only holds its 320px while the panel is
+     open or actively closing — see #body's grid-template-columns comment
+     for why, and CommentsPanel.svelte for what drives the transition. */
   grid-area: comments;
   width: 320px;
   flex-shrink: 0;
@@ -1395,14 +1394,20 @@ select:not(.share-access-select):not(.share-role-select) {
   position: relative;
   flex: 1;
   display: grid;
-  /* "comments" is a fixed 320px (matching .comments-panel's own width),
-     not auto — an auto track floors at its item's min-content width
-     (the "Comments" heading text can't shrink below ~80px), so no
-     amount of negative margin on .comments-panel.collapsed can shrink
-     an auto track to 0. Fixed width sidesteps that entirely; the panel
-     now slides off-screen via transform (see .comments-panel.collapsed
-     below), which doesn't participate in grid track sizing at all. */
-  grid-template-columns: auto 1fr 320px;
+  /* "comments" isn't auto — an auto track floors at its item's
+     min-content width (the "Comments" heading text can't shrink below
+     ~80px), so no amount of negative margin on .comments-panel.collapsed
+     can shrink an auto track to 0. It's also not a permanent fixed
+     320px either — that avoided the min-content floor but wasted 320px
+     of dead space at rest any time comments was closed (which is most
+     of the time), pushing #main visibly off-center. Instead it's a CSS
+     custom property, 0px at rest — CommentsPanel.svelte sets it to
+     320px the instant the panel opens (so there's room for the slide-in)
+     and holds it there until 150ms after closing starts (matching
+     .comments-panel's own transition-duration below), so #main never
+     jumps mid-animation but isn't left reserving space once the panel
+     has actually finished sliding away. */
+  grid-template-columns: auto 1fr var(--comments-track-width, 0px);
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "toolbar toolbar view-selector"

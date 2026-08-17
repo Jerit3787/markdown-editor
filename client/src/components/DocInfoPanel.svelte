@@ -3,6 +3,7 @@
   import Modal from "./Modal.svelte";
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { activeIdStore, activeDocContent, getActiveDoc, docsStore, switchDoc } from "../stores/docs";
+  import { workspacesStore } from "../stores/workspaces";
   import { findBacklinks } from "../wikilinks";
 
   const doc = $derived($activeIdStore ? getActiveDoc() : undefined);
@@ -53,6 +54,33 @@
       <span class="doc-info-primary">Length</span>
       <span class="doc-info-secondary">{wordCount} word{wordCount === 1 ? "" : "s"}, {charCount} character{charCount === 1 ? "" : "s"}</span>
     </div>
+    {#if doc.repoPath || doc.gistId}
+      <div class="menu-section-label">Synced to</div>
+      {#if doc.repoPath}
+        {@const workspace = $workspacesStore.find((w) => w.id === doc.workspaceId)}
+        {#if workspace?.repoLink}
+          <div class="doc-info-row">
+            <span class="doc-info-primary">Repo</span>
+            <a
+              class="doc-info-secondary doc-info-link"
+              href={`https://github.com/${workspace.repoLink.owner}/${workspace.repoLink.repo}/blob/${workspace.repoLink.branch}/${doc.repoPath}`}
+              target="_blank"
+              rel="noopener"
+            >
+              {workspace.repoLink.owner}/{workspace.repoLink.repo} — {doc.repoPath}
+            </a>
+          </div>
+        {/if}
+      {/if}
+      {#if doc.gistId}
+        <div class="doc-info-row">
+          <span class="doc-info-primary">Gist</span>
+          <a class="doc-info-secondary doc-info-link" href={`https://gist.github.com/${doc.gistId}`} target="_blank" rel="noopener">
+            View on GitHub
+          </a>
+        </div>
+      {/if}
+    {/if}
     <div class="menu-section-label">Linked from</div>
     {#if backlinks.length === 0}
       <div class="empty-state">

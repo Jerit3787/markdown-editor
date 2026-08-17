@@ -1157,6 +1157,8 @@ body.focus-mode #statusbar {
 .doc-info-backlinks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .doc-info-backlink-row { text-align: left; border: none; background: var(--bg-alt); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-family: inherit; font-size: 13px; }
 .doc-info-backlink-row:hover { background: var(--border); }
+.doc-info-link { text-decoration: none; }
+.doc-info-link:hover, .doc-info-link:focus-visible { color: var(--accent); text-decoration: underline; }
 
 .modal-field { display: block; margin-bottom: 12px; }
 .modal-field span { display: block; font-size: 12.5px; color: var(--text-dim); margin-bottom: 4px; }

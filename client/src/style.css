@@ -218,6 +218,13 @@ body.focus-mode #statusbar {
 }
 #menuBar .dropdown-menu button:not(.secondary-btn):hover,
 #menuBar .dropdown-menu a.menu-link-item:hover { background: var(--accent-dim); color: var(--accent); }
+#menuBar .dropdown-menu button:not(.secondary-btn):disabled,
+#menuBar .dropdown-menu button:not(.secondary-btn):disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--text);
+}
 
 /* The gist-open row (input + button) isn't a menu-item button — .share-row
    already handles its layout/input styling generically; this just adds

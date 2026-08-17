@@ -1200,6 +1200,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     document.getElementById("saveStatusBtn").hidden = empty;
     (document.getElementById("sidebarToggleIn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("shareBtn") as HTMLButtonElement).disabled = empty;
+    (document.getElementById("shareDropdownBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("commentsBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("versionHistoryBtn") as HTMLButtonElement).disabled = empty;
   }

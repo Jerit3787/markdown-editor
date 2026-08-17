@@ -163,21 +163,118 @@ push+pull duration with no changes needed in `RepoPicker.svelte`.
 
 ## Testing
 
-- Unit test for `clearRepoSyncMetadata` in `client/src/stores/docs.test.ts`
-  (or wherever `docs.ts`'s other store functions are tested): a doc with
-  `repoPath`/`repoSha`/`repoImageShas` set has all three cleared after
-  the call; a doc in a different workspace is untouched.
-- No fetch-mocked unit test for `linkWorkspaceAndSync` itself — matching
-  this codebase's existing convention for this file: `pullFromRepo`,
-  `pushToRepo`, and `createWorkspaceFromRepo` (all of which call `fetch`)
-  have no dedicated unit tests either; only their pure planners
-  (`planPull`, `planPush`, `planCreateWorkspaceFromRepo`) do.
-  `linkWorkspaceAndSync` has no new planning logic of its own — it's a
-  fixed sequence of already-tested pieces (`setWorkspaceRepoLink`,
-  `clearRepoSyncMetadata`, `pushToRepo`, `pullFromRepo`) — so it's covered
-  by manual E2E instead, consistent with those existing orchestrators.
-- Manual E2E verification: link a workspace with existing docs to a repo
-  that itself already has `.md` content, confirm the resulting repo state
-  (workspace's docs pushed as new files, existing repo files untouched)
-  and the resulting local workspace state (repo's pre-existing files now
-  present as new local docs).
+### Fake GitHub server harness (new, shared test infrastructure)
+
+Raised during design review: this codebase's client-side repo-sync
+orchestrators (`pullFromRepo`, `pushToRepo`, `createWorkspaceFromRepo`,
+and now `linkWorkspaceAndSync`) have never had automated coverage —
+only their pure planners (`planPull`, `planPush`,
+`planCreateWorkspaceFromRepo`) do, with the orchestrators themselves
+verified solely by manual E2E
+(`scripts/manual-testing/repo-sync-e2e.mjs`, which requires a real GitHub
+repo and a human to sign in). `linkWorkspaceAndSync` is the first
+orchestrator whose correctness genuinely depends on a multi-step
+sequence against *evolving* remote state (push, then a pull that must see
+the just-pushed content) — exactly the case manual E2E and one-shot fetch
+mocks are worst at catching regressions in.
+
+New file: `src/test-support/fake-github-server.ts`. A plain Node
+`http.createServer` (no new dependency) implementing exactly the GitHub
+Git Data API endpoints `src/github-repo.ts` calls:
+
+- `GET /repos/:owner/:repo/git/refs/heads/:branch`
+- `GET /repos/:owner/:repo/git/trees/:sha?recursive=1` (accepts either a
+  commit sha or a tree sha, matching real GitHub's dual behavior — this
+  file's `handleRepoTree` always passes a commit sha)
+- `GET /repos/:owner/:repo/git/blobs/:sha`
+- `POST /repos/:owner/:repo/git/blobs`
+- `POST /repos/:owner/:repo/git/trees`
+- `POST /repos/:owner/:repo/git/commits`
+- `PATCH /repos/:owner/:repo/git/refs/heads/:branch`
+
+Backed by real mutable in-memory state (refs → commits → trees → blobs
+per `owner/repo`), so a push through this server genuinely changes what a
+later tree/blob fetch returns — not a sequence of canned one-shot
+responses. Blob SHAs are computed with the same git blob SHA1 algorithm
+`client/src/repo-sync.ts`'s `gitBlobSha` already uses (`sha1("blob " +
+byteLength + "\0" + content)`), so a pushed blob's SHA is a real,
+independently-verifiable value, not a fake placeholder. `PATCH refs/heads`
+only accepts the update when the pushed commit's `parents[0]` matches the
+ref's current commit sha (a real fast-forward check) — otherwise it
+responds the same way real GitHub does on a rejected ref update, so the
+existing 409-conflict path in `handleRepoPush`/`pushToRepo` can be
+exercised for real, not just simulated with a canned 422.
+
+Exports:
+
+```ts
+export interface FakeGithubServer {
+  baseUrl: string; // e.g. "http://127.0.0.1:54231"
+  seedRepo(owner: string, repo: string, branch: string, files: { path: string; content: string }[]): void;
+  stop(): Promise<void>;
+}
+export function startFakeGithubServer(): Promise<FakeGithubServer>;
+```
+
+`seedRepo` creates blobs/tree/commit/ref for the given files as one
+initial commit, simulating "this repo already has content" — the exact
+scenario `linkWorkspaceAndSync` needs to prove itself against.
+
+### `linkWorkspaceAndSync` integration test
+
+In `client/src/repo-sync.test.ts` (same file as the other repo-sync
+tests, `// @vitest-environment jsdom` pragma already present): starts a
+`fakeGithubServer` in a `beforeEach`, stops it in `afterEach`. Stubs
+`global.fetch` once per test with a router that:
+
+- For a URL matching `/api/repo/:owner/:repo/tree`, `/blob/:sha`, or
+  `/push` — calls the real `handleRepoTree`/`handleRepoBlob`/
+  `handleRepoPush` from `src/github-repo.ts` directly (constructing a
+  `Request` with a valid signed session cookie, reusing the
+  `sessionCookieHeader` helper pattern from `src/github-repo.test.ts`)
+  and returns the real `Response`.
+- For a URL starting with `https://api.github.com` — rewrites the origin
+  to `fakeGithubServer.baseUrl` and performs a real `fetch` against it.
+
+This means the test exercises the *real* client orchestration
+(`linkWorkspaceAndSync` → `pushToRepo`/`pullFromRepo`) calling into the
+*real* server proxy/commit-building logic
+(`handleRepoTree`/`handleRepoBlob`/`handleRepoPush`, completely
+unmodified) against a *real* local server with real, mutable state — the
+only things not real are the Cloudflare Worker's own routing layer and
+actual GitHub.
+
+Test case: seed the fake server with one pre-existing file
+(`existing.md`), create a local workspace with one doc with local
+content, call `linkWorkspaceAndSync`. Assert, after the call:
+
+- The local doc now has a `repoPath`/`repoSha` set (it was pushed).
+- A GET to the fake server's tree endpoint shows both the newly-pushed
+  path and the original `existing.md`, proving the push didn't touch
+  unrelated content.
+- A second local doc now exists in the workspace, sourced from
+  `existing.md` (proving the pull step picked up the repo's pre-existing
+  content).
+
+A second test covers `clearRepoSyncMetadata`'s bug fix directly: seed a
+doc with stale `repoPath`/`repoSha` from a different (unrelated) prior
+repo, link to a repo whose tree already has a file at that same path with
+different content, and assert no conflict is raised — the stale metadata
+was cleared, so the push treats it as a brand-new path (deduped if
+needed) rather than comparing against the old repo's SHA.
+
+### Unit test for `clearRepoSyncMetadata`
+
+In `client/src/stores/docs.test.ts`: a doc with `repoPath`/`repoSha`/
+`repoImageShas` set has all three cleared after the call; a doc in a
+different workspace is untouched.
+
+### Manual E2E verification
+
+Still run once by hand after implementation, per this codebase's existing
+practice for repo-sync features: link a workspace with existing docs to a
+real repo that itself already has `.md` content, confirm the resulting
+repo state and local workspace state match what the integration test
+above asserts. This isn't a substitute for the integration test — it's
+the final "does this also work against real GitHub, not just our fake"
+check the manual-testing scripts in this repo already exist for.

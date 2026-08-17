@@ -4,6 +4,7 @@ import {
   handleRepoCreate,
   handleRepoTree,
   handleRepoBlob,
+  handleRepoCommits,
   filterMarkdownEntries,
   handleRepoPush,
   computeNewTreeEntries,
@@ -160,6 +161,38 @@ describe("handleRepoBlob", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { content: string };
     expect(data.content).toBe("aGVsbG8=");
+  });
+});
+
+describe("handleRepoCommits", () => {
+  it("returns 401 when signed out", async () => {
+    const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main");
+    const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "main", 1);
+    expect(res.status).toBe(401);
+  });
+
+  it("constructs the correct upstream URL with sha, page, and a fixed per_page=30", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        expect(url).toBe("https://api.github.com/repos/alice/notes/commits?sha=main&page=2&per_page=30");
+        return new Response(JSON.stringify([{ sha: "abc123", commit: { message: "Fix bug", author: { name: "Alice", date: "2026-08-01T00:00:00Z" } } }]), { status: 200 });
+      })
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main&page=2", { headers: { Cookie: cookie } });
+    const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "main", 2);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { sha: string }[];
+    expect(data[0]!.sha).toBe("abc123");
+  });
+
+  it("proxies a non-200 upstream response through unchanged", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ message: "Not Found" }), { status: 404 })));
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=missing-branch", { headers: { Cookie: cookie } });
+    const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "missing-branch", 1);
+    expect(res.status).toBe(404);
   });
 });
 

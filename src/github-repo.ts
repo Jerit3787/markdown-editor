@@ -113,6 +113,13 @@ export async function handleRepoBlob(request: Request, env: Env, owner: string, 
   return proxyJson(res);
 }
 
+export async function handleRepoCommits(request: Request, env: Env, owner: string, repo: string, branch: string, page: number): Promise<Response> {
+  const session = await getSession(request, env);
+  if (!session) return new Response("Not signed in", { status: 401 });
+  const res = await fetch(`${API}/repos/${owner}/${repo}/commits?sha=${encodeURIComponent(branch)}&page=${page}&per_page=30`, { headers: ghHeaders(session.token) });
+  return proxyJson(res);
+}
+
 export function computeNewTreeEntries(
   baseTreeEntries: TreeEntry[],
   blobShas: { path: string; sha: string }[],

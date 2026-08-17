@@ -19,7 +19,7 @@ import { keymap } from "@codemirror/view";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
-import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "./stores/share";
+import { shareModalOpen, shareAccess, shareTargetName, sharePresence } from "./stores/share";
 import { showToast } from "./stores/toast";
 import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs } from "./stores/docs";
 import { pendingJoin } from "./stores/joinWorkspace";
@@ -871,7 +871,8 @@ function syncShareStores() {
   const access = currentAccess || DEFAULT_ACCESS;
   shareAccess.set(access);
   const doc = getActiveDoc();
-  shareDocName.set((doc && doc.name) || "Untitled");
+  const workspace = doc && get(workspacesStore).find((w) => w.id === doc.workspaceId);
+  shareTargetName.set(workspace?.name || "Untitled workspace");
   document.getElementById("shareBtn").classList.toggle("active", !!workspaceRoom.workspaceId);
   document.getElementById("shareDropdownBtn")?.classList.toggle("active", !!workspaceRoom.workspaceId);
   updatePresence();

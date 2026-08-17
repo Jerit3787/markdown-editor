@@ -3,7 +3,7 @@
   import Modal from "./Modal.svelte";
   import Toggletip from "./Toggletip.svelte";
   import { githubUsername } from "../stores/github";
-  import { shareModalOpen, shareAccess, shareDocName } from "../stores/share";
+  import { shareModalOpen, shareAccess, shareTargetName } from "../stores/share";
   import {
     closeShareModal,
     setAccessMode,
@@ -109,7 +109,7 @@
 </script>
 
 {#if $shareModalOpen}
-  <Modal title={`Share "${$shareDocName}"`} labelledBy="shareModalTitle" onClose={closeShareModal}>
+  <Modal title={`Share "${$shareTargetName}"`} labelledBy="shareModalTitle" onClose={closeShareModal}>
     {#snippet quickAction()}
       <Toggletip>Invite specific people by GitHub username, or turn on general access to share one link with anyone. Viewer can only look, Reviewer can also comment, Editor can change the document.</Toggletip>
     {/snippet}

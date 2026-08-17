@@ -6,6 +6,7 @@
 import { writable } from "svelte/store";
 
 export const repoLinkModalOpen = writable(false);
+export const openRepoModalOpen = writable(false);
 export const repoSyncBusyLabel = writable<string | null>(null);
 
 export interface RepoConflictState {

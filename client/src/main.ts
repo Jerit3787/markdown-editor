@@ -43,6 +43,7 @@ import LicensesModal from "./components/LicensesModal.svelte";
 import OpenGistModal from "./components/OpenGistModal.svelte";
 import RepoLinkModal from "./components/RepoLinkModal.svelte";
 import RepoConflictModal from "./components/RepoConflictModal.svelte";
+import OpenRepoModal from "./components/OpenRepoModal.svelte";
 
 // #settings-mount / #share-mount / #doclist-mount / #toast-mount /
 // #menubar-mount / #editor-mount / #toolbar-mount already exist by the
@@ -74,6 +75,7 @@ mount(LicensesModal, { target: document.getElementById("licenses-modal-mount")! 
 mount(OpenGistModal, { target: document.getElementById("open-gist-modal-mount")! });
 mount(RepoLinkModal, { target: document.getElementById("repo-link-modal-mount")! });
 mount(RepoConflictModal, { target: document.getElementById("repo-conflict-modal-mount")! });
+mount(OpenRepoModal, { target: document.getElementById("open-repo-modal-mount")! });
 mount(DiagramEditor, { target: document.getElementById("diagram-editor-mount")! });
 mount(WhatsNew, { target: document.getElementById("whats-new-mount")! });
 mount(CommandPalette, { target: document.getElementById("command-palette-mount")! });

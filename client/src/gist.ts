@@ -11,7 +11,7 @@
 import type { Doc } from "./types";
 import "./types";
 import { githubUsername as githubUsernameStore } from "./stores/github";
-import { showToast } from "./stores/toast";
+import { showToast, showProgressToast, updateProgressToast, finishProgressToast } from "./stores/toast";
 import { gistBusyLabel } from "./stores/gist";
 import { openGistModalOpen } from "./stores/openGistModal";
 import { getActiveDoc, setActiveDocGistId, clearActiveDocGist } from "./stores/docs";
@@ -89,6 +89,7 @@ async function publish() {
   const filename = gistFilename(doc);
   const wasUpdate = !!doc.gistId;
   gistBusyLabel.set(wasUpdate ? "Updating…" : "Publishing…");
+  const progressToastId = showProgressToast(wasUpdate ? "Updating…" : "Publishing…");
 
   try {
     let gistId = doc.gistId;
@@ -117,7 +118,7 @@ async function publish() {
         clearActiveDocGist();
         window.MDE.refreshSaveStatus();
         gistBusyLabel.set("Failed: Gist no longer exists");
-        showToast("That Gist no longer exists — publish again to create a new one.", "error");
+        finishProgressToast(progressToastId, "That Gist no longer exists — publish again to create a new one.", "error");
         return;
       }
       if (!res.ok) throw new Error(await errorMessage(res));
@@ -135,7 +136,7 @@ async function publish() {
     }
 
     try {
-      const rewritten = await pushImagesAndRewrite(gistId, rawContent, doc.images);
+      const rewritten = await pushImagesAndRewrite(gistId, rawContent, doc.images, (message) => updateProgressToast(progressToastId, message));
       if (rewritten) {
         const res = await fetch(`/api/gist/${gistId}`, {
           method: "PATCH",
@@ -150,10 +151,10 @@ async function publish() {
 
     gistBusyLabel.set(wasUpdate ? "Updated ✓" : "Published ✓");
     window.MDE.refreshSaveStatus();
-    showToast(wasUpdate ? "Gist updated" : "Published to Gist", "success");
+    finishProgressToast(progressToastId, wasUpdate ? "Gist updated" : "Published to Gist", "success");
   } catch (err: any) {
     gistBusyLabel.set(`Failed: ${err.message || "unknown error"}`);
-    showToast(`Failed to publish: ${err.message || "unknown error"}`, "error");
+    finishProgressToast(progressToastId, `Failed to publish: ${err.message || "unknown error"}`, "error");
   } finally {
     setTimeout(() => gistBusyLabel.set(null), 2000);
   }
@@ -186,7 +187,8 @@ function gistImageFilename(ref: string, ext: string): string {
 async function pushImagesAndRewrite(
   gistId: string,
   rawContent: string,
-  images: Record<string, string> | undefined
+  images: Record<string, string> | undefined,
+  onProgress?: (message: string) => void
 ): Promise<string | null> {
   const sources = new Map<string, string>(); // markdown src text -> data URI to push
   for (const match of rawContent.matchAll(MARKDOWN_IMAGE_RE)) {
@@ -204,7 +206,9 @@ async function pushImagesAndRewrite(
   let counter = 0;
   for (const [src, dataUrl] of sources) {
     done++;
-    gistBusyLabel.set(`Publishing images (${done}/${sources.size})…`);
+    const message = `Publishing images (${done}/${sources.size})…`;
+    gistBusyLabel.set(message);
+    onProgress?.(message);
     const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.*)$/);
     if (!match) continue;
     const [, mime, contentBase64] = match;

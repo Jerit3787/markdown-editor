@@ -15,6 +15,8 @@ import { showToast, showProgressToast, updateProgressToast, finishProgressToast 
 import { gistBusyLabel } from "./stores/gist";
 import { openGistModalOpen } from "./stores/openGistModal";
 import { getActiveDoc, setActiveDocGistId, clearActiveDocGist } from "./stores/docs";
+import { workspacesStore } from "./stores/workspaces";
+import { get } from "svelte/store";
 
 let connectedUsername: string | null = null;
 
@@ -231,7 +233,14 @@ async function pushImagesAndRewrite(
 
 // File > Open > From GitHub Gist... (MenuBar.svelte) — the modal itself
 // (OpenGistModal.svelte) owns its own list-loading, so this just opens it.
+// Guarded here (not just via a disabled menu item) so any other trigger
+// of window.MDE.openGistPicker() is covered too, same reasoning as
+// app.ts's createNewDoc/openLocalFile guards.
 function openGistPicker() {
+  if (get(workspacesStore).length === 0) {
+    showToast("Create a workspace first", "error");
+    return;
+  }
   openGistModalOpen.set(true);
 }
 

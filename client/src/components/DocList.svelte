@@ -24,7 +24,7 @@
   }
 
   const sorted = $derived(
-    [...$docsStore].filter((d) => d.workspaceId === $activeWorkspaceIdStore).sort((a, b) => b.updatedAt - a.updatedAt)
+    [...$docsStore].filter((d) => d.workspaceId === $activeWorkspaceIdStore).sort((a, b) => a.name.localeCompare(b.name))
   );
 
   // Each row's heading outline, Google-Docs "Document tabs" style — nested

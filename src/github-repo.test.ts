@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
   handleRepoList,
   handleRepoCreate,
@@ -10,6 +10,7 @@ import {
 } from "./github-repo";
 import { encryptSession } from "./auth";
 import type { Env } from "./env";
+import { startFakeGithubServer, type FakeGithubServer } from "./test-support/fake-github-server";
 
 const fakeEnv = { SESSION_SECRET: "test-secret-at-least-32-bytes-long!!" } as unknown as Env;
 
@@ -240,5 +241,52 @@ describe("handleRepoPush", () => {
     expect(res.status).toBe(409);
     const data = (await res.json()) as { conflict: boolean };
     expect(data.conflict).toBe(true);
+  });
+});
+
+describe("handleRepoPush against a real fake GitHub server", () => {
+  let fakeServer: FakeGithubServer;
+  let realFetch: typeof fetch;
+
+  beforeEach(async () => {
+    fakeServer = await startFakeGithubServer();
+    realFetch = globalThis.fetch.bind(globalThis);
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const rewritten = url.startsWith("https://api.github.com") ? url.replace("https://api.github.com", fakeServer.baseUrl) : url;
+      return realFetch(rewritten, init);
+    });
+  });
+
+  afterEach(async () => {
+    await fakeServer.stop();
+  });
+
+  it("a push lands as a real commit that a later tree fetch reflects, alongside pre-existing content", async () => {
+    fakeServer.seedRepo("alice", "notes", "main", [{ path: "existing.md", content: "old content" }]);
+    const cookie = await sessionCookieHeader("tok", "alice");
+
+    const treeReq = new Request("https://example.com/api/repo/alice/notes/tree?branch=main", { headers: { Cookie: cookie } });
+    const treeRes = await handleRepoTree(treeReq, fakeEnv, "alice", "notes", "main");
+    const treeData = (await treeRes.json()) as { commitSha: string; treeSha: string };
+
+    const pushReq = new Request("https://example.com/api/repo/alice/notes/push", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({
+        branch: "main",
+        baseTreeSha: treeData.treeSha,
+        parentCommitSha: treeData.commitSha,
+        blobs: [{ path: "new.md", contentBase64: Buffer.from("new content").toString("base64") }],
+        deletePaths: [],
+      }),
+    });
+    const pushRes = await handleRepoPush(pushReq, fakeEnv, "alice", "notes");
+    expect(pushRes.status).toBe(200);
+
+    const followUpReq = new Request("https://example.com/api/repo/alice/notes/tree?branch=main", { headers: { Cookie: cookie } });
+    const followUpRes = await handleRepoTree(followUpReq, fakeEnv, "alice", "notes", "main");
+    const followUpData = (await followUpRes.json()) as { tree: { path: string }[] };
+    expect(followUpData.tree.map((e) => e.path).sort()).toEqual(["existing.md", "new.md"]);
   });
 });

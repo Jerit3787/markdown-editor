@@ -4,6 +4,65 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.24.0] - 2026-08-18
+
+### Added
+
+- **Version History now includes the linked repo's commits, not just
+  local snapshots.** Open File > Version History on a repo-linked
+  document and its commits (that touched that file) appear interleaved
+  with local snapshots in one chronological list, each tagged with a
+  small GitHub icon.
+- **Diff any version against the current document**, local snapshot or
+  repo commit alike — a "Preview | Diff" toggle in Version History
+  switches between the existing rendered preview and a side-by-side
+  diff, with a replaced line's old and new text paired on one row.
+- **Restore from a repo commit**, on both local-only and
+  shared/collaborative documents — restoring is itself always undoable,
+  same guarantee local-snapshot restore already had.
+- **Actions that need a workspace or an open document to do anything now
+  say so upfront.** New document, GitHub Repo (link/browse), Publish,
+  and Export all disable with the rest of their already-gated siblings
+  instead of staying clickable and erroring after the fact; the Command
+  Palette hides commands that don't apply to the current state instead
+  of listing them non-functionally.
+- **Shared workspaces sync every open document's live edits**, not just
+  whichever one happens to be active.
+- **Linking a workspace to an existing repo preserves files by name**
+  instead of duplicating them into renamed copies, surfaces push
+  conflicts instead of silently discarding them, and pushes a real first
+  commit instead of an auto-init placeholder.
+- **Mermaid diagrams and filenames survive a repo push intact.** Diagrams
+  resolve to their real source before pushing instead of a bare
+  reference, and filenames keep their original case and spacing instead
+  of being forced to lowercase-with-hyphens.
+- **Linking to a repo renames a still-default-named workspace to match
+  it**, dismisses the repo picker modal immediately instead of after the
+  whole sync finishes, and the GitHub Repo submenu shows time since the
+  last sync.
+- **The empty "No workspace yet" state offers "Open from GitHub Repo"**
+  as a second way in, alongside "New workspace."
+
+### Fixed
+
+- **Disabled buttons across the app didn't look or act disabled.**
+  Restore, several menu items, and the Share dropdown's chevron button
+  could still show a hover highlight or (for one case) stay clickable
+  entirely, despite doing nothing or erroring.
+- **The editor and preview panes could look mismatched in width.** A
+  fixed-width slot reserved for the comments panel wasted 320px even
+  while collapsed; it now only holds that space while the panel is open
+  or actively animating closed.
+- **Closing the comments panel showed a brief glitch** — a shadow or
+  sliver of the panel remained visible at the viewport's edge instead of
+  disappearing cleanly.
+- **Version History's Restore button now disables** when the selected
+  version is already the current one, instead of staying clickable for
+  a no-op restore.
+- Plain `<select>` dropdowns (join-workspace, repo-conflict resolution)
+  now pick up the app's theme instead of rendering with unstyled browser
+  defaults.
+
 ## [1.23.0] - 2026-08-17
 
 ### Added

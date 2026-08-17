@@ -25,7 +25,7 @@ import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, pe
 import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
 import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace } from "./stores/workspaces";
-import { confirmAction } from "./stores/confirmDialog";
+import { shareChoice } from "./stores/shareChoice";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -700,19 +700,17 @@ export async function openShareModal() {
   const doc = getActiveDoc();
   if (!doc) return;
 
-  const siblingCount = get(docsStore).filter((d) => d.workspaceId === doc.workspaceId).length;
   let targetWorkspaceId = doc.workspaceId;
-  if (siblingCount > 1) {
-    const confirmed = await confirmAction(
-      "Move to its own workspace?",
-      "Sharing this document moves it into its own workspace so it can be shared. Continue?",
-      "Continue",
-      false
-    );
-    if (!confirmed) return;
-    const ws = createWorkspace(doc.name || "Untitled");
-    moveDocToWorkspace(doc.id, ws.id);
-    targetWorkspaceId = ws.id;
+  const decision = decideShareTarget(doc, get(docsStore), get(workspacesStore));
+  if (decision.kind === "choice") {
+    const choice = await shareChoice(decision.docName, decision.workspaceName, decision.docCount);
+    if (choice === "cancel") return;
+    if (choice === "document") {
+      const ws = createWorkspace(doc.name || "Untitled");
+      moveDocToWorkspace(doc.id, ws.id);
+      targetWorkspaceId = ws.id;
+    }
+    // choice === "workspace": targetWorkspaceId stays doc.workspaceId — share the whole workspace as-is.
   }
 
   shareModalOpen.set(true);

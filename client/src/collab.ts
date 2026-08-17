@@ -18,7 +18,7 @@ import { get } from "svelte/store";
 import { keymap } from "@codemirror/view";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
-import type { AccessRecord } from "./types";
+import type { AccessRecord, Doc, Workspace } from "./types";
 import { shareModalOpen, shareAccess, shareDocName, sharePresence } from "./stores/share";
 import { showToast } from "./stores/toast";
 import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs } from "./stores/docs";
@@ -659,6 +659,36 @@ function setupShareUI() {
   });
 
   syncShareStores();
+}
+
+export interface ShareDirectDecision {
+  kind: "direct";
+}
+export interface ShareChoiceDecision {
+  kind: "choice";
+  docName: string;
+  workspaceName: string;
+  docCount: number;
+}
+export type ShareDecision = ShareDirectDecision | ShareChoiceDecision;
+
+// Being already-shared always wins over sibling count: opening a second
+// document in a workspace collaborators are already synced to must never
+// re-trigger the isolate-into-a-new-workspace prompt (that would
+// incorrectly split it back out). Only an unshared workspace with more
+// than one document needs a real choice between sharing just the active
+// document (today's only behavior) or the whole workspace as-is.
+export function decideShareTarget(doc: Doc, docs: Doc[], workspaces: Workspace[]): ShareDecision {
+  const workspace = workspaces.find((w) => w.id === doc.workspaceId);
+  if (workspace?.shared) return { kind: "direct" };
+  const docCount = docs.filter((d) => d.workspaceId === doc.workspaceId).length;
+  if (docCount <= 1) return { kind: "direct" };
+  return {
+    kind: "choice",
+    docName: doc.name || "Untitled",
+    workspaceName: workspace?.name || "Untitled workspace",
+    docCount,
+  };
 }
 
 export async function openShareModal() {

@@ -210,7 +210,9 @@
       <svg class="icon"><use href="#icon-copy"></use></svg> Duplicate
     </button>
     {#if $workspacesStore.length > 1}
-      <button type="button" onclick={() => move(menuDocId)}>Move</button>
+      <button type="button" onclick={() => move(menuDocId)}>
+        <svg class="icon"><use href="#icon-external-link"></use></svg> Move
+      </button>
     {/if}
     <button type="button" class="danger" onclick={() => del(menuDocId)}>
       <svg class="icon"><use href="#icon-trash-2"></use></svg> Delete

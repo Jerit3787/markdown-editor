@@ -232,7 +232,8 @@ describe("linkWorkspaceAndSync", () => {
     const ws = createWorkspace("Test Workspace");
     docsStore.set([{ id: "local-1", name: "Local Doc", content: "my local content", updatedAt: 1, createdAt: 1, workspaceId: ws.id }]);
 
-    await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+    const result = await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+    expect(typeof result.progressToastId).toBe("number");
 
     const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
     expect(docs.length).toBe(2);
@@ -264,6 +265,7 @@ describe("linkWorkspaceAndSync", () => {
 
     const result = await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
 
+    expect(typeof result.progressToastId).toBe("number");
     expect(result.pullPlan.conflicts).toEqual([]);
     const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
     expect(docs.length).toBe(2);

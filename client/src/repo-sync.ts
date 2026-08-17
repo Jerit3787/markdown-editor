@@ -9,6 +9,7 @@ import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
 import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace } from "./stores/workspaces";
 import { repoSyncBusyLabel } from "./stores/repoSync";
+import { showProgressToast, updateProgressToast, finishProgressToast, showToast } from "./stores/toast";
 
 export function slugifyDocName(name: string): string {
   const slug = (name || "")
@@ -133,7 +134,8 @@ export function planPull(mdEntries: TreeEntry[], docs: Doc[], dirtyDocIds: Set<s
 export async function pullFromRepo(
   workspaceId: string,
   repoLink: { owner: string; repo: string; branch: string },
-  dirtyDocIds: Set<string>
+  dirtyDocIds: Set<string>,
+  onProgress?: (message: string) => void
 ): Promise<{ plan: PullPlan; applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void> }> {
   const treeRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/tree?branch=${encodeURIComponent(repoLink.branch)}`);
   if (!treeRes.ok) throw new Error(`Couldn't read the repo tree: HTTP ${treeRes.status}`);
@@ -141,10 +143,14 @@ export async function pullFromRepo(
   const entries: TreeEntry[] = treeData.tree || [];
   const docs = docsInWorkspace(workspaceId);
   const plan = planPull(entries, docs, dirtyDocIds);
+  const total = plan.creates.length + plan.updates.length;
+  let done = 0;
 
   const docSlugFor = (repoPath: string) => repoPath.replace(/\.md$/i, "").split("/").pop() || "untitled";
 
   async function fetchAndApply(repoPath: string, sha: string): Promise<void> {
+    done++;
+    onProgress?.(`Pulling ${done}/${total} file${total === 1 ? "" : "s"}…`);
     const blobRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/blob/${sha}`);
     if (!blobRes.ok) throw new Error(`Couldn't read ${repoPath}: HTTP ${blobRes.status}`);
     const blobData = await blobRes.json();
@@ -269,7 +275,8 @@ function dataUrlToBase64(dataUrl: string): string {
 
 export async function pushToRepo(
   workspaceId: string,
-  repoLink: { owner: string; repo: string; branch: string }
+  repoLink: { owner: string; repo: string; branch: string },
+  onProgress?: (message: string) => void
 ): Promise<{ plan: PushPlan; applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void> }> {
   const treeRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/tree?branch=${encodeURIComponent(repoLink.branch)}`);
   if (!treeRes.ok) throw new Error(`Couldn't read the repo tree: HTTP ${treeRes.status}`);
@@ -277,6 +284,9 @@ export async function pushToRepo(
   const entries: TreeEntry[] = treeData.tree || [];
   const docs = docsInWorkspace(workspaceId);
   const plan = await planPush(docs, entries);
+  if (plan.changes.length > 0) {
+    onProgress?.(`Pushing ${plan.changes.length} file${plan.changes.length === 1 ? "" : "s"}…`);
+  }
 
   async function sendChanges(changes: PushPlan["changes"]): Promise<void> {
     if (changes.length === 0) return;
@@ -347,6 +357,7 @@ export async function createWorkspaceFromRepo(owner: string, repo: string, branc
   const plan = planCreateWorkspaceFromRepo(owner, repo, branch, get(workspacesStore));
   if (plan.action === "switch") {
     if (switchWorkspace(plan.workspaceId)) ensureActiveDocInWorkspace(plan.workspaceId);
+    showToast(`Switched to ${owner}/${repo}`, "success");
     return;
   }
   // createWorkspace() already switches activeWorkspaceIdStore to the new
@@ -355,13 +366,21 @@ export async function createWorkspaceFromRepo(owner: string, repo: string, branc
   // below, once the workspace actually has documents to land on.
   const ws = createWorkspace(plan.workspaceName);
   setWorkspaceRepoLink(ws.id, { owner, repo, branch });
-  await pullFromRepo(ws.id, { owner, repo, branch }, new Set());
-  ensureActiveDocInWorkspace(ws.id);
+  const progressToastId = showProgressToast("Pulling…");
+  try {
+    await pullFromRepo(ws.id, { owner, repo, branch }, new Set(), (message) => updateProgressToast(progressToastId, message));
+    ensureActiveDocInWorkspace(ws.id);
+    finishProgressToast(progressToastId, `Opened ${owner}/${repo}`, "success");
+  } catch (err) {
+    finishProgressToast(progressToastId, err instanceof Error ? err.message : "Couldn't open that repo", "error");
+    throw err;
+  }
 }
 
 export interface LinkAndSyncResult {
   pullPlan: PullPlan;
   applyPullResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>;
+  progressToastId: number;
 }
 
 // Push conflicts can never happen here: clearRepoSyncMetadata (above)
@@ -371,6 +390,14 @@ export interface LinkAndSyncResult {
 // tree could move between the push and pull calls below) and are
 // returned to the caller to route through the shared repoConflictModal,
 // exactly like the manual "Pull from Repo" action already does.
+//
+// The returned toast is never finished with success here — only ever
+// with an error, before rethrowing, so a thrown failure never leaves a
+// stale "Pushing…"/"Pulling…" toast on screen. The success case is the
+// caller's call: it still has to decide between "show success" and
+// "conflicts found, open the resolution modal instead," and finishing
+// this toast with a premature success message would be misleading in
+// the second case.
 export async function linkWorkspaceAndSync(
   workspaceId: string,
   repoLink: { owner: string; repo: string; branch: string }
@@ -378,8 +405,15 @@ export async function linkWorkspaceAndSync(
   setWorkspaceRepoLink(workspaceId, repoLink);
   clearRepoSyncMetadata(workspaceId);
   repoSyncBusyLabel.set("Pushing…");
-  await pushToRepo(workspaceId, repoLink);
-  repoSyncBusyLabel.set("Pulling…");
-  const { plan, applyResolved } = await pullFromRepo(workspaceId, repoLink, new Set());
-  return { pullPlan: plan, applyPullResolved: applyResolved };
+  const progressToastId = showProgressToast("Pushing…");
+  const onProgress = (message: string) => updateProgressToast(progressToastId, message);
+  try {
+    await pushToRepo(workspaceId, repoLink, onProgress);
+    repoSyncBusyLabel.set("Pulling…");
+    const { plan, applyResolved } = await pullFromRepo(workspaceId, repoLink, new Set(), onProgress);
+    return { pullPlan: plan, applyPullResolved: applyResolved, progressToastId };
+  } catch (err) {
+    finishProgressToast(progressToastId, err instanceof Error ? err.message : "Sync failed", "error");
+    throw err;
+  }
 }

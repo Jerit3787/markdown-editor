@@ -23,12 +23,15 @@ function fakeDoc(overrides: Partial<Doc>): Doc {
 }
 
 describe("slugifyDocName", () => {
-  it("lowercases, replaces spaces and punctuation with hyphens", () => {
-    expect(slugifyDocName("My Notes!")).toBe("my-notes");
+  it("preserves case and spacing while replacing other punctuation with hyphens", () => {
+    expect(slugifyDocName("My Notes!")).toBe("My Notes");
   });
   it("falls back to untitled for empty or all-punctuation names", () => {
     expect(slugifyDocName("")).toBe("untitled");
     expect(slugifyDocName("!!!")).toBe("untitled");
+  });
+  it("passes digits and existing hyphens through unchanged", () => {
+    expect(slugifyDocName("Q3-2026 Report")).toBe("Q3-2026 Report");
   });
 });
 
@@ -158,14 +161,14 @@ describe("planPush", () => {
     const docs = [fakeDoc({ id: "d1", name: "My Notes", repoPath: undefined })];
     const plan = await planPush(docs, [], false);
     expect(plan.changes).toHaveLength(1);
-    expect(plan.changes[0]!.repoPath).toBe("my-notes.md");
+    expect(plan.changes[0]!.repoPath).toBe("My Notes.md");
     expect(plan.conflicts).toEqual([]);
   });
 
   it("adopts an existing tree path instead of deduping when a doc with no repoPath matches by name, and content is identical", async () => {
     // git's blob sha of the empty string, per `git hash-object -t blob --stdin < /dev/null`
     const docs = [fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "" })];
-    const entries: TreeEntry[] = [{ path: "notes.md", sha: "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", type: "blob" }];
+    const entries: TreeEntry[] = [{ path: "Notes.md", sha: "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", type: "blob" }];
     // sameWorkspace: false — identical content adopts quietly regardless
     // of the marker, proving this branch doesn't depend on it.
     const plan = await planPush(docs, entries, false);
@@ -175,31 +178,31 @@ describe("planPush", () => {
 
   it("pushes directly to the matched tree path when content differs and sameWorkspace is true", async () => {
     const docs = [fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "new content" })];
-    const entries: TreeEntry[] = [{ path: "notes.md", sha: "s1", type: "blob" }];
+    const entries: TreeEntry[] = [{ path: "Notes.md", sha: "s1", type: "blob" }];
     const plan = await planPush(docs, entries, true);
     expect(plan.changes).toHaveLength(1);
-    expect(plan.changes[0]!.repoPath).toBe("notes.md");
+    expect(plan.changes[0]!.repoPath).toBe("Notes.md");
     expect(plan.conflicts).toEqual([]);
   });
 
   it("raises a conflict instead of overwriting when a matched tree path's content differs and sameWorkspace is false", async () => {
     const docs = [fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "new content" })];
-    const entries: TreeEntry[] = [{ path: "notes.md", sha: "s1", type: "blob" }];
+    const entries: TreeEntry[] = [{ path: "Notes.md", sha: "s1", type: "blob" }];
     const plan = await planPush(docs, entries, false);
     expect(plan.changes).toEqual([]);
-    expect(plan.conflicts).toEqual([{ docId: "d1", repoPath: "notes.md", remoteSha: "s1" }]);
+    expect(plan.conflicts).toEqual([{ docId: "d1", repoPath: "Notes.md", remoteSha: "s1" }]);
   });
 
   it("dedupes a second doc's repoPath when the first already claimed the matching tree path", async () => {
     const docs = [
-      fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "" }), // identical to tree -> quietly adopts notes.md
+      fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "" }), // identical to tree -> quietly adopts Notes.md
       fakeDoc({ id: "d2", name: "Notes", repoPath: undefined, content: "different content" }),
     ];
-    const entries: TreeEntry[] = [{ path: "notes.md", sha: "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", type: "blob" }];
+    const entries: TreeEntry[] = [{ path: "Notes.md", sha: "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", type: "blob" }];
     const plan = await planPush(docs, entries, false);
     expect(plan.changes).toHaveLength(1);
     expect(plan.changes[0]!.docId).toBe("d2");
-    expect(plan.changes[0]!.repoPath).toBe("notes-2.md");
+    expect(plan.changes[0]!.repoPath).toBe("Notes-2.md");
   });
 
   it("skips a doc whose pushable content hashes to the tree's current blob sha", async () => {
@@ -247,9 +250,9 @@ describe("planPush", () => {
     ];
     const plan = await planPush(docs, [], false);
     const second = plan.changes.find((c) => c.docId === "d2")!;
-    expect(second.repoPath).toBe("notes-2.md");
-    expect(second.assets).toEqual([{ path: "assets/notes-2/img-1.png", dataUrl: "data:image/png;base64,aGk=" }]);
-    expect(second.content).toBe("![x](assets/notes-2/img-1.png)");
+    expect(second.repoPath).toBe("Notes-2.md");
+    expect(second.assets).toEqual([{ path: "assets/Notes-2/img-1.png", dataUrl: "data:image/png;base64,aGk=" }]);
+    expect(second.content).toBe("![x](assets/Notes-2/img-1.png)");
   });
 });
 
@@ -320,7 +323,7 @@ describe("linkWorkspaceAndSync", () => {
   });
 
   it("flags a push conflict instead of silently duplicating when relinking to a different repo with a same-named, differing-content file", async () => {
-    backend.seedRepo("alice", "notes", "main", [{ path: "notes.md", content: "fresh content from the new repo" }]);
+    backend.seedRepo("alice", "notes", "main", [{ path: "Notes.md", content: "fresh content from the new repo" }]);
     const ws = createWorkspace("Test Workspace 2");
     docsStore.set([
       {
@@ -341,7 +344,7 @@ describe("linkWorkspaceAndSync", () => {
     if (result.kind !== "push-conflict") throw new Error("unreachable");
     expect(result.pushPlan.conflicts).toHaveLength(1);
     expect(result.pushPlan.conflicts[0]!.docId).toBe("stale-doc");
-    expect(result.pushPlan.conflicts[0]!.repoPath).toBe("notes.md");
+    expect(result.pushPlan.conflicts[0]!.repoPath).toBe("Notes.md");
 
     // Nothing pushed or pulled yet — the doc keeps its (now
     // stale-metadata-cleared) content, and the repo's own notes.md is
@@ -354,7 +357,7 @@ describe("linkWorkspaceAndSync", () => {
   it("pushes directly instead of conflicting when relinking to a repo this exact workspace already pushed to before", async () => {
     const ws = createWorkspace("Test Workspace 3");
     backend.seedRepo("alice", "notes", "main", [
-      { path: "notes.md", content: "old content from before" },
+      { path: "Notes.md", content: "old content from before" },
       { path: ".mde/workspace.json", content: JSON.stringify({ workspaceId: ws.id, name: ws.name }) },
     ]);
     docsStore.set([{ id: "my-doc", name: "Notes", content: "updated local content", updatedAt: 1, createdAt: 1, workspaceId: ws.id }]);
@@ -364,7 +367,7 @@ describe("linkWorkspaceAndSync", () => {
     expect(result.kind).toBe("pull-result");
     const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
     const doc = docs.find((d) => d.id === "my-doc")!;
-    expect(doc.repoPath).toBe("notes.md");
+    expect(doc.repoPath).toBe("Notes.md");
     expect(doc.content).toBe("updated local content");
   });
 });

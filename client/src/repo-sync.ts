@@ -14,9 +14,8 @@ import { showProgressToast, updateProgressToast, finishProgressToast, showToast 
 
 export function slugifyDocName(name: string): string {
   const slug = (name || "")
-    .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^a-zA-Z0-9 ]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || "untitled";
 }

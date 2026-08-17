@@ -72,6 +72,20 @@ describe("rewriteImagesForPush", () => {
     expect(result.content).toBe("![x](https://example.com/x.png)");
     expect(result.assets).toEqual([]);
   });
+
+  it("resolves a mermaid diagram ref to its real source before pushing", () => {
+    const content = "Some text\n\n```mermaid\ndiagram\n```\n\nMore text";
+    const result = rewriteImagesForPush(content, "my-notes", undefined, { diagram: "graph TD\n  A --> B" });
+    expect(result.content).toBe("Some text\n\n```mermaid\ngraph TD\n  A --> B\n```\n\nMore text");
+    expect(result.assets).toEqual([]);
+  });
+
+  it("leaves a mermaid fence unchanged when its ref has no matching diagram", () => {
+    const content = "```mermaid\nunknown-ref\n```";
+    const result = rewriteImagesForPush(content, "my-notes", undefined, { diagram: "graph TD\n  A --> B" });
+    expect(result.content).toBe(content);
+    expect(result.assets).toEqual([]);
+  });
 });
 
 describe("resolveImagesFromPull", () => {

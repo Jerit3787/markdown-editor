@@ -8,6 +8,7 @@ import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLi
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
 import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace } from "./stores/workspaces";
+import { resolveDiagramRefs } from "./diagram-refs";
 import { repoSyncBusyLabel } from "./stores/repoSync";
 import { showProgressToast, updateProgressToast, finishProgressToast, showToast } from "./stores/toast";
 
@@ -71,10 +72,17 @@ export function rewriteImagesForPush(
   images: Record<string, string> | undefined,
   diagrams: Record<string, string> | undefined
 ): { content: string; assets: ImageAsset[] } {
+  // A mermaid diagram's fence body is just a short reference key (see
+  // diagram-refs.ts) — resolve it back to real source BEFORE the image
+  // regex below runs, matching exportAs("md") and getResolvedContent()'s
+  // (Gist publish) own established pattern. Diagrams are inlined as text
+  // directly in the pushed markdown, not pushed as separate asset files
+  // the way images are — GitHub renders ```mermaid fences natively.
+  const resolvedContent = resolveDiagramRefs(content, diagrams);
   const assets: ImageAsset[] = [];
   const seenRefs = new Map<string, string>(); // ref -> assigned assets path, so repeats reuse the same path
-  const newContent = content.replace(MARKDOWN_IMAGE_RE, (match, alt, ref) => {
-    const dataUrl = (images && images[ref]) || (diagrams && diagrams[ref]);
+  const newContent = resolvedContent.replace(MARKDOWN_IMAGE_RE, (match, alt, ref) => {
+    const dataUrl = images && images[ref];
     if (!dataUrl) return match;
     let assetPath = seenRefs.get(ref);
     if (!assetPath) {

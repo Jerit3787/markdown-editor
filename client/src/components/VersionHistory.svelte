@@ -2,26 +2,46 @@
   import { get } from "svelte/store";
   import { onMount } from "svelte";
   import { versionHistoryOpen } from "../stores/versionHistory";
-  import { getActiveDoc } from "../stores/docs";
+  import { getActiveDoc, activeDocContent } from "../stores/docs";
   import { workspacesStore } from "../stores/workspaces";
   import {
     listVersions,
     getVersionContent,
     restoreLocalVersion,
+    restoreLocalVersionContent,
     listSharedVersions,
     getSharedVersionContent,
     restoreSharedVersion,
-    type VersionSummary,
+    restoreSharedVersionContent,
   } from "../history";
   import { renderVersionPreview } from "../version-preview";
   import { showToast } from "../stores/toast";
+  import DiffView from "./DiffView.svelte";
+
+  interface LocalEntry {
+    kind: "local";
+    id: string;
+    timestamp: number;
+  }
+  interface CommitEntry {
+    kind: "commit";
+    id: string;
+    timestamp: number;
+    message: string;
+    author: string;
+    html_url: string;
+  }
+  type HistoryEntry = LocalEntry | CommitEntry;
 
   function isDocShared(doc: ReturnType<typeof getActiveDoc>): boolean {
     return !!(doc && get(workspacesStore).find((w) => w.id === doc.workspaceId)?.shared);
   }
 
-  let versions = $state<VersionSummary[]>([]);
+  let versions = $state<HistoryEntry[]>([]);
   let selectedId = $state<string | null>(null);
+  let selectedEntry = $state<HistoryEntry | null>(null);
+  let selectedContent = $state<string | undefined>(undefined);
+  let viewMode = $state<"preview" | "diff">("preview");
   let previewEl: HTMLDivElement | undefined = $state();
   let loading = $state(false);
   let restoring = $state(false);
@@ -35,11 +55,64 @@
     versionHistoryOpen.set(false);
   }
 
-  async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, id: string) {
-    selectedId = id;
-    if (!doc || !previewEl) return;
-    const content = isShared ? await getSharedVersionContent(doc.workspaceId, doc.id, id) : await getVersionContent(doc.id, id);
-    if (content !== undefined && previewEl) await renderVersionPreview(content, doc, previewEl);
+  function firstLine(message: string): string {
+    return message.split("\n")[0] || message;
+  }
+
+  async function fetchCommitContent(doc: ReturnType<typeof getActiveDoc>, sha: string): Promise<string | undefined> {
+    if (!doc?.repoPath) return undefined;
+    const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
+    const repoLink = ws?.repoLink;
+    if (!repoLink) return undefined;
+    const encodedPath = doc.repoPath.split("/").map(encodeURIComponent).join("/");
+    const res = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/contents/${encodedPath}?ref=${encodeURIComponent(sha)}`);
+    if (!res.ok) return undefined;
+    const data = (await res.json()) as { content: string; encoding: string };
+    if (data.encoding !== "base64") return data.content;
+    return atob(data.content.replace(/\n/g, ""));
+  }
+
+  async function loadCommitEntries(doc: ReturnType<typeof getActiveDoc>): Promise<CommitEntry[]> {
+    if (!doc?.repoPath) return [];
+    const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
+    const repoLink = ws?.repoLink;
+    if (!repoLink) return [];
+    try {
+      const encodedPath = doc.repoPath.split("/").map(encodeURIComponent).join("/");
+      const res = await fetch(
+        `/api/repo/${repoLink.owner}/${repoLink.repo}/commits?branch=${encodeURIComponent(repoLink.branch)}&page=1&path=${encodedPath}`
+      );
+      if (!res.ok) return [];
+      const data = (await res.json()) as { sha: string; commit: { message: string; author: { name: string; date: string } }; html_url: string }[];
+      return data.map((c) => ({
+        kind: "commit" as const,
+        id: c.sha,
+        timestamp: new Date(c.commit.author.date).getTime(),
+        message: firstLine(c.commit.message),
+        author: c.commit.author.name,
+        html_url: c.html_url,
+      }));
+    } catch (err) {
+      return [];
+    }
+  }
+
+  async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, entry: HistoryEntry) {
+    selectedId = entry.id;
+    selectedEntry = entry;
+    selectedContent = undefined;
+    if (!doc) return;
+    const content =
+      entry.kind === "local"
+        ? isShared
+          ? await getSharedVersionContent(doc.workspaceId, doc.id, entry.id)
+          : await getVersionContent(doc.id, entry.id)
+        : await fetchCommitContent(doc, entry.id);
+    if (content === undefined) {
+      showToast("Couldn't load this version's content", "error");
+      return;
+    }
+    selectedContent = content;
   }
 
   async function loadVersions() {
@@ -51,35 +124,52 @@
     const isShared = isDocShared(doc);
     restoreAllowed = !isShared || !window.MDE.getEditor().state.readOnly;
     loading = true;
-    versions = isShared ? await listSharedVersions(doc.workspaceId, doc.id) : await listVersions(doc.id);
+    const localList = isShared ? await listSharedVersions(doc.workspaceId, doc.id) : await listVersions(doc.id);
+    const localEntries: HistoryEntry[] = localList.map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }));
+    const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);
+    versions = [...localEntries, ...commitEntries].sort((a, b) => b.timestamp - a.timestamp);
     loading = false;
-    if (versions.length > 0) await selectVersion(doc, isShared, versions[0]!.id);
-    else selectedId = null;
+    if (versions.length > 0) await selectVersion(doc, isShared, versions[0]!);
+    else {
+      selectedId = null;
+      selectedEntry = null;
+    }
   }
 
   async function restore() {
     const doc = getActiveDoc();
-    if (!doc || !selectedId || restoring) return;
+    if (!doc || !selectedEntry || restoring || selectedContent === undefined) return;
     restoring = true;
     const isShared = isDocShared(doc);
+    const entry = selectedEntry;
+    const content = selectedContent;
     if (isShared) {
-      const ok = await restoreSharedVersion(doc.workspaceId, doc.id, selectedId);
+      const ok =
+        entry.kind === "local"
+          ? await restoreSharedVersion(doc.workspaceId, doc.id, entry.id)
+          : await restoreSharedVersionContent(doc.workspaceId, doc.id, content);
       if (ok) {
         showToast("Version restored", "success");
         close();
       } else {
         showToast("Couldn't restore this version", "error");
       }
-    } else {
-      const content = await restoreLocalVersion(doc.id, selectedId);
-      if (content !== undefined) {
+    } else if (entry.kind === "local") {
+      const restoredContent = await restoreLocalVersion(doc.id, entry.id);
+      if (restoredContent !== undefined) {
         const cm = window.MDE.getEditor();
-        cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: content } });
+        cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: restoredContent } });
         showToast("Version restored", "success");
         close();
       } else {
         showToast("Couldn't restore this version", "error");
       }
+    } else {
+      await restoreLocalVersionContent(doc.id, content);
+      const cm = window.MDE.getEditor();
+      cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: content } });
+      showToast("Version restored", "success");
+      close();
     }
     restoring = false;
   }
@@ -90,6 +180,17 @@
 
   $effect(() => {
     if ($versionHistoryOpen) void loadVersions();
+  });
+
+  // Re-renders the plain preview whenever the selected content changes
+  // or the toggle switches back to "preview" — separate from
+  // selectVersion() so switching modes on an already-selected entry
+  // doesn't need to re-fetch anything.
+  $effect(() => {
+    if (viewMode === "preview" && selectedContent !== undefined && previewEl) {
+      const doc = getActiveDoc();
+      if (doc) void renderVersionPreview(selectedContent, doc, previewEl);
+    }
   });
 
   onMount(() => {
@@ -119,12 +220,12 @@
       <div class="version-history-list">
         {#if loading}
           <div class="empty-state">
-            <svg class="empty-state-icon"><use href="#icon-clock"></use></svg>
+            <svg class="empty-state-icon"><use href="#icon-history"></use></svg>
             <div class="empty-state-title">Loading…</div>
           </div>
         {:else if versions.length === 0}
           <div class="empty-state">
-            <svg class="empty-state-icon"><use href="#icon-clock"></use></svg>
+            <svg class="empty-state-icon"><use href="#icon-history"></use></svg>
             <div class="empty-state-title">No versions yet</div>
             <div class="empty-state-desc">History builds up automatically as you edit.</div>
           </div>
@@ -134,16 +235,33 @@
               type="button"
               class="version-history-row"
               class:active={v.id === selectedId}
-              onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), v.id)}
+              onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), v)}
             >
-              <span>{formatTimestamp(v.timestamp)}</span>
+              <span class="version-history-row-label">
+                {#if v.kind === "commit"}
+                  <svg class="icon"><use href="#icon-github"></use></svg>
+                  {v.message}
+                {:else}
+                  {formatTimestamp(v.timestamp)}
+                {/if}
+              </span>
               {#if i === 0}<span class="version-history-current">(current)</span>{/if}
             </button>
           {/each}
         {/if}
       </div>
       <div class="version-history-preview-wrap">
-        <div class="version-history-preview" bind:this={previewEl}></div>
+        <div class="version-history-view-toggle">
+          <button type="button" class:active={viewMode === "preview"} onclick={() => (viewMode = "preview")}>Preview</button>
+          <button type="button" class:active={viewMode === "diff"} onclick={() => (viewMode = "diff")}>Diff</button>
+        </div>
+        {#if viewMode === "diff"}
+          <div class="version-history-preview">
+            <DiffView before={selectedContent ?? ""} after={$activeDocContent} />
+          </div>
+        {:else}
+          <div class="version-history-preview" bind:this={previewEl}></div>
+        {/if}
         <div class="version-history-actions">
           <button type="button" class="primary-btn" disabled={!selectedId || restoring || !restoreAllowed || selectedId === versions[0]?.id} onclick={restore}>
             Restore this version

@@ -252,6 +252,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // out from under the very input the user is typing into.
     workspacesStore.subscribe(() => {
       updateEmptyStateVariant(!getActiveDoc());
+      (document.getElementById("newDocBtn") as HTMLButtonElement).disabled = get(workspacesStore).length === 0;
     });
   }
 
@@ -1931,6 +1932,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       // top-level File/Edit/View/Help hover-switch already worked, this
       // was the "/submenu" half of that item, never actually wired).
       trigger.addEventListener("mouseenter", () => {
+        // Native disabled buttons already suppress the click listener
+        // above, but mouse events like mouseenter aren't suppressed —
+        // without this check, a disabled trigger's flyout could still
+        // open by hovering even though clicking it does nothing.
+        if ((trigger as HTMLButtonElement).disabled) return;
         if (sub.classList.contains("open")) return;
         closeSubmenus(root);
         sub.classList.add("open");

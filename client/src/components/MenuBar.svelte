@@ -19,6 +19,7 @@
 
   const activeDoc = $derived($docsStore.find((d) => d.id === $activeIdStore));
   const hasActiveDoc = $derived(!!activeDoc);
+  const hasWorkspace = $derived($workspacesStore.length > 0);
   const hasGist = $derived(!!activeDoc?.gistId);
   const gistLabel = $derived($gistBusyLabel ?? (hasGist ? "Update Gist" : "Publish to Gist"));
   const gistBusy = $derived($gistBusyLabel !== null);
@@ -65,7 +66,7 @@
   <div class="dropdown">
     <button bind:this={fileMenuBtn} id="fileMenuBtn" class="menubar-btn" type="button">File</button>
     <div bind:this={fileMenu} id="fileMenu" class="dropdown-menu menubar-menu">
-      <button id="menuNewDoc" type="button" onclick={() => act(() => window.MDE.newDoc())}>
+      <button id="menuNewDoc" type="button" disabled={!hasWorkspace} onclick={() => act(() => window.MDE.newDoc())}>
         <svg class="icon"><use href="#icon-file-plus"></use></svg> New document
       </button>
 
@@ -114,7 +115,7 @@
         <svg class="icon"><use href="#icon-rocket"></use></svg> Publish to Gist
       </button>
       <div class="menu-submenu" id="publishSubmenu" hidden={!$githubUsername}>
-        <button class="menu-submenu-trigger" type="button">
+        <button class="menu-submenu-trigger" type="button" disabled={!hasActiveDoc}>
           <svg class="icon"><use href="#icon-rocket"></use></svg> Publish <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
         </button>
         <div class="menu-submenu-panel">
@@ -128,7 +129,7 @@
       </div>
 
       <div class="menu-submenu">
-        <button class="menu-submenu-trigger" type="button">
+        <button class="menu-submenu-trigger" type="button" disabled={!hasWorkspace}>
           <svg class="icon"><use href="#icon-github"></use></svg> GitHub Repo <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
         </button>
         <div class="menu-submenu-panel">
@@ -156,7 +157,7 @@
 
       <div class="menu-divider"></div>
       <div class="menu-submenu">
-        <button class="menu-submenu-trigger" type="button">
+        <button class="menu-submenu-trigger" type="button" disabled={!hasActiveDoc}>
           <svg class="icon"><use href="#icon-download"></use></svg> Export <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
         </button>
         <div class="menu-submenu-panel">

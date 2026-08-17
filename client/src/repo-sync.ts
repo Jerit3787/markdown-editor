@@ -30,6 +30,27 @@ export function dedupeRepoPath(basePath: string, existingPaths: Set<string>): st
   return `${stem}-${n}${ext}`;
 }
 
+export const WORKSPACE_MARKER_PATH = ".mde/workspace.json";
+
+export interface WorkspaceMarker {
+  workspaceId: string;
+  name: string;
+}
+
+// True only when the marker's content genuinely identifies THIS
+// workspace — a missing file, unparseable content, or a marker naming
+// some other workspace are all treated the same (not proven safe) by
+// the caller.
+export function markerMatchesWorkspace(markerContent: string | null, workspaceId: string): boolean {
+  if (!markerContent) return false;
+  try {
+    const parsed = JSON.parse(markerContent) as Partial<WorkspaceMarker>;
+    return parsed.workspaceId === workspaceId;
+  } catch (e) {
+    return false;
+  }
+}
+
 const MARKDOWN_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
 
 export interface ImageAsset {
@@ -233,19 +254,38 @@ async function gitBlobSha(content: string): Promise<string> {
     .join("");
 }
 
-export async function planPush(docs: Doc[], mdEntries: TreeEntry[]): Promise<PushPlan> {
+export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspace: boolean): Promise<PushPlan> {
   const plan: PushPlan = { changes: [], deletions: [], conflicts: [] };
   const treeShaByPath = new Map(mdEntries.filter((e) => e.type === "blob").map((e) => [e.path, e.sha]));
   const usedPaths = new Set(mdEntries.map((e) => e.path));
+  // Paths already claimed by an earlier doc in THIS loop via a tree-name
+  // match below — a second doc that happens to slugify to the same name
+  // falls through to the normal dedupe-as-new path instead of also
+  // claiming it.
+  const claimedFromTree = new Set<string>();
 
   for (const doc of docs) {
     let repoPath = doc.repoPath;
     let isNewPath = false;
+    let matchedExistingFile = false;
     if (!repoPath) {
       const base = `${slugifyDocName(doc.name)}.md`;
-      repoPath = dedupeRepoPath(base, usedPaths);
-      usedPaths.add(repoPath);
-      isNewPath = true;
+      // A doc with no repoPath (never pushed, or its link metadata was
+      // reset by an unlink) might still correspond to a file the target
+      // repo already has — re-linking to the same repo, or linking to a
+      // different repo that happens to have a same-named file. Adopt
+      // that path instead of blindly dedupe-renaming into a duplicate;
+      // the content-diff check below (shared with already-linked docs)
+      // decides what happens next.
+      if (treeShaByPath.has(base) && !claimedFromTree.has(base)) {
+        repoPath = base;
+        claimedFromTree.add(base);
+        matchedExistingFile = true;
+      } else {
+        repoPath = dedupeRepoPath(base, usedPaths);
+        usedPaths.add(repoPath);
+        isNewPath = true;
+      }
     } else {
       const treeSha = treeShaByPath.get(repoPath);
       if (treeSha !== undefined && treeSha !== doc.repoSha) {
@@ -257,6 +297,13 @@ export async function planPush(docs: Doc[], mdEntries: TreeEntry[]): Promise<Pus
     if (!isNewPath) {
       const currentSha = treeShaByPath.get(repoPath);
       if (currentSha !== undefined && (await gitBlobSha(content)) === currentSha) continue;
+    }
+    if (matchedExistingFile && !sameWorkspace) {
+      // Unproven whose file this actually is — flag it the same way an
+      // already-linked doc's own sha mismatch would, rather than
+      // silently overwriting content that might belong to someone else.
+      plan.conflicts.push({ docId: doc.id, repoPath, remoteSha: treeShaByPath.get(repoPath)! });
+      continue;
     }
     plan.changes.push({ docId: doc.id, repoPath, content, assets });
   }
@@ -283,7 +330,8 @@ export async function pushToRepo(
   const treeData = await treeRes.json();
   const entries: TreeEntry[] = treeData.tree || [];
   const docs = docsInWorkspace(workspaceId);
-  const plan = await planPush(docs, entries);
+  const sameWorkspace = await checkWorkspaceMarker(repoLink, entries, workspaceId);
+  const plan = await planPush(docs, entries, sameWorkspace);
   if (plan.changes.length > 0) {
     onProgress?.(`Pushing ${plan.changes.length} file${plan.changes.length === 1 ? "" : "s"}…`);
   }
@@ -294,6 +342,11 @@ export async function pushToRepo(
     for (const change of changes) {
       blobs.push({ path: change.repoPath, contentBase64: toBase64(change.content) });
       for (const asset of change.assets) blobs.push({ path: asset.path, contentBase64: dataUrlToBase64(asset.dataUrl) });
+    }
+    const workspace = get(workspacesStore).find((w) => w.id === workspaceId);
+    if (workspace) {
+      const marker: WorkspaceMarker = { workspaceId: workspace.id, name: workspace.name };
+      blobs.push({ path: WORKSPACE_MARKER_PATH, contentBase64: toBase64(JSON.stringify(marker)) });
     }
     // Fetched fresh here, not reused from `entries` above (which was read
     // for planning and could be stale by the time a push actually goes
@@ -331,11 +384,32 @@ export async function pushToRepo(
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
     const winningDocs = plan.conflicts.filter((c) => resolutions[c.docId] === "mine").map((c) => docs.find((d) => d.id === c.docId)!);
-    const retryPlan = await planPush(winningDocs, []);
+    // sameWorkspace is unused here — the empty tree means matchedExistingFile
+    // can never become true in this retry, so its value doesn't affect anything.
+    const retryPlan = await planPush(winningDocs, [], true);
     await sendChanges(retryPlan.changes);
   }
 
   return { plan, applyResolved };
+}
+
+// Reads .mde/workspace.json from the target repo's tree (if present) and
+// reports whether it names THIS workspace — see markerMatchesWorkspace's
+// own comment for what "matches" means. Used by pushToRepo to decide
+// (via planPush) whether a name-matched-but-content-differing doc should
+// push directly or raise a conflict.
+async function checkWorkspaceMarker(
+  repoLink: { owner: string; repo: string; branch: string },
+  entries: TreeEntry[],
+  workspaceId: string
+): Promise<boolean> {
+  const markerEntry = entries.find((e) => e.type === "blob" && e.path === WORKSPACE_MARKER_PATH);
+  if (!markerEntry) return false;
+  const blobRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/blob/${markerEntry.sha}`);
+  if (!blobRes.ok) return false;
+  const blobData = await blobRes.json();
+  const content = blobData.encoding === "base64" ? atob(blobData.content.replace(/\n/g, "")) : blobData.content;
+  return markerMatchesWorkspace(content, workspaceId);
 }
 
 export type CreateFromRepoPlan = { action: "switch"; workspaceId: string } | { action: "create"; workspaceName: string };

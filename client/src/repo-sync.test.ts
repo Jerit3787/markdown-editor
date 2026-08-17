@@ -10,6 +10,7 @@ import {
   planPush,
   planCreateWorkspaceFromRepo,
   linkWorkspaceAndSync,
+  markerMatchesWorkspace,
   type TreeEntry,
 } from "./repo-sync";
 import { docsStore } from "./stores/docs";
@@ -38,6 +39,24 @@ describe("dedupeRepoPath", () => {
   it("appends -2, -3... before the extension until free", () => {
     expect(dedupeRepoPath("notes.md", new Set(["notes.md"]))).toBe("notes-2.md");
     expect(dedupeRepoPath("notes.md", new Set(["notes.md", "notes-2.md"]))).toBe("notes-3.md");
+  });
+});
+
+describe("markerMatchesWorkspace", () => {
+  it("returns true when the marker's workspaceId matches", () => {
+    expect(markerMatchesWorkspace(JSON.stringify({ workspaceId: "w1", name: "Notes" }), "w1")).toBe(true);
+  });
+
+  it("returns false for a marker naming a different workspace", () => {
+    expect(markerMatchesWorkspace(JSON.stringify({ workspaceId: "w2", name: "Other" }), "w1")).toBe(false);
+  });
+
+  it("returns false for malformed JSON", () => {
+    expect(markerMatchesWorkspace("not json", "w1")).toBe(false);
+  });
+
+  it("returns false for null content", () => {
+    expect(markerMatchesWorkspace(null, "w1")).toBe(false);
   });
 });
 
@@ -123,16 +142,49 @@ describe("planPull", () => {
 describe("planPush", () => {
   it("assigns a new repoPath to a doc that has never synced", async () => {
     const docs = [fakeDoc({ id: "d1", name: "My Notes", repoPath: undefined })];
-    const plan = await planPush(docs, []);
+    const plan = await planPush(docs, [], false);
     expect(plan.changes).toHaveLength(1);
     expect(plan.changes[0]!.repoPath).toBe("my-notes.md");
     expect(plan.conflicts).toEqual([]);
   });
 
-  it("dedupes a new repoPath against the current tree", async () => {
-    const docs = [fakeDoc({ id: "d1", name: "Notes", repoPath: undefined })];
+  it("adopts an existing tree path instead of deduping when a doc with no repoPath matches by name, and content is identical", async () => {
+    // git's blob sha of the empty string, per `git hash-object -t blob --stdin < /dev/null`
+    const docs = [fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "" })];
+    const entries: TreeEntry[] = [{ path: "notes.md", sha: "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", type: "blob" }];
+    // sameWorkspace: false — identical content adopts quietly regardless
+    // of the marker, proving this branch doesn't depend on it.
+    const plan = await planPush(docs, entries, false);
+    expect(plan.changes).toEqual([]);
+    expect(plan.conflicts).toEqual([]);
+  });
+
+  it("pushes directly to the matched tree path when content differs and sameWorkspace is true", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "new content" })];
     const entries: TreeEntry[] = [{ path: "notes.md", sha: "s1", type: "blob" }];
-    const plan = await planPush(docs, entries);
+    const plan = await planPush(docs, entries, true);
+    expect(plan.changes).toHaveLength(1);
+    expect(plan.changes[0]!.repoPath).toBe("notes.md");
+    expect(plan.conflicts).toEqual([]);
+  });
+
+  it("raises a conflict instead of overwriting when a matched tree path's content differs and sameWorkspace is false", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "new content" })];
+    const entries: TreeEntry[] = [{ path: "notes.md", sha: "s1", type: "blob" }];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.changes).toEqual([]);
+    expect(plan.conflicts).toEqual([{ docId: "d1", repoPath: "notes.md", remoteSha: "s1" }]);
+  });
+
+  it("dedupes a second doc's repoPath when the first already claimed the matching tree path", async () => {
+    const docs = [
+      fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "" }), // identical to tree -> quietly adopts notes.md
+      fakeDoc({ id: "d2", name: "Notes", repoPath: undefined, content: "different content" }),
+    ];
+    const entries: TreeEntry[] = [{ path: "notes.md", sha: "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", type: "blob" }];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.changes).toHaveLength(1);
+    expect(plan.changes[0]!.docId).toBe("d2");
     expect(plan.changes[0]!.repoPath).toBe("notes-2.md");
   });
 
@@ -140,46 +192,50 @@ describe("planPush", () => {
     // git's blob sha of the empty string, per `git hash-object -t blob --stdin < /dev/null`
     const docs = [fakeDoc({ id: "d1", repoPath: "a.md", repoSha: "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", content: "" })];
     const entries: TreeEntry[] = [{ path: "a.md", sha: "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", type: "blob" }];
-    const plan = await planPush(docs, entries);
+    const plan = await planPush(docs, entries, false);
     expect(plan.changes).toEqual([]);
   });
 
   it("pushes a doc whose content differs from the tree's current blob sha, even if repoSha still matches", async () => {
     const docs = [fakeDoc({ id: "d1", repoPath: "a.md", repoSha: "s1", content: "changed locally" })];
     const entries: TreeEntry[] = [{ path: "a.md", sha: "s1", type: "blob" }];
-    const plan = await planPush(docs, entries);
+    const plan = await planPush(docs, entries, false);
     expect(plan.changes).toHaveLength(1);
   });
 
   it("queues a conflict when the tree's sha differs from the doc's last-known repoSha", async () => {
     const docs = [fakeDoc({ id: "d1", repoPath: "a.md", repoSha: "s1" })];
     const entries: TreeEntry[] = [{ path: "a.md", sha: "s2", type: "blob" }];
-    const plan = await planPush(docs, entries);
+    const plan = await planPush(docs, entries, false);
     expect(plan.changes).toEqual([]);
     expect(plan.conflicts).toEqual([{ docId: "d1", repoPath: "a.md", remoteSha: "s2" }]);
   });
 
   it("pushes a doc whose repoPath is not in the tree at all yet (first push after linking)", async () => {
     const docs = [fakeDoc({ id: "d1", repoPath: "a.md", repoSha: "s1", content: "hi" })];
-    const plan = await planPush(docs, []);
+    const plan = await planPush(docs, [], false);
     expect(plan.changes).toHaveLength(1);
     expect(plan.changes[0]!.repoPath).toBe("a.md");
   });
 
   it("uses the final (deduped) repoPath's own stem as the images-folder slug, not doc.name's slug", async () => {
     // Regression coverage for a slug-consistency bug found during plan
-    // review: if two docs both slugify to "notes", the second one's
-    // repoPath becomes notes-2.md via dedupeRepoPath. Its pushed images
-    // must land under assets/notes-2/ (matching what pull-side
-    // docSlugFor("notes-2.md") will later derive from that same final
-    // path) — not assets/notes/ (what slugifyDocName(doc.name) alone
-    // would give), which pull could never resolve back correctly.
-    const docs = [fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "![x](img-1)", images: { "img-1": "data:image/png;base64,aGk=" } })];
-    const entries: TreeEntry[] = [{ path: "notes.md", sha: "s1", type: "blob" }];
-    const plan = await planPush(docs, entries);
-    expect(plan.changes[0]!.repoPath).toBe("notes-2.md");
-    expect(plan.changes[0]!.assets).toEqual([{ path: "assets/notes-2/img-1.png", dataUrl: "data:image/png;base64,aGk=" }]);
-    expect(plan.changes[0]!.content).toBe("![x](assets/notes-2/img-1.png)");
+    // review: if two docs both slugify to "notes" (and neither matches
+    // anything already in the tree), the second one's repoPath becomes
+    // notes-2.md via dedupeRepoPath. Its pushed images must land under
+    // assets/notes-2/ (matching what pull-side docSlugFor("notes-2.md")
+    // will later derive from that same final path) — not assets/notes/
+    // (what slugifyDocName(doc.name) alone would give), which pull could
+    // never resolve back correctly.
+    const docs = [
+      fakeDoc({ id: "d1", name: "Notes", repoPath: undefined, content: "first" }),
+      fakeDoc({ id: "d2", name: "Notes", repoPath: undefined, content: "![x](img-1)", images: { "img-1": "data:image/png;base64,aGk=" } }),
+    ];
+    const plan = await planPush(docs, [], false);
+    const second = plan.changes.find((c) => c.docId === "d2")!;
+    expect(second.repoPath).toBe("notes-2.md");
+    expect(second.assets).toEqual([{ path: "assets/notes-2/img-1.png", dataUrl: "data:image/png;base64,aGk=" }]);
+    expect(second.content).toBe("![x](assets/notes-2/img-1.png)");
   });
 });
 

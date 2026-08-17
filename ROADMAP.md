@@ -106,6 +106,27 @@ commitments.
       "keep mine / take theirs," never silently resolved. Independent
       of live workspace sharing; the two features don't interact
       (v1.22.0).
+- [x] **Share the whole workspace, not just one document.** The Share
+      button on a document with siblings now offers a choice — share
+      just this document (unchanged behavior) or the whole workspace —
+      instead of always silently isolating the document into its own
+      workspace first (v1.23.0).
+- [x] **Open an existing GitHub repo directly as a new workspace, and
+      link-then-sync an existing one automatically.** File > Open >
+      From GitHub Repo creates a workspace from any repo in one step,
+      switching to an already-linked workspace instead of duplicating
+      it; linking an *existing* workspace to a repo now immediately
+      pushes its local docs out and pulls in whatever the repo already
+      has, instead of requiring a manual Push then Pull afterward
+      (v1.23.0).
+- [x] **Document info and progress transparency.** The Document Info
+      panel now shows a document's linked GitHub repo/Gist with a
+      direct link, and relative dates read "5d ago" / "2w ago" /
+      "3mo ago" instead of jumping straight to a bare date past
+      yesterday; GitHub repo push/pull and Gist publish now show a
+      live-updating progress toast, instead of the only feedback being
+      a menu button's own label that's invisible behind whatever modal
+      triggered the action (v1.23.0).
 
 ## Backlog — quick wins
 
@@ -321,3 +342,20 @@ to matter later.
 - [ ] Subfolder-scoped or non-recursive GitHub repo linking — v1.22.0
       always maps a linked workspace to the whole repo tree on a chosen
       branch, recursively; no way to link to just a subfolder
+- [ ] Automatic conflict resolution when a repo's tree moves between a
+      link-and-sync's push and pull steps (e.g. a concurrent external
+      push) — v1.23.0 still always routes any such conflict through the
+      existing shared conflict-resolution modal, same manual-choice
+      model as v1.22.0's push/pull
+- [ ] Sync-status detail (e.g. last-synced time) in Document Info's
+      "Synced to" section — v1.23.0 shows only the linked repo path /
+      Gist, not how recently it was last pushed or pulled
+- [ ] Real per-file progress during a GitHub repo push — v1.23.0's
+      progress toast shows a static file count computed before sending,
+      not a live increment, since the push protocol sends every blob in
+      one atomic request; would need restructuring the already-shipped
+      push protocol to get real per-file increments
+- [ ] Progress feedback during repo-sync conflict resolution — v1.23.0's
+      progress toasts cover only the initial push/pull/publish
+      operation; the conflict-resolution modal's own "Applying…" button
+      state is the only in-progress feedback during that step today

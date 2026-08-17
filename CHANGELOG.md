@@ -4,6 +4,51 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.23.0] - 2026-08-17
+
+### Added
+
+- **Share the whole workspace, not just one document.** The Share button
+  on a document that has siblings now offers a choice — share just this
+  document (the existing behavior) or the whole workspace — instead of
+  always silently isolating the document into its own workspace first.
+- **Open an existing GitHub repo directly as a new workspace.** File >
+  Open > From GitHub Repo creates a workspace from any repo in one step
+  (switching to an already-linked workspace instead of duplicating it if
+  one already exists).
+- **Linking an existing workspace to a repo now pushes and pulls
+  automatically.** Previously this only saved the link, leaving the user
+  to manually run Push then Pull afterward.
+- **Document Info shows a linked repo/Gist.** The panel (File > Document
+  Info) now shows a document's linked GitHub repo path or Gist, with a
+  direct link to it on GitHub.
+- **More readable relative dates.** Dates past yesterday now read "5d
+  ago" / "2w ago" / "3mo ago" instead of jumping straight to a bare date
+  — used everywhere relative dates already appeared (Document Info, File
+  > Open Recent, Command Palette).
+- **Progress toasts for GitHub repo sync and Gist publish.** Pushing,
+  pulling, linking a workspace to a repo, opening a repo as a new
+  workspace, and publishing a Gist now show a toast that updates live
+  while the operation runs, instead of the only feedback being a menu
+  button's own label — invisible whenever the modal that triggered the
+  action is on top of that menu.
+- **Move a document to a different workspace via a modal.** The doc-row
+  "⋯" menu's "Move" action now opens a picker modal instead of listing
+  every other workspace inline.
+
+### Fixed
+
+- **Confirm dialogs for delete actions (document, image, workspace) now
+  name what's being deleted in the title** (`Delete "My Notes"?`) instead
+  of a generic title with the name buried in the body text.
+- **The Share dialog's title showed the active document's name even when
+  sharing the whole workspace** — it now always reflects what's actually
+  being shared.
+- **Relinking a workspace to a different repo could falsely report a
+  push conflict** if a doc's stale sync metadata from a previously-linked
+  repo happened to match a same-named file in the new one. Linking now
+  always clears that metadata first.
+
 ## [1.22.1] - 2026-08-17
 
 ### Fixed

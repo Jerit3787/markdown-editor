@@ -65,4 +65,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Link a workspace to a GitHub repo from File > GitHub Repo — every .md file in the repo becomes a doc, recursively. Push local changes back out as one commit, or pull the latest from GitHub, with per-file conflict detection: anything changed on both sides always asks you to pick a side, never silently overwrites.",
     screenshot: "/whats-new/github-repo-sync.png",
   },
+  {
+    version: "1.23.0",
+    title: "Open GitHub Repo as Workspace",
+    description:
+      "File > Open > From GitHub Repo creates a workspace from any repo in one step. Linking an existing workspace to a repo now pushes and pulls automatically instead of just saving the link, and repo/Gist actions show a live-updating progress toast so you can actually see what's happening.",
+    screenshot: "/whats-new/open-repo-as-workspace.png",
+  },
 ];

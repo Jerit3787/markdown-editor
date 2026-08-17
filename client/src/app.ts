@@ -10,6 +10,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import html2pdf from "html2pdf.js";
 import type { Doc, MDEBridge } from "./types";
+import { formatRelativeTime } from "./relative-time";
 import {
   activeIdStore,
   activeDocContent,
@@ -252,14 +253,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     workspacesStore.subscribe(() => {
       updateEmptyStateVariant(!getActiveDoc());
     });
-  }
-
-  function formatRelativeTime(ts: number) {
-    const diff = Date.now() - ts;
-    const day = 86400000;
-    if (diff < day) return "Today";
-    if (diff < day * 2) return "Yesterday";
-    return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
 
   function initModalEscapeKey() {

@@ -52,6 +52,12 @@ function loadDocsFromStorage(): Doc[] {
     if (raw) {
       const parsed = JSON.parse(raw) as Doc[];
       neededWorkspaceBackfill = Array.isArray(parsed) && parsed.some((d) => !d.workspaceId);
+      // Legacy documents (from before workspaces existed) with no
+      // workspace to backfill onto — mde:workspaces was never set,
+      // meaning this profile hasn't opened the app since workspaces
+      // shipped. Create one so normalizeLoadedDocs has somewhere real to
+      // backfill onto instead of silently orphaning these documents.
+      if (neededWorkspaceBackfill && get(workspacesStore).length === 0) createWorkspace("My Workspace");
       return normalizeLoadedDocs(parsed);
     }
   } catch (e) { /* ignore corrupt storage */ }

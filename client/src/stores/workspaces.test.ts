@@ -43,13 +43,11 @@ describe("workspaces store — first-run seeding", () => {
     vi.resetModules();
   });
 
-  it("seeds exactly one default workspace when mde:workspaces was never set", async () => {
+  it("starts with zero workspaces when mde:workspaces was never set, and persists that immediately", async () => {
     const { workspacesStore, activeWorkspaceIdStore } = await import("./workspaces");
-    const workspaces = get(workspacesStore);
-    expect(workspaces).toHaveLength(1);
-    expect(workspaces[0].name).toBe("My Workspace");
-    expect(get(activeWorkspaceIdStore)).toBe(workspaces[0].id);
-    expect(localStorage.getItem("mde:workspaces")).not.toBeNull();
+    expect(get(workspacesStore)).toEqual([]);
+    expect(get(activeWorkspaceIdStore)).toBeNull();
+    expect(localStorage.getItem("mde:workspaces")).toBe("[]");
   });
 
   it("respects an explicitly empty array instead of re-seeding", async () => {
@@ -87,24 +85,24 @@ describe("workspaces store — mutations", () => {
   });
 
   it("renameWorkspace updates only the name", async () => {
-    const { workspacesStore, renameWorkspace } = await import("./workspaces");
-    const originalId = get(workspacesStore)[0].id;
-    renameWorkspace(originalId, "Renamed");
-    expect(get(workspacesStore).find((w) => w.id === originalId)?.name).toBe("Renamed");
+    const { workspacesStore, createWorkspace, renameWorkspace } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    renameWorkspace(original.id, "Renamed");
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.name).toBe("Renamed");
   });
 
   it("switchWorkspace returns false when already active, true when it actually switches", async () => {
     const { activeWorkspaceIdStore, createWorkspace, switchWorkspace } = await import("./workspaces");
-    const firstId = get(activeWorkspaceIdStore)!;
+    const first = createWorkspace("First");
     const second = createWorkspace("Second"); // now active
     expect(switchWorkspace(second.id)).toBe(false);
-    expect(switchWorkspace(firstId)).toBe(true);
-    expect(get(activeWorkspaceIdStore)).toBe(firstId);
+    expect(switchWorkspace(first.id)).toBe(true);
+    expect(get(activeWorkspaceIdStore)).toBe(first.id);
   });
 
   it("deleteWorkspaceRecord falls back to the oldest remaining workspace when the active one is deleted", async () => {
     const { workspacesStore, activeWorkspaceIdStore, createWorkspace, deleteWorkspaceRecord } = await import("./workspaces");
-    const first = get(workspacesStore)[0];
+    const first = createWorkspace("First");
     const second = createWorkspace("Second"); // now active
     deleteWorkspaceRecord(second.id);
     expect(get(activeWorkspaceIdStore)).toBe(first.id);
@@ -112,17 +110,18 @@ describe("workspaces store — mutations", () => {
   });
 
   it("deleteWorkspaceRecord sets active to null when the last workspace is deleted", async () => {
-    const { workspacesStore, activeWorkspaceIdStore, deleteWorkspaceRecord } = await import("./workspaces");
-    deleteWorkspaceRecord(get(workspacesStore)[0].id);
+    const { workspacesStore, activeWorkspaceIdStore, createWorkspace, deleteWorkspaceRecord } = await import("./workspaces");
+    const only = createWorkspace("Only");
+    deleteWorkspaceRecord(only.id);
     expect(get(activeWorkspaceIdStore)).toBeNull();
     expect(get(workspacesStore)).toEqual([]);
   });
 
   it("deleteWorkspaceRecord leaves the active workspace alone when deleting a different one", async () => {
     const { workspacesStore, activeWorkspaceIdStore, createWorkspace, deleteWorkspaceRecord } = await import("./workspaces");
-    const firstId = get(activeWorkspaceIdStore)!;
+    const first = createWorkspace("First");
     const second = createWorkspace("Second");
-    deleteWorkspaceRecord(firstId);
+    deleteWorkspaceRecord(first.id);
     expect(get(activeWorkspaceIdStore)).toBe(second.id);
     expect(get(workspacesStore).map((w) => w.id)).toEqual([second.id]);
   });

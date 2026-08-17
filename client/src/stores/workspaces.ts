@@ -32,14 +32,12 @@ function loadWorkspacesFromStorage(): Workspace[] | null {
 }
 
 const storedWorkspaces = loadWorkspacesFromStorage();
-// First-ever run (brand new visitor, or an existing user upgrading —
-// either way nothing under STORAGE_WORKSPACES yet) always gets exactly
-// one workspace to start in. docs.ts's own migration (normalizeLoadedDocs)
-// backfills any pre-existing documents onto this same workspace, keyed
-// off the same "was mde:docs already normalized" signal — see its
-// comment for how the two stay in sync without importing each other.
-const initialWorkspaces: Workspace[] =
-  storedWorkspaces === null ? [{ id: uid(), name: "My Workspace", createdAt: Date.now() }] : storedWorkspaces;
+// A brand-new visitor starts with zero workspaces (see the design spec —
+// matches VS Code's "no folder open"). A legacy visitor who has documents
+// from before workspaces existed but has never reloaded since (so this
+// key was never set) is handled separately, defensively, by docs.ts's own
+// loadDocsFromStorage — see its comment.
+const initialWorkspaces: Workspace[] = storedWorkspaces === null ? [] : storedWorkspaces;
 
 export const workspacesStore = writable<Workspace[]>(initialWorkspaces);
 

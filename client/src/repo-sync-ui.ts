@@ -4,7 +4,7 @@
 import { activeWorkspaceIdStore, workspacesStore, clearWorkspaceRepoLink } from "./stores/workspaces";
 import { docsInWorkspace } from "./stores/docs";
 import { pullFromRepo, pushToRepo, type PullConflict, type PushConflict } from "./repo-sync";
-import { repoLinkModalOpen, repoConflictModalOpen, repoConflictState, repoSyncBusyLabel } from "./stores/repoSync";
+import { repoLinkModalOpen, openRepoModalOpen, repoConflictModalOpen, repoConflictState, repoSyncBusyLabel } from "./stores/repoSync";
 import { showToast } from "./stores/toast";
 import { get } from "svelte/store";
 
@@ -33,6 +33,13 @@ window.MDE.openRepoLinkModal = () => {
   void (async () => {
     if (!(await requireRepoScope())) return;
     repoLinkModalOpen.set(true);
+  })();
+};
+
+window.MDE.openRepoModal = () => {
+  void (async () => {
+    if (!(await requireRepoScope())) return;
+    openRepoModalOpen.set(true);
   })();
 };
 

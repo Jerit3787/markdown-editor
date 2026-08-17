@@ -189,6 +189,7 @@ export interface MDEBridge {
   openGistPicker?(): void;
   // Set by repo-sync-ui.ts at module load, same pattern as the two above.
   openRepoLinkModal?(): void;
+  openRepoModal?(): void;
   pushToRepoAction?(): void;
   pullFromRepoAction?(): void;
   unlinkRepo?(): void;

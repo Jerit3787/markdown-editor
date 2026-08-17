@@ -80,6 +80,9 @@
           <button id="menuOpenGist" type="button" onclick={() => act(() => window.MDE.openGistPicker?.())}>
             <svg class="icon"><use href="#icon-github"></use></svg> From GitHub Gist...
           </button>
+          <button id="menuOpenRepo" type="button" onclick={() => act(() => window.MDE.openRepoModal?.())}>
+            <svg class="icon"><use href="#icon-github"></use></svg> From GitHub Repo...
+          </button>
         </div>
       </div>
 

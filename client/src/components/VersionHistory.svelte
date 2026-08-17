@@ -145,7 +145,7 @@
       <div class="version-history-preview-wrap">
         <div class="version-history-preview" bind:this={previewEl}></div>
         <div class="version-history-actions">
-          <button type="button" class="primary-btn" disabled={!selectedId || restoring || !restoreAllowed} onclick={restore}>
+          <button type="button" class="primary-btn" disabled={!selectedId || restoring || !restoreAllowed || selectedId === versions[0]?.id} onclick={restore}>
             Restore this version
           </button>
         </div>

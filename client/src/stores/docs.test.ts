@@ -335,4 +335,34 @@ describe("docs store — workspace integration", () => {
     const found = docsInWorkspace(ws.id).find((d) => d.id === doc.id);
     expect(found).toMatchObject({ repoPath: "a.md", repoSha: "sha1", repoImageShas: { "img-1": "imgsha1" } });
   });
+
+  it("clearRepoSyncMetadata strips repoPath/repoSha/repoImageShas from every doc in the workspace, leaves other workspaces untouched", async () => {
+    const { docsStore, clearRepoSyncMetadata } = await import("./docs");
+    const { workspacesStore, createWorkspace } = await import("./workspaces");
+    const firstWorkspaceId = get(workspacesStore)[0].id;
+    const other = createWorkspace("Other");
+    docsStore.set([
+      {
+        id: "a",
+        name: "A",
+        content: "",
+        updatedAt: 1,
+        createdAt: 1,
+        workspaceId: firstWorkspaceId,
+        repoPath: "a.md",
+        repoSha: "sha-a",
+        repoImageShas: { "img-1": "sha-img" },
+      },
+      { id: "b", name: "B", content: "", updatedAt: 2, createdAt: 2, workspaceId: other.id, repoPath: "b.md", repoSha: "sha-b" },
+    ]);
+    clearRepoSyncMetadata(firstWorkspaceId);
+    const docs = get(docsStore);
+    const a = docs.find((d) => d.id === "a")!;
+    expect(a.repoPath).toBeUndefined();
+    expect(a.repoSha).toBeUndefined();
+    expect(a.repoImageShas).toBeUndefined();
+    const b = docs.find((d) => d.id === "b")!;
+    expect(b.repoPath).toBe("b.md");
+    expect(b.repoSha).toBe("sha-b");
+  });
 });

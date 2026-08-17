@@ -465,3 +465,15 @@ export function setDocRepoLinkById(id: string, repoPath: string, repoSha: string
   updateDoc(id, { repoPath, repoSha, repoImageShas });
   persistDocs();
 }
+
+// Called by linkWorkspaceAndSync (repo-sync.ts) whenever a workspace is
+// freshly linked — a workspace previously linked to a *different* repo
+// could still carry repoPath/repoSha values from that old repo, and
+// comparing those stale SHAs against the new repo's tree would produce a
+// false push conflict on what's really a first sync to the new repo.
+export function clearRepoSyncMetadata(workspaceId: string): void {
+  for (const doc of docsInWorkspace(workspaceId)) {
+    updateDoc(doc.id, { repoPath: undefined, repoSha: undefined, repoImageShas: undefined });
+  }
+  persistDocs();
+}

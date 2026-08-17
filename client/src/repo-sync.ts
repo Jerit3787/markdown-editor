@@ -4,10 +4,11 @@
 // without mocking fetch — the same reasoning src/github-repo.ts's
 // computeNewTreeEntries follows server-side.
 import type { Doc, Workspace } from "./types";
-import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById, ensureActiveDocInWorkspace } from "./stores/docs";
+import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById, ensureActiveDocInWorkspace, clearRepoSyncMetadata } from "./stores/docs";
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
 import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace } from "./stores/workspaces";
+import { repoSyncBusyLabel } from "./stores/repoSync";
 
 export function slugifyDocName(name: string): string {
   const slug = (name || "")
@@ -356,4 +357,29 @@ export async function createWorkspaceFromRepo(owner: string, repo: string, branc
   setWorkspaceRepoLink(ws.id, { owner, repo, branch });
   await pullFromRepo(ws.id, { owner, repo, branch }, new Set());
   ensureActiveDocInWorkspace(ws.id);
+}
+
+export interface LinkAndSyncResult {
+  pullPlan: PullPlan;
+  applyPullResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>;
+}
+
+// Push conflicts can never happen here: clearRepoSyncMetadata (above)
+// strips every doc's repoPath first, and planPush only ever raises a
+// conflict when a doc already has one — so the push step's own plan is
+// safe to discard. Pull conflicts, on the other hand, are possible (the
+// tree could move between the push and pull calls below) and are
+// returned to the caller to route through the shared repoConflictModal,
+// exactly like the manual "Pull from Repo" action already does.
+export async function linkWorkspaceAndSync(
+  workspaceId: string,
+  repoLink: { owner: string; repo: string; branch: string }
+): Promise<LinkAndSyncResult> {
+  setWorkspaceRepoLink(workspaceId, repoLink);
+  clearRepoSyncMetadata(workspaceId);
+  repoSyncBusyLabel.set("Pushing…");
+  await pushToRepo(workspaceId, repoLink);
+  repoSyncBusyLabel.set("Pulling…");
+  const { plan, applyResolved } = await pullFromRepo(workspaceId, repoLink, new Set());
+  return { pullPlan: plan, applyPullResolved: applyResolved };
 }

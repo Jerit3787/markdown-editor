@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { get } from "svelte/store";
 import {
   slugifyDocName,
   dedupeRepoPath,
@@ -8,8 +9,12 @@ import {
   planPull,
   planPush,
   planCreateWorkspaceFromRepo,
+  linkWorkspaceAndSync,
   type TreeEntry,
 } from "./repo-sync";
+import { docsStore } from "./stores/docs";
+import { createWorkspace } from "./stores/workspaces";
+import { startFakeRepoBackend, type FakeRepoBackend } from "./test-support/fake-repo-backend";
 import type { Doc, Workspace } from "./types";
 
 function fakeDoc(overrides: Partial<Doc>): Doc {
@@ -200,5 +205,74 @@ describe("planCreateWorkspaceFromRepo", () => {
     const workspaces: Workspace[] = [{ id: "w1", name: "notes", createdAt: 0 }];
     const plan = planCreateWorkspaceFromRepo("octocat", "notes", "main", workspaces);
     expect(plan).toEqual({ action: "create", workspaceName: "notes-2" });
+  });
+});
+
+describe("linkWorkspaceAndSync", () => {
+  let backend: FakeRepoBackend;
+  let realFetch: typeof fetch;
+
+  beforeEach(async () => {
+    backend = await startFakeRepoBackend();
+    realFetch = globalThis.fetch.bind(globalThis);
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const rewritten = url.startsWith("/api/repo") ? `${backend.baseUrl}${url}` : url;
+      return realFetch(rewritten, init);
+    });
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await backend.stop();
+  });
+
+  it("pushes local docs and pulls in the repo's pre-existing content, without touching it", async () => {
+    backend.seedRepo("alice", "notes", "main", [{ path: "existing.md", content: "pre-existing" }]);
+    const ws = createWorkspace("Test Workspace");
+    docsStore.set([{ id: "local-1", name: "Local Doc", content: "my local content", updatedAt: 1, createdAt: 1, workspaceId: ws.id }]);
+
+    await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+
+    const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
+    expect(docs.length).toBe(2);
+
+    const localDoc = docs.find((d) => d.id === "local-1")!;
+    expect(localDoc.repoPath).toBeDefined();
+    expect(localDoc.repoSha).toBeDefined();
+
+    const pulledDoc = docs.find((d) => d.repoPath === "existing.md");
+    expect(pulledDoc).toBeDefined();
+    expect(pulledDoc!.content).toBe("pre-existing");
+  });
+
+  it("clears stale repo-sync metadata from a previous link so relinking to a different repo with a same-named file doesn't falsely conflict", async () => {
+    backend.seedRepo("alice", "notes", "main", [{ path: "notes.md", content: "fresh content from the new repo" }]);
+    const ws = createWorkspace("Test Workspace 2");
+    docsStore.set([
+      {
+        id: "stale-doc",
+        name: "Notes",
+        content: "old content from a different repo",
+        updatedAt: 1,
+        createdAt: 1,
+        workspaceId: ws.id,
+        repoPath: "notes.md",
+        repoSha: "stale-sha-from-a-different-repo",
+      },
+    ]);
+
+    const result = await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+
+    expect(result.pullPlan.conflicts).toEqual([]);
+    const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
+    expect(docs.length).toBe(2);
+
+    const staleDoc = docs.find((d) => d.id === "stale-doc")!;
+    expect(staleDoc.repoPath).toBe("notes-2.md"); // deduped against the repo's own notes.md
+    expect(staleDoc.content).toBe("old content from a different repo");
+
+    const pulledDoc = docs.find((d) => d.repoPath === "notes.md")!;
+    expect(pulledDoc.content).toBe("fresh content from the new repo");
   });
 });

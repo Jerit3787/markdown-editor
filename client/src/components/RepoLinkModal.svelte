@@ -21,8 +21,20 @@
     const workspaceId = $activeWorkspaceIdStore;
     if (!workspaceId) return;
     try {
-      const { pullPlan, applyPullResolved, progressToastId } = await linkWorkspaceAndSync(workspaceId, { owner, repo, branch });
+      const result = await linkWorkspaceAndSync(workspaceId, { owner, repo, branch });
       close();
+      if (result.kind === "push-conflict") {
+        dismissToast(result.progressToastId);
+        repoConflictState.set({
+          kind: "push",
+          conflicts: result.pushPlan.conflicts.map((c) => ({ docId: c.docId, docName: docNameFor(workspaceId, c.docId), repoPath: c.repoPath })),
+          deletions: [],
+          onResolve: result.applyPushResolved,
+        });
+        repoConflictModalOpen.set(true);
+        return;
+      }
+      const { pullPlan, applyPullResolved, progressToastId } = result;
       if (pullPlan.conflicts.length > 0 || pullPlan.deletions.length > 0) {
         dismissToast(progressToastId);
         repoConflictState.set({

@@ -289,6 +289,8 @@ describe("linkWorkspaceAndSync", () => {
     docsStore.set([{ id: "local-1", name: "Local Doc", content: "my local content", updatedAt: 1, createdAt: 1, workspaceId: ws.id }]);
 
     const result = await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+    expect(result.kind).toBe("pull-result");
+    if (result.kind !== "pull-result") throw new Error("unreachable");
     expect(typeof result.progressToastId).toBe("number");
 
     const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
@@ -303,7 +305,7 @@ describe("linkWorkspaceAndSync", () => {
     expect(pulledDoc!.content).toBe("pre-existing");
   });
 
-  it("clears stale repo-sync metadata from a previous link so relinking to a different repo with a same-named file doesn't falsely conflict", async () => {
+  it("flags a push conflict instead of silently duplicating when relinking to a different repo with a same-named, differing-content file", async () => {
     backend.seedRepo("alice", "notes", "main", [{ path: "notes.md", content: "fresh content from the new repo" }]);
     const ws = createWorkspace("Test Workspace 2");
     docsStore.set([
@@ -321,16 +323,34 @@ describe("linkWorkspaceAndSync", () => {
 
     const result = await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
 
-    expect(typeof result.progressToastId).toBe("number");
-    expect(result.pullPlan.conflicts).toEqual([]);
+    expect(result.kind).toBe("push-conflict");
+    if (result.kind !== "push-conflict") throw new Error("unreachable");
+    expect(result.pushPlan.conflicts).toHaveLength(1);
+    expect(result.pushPlan.conflicts[0]!.docId).toBe("stale-doc");
+    expect(result.pushPlan.conflicts[0]!.repoPath).toBe("notes.md");
+
+    // Nothing pushed or pulled yet — the doc keeps its (now
+    // stale-metadata-cleared) content, and the repo's own notes.md is
+    // untouched, until the conflict is explicitly resolved.
     const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
-    expect(docs.length).toBe(2);
+    expect(docs.length).toBe(1);
+    expect(docs[0]!.content).toBe("old content from a different repo");
+  });
 
-    const staleDoc = docs.find((d) => d.id === "stale-doc")!;
-    expect(staleDoc.repoPath).toBe("notes-2.md"); // deduped against the repo's own notes.md
-    expect(staleDoc.content).toBe("old content from a different repo");
+  it("pushes directly instead of conflicting when relinking to a repo this exact workspace already pushed to before", async () => {
+    const ws = createWorkspace("Test Workspace 3");
+    backend.seedRepo("alice", "notes", "main", [
+      { path: "notes.md", content: "old content from before" },
+      { path: ".mde/workspace.json", content: JSON.stringify({ workspaceId: ws.id, name: ws.name }) },
+    ]);
+    docsStore.set([{ id: "my-doc", name: "Notes", content: "updated local content", updatedAt: 1, createdAt: 1, workspaceId: ws.id }]);
 
-    const pulledDoc = docs.find((d) => d.repoPath === "notes.md")!;
-    expect(pulledDoc.content).toBe("fresh content from the new repo");
+    const result = await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+
+    expect(result.kind).toBe("pull-result");
+    const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
+    const doc = docs.find((d) => d.id === "my-doc")!;
+    expect(doc.repoPath).toBe("notes.md");
+    expect(doc.content).toBe("updated local content");
   });
 });

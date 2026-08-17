@@ -451,19 +451,18 @@ export async function createWorkspaceFromRepo(owner: string, repo: string, branc
   }
 }
 
-export interface LinkAndSyncResult {
-  pullPlan: PullPlan;
-  applyPullResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>;
-  progressToastId: number;
-}
+export type LinkAndSyncResult =
+  | { kind: "push-conflict"; pushPlan: PushPlan; applyPushResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>; progressToastId: number }
+  | { kind: "pull-result"; pullPlan: PullPlan; applyPullResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>; progressToastId: number };
 
-// Push conflicts can never happen here: clearRepoSyncMetadata (above)
-// strips every doc's repoPath first, and planPush only ever raises a
-// conflict when a doc already has one — so the push step's own plan is
-// safe to discard. Pull conflicts, on the other hand, are possible (the
-// tree could move between the push and pull calls below) and are
-// returned to the caller to route through the shared repoConflictModal,
-// exactly like the manual "Pull from Repo" action already does.
+// A push conflict CAN happen here now: planPush's tree-name-match path
+// (see its own comment) can raise one even for a doc with no repoPath,
+// which clearRepoSyncMetadata (above) guarantees every doc has right
+// before this runs. When it does, pull is skipped for this operation —
+// the caller shows the push-conflict modal, and the user resolves it
+// (or separately triggers "Pull from Repo" afterward) rather than this
+// function chaining an automatic pull that could itself raise a second,
+// cascading conflict modal.
 //
 // The returned toast is never finished with success here — only ever
 // with an error, before rethrowing, so a thrown failure never leaves a
@@ -482,10 +481,13 @@ export async function linkWorkspaceAndSync(
   const progressToastId = showProgressToast("Pushing…");
   const onProgress = (message: string) => updateProgressToast(progressToastId, message);
   try {
-    await pushToRepo(workspaceId, repoLink, onProgress);
+    const { plan: pushPlan, applyResolved: applyPushResolved } = await pushToRepo(workspaceId, repoLink, onProgress);
+    if (pushPlan.conflicts.length > 0) {
+      return { kind: "push-conflict", pushPlan, applyPushResolved, progressToastId };
+    }
     repoSyncBusyLabel.set("Pulling…");
-    const { plan, applyResolved } = await pullFromRepo(workspaceId, repoLink, new Set(), onProgress);
-    return { pullPlan: plan, applyPullResolved: applyResolved, progressToastId };
+    const { plan: pullPlan, applyResolved: applyPullResolved } = await pullFromRepo(workspaceId, repoLink, new Set(), onProgress);
+    return { kind: "pull-result", pullPlan, applyPullResolved, progressToastId };
   } catch (err) {
     finishProgressToast(progressToastId, err instanceof Error ? err.message : "Sync failed", "error");
     throw err;

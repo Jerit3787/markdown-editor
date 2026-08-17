@@ -1771,8 +1771,14 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   }
 
   // Shared by the sidebar's "+" button and File > New document (MenuBar.svelte
-  // via window.MDE.newDoc).
+  // via window.MDE.newDoc). Guarded here (not just via a disabled button)
+  // so the Command Palette's own "New document" entry — which calls
+  // window.MDE.newDoc() directly — is covered too.
   function createNewDoc() {
+    if (get(workspacesStore).length === 0) {
+      showToast("Create a workspace first", "error");
+      return;
+    }
     createDoc();
     (document.getElementById("docTitle") as HTMLInputElement).focus();
     (document.getElementById("docTitle") as HTMLInputElement).select();
@@ -2231,6 +2237,10 @@ ${bodyHtml}
     insertAtCursor: (text: string) => insertBlock(text),
     newDoc: createNewDoc,
     openLocalFile() {
+      if (get(workspacesStore).length === 0) {
+        showToast("Create a workspace first", "error");
+        return;
+      }
       document.getElementById("importInput").click();
     },
     exportAs,

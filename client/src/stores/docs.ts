@@ -164,13 +164,15 @@ export function saveActiveDocContent() {
 
 export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string }): Doc {
   saveActiveDocContent();
-  // Several call sites (sidebar "+", File > New, import-from-device,
-  // Open-from-Gist, wikilink auto-create, shared-link join) can all reach
-  // this with zero workspaces existing (the empty state only hides the
-  // editor panes, not those entry points). Rather than ever stamping ""
-  // — which DocList's `d.workspaceId === $activeWorkspaceIdStore` filter
-  // can never match, orphaning the doc invisibly — self-heal by creating
-  // a workspace on demand.
+  // Every real entry point (sidebar "+", File > New, import-from-device,
+  // Open-from-Gist, Link Workspace to Repo) now guards against zero
+  // workspaces before ever calling this — see app.ts's createNewDoc/
+  // openLocalFile, gist.ts's openGistPicker, repo-sync-ui.ts's
+  // openRepoLinkModal. This fallback should be unreachable in normal
+  // operation; it's kept as a defensive last resort so a missed guard
+  // produces a usable workspace instead of silently stamping "" — which
+  // DocList's `d.workspaceId === $activeWorkspaceIdStore` filter can
+  // never match, orphaning the doc invisibly.
   let workspaceId = get(activeWorkspaceIdStore) ?? get(workspacesStore)[0]?.id;
   if (!workspaceId) workspaceId = createWorkspace("My Workspace").id;
   const doc: Doc = Object.assign(

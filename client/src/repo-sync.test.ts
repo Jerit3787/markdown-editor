@@ -14,7 +14,7 @@ import {
   type TreeEntry,
 } from "./repo-sync";
 import { docsStore } from "./stores/docs";
-import { createWorkspace } from "./stores/workspaces";
+import { createWorkspace, workspacesStore } from "./stores/workspaces";
 import { startFakeRepoBackend, type FakeRepoBackend } from "./test-support/fake-repo-backend";
 import type { Doc, Workspace } from "./types";
 
@@ -369,5 +369,23 @@ describe("linkWorkspaceAndSync", () => {
     const doc = docs.find((d) => d.id === "my-doc")!;
     expect(doc.repoPath).toBe("Notes.md");
     expect(doc.content).toBe("updated local content");
+  });
+
+  it("renames a still-default-named workspace to the repo's name when linking", async () => {
+    const ws = createWorkspace("New workspace");
+    backend.seedRepo("alice", "my-blog", "main", []);
+
+    await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "my-blog", branch: "main" });
+
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.name).toBe("my-blog");
+  });
+
+  it("leaves a custom-named workspace's name untouched when linking", async () => {
+    const ws = createWorkspace("Personal Notes");
+    backend.seedRepo("alice", "my-blog", "main", []);
+
+    await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "my-blog", branch: "main" });
+
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.name).toBe("Personal Notes");
   });
 });

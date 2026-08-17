@@ -7,7 +7,7 @@ import type { Doc, Workspace } from "./types";
 import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById, ensureActiveDocInWorkspace, clearRepoSyncMetadata } from "./stores/docs";
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
-import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace } from "./stores/workspaces";
+import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace, renameWorkspace } from "./stores/workspaces";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { repoSyncBusyLabel } from "./stores/repoSync";
 import { showProgressToast, updateProgressToast, finishProgressToast, showToast } from "./stores/toast";
@@ -482,6 +482,18 @@ export async function linkWorkspaceAndSync(
   workspaceId: string,
   repoLink: { owner: string; repo: string; branch: string }
 ): Promise<LinkAndSyncResult> {
+  // Only a workspace still carrying its generic creation-time default
+  // gets renamed — the same literal both workspace-creation entry points
+  // (WorkspaceSwitcher.svelte's startCreate, the empty state's "New
+  // workspace" button) use before the user picks a real name. A
+  // workspace created via "Open GitHub Repo as Workspace" is already
+  // named after its repo by the time it could ever reach this function,
+  // so this only ever fires for linking an *existing* workspace.
+  const workspace = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (workspace && workspace.name === "New workspace") {
+    const taken = new Set(get(workspacesStore).filter((w) => w.id !== workspaceId).map((w) => w.name));
+    renameWorkspace(workspaceId, nextAvailableName(repoLink.repo, taken));
+  }
   setWorkspaceRepoLink(workspaceId, repoLink);
   clearRepoSyncMetadata(workspaceId);
   repoSyncBusyLabel.set("Pushing…");

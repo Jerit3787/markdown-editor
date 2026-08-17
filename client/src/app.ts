@@ -252,6 +252,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // out from under the very input the user is typing into.
     workspacesStore.subscribe(() => {
       updateEmptyStateVariant(!getActiveDoc());
+      (document.getElementById("newDocBtn") as HTMLButtonElement).disabled = get(workspacesStore).length === 0;
     });
   }
 
@@ -291,6 +292,9 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       // Focus the new workspace's name for immediate renaming, same as
       // the switcher's own "New workspace" button — see WorkspaceSwitcher.svelte.
       document.getElementById("workspace-switcher-mount")?.querySelector("button")?.click();
+    });
+    document.getElementById("emptyOpenRepoBtn").addEventListener("click", () => {
+      document.getElementById("menuOpenRepo").click();
     });
   }
 
@@ -1196,6 +1200,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     document.getElementById("saveStatusBtn").hidden = empty;
     (document.getElementById("sidebarToggleIn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("shareBtn") as HTMLButtonElement).disabled = empty;
+    (document.getElementById("shareDropdownBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("commentsBtn") as HTMLButtonElement).disabled = empty;
     (document.getElementById("versionHistoryBtn") as HTMLButtonElement).disabled = empty;
   }
@@ -1759,10 +1764,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       if (e.matches) collapseSidebarForMobile();
     });
 
-    commentsPanelOpen.subscribe((open) => {
-      document.getElementById("body")?.classList.toggle("comments-open", open);
-    });
-
     document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarToggleOut").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarBackdrop").addEventListener("click", toggleSidebar);
@@ -1771,8 +1772,14 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   }
 
   // Shared by the sidebar's "+" button and File > New document (MenuBar.svelte
-  // via window.MDE.newDoc).
+  // via window.MDE.newDoc). Guarded here (not just via a disabled button)
+  // so the Command Palette's own "New document" entry — which calls
+  // window.MDE.newDoc() directly — is covered too.
   function createNewDoc() {
+    if (get(workspacesStore).length === 0) {
+      showToast("Create a workspace first", "error");
+      return;
+    }
     createDoc();
     (document.getElementById("docTitle") as HTMLInputElement).focus();
     (document.getElementById("docTitle") as HTMLInputElement).select();
@@ -1926,6 +1933,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       // top-level File/Edit/View/Help hover-switch already worked, this
       // was the "/submenu" half of that item, never actually wired).
       trigger.addEventListener("mouseenter", () => {
+        // Native disabled buttons already suppress the click listener
+        // above, but mouse events like mouseenter aren't suppressed —
+        // without this check, a disabled trigger's flyout could still
+        // open by hovering even though clicking it does nothing.
+        if ((trigger as HTMLButtonElement).disabled) return;
         if (sub.classList.contains("open")) return;
         closeSubmenus(root);
         sub.classList.add("open");
@@ -2231,6 +2243,10 @@ ${bodyHtml}
     insertAtCursor: (text: string) => insertBlock(text),
     newDoc: createNewDoc,
     openLocalFile() {
+      if (get(workspacesStore).length === 0) {
+        showToast("Create a workspace first", "error");
+        return;
+      }
       document.getElementById("importInput").click();
     },
     exportAs,

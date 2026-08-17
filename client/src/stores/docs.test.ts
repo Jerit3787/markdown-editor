@@ -71,19 +71,19 @@ describe("docs store — workspace integration", () => {
 
   it("createDoc respects an explicit workspaceId override", async () => {
     const { createDoc } = await import("./docs");
-    const { workspacesStore } = await import("./workspaces");
-    const firstWorkspaceId = get(workspacesStore)[0].id;
-    const doc = createDoc({ workspaceId: firstWorkspaceId, name: "Explicit" });
-    expect(doc.workspaceId).toBe(firstWorkspaceId);
+    const { createWorkspace } = await import("./workspaces");
+    const first = createWorkspace("First");
+    const doc = createDoc({ workspaceId: first.id, name: "Explicit" });
+    expect(doc.workspaceId).toBe(first.id);
   });
 
   it("getActiveDoc falls back to a doc in the active workspace, not an arbitrary one", async () => {
     const { docsStore, activeIdStore, getActiveDoc } = await import("./docs");
-    const { workspacesStore, createWorkspace } = await import("./workspaces");
-    const firstWorkspaceId = get(workspacesStore)[0].id;
+    const { createWorkspace } = await import("./workspaces");
+    const first = createWorkspace("First");
     const second = createWorkspace("Second");
     docsStore.set([
-      { id: "a", name: "A", content: "", updatedAt: 1, createdAt: 1, workspaceId: firstWorkspaceId },
+      { id: "a", name: "A", content: "", updatedAt: 1, createdAt: 1, workspaceId: first.id },
       { id: "b", name: "B", content: "", updatedAt: 2, createdAt: 2, workspaceId: second.id },
     ]);
     activeIdStore.set("does-not-exist");
@@ -92,12 +92,12 @@ describe("docs store — workspace integration", () => {
 
   it("removeDocById falls back to a remaining doc in the same workspace as the one removed", async () => {
     const { docsStore, activeIdStore, removeDocById } = await import("./docs");
-    const { workspacesStore, createWorkspace } = await import("./workspaces");
-    const firstWorkspaceId = get(workspacesStore)[0].id;
+    const { createWorkspace } = await import("./workspaces");
+    const first = createWorkspace("First");
     const second = createWorkspace("Second");
     docsStore.set([
-      { id: "a1", name: "A1", content: "", updatedAt: 1, createdAt: 1, workspaceId: firstWorkspaceId },
-      { id: "a2", name: "A2", content: "", updatedAt: 2, createdAt: 2, workspaceId: firstWorkspaceId },
+      { id: "a1", name: "A1", content: "", updatedAt: 1, createdAt: 1, workspaceId: first.id },
+      { id: "a2", name: "A2", content: "", updatedAt: 2, createdAt: 2, workspaceId: first.id },
       { id: "b1", name: "B1", content: "", updatedAt: 3, createdAt: 3, workspaceId: second.id },
     ]);
     activeIdStore.set("a1");
@@ -228,11 +228,11 @@ describe("docs store — workspace integration", () => {
   it("switchDoc follows the target document's workspace when it differs from the active one", async () => {
     const { docsStore, activeIdStore, switchDoc } = await import("./docs");
     const { activeWorkspaceIdStore, createWorkspace } = await import("./workspaces");
-    const firstWorkspaceId = get(activeWorkspaceIdStore)!;
+    const first = createWorkspace("First");
     const second = createWorkspace("Second"); // now active
-    activeWorkspaceIdStore.set(firstWorkspaceId); // back to first, "second" is the "other" workspace
+    activeWorkspaceIdStore.set(first.id); // back to first, "second" is the "other" workspace
     docsStore.set([
-      { id: "in-first", name: "A", content: "", updatedAt: 1, createdAt: 1, workspaceId: firstWorkspaceId },
+      { id: "in-first", name: "A", content: "", updatedAt: 1, createdAt: 1, workspaceId: first.id },
       { id: "in-second", name: "B", content: "", updatedAt: 2, createdAt: 2, workspaceId: second.id },
     ]);
     activeIdStore.set("in-first");
@@ -243,16 +243,16 @@ describe("docs store — workspace integration", () => {
 
   it("switchDoc leaves activeWorkspaceIdStore untouched when the target is already in the active workspace", async () => {
     const { docsStore, activeIdStore, switchDoc } = await import("./docs");
-    const { activeWorkspaceIdStore } = await import("./workspaces");
-    const activeWorkspaceId = get(activeWorkspaceIdStore)!;
+    const { activeWorkspaceIdStore, createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Only");
     docsStore.set([
-      { id: "doc-a", name: "A", content: "", updatedAt: 1, createdAt: 1, workspaceId: activeWorkspaceId },
-      { id: "doc-b", name: "B", content: "", updatedAt: 2, createdAt: 2, workspaceId: activeWorkspaceId },
+      { id: "doc-a", name: "A", content: "", updatedAt: 1, createdAt: 1, workspaceId: ws.id },
+      { id: "doc-b", name: "B", content: "", updatedAt: 2, createdAt: 2, workspaceId: ws.id },
     ]);
     activeIdStore.set("doc-a");
     switchDoc("doc-b");
     expect(get(activeIdStore)).toBe("doc-b");
-    expect(get(activeWorkspaceIdStore)).toBe(activeWorkspaceId);
+    expect(get(activeWorkspaceIdStore)).toBe(ws.id);
   });
 
   // Finding 4 (final whole-branch review): createDoc used to stamp
@@ -338,8 +338,8 @@ describe("docs store — workspace integration", () => {
 
   it("clearRepoSyncMetadata strips repoPath/repoSha/repoImageShas from every doc in the workspace, leaves other workspaces untouched", async () => {
     const { docsStore, clearRepoSyncMetadata } = await import("./docs");
-    const { workspacesStore, createWorkspace } = await import("./workspaces");
-    const firstWorkspaceId = get(workspacesStore)[0].id;
+    const { createWorkspace } = await import("./workspaces");
+    const firstWorkspaceId = createWorkspace("First").id;
     const other = createWorkspace("Other");
     docsStore.set([
       {
@@ -364,5 +364,45 @@ describe("docs store — workspace integration", () => {
     const b = docs.find((d) => d.id === "b")!;
     expect(b.repoPath).toBe("b.md");
     expect(b.repoSha).toBe("sha-b");
+  });
+
+  it("syncRemoteDocContent writes new content and bumps updatedAt when content differs", async () => {
+    const { createDoc, syncRemoteDocContent, findDocById } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "a" });
+    const before = findDocById(doc.id)!.updatedAt;
+    const wrote = syncRemoteDocContent(doc.id, "new content", undefined);
+    expect(wrote).toBe(true);
+    const after = findDocById(doc.id)!;
+    expect(after.content).toBe("new content");
+    expect(after.updatedAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it("syncRemoteDocContent writes new images and bumps updatedAt when images differ", async () => {
+    const { createDoc, syncRemoteDocContent, findDocById } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "a", content: "same" });
+    const wrote = syncRemoteDocContent(doc.id, "same", { "img-1": "data-a" });
+    expect(wrote).toBe(true);
+    expect(findDocById(doc.id)!.images).toEqual({ "img-1": "data-a" });
+  });
+
+  it("syncRemoteDocContent is a no-op when content and images are unchanged, even with images in a different key order", async () => {
+    const { createDoc, syncRemoteDocContent, findDocById } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "a", content: "same" });
+    syncRemoteDocContent(doc.id, "same", { "img-1": "data-a", "img-2": "data-b" });
+    const before = findDocById(doc.id)!.updatedAt;
+    const wrote = syncRemoteDocContent(doc.id, "same", { "img-2": "data-b", "img-1": "data-a" });
+    expect(wrote).toBe(false);
+    expect(findDocById(doc.id)!.updatedAt).toBe(before);
+  });
+
+  it("syncRemoteDocContent returns false when the doc id doesn't exist", async () => {
+    const { syncRemoteDocContent } = await import("./docs");
+    expect(syncRemoteDocContent("does-not-exist", "content", undefined)).toBe(false);
   });
 });

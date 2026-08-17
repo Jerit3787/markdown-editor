@@ -218,6 +218,13 @@ body.focus-mode #statusbar {
 }
 #menuBar .dropdown-menu button:not(.secondary-btn):hover,
 #menuBar .dropdown-menu a.menu-link-item:hover { background: var(--accent-dim); color: var(--accent); }
+#menuBar .dropdown-menu button:not(.secondary-btn):disabled,
+#menuBar .dropdown-menu button:not(.secondary-btn):disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--text);
+}
 
 /* The gist-open row (input + button) isn't a menu-item button — .share-row
    already handles its layout/input styling generically; this just adds
@@ -417,6 +424,8 @@ body.focus-mode #statusbar {
 }
 
 .primary-btn:hover { filter: brightness(1.08); }
+.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.primary-btn:disabled:hover { filter: none; }
 
 .dropdown { position: relative; }
 
@@ -484,6 +493,13 @@ body.focus-mode #statusbar {
 }
 
 .dropdown-menu button:not(.primary-btn):not(.secondary-btn):hover { background: var(--accent-dim); color: var(--accent); }
+.dropdown-menu button:not(.primary-btn):not(.secondary-btn):disabled,
+.dropdown-menu button:not(.primary-btn):not(.secondary-btn):disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--text);
+}
 
 /* Collaboration: presence bar, share menu, remote cursors */
 .presence-bar { display: flex; align-items: center; }
@@ -629,6 +645,19 @@ body.focus-mode #statusbar {
   letter-spacing: 0.04em;
   color: var(--text-dim);
   padding: 2px 14px 6px;
+}
+
+/* Applied alongside .menu-section-label (not instead of it) on the
+   repo-last-synced row — overrides the bold/uppercase/letter-spacing
+   from the base rule above so it reads as a quiet timestamp, not a
+   second section header. */
+.menu-section-sublabel {
+  margin-top: -4px;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 0.75;
 }
 
 /* Modals: welcome, insert-link, images manager */
@@ -929,12 +958,25 @@ body.focus-mode #statusbar {
   font-family: inherit;
 }
 .version-history-row.active { background: var(--accent-dim); color: var(--accent); }
+.version-history-row-label { display: flex; align-items: center; gap: 6px; }
 .version-history-current { font-size: 11px; color: var(--text-dim); }
 .version-history-preview-wrap {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
+.version-history-view-toggle { display: flex; gap: 4px; padding: 12px 20px 0; flex-shrink: 0; }
+.version-history-view-toggle button {
+  border: none;
+  background: var(--bg-alt);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-family: inherit;
+}
+.version-history-view-toggle button.active { background: var(--accent-dim); color: var(--accent); }
 .version-history-preview {
   flex: 1;
   overflow: auto;
@@ -982,12 +1024,14 @@ body.focus-mode #statusbar {
 .comment-draft-actions button { width: auto; margin-bottom: 0; }
 
 .comments-panel {
-  /* A real grid item in #body (see index.html), not a fixed-position
-     overlay — the panel takes up genuine layout space, so opening it
-     pushes #main's own content narrower/left instead of floating on top
-     of it like a modal. Its column is shared with the view selector
-     above it (see #body's grid-template-areas), so both stay the same
-     width automatically. */
+  /* A real grid item in #body (see index.html), in its own "comments"
+     grid column (see #body's grid-template-areas) — not a fixed-position
+     overlay floating on top of the content like a modal. Its column is
+     shared with the view selector above it, so both stay the same width
+     automatically while open. Unlike #sidebar's column (always reserved,
+     open or collapsed), this one only holds its 320px while the panel is
+     open or actively closing — see #body's grid-template-columns comment
+     for why, and CommentsPanel.svelte for what drives the transition. */
   grid-area: comments;
   width: 320px;
   flex-shrink: 0;
@@ -995,10 +1039,6 @@ body.focus-mode #statusbar {
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-}
-
-#body:not(.comments-open) .comments-panel {
-  grid-area: main;
 }
 .comments-panel-header {
   display: flex;
@@ -1157,13 +1197,36 @@ body.focus-mode #statusbar {
 .doc-info-backlinks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .doc-info-backlink-row { text-align: left; border: none; background: var(--bg-alt); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-family: inherit; font-size: 13px; }
 .doc-info-backlink-row:hover { background: var(--border); }
+
 .doc-info-link { text-decoration: none; }
 .doc-info-link:hover, .doc-info-link:focus-visible { color: var(--accent); text-decoration: underline; }
+
+.diff-view { font-family: var(--mono); font-size: 12.5px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.diff-view-row { display: grid; grid-template-columns: 1fr 1fr; }
+.diff-view-cell { padding: 2px 8px; white-space: pre-wrap; word-break: break-word; border-bottom: 1px solid var(--border); }
+.diff-view-cell:first-child { border-right: 1px solid var(--border); }
+.diff-view-row:last-child .diff-view-cell { border-bottom: none; }
+.diff-view-cell.diff-removed { background: rgba(220, 38, 38, 0.12); }
+.diff-view-cell.diff-added { background: rgba(34, 197, 94, 0.14); }
 
 .modal-field { display: block; margin-bottom: 12px; }
 .modal-field span { display: block; font-size: 12.5px; color: var(--text-dim); margin-bottom: 4px; }
 .modal-field input {
   width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+}
+
+/* Baseline styling for any plain <select> in the app (JoinWorkspaceModal's
+   merge-target picker, RepoConflictModal's per-conflict resolution picker,
+   and any future one) — excludes Share.svelte's .share-access-select/
+   .share-role-select, which already have their own bespoke JS-measured-
+   width styling for a different reason (see that file's own comment). */
+select:not(.share-access-select):not(.share-role-select) {
   border: 1px solid var(--border);
   background: var(--bg-alt);
   color: var(--text);
@@ -1331,18 +1394,25 @@ body.focus-mode #statusbar {
   position: relative;
   flex: 1;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  /* "comments" isn't auto — an auto track floors at its item's
+     min-content width (the "Comments" heading text can't shrink below
+     ~80px), so no amount of negative margin on .comments-panel.collapsed
+     can shrink an auto track to 0. It's also not a permanent fixed
+     320px either — that avoided the min-content floor but wasted 320px
+     of dead space at rest any time comments was closed (which is most
+     of the time), pushing #main visibly off-center. Instead it's a CSS
+     custom property, 0px at rest — CommentsPanel.svelte sets it to
+     320px the instant the panel opens (so there's room for the slide-in)
+     and holds it there until 150ms after closing starts (matching
+     .comments-panel's own transition-duration below), so #main never
+     jumps mid-animation but isn't left reserving space once the panel
+     has actually finished sliding away. */
+  grid-template-columns: auto 1fr var(--comments-track-width, 0px);
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "toolbar toolbar view-selector"
-    "sidebar main    main";
-  min-height: 0;
-}
-
-#body.comments-open {
-  grid-template-areas:
-    "toolbar toolbar view-selector"
     "sidebar main    comments";
+  min-height: 0;
 }
 
 #sidebar {
@@ -2044,16 +2114,17 @@ body.focus-mode #statusbar {
 
 /* Comments Panel */
 .comments-panel {
-  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0s, opacity 0.15s ease;
-  opacity: 1;
-  visibility: visible;
+  transition: transform 0.15s ease;
 }
 
 .comments-panel.collapsed {
-  margin-right: -321px; /* 320px width + 1px border */
-  opacity: 0;
-  visibility: hidden;
-  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0.25s, opacity 0.15s ease;
+  /* transform, not margin — margin-right on a grid item only reduces
+     the trailing space reserved for it, it doesn't reposition the box
+     itself, so it could never actually slide the panel off-screen (see
+     #body's grid-template-columns comment above for the full story).
+     transform doesn't participate in grid layout at all, so this moves
+     the panel fully out of view without touching #main's width. */
+  transform: translateX(100%);
 }
 
 /* Responsive */

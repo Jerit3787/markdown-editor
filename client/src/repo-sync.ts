@@ -7,15 +7,15 @@ import type { Doc, Workspace } from "./types";
 import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById, ensureActiveDocInWorkspace, clearRepoSyncMetadata } from "./stores/docs";
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
-import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace } from "./stores/workspaces";
+import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace, renameWorkspace, setWorkspaceLastSynced } from "./stores/workspaces";
+import { resolveDiagramRefs } from "./diagram-refs";
 import { repoSyncBusyLabel } from "./stores/repoSync";
 import { showProgressToast, updateProgressToast, finishProgressToast, showToast } from "./stores/toast";
 
 export function slugifyDocName(name: string): string {
   const slug = (name || "")
-    .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^a-zA-Z0-9 ]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || "untitled";
 }
@@ -28,6 +28,27 @@ export function dedupeRepoPath(basePath: string, existingPaths: Set<string>): st
   let n = 2;
   while (existingPaths.has(`${stem}-${n}${ext}`)) n++;
   return `${stem}-${n}${ext}`;
+}
+
+export const WORKSPACE_MARKER_PATH = ".mde/workspace.json";
+
+export interface WorkspaceMarker {
+  workspaceId: string;
+  name: string;
+}
+
+// True only when the marker's content genuinely identifies THIS
+// workspace — a missing file, unparseable content, or a marker naming
+// some other workspace are all treated the same (not proven safe) by
+// the caller.
+export function markerMatchesWorkspace(markerContent: string | null, workspaceId: string): boolean {
+  if (!markerContent) return false;
+  try {
+    const parsed = JSON.parse(markerContent) as Partial<WorkspaceMarker>;
+    return parsed.workspaceId === workspaceId;
+  } catch (e) {
+    return false;
+  }
 }
 
 const MARKDOWN_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
@@ -50,10 +71,17 @@ export function rewriteImagesForPush(
   images: Record<string, string> | undefined,
   diagrams: Record<string, string> | undefined
 ): { content: string; assets: ImageAsset[] } {
+  // A mermaid diagram's fence body is just a short reference key (see
+  // diagram-refs.ts) — resolve it back to real source BEFORE the image
+  // regex below runs, matching exportAs("md") and getResolvedContent()'s
+  // (Gist publish) own established pattern. Diagrams are inlined as text
+  // directly in the pushed markdown, not pushed as separate asset files
+  // the way images are — GitHub renders ```mermaid fences natively.
+  const resolvedContent = resolveDiagramRefs(content, diagrams);
   const assets: ImageAsset[] = [];
   const seenRefs = new Map<string, string>(); // ref -> assigned assets path, so repeats reuse the same path
-  const newContent = content.replace(MARKDOWN_IMAGE_RE, (match, alt, ref) => {
-    const dataUrl = (images && images[ref]) || (diagrams && diagrams[ref]);
+  const newContent = resolvedContent.replace(MARKDOWN_IMAGE_RE, (match, alt, ref) => {
+    const dataUrl = images && images[ref];
     if (!dataUrl) return match;
     let assetPath = seenRefs.get(ref);
     if (!assetPath) {
@@ -180,6 +208,7 @@ export async function pullFromRepo(
   for (const create of plan.creates) await fetchAndApply(create.repoPath, create.sha);
   for (const update of plan.updates) await fetchAndApply(update.repoPath, update.sha);
   removeDocsByRepoPaths(workspaceId, plan.deletions.map((d) => d.repoPath));
+  setWorkspaceLastSynced(workspaceId, Date.now());
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
     for (const conflict of plan.conflicts) {
@@ -233,19 +262,38 @@ async function gitBlobSha(content: string): Promise<string> {
     .join("");
 }
 
-export async function planPush(docs: Doc[], mdEntries: TreeEntry[]): Promise<PushPlan> {
+export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspace: boolean): Promise<PushPlan> {
   const plan: PushPlan = { changes: [], deletions: [], conflicts: [] };
   const treeShaByPath = new Map(mdEntries.filter((e) => e.type === "blob").map((e) => [e.path, e.sha]));
   const usedPaths = new Set(mdEntries.map((e) => e.path));
+  // Paths already claimed by an earlier doc in THIS loop via a tree-name
+  // match below — a second doc that happens to slugify to the same name
+  // falls through to the normal dedupe-as-new path instead of also
+  // claiming it.
+  const claimedFromTree = new Set<string>();
 
   for (const doc of docs) {
     let repoPath = doc.repoPath;
     let isNewPath = false;
+    let matchedExistingFile = false;
     if (!repoPath) {
       const base = `${slugifyDocName(doc.name)}.md`;
-      repoPath = dedupeRepoPath(base, usedPaths);
-      usedPaths.add(repoPath);
-      isNewPath = true;
+      // A doc with no repoPath (never pushed, or its link metadata was
+      // reset by an unlink) might still correspond to a file the target
+      // repo already has — re-linking to the same repo, or linking to a
+      // different repo that happens to have a same-named file. Adopt
+      // that path instead of blindly dedupe-renaming into a duplicate;
+      // the content-diff check below (shared with already-linked docs)
+      // decides what happens next.
+      if (treeShaByPath.has(base) && !claimedFromTree.has(base)) {
+        repoPath = base;
+        claimedFromTree.add(base);
+        matchedExistingFile = true;
+      } else {
+        repoPath = dedupeRepoPath(base, usedPaths);
+        usedPaths.add(repoPath);
+        isNewPath = true;
+      }
     } else {
       const treeSha = treeShaByPath.get(repoPath);
       if (treeSha !== undefined && treeSha !== doc.repoSha) {
@@ -257,6 +305,13 @@ export async function planPush(docs: Doc[], mdEntries: TreeEntry[]): Promise<Pus
     if (!isNewPath) {
       const currentSha = treeShaByPath.get(repoPath);
       if (currentSha !== undefined && (await gitBlobSha(content)) === currentSha) continue;
+    }
+    if (matchedExistingFile && !sameWorkspace) {
+      // Unproven whose file this actually is — flag it the same way an
+      // already-linked doc's own sha mismatch would, rather than
+      // silently overwriting content that might belong to someone else.
+      plan.conflicts.push({ docId: doc.id, repoPath, remoteSha: treeShaByPath.get(repoPath)! });
+      continue;
     }
     plan.changes.push({ docId: doc.id, repoPath, content, assets });
   }
@@ -283,7 +338,8 @@ export async function pushToRepo(
   const treeData = await treeRes.json();
   const entries: TreeEntry[] = treeData.tree || [];
   const docs = docsInWorkspace(workspaceId);
-  const plan = await planPush(docs, entries);
+  const sameWorkspace = await checkWorkspaceMarker(repoLink, entries, workspaceId);
+  const plan = await planPush(docs, entries, sameWorkspace);
   if (plan.changes.length > 0) {
     onProgress?.(`Pushing ${plan.changes.length} file${plan.changes.length === 1 ? "" : "s"}…`);
   }
@@ -294,6 +350,11 @@ export async function pushToRepo(
     for (const change of changes) {
       blobs.push({ path: change.repoPath, contentBase64: toBase64(change.content) });
       for (const asset of change.assets) blobs.push({ path: asset.path, contentBase64: dataUrlToBase64(asset.dataUrl) });
+    }
+    const workspace = get(workspacesStore).find((w) => w.id === workspaceId);
+    if (workspace) {
+      const marker: WorkspaceMarker = { workspaceId: workspace.id, name: workspace.name };
+      blobs.push({ path: WORKSPACE_MARKER_PATH, contentBase64: toBase64(JSON.stringify(marker)) });
     }
     // Fetched fresh here, not reused from `entries` above (which was read
     // for planning and could be stale by the time a push actually goes
@@ -328,14 +389,36 @@ export async function pushToRepo(
   }
 
   await sendChanges(plan.changes);
+  setWorkspaceLastSynced(workspaceId, Date.now());
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
     const winningDocs = plan.conflicts.filter((c) => resolutions[c.docId] === "mine").map((c) => docs.find((d) => d.id === c.docId)!);
-    const retryPlan = await planPush(winningDocs, []);
+    // sameWorkspace is unused here — the empty tree means matchedExistingFile
+    // can never become true in this retry, so its value doesn't affect anything.
+    const retryPlan = await planPush(winningDocs, [], true);
     await sendChanges(retryPlan.changes);
   }
 
   return { plan, applyResolved };
+}
+
+// Reads .mde/workspace.json from the target repo's tree (if present) and
+// reports whether it names THIS workspace — see markerMatchesWorkspace's
+// own comment for what "matches" means. Used by pushToRepo to decide
+// (via planPush) whether a name-matched-but-content-differing doc should
+// push directly or raise a conflict.
+async function checkWorkspaceMarker(
+  repoLink: { owner: string; repo: string; branch: string },
+  entries: TreeEntry[],
+  workspaceId: string
+): Promise<boolean> {
+  const markerEntry = entries.find((e) => e.type === "blob" && e.path === WORKSPACE_MARKER_PATH);
+  if (!markerEntry) return false;
+  const blobRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/blob/${markerEntry.sha}`);
+  if (!blobRes.ok) return false;
+  const blobData = await blobRes.json();
+  const content = blobData.encoding === "base64" ? atob(blobData.content.replace(/\n/g, "")) : blobData.content;
+  return markerMatchesWorkspace(content, workspaceId);
 }
 
 export type CreateFromRepoPlan = { action: "switch"; workspaceId: string } | { action: "create"; workspaceName: string };
@@ -377,19 +460,18 @@ export async function createWorkspaceFromRepo(owner: string, repo: string, branc
   }
 }
 
-export interface LinkAndSyncResult {
-  pullPlan: PullPlan;
-  applyPullResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>;
-  progressToastId: number;
-}
+export type LinkAndSyncResult =
+  | { kind: "push-conflict"; pushPlan: PushPlan; applyPushResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>; progressToastId: number }
+  | { kind: "pull-result"; pullPlan: PullPlan; applyPullResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>; progressToastId: number };
 
-// Push conflicts can never happen here: clearRepoSyncMetadata (above)
-// strips every doc's repoPath first, and planPush only ever raises a
-// conflict when a doc already has one — so the push step's own plan is
-// safe to discard. Pull conflicts, on the other hand, are possible (the
-// tree could move between the push and pull calls below) and are
-// returned to the caller to route through the shared repoConflictModal,
-// exactly like the manual "Pull from Repo" action already does.
+// A push conflict CAN happen here now: planPush's tree-name-match path
+// (see its own comment) can raise one even for a doc with no repoPath,
+// which clearRepoSyncMetadata (above) guarantees every doc has right
+// before this runs. When it does, pull is skipped for this operation —
+// the caller shows the push-conflict modal, and the user resolves it
+// (or separately triggers "Pull from Repo" afterward) rather than this
+// function chaining an automatic pull that could itself raise a second,
+// cascading conflict modal.
 //
 // The returned toast is never finished with success here — only ever
 // with an error, before rethrowing, so a thrown failure never leaves a
@@ -402,16 +484,31 @@ export async function linkWorkspaceAndSync(
   workspaceId: string,
   repoLink: { owner: string; repo: string; branch: string }
 ): Promise<LinkAndSyncResult> {
+  // Only a workspace still carrying its generic creation-time default
+  // gets renamed — the same literal both workspace-creation entry points
+  // (WorkspaceSwitcher.svelte's startCreate, the empty state's "New
+  // workspace" button) use before the user picks a real name. A
+  // workspace created via "Open GitHub Repo as Workspace" is already
+  // named after its repo by the time it could ever reach this function,
+  // so this only ever fires for linking an *existing* workspace.
+  const workspace = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (workspace && workspace.name === "New workspace") {
+    const taken = new Set(get(workspacesStore).filter((w) => w.id !== workspaceId).map((w) => w.name));
+    renameWorkspace(workspaceId, nextAvailableName(repoLink.repo, taken));
+  }
   setWorkspaceRepoLink(workspaceId, repoLink);
   clearRepoSyncMetadata(workspaceId);
   repoSyncBusyLabel.set("Pushing…");
   const progressToastId = showProgressToast("Pushing…");
   const onProgress = (message: string) => updateProgressToast(progressToastId, message);
   try {
-    await pushToRepo(workspaceId, repoLink, onProgress);
+    const { plan: pushPlan, applyResolved: applyPushResolved } = await pushToRepo(workspaceId, repoLink, onProgress);
+    if (pushPlan.conflicts.length > 0) {
+      return { kind: "push-conflict", pushPlan, applyPushResolved, progressToastId };
+    }
     repoSyncBusyLabel.set("Pulling…");
-    const { plan, applyResolved } = await pullFromRepo(workspaceId, repoLink, new Set(), onProgress);
-    return { pullPlan: plan, applyPullResolved: applyResolved, progressToastId };
+    const { plan: pullPlan, applyResolved: applyPullResolved } = await pullFromRepo(workspaceId, repoLink, new Set(), onProgress);
+    return { kind: "pull-result", pullPlan, applyPullResolved, progressToastId };
   } catch (err) {
     finishProgressToast(progressToastId, err instanceof Error ? err.message : "Sync failed", "error");
     throw err;

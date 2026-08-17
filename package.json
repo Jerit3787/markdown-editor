@@ -1,12 +1,12 @@
 {
   "name": "markdown-editor",
   "private": true,
-  "version": "1.23.0",
+  "version": "1.24.0",
   "type": "module",
   "license": "MIT",
   "description": "A fast, static markdown editor with live preview and real-time multi-user collaboration.",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --local-upstream localhost:8787",
     "dev:client": "vite dev --config client/vite.config.ts",
     "build": "vite build --config client/vite.config.ts",
     "deploy": "npm run build && wrangler deploy",
@@ -40,6 +40,7 @@
     "@panzoom/panzoom": "^4.6.2",
     "@replit/codemirror-emacs": "^6.1.0",
     "@replit/codemirror-vim": "^6.4.0",
+    "diff": "^9.0.0",
     "dompurify": "^3.4.13",
     "html2pdf.js": "^0.14.0",
     "isomorphic-git": "^1.40.0",

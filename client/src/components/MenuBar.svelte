@@ -18,6 +18,8 @@
   let helpMenuBtn: HTMLButtonElement, helpMenu: HTMLDivElement;
 
   const activeDoc = $derived($docsStore.find((d) => d.id === $activeIdStore));
+  const hasActiveDoc = $derived(!!activeDoc);
+  const hasWorkspace = $derived($workspacesStore.length > 0);
   const hasGist = $derived(!!activeDoc?.gistId);
   const gistLabel = $derived($gistBusyLabel ?? (hasGist ? "Update Gist" : "Publish to Gist"));
   const gistBusy = $derived($gistBusyLabel !== null);
@@ -27,6 +29,7 @@
   const activeWorkspace = $derived($workspacesStore.find((w) => w.id === $activeWorkspaceIdStore));
   const hasRepoLink = $derived(!!activeWorkspace?.repoLink);
   const repoLinkLabel = $derived(activeWorkspace?.repoLink ? `${activeWorkspace.repoLink.owner}/${activeWorkspace.repoLink.repo}` : "");
+  const repoLastSyncedLabel = $derived(activeWorkspace?.repoLastSyncedAt ? `Synced ${window.MDE.formatRelativeTime(activeWorkspace.repoLastSyncedAt)}` : "");
 
   // Every action below closes the menu it came from afterward — matching
   // the old per-menu closeFileMenu()/closeEditMenu()/etc., which
@@ -63,7 +66,7 @@
   <div class="dropdown">
     <button bind:this={fileMenuBtn} id="fileMenuBtn" class="menubar-btn" type="button">File</button>
     <div bind:this={fileMenu} id="fileMenu" class="dropdown-menu menubar-menu">
-      <button id="menuNewDoc" type="button" onclick={() => act(() => window.MDE.newDoc())}>
+      <button id="menuNewDoc" type="button" disabled={!hasWorkspace} onclick={() => act(() => window.MDE.newDoc())}>
         <svg class="icon"><use href="#icon-file-plus"></use></svg> New document
       </button>
 
@@ -108,15 +111,15 @@
            Both always exist (toggled via hidden, not {#if}) so the
            submenu's flyout trigger is wired once by initSubmenus at
            mount, regardless of which one is visible when that runs. -->
-      <button id="menuPublishSignedOut" type="button" hidden={!!$githubUsername} onclick={() => act(() => window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue."))}>
+      <button id="menuPublishSignedOut" type="button" disabled={!hasActiveDoc} hidden={!!$githubUsername} onclick={() => act(() => window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue."))}>
         <svg class="icon"><use href="#icon-rocket"></use></svg> Publish to Gist
       </button>
       <div class="menu-submenu" id="publishSubmenu" hidden={!$githubUsername}>
-        <button class="menu-submenu-trigger" type="button">
+        <button class="menu-submenu-trigger" type="button" disabled={!hasActiveDoc}>
           <svg class="icon"><use href="#icon-rocket"></use></svg> Publish <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
         </button>
         <div class="menu-submenu-panel">
-          <button id="menuPublishGist" type="button" disabled={gistBusy} onclick={() => act(() => window.MDE.publishGist?.())}>
+          <button id="menuPublishGist" type="button" disabled={gistBusy || !hasActiveDoc} onclick={() => act(() => window.MDE.publishGist?.())}>
             <svg class="icon"><use href="#icon-github"></use></svg> <span id="menuGistLabel">{gistLabel}</span>
           </button>
           <a id="gistViewLink" class="menu-link-item" href={hasGist ? `https://gist.github.com/${activeDoc?.gistId}` : "#"} target="_blank" rel="noopener" hidden={!hasGist}>
@@ -126,7 +129,7 @@
       </div>
 
       <div class="menu-submenu">
-        <button class="menu-submenu-trigger" type="button">
+        <button class="menu-submenu-trigger" type="button" disabled={!hasWorkspace}>
           <svg class="icon"><use href="#icon-github"></use></svg> GitHub Repo <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
         </button>
         <div class="menu-submenu-panel">
@@ -136,6 +139,9 @@
             </button>
           {:else}
             <div class="menu-section-label">{repoLinkLabel}</div>
+            {#if repoLastSyncedLabel}
+              <div class="menu-section-label menu-section-sublabel">{repoLastSyncedLabel}</div>
+            {/if}
             <button type="button" disabled={!!$repoSyncBusyLabel} onclick={() => act(() => window.MDE.pullFromRepoAction?.())}>
               <svg class="icon"><use href="#icon-download"></use></svg> {$repoSyncBusyLabel === "Pulling…" ? "Pulling…" : "Pull from Repo"}
             </button>
@@ -151,34 +157,34 @@
 
       <div class="menu-divider"></div>
       <div class="menu-submenu">
-        <button class="menu-submenu-trigger" type="button">
+        <button class="menu-submenu-trigger" type="button" disabled={!hasActiveDoc}>
           <svg class="icon"><use href="#icon-download"></use></svg> Export <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
         </button>
         <div class="menu-submenu-panel">
-          <button type="button" onclick={() => act(() => window.MDE.exportAs("md"))}><svg class="icon"><use href="#icon-download"></use></svg> Markdown (.md)</button>
-          <button type="button" onclick={() => act(() => window.MDE.exportAs("html"))}><svg class="icon"><use href="#icon-download"></use></svg> HTML (.html)</button>
-          <button type="button" onclick={() => act(() => window.MDE.exportAs("pdf"))}><svg class="icon"><use href="#icon-download"></use></svg> PDF (.pdf)</button>
-          <button type="button" onclick={() => act(() => window.MDE.exportAs("txt"))}><svg class="icon"><use href="#icon-download"></use></svg> Plain text (.txt)</button>
+          <button type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.exportAs("md"))}><svg class="icon"><use href="#icon-download"></use></svg> Markdown (.md)</button>
+          <button type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.exportAs("html"))}><svg class="icon"><use href="#icon-download"></use></svg> HTML (.html)</button>
+          <button type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.exportAs("pdf"))}><svg class="icon"><use href="#icon-download"></use></svg> PDF (.pdf)</button>
+          <button type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.exportAs("txt"))}><svg class="icon"><use href="#icon-download"></use></svg> Plain text (.txt)</button>
         </div>
       </div>
 
       <div class="menu-divider"></div>
-      <button id="menuComments" type="button" onclick={() => act(() => commentsPanelOpen.set(true))}>
+      <button id="menuComments" type="button" disabled={!hasActiveDoc} onclick={() => act(() => commentsPanelOpen.set(true))}>
         <svg class="icon"><use href="#icon-message-square"></use></svg> Comments
       </button>
 
       <div class="menu-divider"></div>
-      <button id="menuVersionHistory" type="button" onclick={() => act(() => versionHistoryOpen.set(true))}>
+      <button id="menuVersionHistory" type="button" disabled={!hasActiveDoc} onclick={() => act(() => versionHistoryOpen.set(true))}>
         <svg class="icon"><use href="#icon-history"></use></svg> Version history
       </button>
 
       <div class="menu-divider"></div>
-      <button id="menuDocInfo" type="button" onclick={() => act(() => docInfoPanelOpen.set(true))}>
+      <button id="menuDocInfo" type="button" disabled={!hasActiveDoc} onclick={() => act(() => docInfoPanelOpen.set(true))}>
         <svg class="icon"><use href="#icon-info"></use></svg> Document info
       </button>
 
       <div class="menu-divider"></div>
-      <button id="menuDeleteDoc" type="button" onclick={() => act(() => deleteDoc($activeIdStore ?? ""))}>
+      <button id="menuDeleteDoc" type="button" disabled={!hasActiveDoc} onclick={() => act(() => deleteDoc($activeIdStore ?? ""))}>
         <svg class="icon"><use href="#icon-trash-2"></use></svg> Delete document
       </button>
     </div>
@@ -187,20 +193,20 @@
   <div class="dropdown">
     <button bind:this={editMenuBtn} id="editMenuBtn" class="menubar-btn" type="button">Edit</button>
     <div bind:this={editMenu} id="editMenu" class="dropdown-menu menubar-menu">
-      <button id="menuUndo" type="button" onclick={() => act(() => window.MDE.undo())}><svg class="icon"><use href="#icon-undo-2"></use></svg> Undo <kbd>Ctrl+Z</kbd></button>
-      <button id="menuRedo" type="button" onclick={() => act(() => window.MDE.redo())}><svg class="icon"><use href="#icon-redo-2"></use></svg> Redo <kbd>Ctrl+Shift+Z</kbd></button>
+      <button id="menuUndo" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.undo())}><svg class="icon"><use href="#icon-undo-2"></use></svg> Undo <kbd>Ctrl+Z</kbd></button>
+      <button id="menuRedo" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.redo())}><svg class="icon"><use href="#icon-redo-2"></use></svg> Redo <kbd>Ctrl+Shift+Z</kbd></button>
       <div class="menu-divider"></div>
-      <button id="menuCut" type="button" onclick={() => act(() => window.MDE.cutSelection())}><svg class="icon"><use href="#icon-scissors"></use></svg> Cut <kbd>Ctrl+X</kbd></button>
-      <button id="menuCopy" type="button" onclick={() => act(() => window.MDE.copySelection())}><svg class="icon"><use href="#icon-copy"></use></svg> Copy <kbd>Ctrl+C</kbd></button>
-      <button id="menuPaste" type="button" onclick={() => act(() => window.MDE.pasteClipboard())}><svg class="icon"><use href="#icon-clipboard"></use></svg> Paste <kbd>Ctrl+V</kbd></button>
+      <button id="menuCut" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.cutSelection())}><svg class="icon"><use href="#icon-scissors"></use></svg> Cut <kbd>Ctrl+X</kbd></button>
+      <button id="menuCopy" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.copySelection())}><svg class="icon"><use href="#icon-copy"></use></svg> Copy <kbd>Ctrl+C</kbd></button>
+      <button id="menuPaste" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.pasteClipboard())}><svg class="icon"><use href="#icon-clipboard"></use></svg> Paste <kbd>Ctrl+V</kbd></button>
       <div class="menu-divider"></div>
-      <button id="menuBold" type="button" class="menu-glyph-btn" onclick={() => act(() => formatCmd("bold"))}><b>B</b> Bold <kbd>Ctrl+B</kbd></button>
-      <button id="menuItalic" type="button" class="menu-glyph-btn" onclick={() => act(() => formatCmd("italic"))}><i>I</i> Italic <kbd>Ctrl+I</kbd></button>
-      <button id="menuStrike" type="button" onclick={() => act(() => formatCmd("strike"))}><svg class="icon"><use href="#icon-strikethrough"></use></svg> Strikethrough</button>
+      <button id="menuBold" type="button" class="menu-glyph-btn" disabled={!hasActiveDoc} onclick={() => act(() => formatCmd("bold"))}><b>B</b> Bold <kbd>Ctrl+B</kbd></button>
+      <button id="menuItalic" type="button" class="menu-glyph-btn" disabled={!hasActiveDoc} onclick={() => act(() => formatCmd("italic"))}><i>I</i> Italic <kbd>Ctrl+I</kbd></button>
+      <button id="menuStrike" type="button" disabled={!hasActiveDoc} onclick={() => act(() => formatCmd("strike"))}><svg class="icon"><use href="#icon-strikethrough"></use></svg> Strikethrough</button>
       <div class="menu-divider"></div>
-      <button id="menuLink" type="button" onclick={() => act(() => window.MDE.runCmd("link"))}><svg class="icon"><use href="#icon-link"></use></svg> Insert Link... <kbd>Ctrl+K</kbd></button>
-      <button id="menuImage" type="button" onclick={() => act(() => window.MDE.runCmd("image"))}><svg class="icon"><use href="#icon-image"></use></svg> Insert Image...</button>
-      <button id="menuManageImages" type="button" onclick={() => act(() => window.MDE.openImagesManager())}><svg class="icon"><use href="#icon-images"></use></svg> Manage Images...</button>
+      <button id="menuLink" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.runCmd("link"))}><svg class="icon"><use href="#icon-link"></use></svg> Insert Link... <kbd>Ctrl+K</kbd></button>
+      <button id="menuImage" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.runCmd("image"))}><svg class="icon"><use href="#icon-image"></use></svg> Insert Image...</button>
+      <button id="menuManageImages" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.openImagesManager())}><svg class="icon"><use href="#icon-images"></use></svg> Manage Images...</button>
     </div>
   </div>
 

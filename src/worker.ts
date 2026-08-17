@@ -11,7 +11,7 @@ import {
   handleGistList,
 } from "./github-auth.js";
 import { handleGistImageUpload } from "./gist-images.js";
-import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoPush } from "./github-repo.js";
+import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
 import type { Env } from "./env";
 
 const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
@@ -29,6 +29,8 @@ const GIST_IMAGE_PATH = /^\/api\/gist\/([0-9a-f]+)\/image$/i;
 const REPO_TREE_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/tree$/;
 const REPO_BLOB_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/blob\/([0-9a-f]+)$/i;
 const REPO_PUSH_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/push$/;
+const REPO_COMMITS_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/commits$/;
+const REPO_FILE_AT_REF_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/contents\/(.+)$/;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -125,6 +127,20 @@ export default {
 
     const repoBlobMatch = url.pathname.match(REPO_BLOB_PATH);
     if (repoBlobMatch && request.method === "GET") return handleRepoBlob(request, env, repoBlobMatch[1]!, repoBlobMatch[2]!, repoBlobMatch[3]!);
+
+    const repoCommitsMatch = url.pathname.match(REPO_COMMITS_PATH);
+    if (repoCommitsMatch && request.method === "GET") {
+      const branch = url.searchParams.get("branch") || "";
+      const page = Number(url.searchParams.get("page")) || 1;
+      const path = url.searchParams.get("path") || undefined;
+      return handleRepoCommits(request, env, repoCommitsMatch[1]!, repoCommitsMatch[2]!, branch, page, path);
+    }
+
+    const repoFileAtRefMatch = url.pathname.match(REPO_FILE_AT_REF_PATH);
+    if (repoFileAtRefMatch && request.method === "GET") {
+      const ref = url.searchParams.get("ref") || "";
+      return handleRepoFileAtRef(request, env, repoFileAtRefMatch[1]!, repoFileAtRefMatch[2]!, repoFileAtRefMatch[3]!, ref);
+    }
 
     const repoPushMatch = url.pathname.match(REPO_PUSH_PATH);
     if (repoPushMatch && request.method === "POST") return handleRepoPush(request, env, repoPushMatch[1]!, repoPushMatch[2]!);

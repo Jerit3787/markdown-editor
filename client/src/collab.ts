@@ -21,7 +21,8 @@ import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
 import { shareModalOpen, shareAccess, shareTargetName, sharePresence } from "./stores/share";
 import { showToast } from "./stores/toast";
-import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs } from "./stores/docs";
+import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent } from "./stores/docs";
+import { debounceWithFlush } from "./debounce";
 import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
 import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace } from "./stores/workspaces";
@@ -55,6 +56,38 @@ const workspaceRoom = {
   reconnectTimer: null as ReturnType<typeof setTimeout> | null,
   reconnectDelay: 1000,
 };
+
+// Documents in the shared workspace whose Y.Text/images changed while
+// they weren't the active document — the active document's content
+// already flows into docsStore through the normal CodeMirror ->
+// activeDocContent -> saveActiveDocContent pipeline, so this only ever
+// tracks the ones nobody is currently looking at.
+const dirtyBackgroundDocs = new Set<string>();
+
+function markDirty(docId: string): void {
+  dirtyBackgroundDocs.add(docId);
+  backgroundSyncDebounce.trigger();
+}
+
+function flushDirtyBackgroundDocs(): void {
+  let changed = false;
+  for (const docId of dirtyBackgroundDocs) {
+    // Became active while waiting to flush — the CodeMirror pipeline
+    // owns it now, and its Y.Text already has the correct content
+    // regardless of who reads it, so there's nothing to write here.
+    if (docId === workspaceRoom.activeDocId) continue;
+    const binding = workspaceRoom.docs.get(docId);
+    if (!binding) continue; // workspace was torn down mid-flight
+    const content = binding.ytext.toString();
+    const imageEntries = Array.from(binding.imagesMap.entries());
+    const images = imageEntries.length > 0 ? Object.fromEntries(imageEntries) : undefined;
+    if (syncRemoteDocContent(docId, content, images)) changed = true;
+  }
+  dirtyBackgroundDocs.clear();
+  if (changed) persistDocs();
+}
+
+const backgroundSyncDebounce = debounceWithFlush(flushDirtyBackgroundDocs, 800);
 
 // The server-side access record for the room currently shown in the Share
 // modal, refreshed on open and after every change. Null until first fetched.
@@ -117,7 +150,21 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
 
   const docIds = await fetchWorkspaceDocIds(workspaceId);
   const docs = await Promise.all(docIds.map((id) => fetchRemoteDocContent(workspaceId, id)));
-  pendingJoin.set({ remoteId: workspaceId, workspaceName: "Shared workspace", docs: docs.filter((d): d is NonNullable<typeof d> => !!d), landOnDocId });
+  const validDocs = docs.filter((d): d is NonNullable<typeof d> => !!d);
+
+  // A receiver with zero workspaces has nothing to choose between — skip
+  // straight to what "Add as new workspace" already does today, instead
+  // of asking a question that isn't really a question. An existing user
+  // (any workspace at all) still gets the normal choice via pendingJoin.
+  if (get(workspacesStore).length === 0) {
+    const ws = adoptSharedWorkspace(workspaceId, "Shared workspace");
+    importRemoteDocs(ws.id, validDocs);
+    switchWorkspace(ws.id);
+    switchDoc(landOnDocId);
+    return;
+  }
+
+  pendingJoin.set({ remoteId: workspaceId, workspaceName: "Shared workspace", docs: validDocs, landOnDocId });
 }
 
 function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): string | null {
@@ -263,14 +310,21 @@ function createDocBinding(docId: string, role: string): DocBinding {
 
   const ydoc = new Y.Doc();
   const ytext = ydoc.getText("content");
+  ytext.observe(() => {
+    if (docId !== workspaceRoom.activeDocId) markDirty(docId);
+  });
   const imagesMap = ydoc.getMap<string>("images");
   imagesMap.observe((event, tr) => {
     if (tr.origin === "local") return;
-    event.changes.keys.forEach((change, key) => {
-      if (change.action === "delete") return;
-      const dataUrl = imagesMap.get(key);
-      if (dataUrl && workspaceRoom.activeDocId === docId) window.MDE.setDocImage(key, dataUrl);
-    });
+    if (workspaceRoom.activeDocId === docId) {
+      event.changes.keys.forEach((change, key) => {
+        if (change.action === "delete") return;
+        const dataUrl = imagesMap.get(key);
+        if (dataUrl) window.MDE.setDocImage(key, dataUrl);
+      });
+    } else {
+      markDirty(docId);
+    }
   });
   const awareness = new awarenessProtocol.Awareness(ydoc);
 
@@ -314,6 +368,11 @@ function bindActiveDoc(docId: string): void {
 }
 
 function teardownWorkspace(): void {
+  // Cancels any pending debounce timer and runs the flush immediately —
+  // its side effects (docsStore writes, persistDocs) happen synchronously
+  // within this call even though the returned Promise resolves later, so
+  // nothing pending is lost to the Y.Doc destruction below.
+  backgroundSyncDebounce.flush();
   remotePresenceByUsername.clear();
   workspacePresence.set(new Map());
   window.MDE.setReadOnly(false);

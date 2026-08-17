@@ -72,4 +72,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "File > Open > From GitHub Repo creates a workspace from any repo in one step. Linking an existing workspace to a repo now pushes and pulls automatically instead of just saving the link, and repo/Gist actions show a live-updating progress toast so you can actually see what's happening.",
     screenshot: "/whats-new/open-repo-as-workspace.png",
   },
+  {
+    version: "1.24.0",
+    title: "Version History Meets Repo Commits",
+    description:
+      "On a repo-linked document, Version History now shows the repo's commits for that file alongside your local snapshots, all in one timeline. Toggle to Diff to compare any version against your current content, and restore straight from a commit — on shared documents too.",
+    screenshot: "/whats-new/version-history-repo-commits.png",
+  },
 ];

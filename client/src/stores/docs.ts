@@ -52,6 +52,12 @@ function loadDocsFromStorage(): Doc[] {
     if (raw) {
       const parsed = JSON.parse(raw) as Doc[];
       neededWorkspaceBackfill = Array.isArray(parsed) && parsed.some((d) => !d.workspaceId);
+      // Legacy documents (from before workspaces existed) with no
+      // workspace to backfill onto — mde:workspaces was never set,
+      // meaning this profile hasn't opened the app since workspaces
+      // shipped. Create one so normalizeLoadedDocs has somewhere real to
+      // backfill onto instead of silently orphaning these documents.
+      if (neededWorkspaceBackfill && get(workspacesStore).length === 0) createWorkspace("My Workspace");
       return normalizeLoadedDocs(parsed);
     }
   } catch (e) { /* ignore corrupt storage */ }
@@ -137,6 +143,38 @@ function updateDoc(id: string, changes: Partial<Doc>) {
   docsStore.update((docs) => docs.map((d) => (d.id === id ? { ...d, ...changes } : d)));
 }
 
+// True key-set-and-value equality regardless of insertion order — Y.Map's
+// own .entries() iteration order has no guaranteed relationship to the
+// order doc.images' keys were originally inserted in, so a naive
+// JSON.stringify comparison could report "changed" for genuinely
+// identical image sets and bump updatedAt for no real reason.
+function sameImages(a: Record<string, string> | undefined, b: Record<string, string> | undefined): boolean {
+  const aEntries = Object.entries(a ?? {});
+  const bMap = b ?? {};
+  if (aEntries.length !== Object.keys(bMap).length) return false;
+  return aEntries.every(([key, value]) => bMap[key] === value);
+}
+
+// Writes a shared workspace's background (non-active) document content
+// back into docsStore. Called by collab.ts for every document in a
+// shared workspace that isn't the one currently open — the active
+// document's content already flows through activeDocContent ->
+// saveActiveDocContent instead, so this only ever runs for documents the
+// user isn't looking at right now. Mirrors saveActiveDocContent's "don't
+// bump updatedAt unless something actually changed" rule: a collaborator
+// really editing a document is a real modification and should bump it
+// the same way a local edit would, but reconnecting/resyncing identical
+// content must not.
+export function syncRemoteDocContent(id: string, content: string, images: Record<string, string> | undefined): boolean {
+  const doc = findDocById(id);
+  if (!doc) return false;
+  const contentChanged = content !== doc.content;
+  const imagesChanged = !sameImages(images, doc.images);
+  if (!contentChanged && !imagesChanged) return false;
+  updateDoc(id, { content, images, updatedAt: Date.now() });
+  return true;
+}
+
 // Flushes the live editor buffer into the active doc's content, without
 // touching the editor or any save-status UI — callers that need the
 // visible status pill updated do that themselves afterward (see app.ts's
@@ -145,12 +183,12 @@ export function saveActiveDocContent() {
   const doc = getActiveDoc();
   if (!doc) return;
   const content = get(activeDocContent);
-  // Merely opening/switching away from a document with no pending
-  // edit must not bump updatedAt — DocList.svelte sorts by it, and
-  // navigation alone shouldn't reorder the sidebar (only a real edit
-  // should). switchDoc() calls this on every switch regardless of
-  // whether anything actually changed, so this check is what makes
-  // that distinction instead of the debounced-save path.
+  // Merely opening/switching away from a document with no pending edit
+  // must not bump updatedAt — it should only ever reflect a real
+  // modification. switchDoc() calls this on every switch regardless of
+  // whether anything actually changed, so this check is what makes that
+  // distinction instead of the debounced-save path. Same rule
+  // syncRemoteDocContent (below) applies for remote/collaborator edits.
   if (content === doc.content) return;
   updateDoc(doc.id, { content, updatedAt: Date.now() });
   persistDocs();
@@ -158,13 +196,15 @@ export function saveActiveDocContent() {
 
 export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string }): Doc {
   saveActiveDocContent();
-  // Several call sites (sidebar "+", File > New, import-from-device,
-  // Open-from-Gist, wikilink auto-create, shared-link join) can all reach
-  // this with zero workspaces existing (the empty state only hides the
-  // editor panes, not those entry points). Rather than ever stamping ""
-  // — which DocList's `d.workspaceId === $activeWorkspaceIdStore` filter
-  // can never match, orphaning the doc invisibly — self-heal by creating
-  // a workspace on demand.
+  // Every real entry point (sidebar "+", File > New, import-from-device,
+  // Open-from-Gist, Link Workspace to Repo) now guards against zero
+  // workspaces before ever calling this — see app.ts's createNewDoc/
+  // openLocalFile, gist.ts's openGistPicker, repo-sync-ui.ts's
+  // openRepoLinkModal. This fallback should be unreachable in normal
+  // operation; it's kept as a defensive last resort so a missed guard
+  // produces a usable workspace instead of silently stamping "" — which
+  // DocList's `d.workspaceId === $activeWorkspaceIdStore` filter can
+  // never match, orphaning the doc invisibly.
   let workspaceId = get(activeWorkspaceIdStore) ?? get(workspacesStore)[0]?.id;
   if (!workspaceId) workspaceId = createWorkspace("My Workspace").id;
   const doc: Doc = Object.assign(

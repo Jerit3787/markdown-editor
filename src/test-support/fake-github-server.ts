@@ -140,10 +140,21 @@ export function startFakeGithubServer(): Promise<FakeGithubServer> {
         }
 
         if (req.method === "POST" && kind === "commits") {
-          const body = JSON.parse(await readBody(req)) as { message: string; tree: string; parents: string[] };
+          const body = JSON.parse(await readBody(req)) as { message: string; tree: string; parents?: string[] };
           const sha = randomSha();
-          state.commits.set(sha, { tree: body.tree, parents: body.parents });
+          state.commits.set(sha, { tree: body.tree, parents: body.parents || [] });
           sendJson(res, 201, { sha });
+          return;
+        }
+
+        if (req.method === "POST" && kind === "refs" && !parts[5]) {
+          // Creating a brand-new ref (a repo's very first commit on a
+          // branch that doesn't exist yet) — distinct from the PATCH
+          // case below, which updates an existing ref.
+          const body = JSON.parse(await readBody(req)) as { ref: string; sha: string };
+          const branch = body.ref.replace(/^refs\/heads\//, "");
+          state.refs.set(branch, body.sha);
+          sendJson(res, 201, { ref: body.ref, object: { sha: body.sha } });
           return;
         }
 

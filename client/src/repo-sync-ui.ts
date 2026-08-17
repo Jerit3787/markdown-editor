@@ -5,7 +5,7 @@ import { activeWorkspaceIdStore, workspacesStore, clearWorkspaceRepoLink } from 
 import { docsInWorkspace } from "./stores/docs";
 import { pullFromRepo, pushToRepo, type PullConflict, type PushConflict } from "./repo-sync";
 import { repoLinkModalOpen, openRepoModalOpen, repoConflictModalOpen, repoConflictState, repoSyncBusyLabel } from "./stores/repoSync";
-import { showProgressToast, updateProgressToast, finishProgressToast, dismissToast } from "./stores/toast";
+import { showProgressToast, updateProgressToast, finishProgressToast, dismissToast, showToast } from "./stores/toast";
 import { get } from "svelte/store";
 
 // The "gist" scope this app requested before this feature shipped can't
@@ -31,6 +31,10 @@ async function requireRepoScope(): Promise<boolean> {
 
 window.MDE.openRepoLinkModal = () => {
   void (async () => {
+    if (get(workspacesStore).length === 0) {
+      showToast("Create a workspace first", "error");
+      return;
+    }
     if (!(await requireRepoScope())) return;
     repoLinkModalOpen.set(true);
   })();

@@ -6,7 +6,7 @@
   "license": "MIT",
   "description": "A fast, static markdown editor with live preview and real-time multi-user collaboration.",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --local-upstream localhost:8787",
     "dev:client": "vite dev --config client/vite.config.ts",
     "build": "vite build --config client/vite.config.ts",
     "deploy": "npm run build && wrangler deploy",

@@ -57,11 +57,8 @@
   async function remove(id: string, name: string, e: MouseEvent) {
     e.stopPropagation();
     const count = docCounts.get(id) || 0;
-    const message =
-      count > 0
-        ? `Delete "${name}" and its ${count} document${count === 1 ? "" : "s"}? This can't be undone.`
-        : `Delete "${name}"? This can't be undone.`;
-    if (!(await confirmAction("Delete Workspace?", message))) return;
+    const message = count > 0 ? `This also deletes its ${count} document${count === 1 ? "" : "s"}. This can't be undone.` : "This can't be undone.";
+    if (!(await confirmAction(`Delete "${name}"?`, message))) return;
     const docIds = $docsStore.filter((d) => d.workspaceId === id).map((d) => d.id);
     docIds.forEach(removeDocById);
     deleteWorkspaceRecord(id);

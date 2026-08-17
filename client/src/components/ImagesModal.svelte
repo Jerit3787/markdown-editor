@@ -42,7 +42,7 @@
   }
 
   async function removeImage(key: string) {
-    if (!(await confirmAction("Delete Image?", `Delete "${key}"? Any reference to it in the text will show as a broken image.`))) return;
+    if (!(await confirmAction(`Delete "${key}"?`, "Any reference to it in the text will show as a broken image."))) return;
     deleteDocImage(key);
     window.MDE.updatePreview();
   }

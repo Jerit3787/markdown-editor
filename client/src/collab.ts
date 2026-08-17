@@ -21,7 +21,7 @@ import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
 import { shareModalOpen, shareAccess, shareTargetName, sharePresence } from "./stores/share";
 import { showToast } from "./stores/toast";
-import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs } from "./stores/docs";
+import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs } from "./stores/docs";
 import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
 import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace } from "./stores/workspaces";
@@ -117,7 +117,21 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
 
   const docIds = await fetchWorkspaceDocIds(workspaceId);
   const docs = await Promise.all(docIds.map((id) => fetchRemoteDocContent(workspaceId, id)));
-  pendingJoin.set({ remoteId: workspaceId, workspaceName: "Shared workspace", docs: docs.filter((d): d is NonNullable<typeof d> => !!d), landOnDocId });
+  const validDocs = docs.filter((d): d is NonNullable<typeof d> => !!d);
+
+  // A receiver with zero workspaces has nothing to choose between — skip
+  // straight to what "Add as new workspace" already does today, instead
+  // of asking a question that isn't really a question. An existing user
+  // (any workspace at all) still gets the normal choice via pendingJoin.
+  if (get(workspacesStore).length === 0) {
+    const ws = adoptSharedWorkspace(workspaceId, "Shared workspace");
+    importRemoteDocs(ws.id, validDocs);
+    switchWorkspace(ws.id);
+    switchDoc(landOnDocId);
+    return;
+  }
+
+  pendingJoin.set({ remoteId: workspaceId, workspaceName: "Shared workspace", docs: validDocs, landOnDocId });
 }
 
 function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): string | null {

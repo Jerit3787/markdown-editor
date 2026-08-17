@@ -5,7 +5,7 @@ import { activeWorkspaceIdStore, workspacesStore, clearWorkspaceRepoLink } from 
 import { docsInWorkspace } from "./stores/docs";
 import { pullFromRepo, pushToRepo, type PullConflict, type PushConflict } from "./repo-sync";
 import { repoLinkModalOpen, openRepoModalOpen, repoConflictModalOpen, repoConflictState, repoSyncBusyLabel } from "./stores/repoSync";
-import { showToast } from "./stores/toast";
+import { showProgressToast, updateProgressToast, finishProgressToast, dismissToast } from "./stores/toast";
 import { get } from "svelte/store";
 
 // The "gist" scope this app requested before this feature shipped can't
@@ -63,6 +63,7 @@ window.MDE.pullFromRepoAction = async () => {
   if (!active) return;
   if (!(await requireRepoScope())) return;
   repoSyncBusyLabel.set("Pulling…");
+  const progressToastId = showProgressToast("Pulling…");
   try {
     // No local dirty-tracking timestamp exists yet at this call site —
     // pass an empty set, meaning "treat every doc as clean," which is
@@ -71,8 +72,11 @@ window.MDE.pullFromRepoAction = async () => {
     // conflict). Acceptable for now since it still routes every conflict
     // planPull *can* detect through the modal; tightening this to real
     // dirty-tracking is a follow-up, not a blocker.
-    const { plan, applyResolved } = await pullFromRepo(active.workspaceId, active.repoLink, new Set());
+    const { plan, applyResolved } = await pullFromRepo(active.workspaceId, active.repoLink, new Set(), (message) =>
+      updateProgressToast(progressToastId, message)
+    );
     if (plan.conflicts.length > 0 || plan.deletions.length > 0) {
+      dismissToast(progressToastId);
       repoConflictState.set({
         kind: "pull",
         conflicts: plan.conflicts.map((c: PullConflict) => ({ docId: c.docId, docName: docNameFor(active.workspaceId, c.docId), repoPath: c.repoPath })),
@@ -81,10 +85,10 @@ window.MDE.pullFromRepoAction = async () => {
       });
       repoConflictModalOpen.set(true);
     } else {
-      showToast("Pulled from repo", "success");
+      finishProgressToast(progressToastId, "Pulled from repo", "success");
     }
   } catch (err: any) {
-    showToast(err.message || "Pull failed", "error");
+    finishProgressToast(progressToastId, err.message || "Pull failed", "error");
   } finally {
     repoSyncBusyLabel.set(null);
   }
@@ -95,9 +99,11 @@ window.MDE.pushToRepoAction = async () => {
   if (!active) return;
   if (!(await requireRepoScope())) return;
   repoSyncBusyLabel.set("Pushing…");
+  const progressToastId = showProgressToast("Pushing…");
   try {
-    const { plan, applyResolved } = await pushToRepo(active.workspaceId, active.repoLink);
+    const { plan, applyResolved } = await pushToRepo(active.workspaceId, active.repoLink, (message) => updateProgressToast(progressToastId, message));
     if (plan.conflicts.length > 0) {
+      dismissToast(progressToastId);
       repoConflictState.set({
         kind: "push",
         conflicts: plan.conflicts.map((c: PushConflict) => ({ docId: c.docId, docName: docNameFor(active.workspaceId, c.docId), repoPath: c.repoPath })),
@@ -106,10 +112,10 @@ window.MDE.pushToRepoAction = async () => {
       });
       repoConflictModalOpen.set(true);
     } else {
-      showToast("Pushed to repo", "success");
+      finishProgressToast(progressToastId, "Pushed to repo", "success");
     }
   } catch (err: any) {
-    showToast(err.message || "Push failed", "error");
+    finishProgressToast(progressToastId, err.message || "Push failed", "error");
   } finally {
     repoSyncBusyLabel.set(null);
   }

@@ -7,7 +7,7 @@
   import { activeWorkspaceIdStore } from "../stores/workspaces";
   import { docsInWorkspace } from "../stores/docs";
   import { linkWorkspaceAndSync } from "../repo-sync";
-  import { showToast } from "../stores/toast";
+  import { finishProgressToast, dismissToast } from "../stores/toast";
 
   function close() {
     repoLinkModalOpen.set(false);
@@ -21,9 +21,10 @@
     const workspaceId = $activeWorkspaceIdStore;
     if (!workspaceId) return;
     try {
-      const { pullPlan, applyPullResolved } = await linkWorkspaceAndSync(workspaceId, { owner, repo, branch });
+      const { pullPlan, applyPullResolved, progressToastId } = await linkWorkspaceAndSync(workspaceId, { owner, repo, branch });
       close();
       if (pullPlan.conflicts.length > 0 || pullPlan.deletions.length > 0) {
+        dismissToast(progressToastId);
         repoConflictState.set({
           kind: "pull",
           conflicts: pullPlan.conflicts.map((c) => ({ docId: c.docId, docName: docNameFor(workspaceId, c.docId), repoPath: c.repoPath })),
@@ -32,10 +33,11 @@
         });
         repoConflictModalOpen.set(true);
       } else {
-        showToast(`Linked to ${owner}/${repo}`, "success");
+        finishProgressToast(progressToastId, `Linked to ${owner}/${repo}`, "success");
       }
     } catch (err: any) {
-      showToast(err.message || "Couldn't sync after linking", "error");
+      // linkWorkspaceAndSync already finished the progress toast as an
+      // error before rethrowing — nothing left to show here.
     } finally {
       repoSyncBusyLabel.set(null);
     }

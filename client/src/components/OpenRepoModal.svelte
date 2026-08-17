@@ -5,7 +5,6 @@
   import RepoPicker from "./RepoPicker.svelte";
   import { openRepoModalOpen } from "../stores/repoSync";
   import { createWorkspaceFromRepo } from "../repo-sync";
-  import { showToast } from "../stores/toast";
 
   function close() {
     openRepoModalOpen.set(false);
@@ -15,9 +14,9 @@
     try {
       await createWorkspaceFromRepo(owner, repo, branch);
       close();
-      showToast(`Opened ${owner}/${repo}`, "success");
     } catch (err: any) {
-      showToast(err.message || "Couldn't open that repo", "error");
+      // createWorkspaceFromRepo already finished its own progress toast
+      // as an error — nothing left to show here.
     }
   }
 

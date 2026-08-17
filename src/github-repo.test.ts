@@ -195,6 +195,34 @@ describe("handleRepoCommits", () => {
     const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "missing-branch", 1);
     expect(res.status).toBe(404);
   });
+
+  it("includes a path filter in the upstream URL when provided", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        expect(url).toBe("https://api.github.com/repos/alice/notes/commits?sha=main&page=1&per_page=30&path=Notes.md");
+        return new Response(JSON.stringify([]), { status: 200 });
+      })
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main&path=Notes.md", { headers: { Cookie: cookie } });
+    const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "main", 1, "Notes.md");
+    expect(res.status).toBe(200);
+  });
+
+  it("omits the path filter when not provided", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        expect(url).toBe("https://api.github.com/repos/alice/notes/commits?sha=main&page=1&per_page=30");
+        return new Response(JSON.stringify([]), { status: 200 });
+      })
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main", { headers: { Cookie: cookie } });
+    const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "main", 1);
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("handleRepoFileAtRef", () => {

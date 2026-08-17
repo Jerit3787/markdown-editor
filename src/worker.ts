@@ -132,7 +132,8 @@ export default {
     if (repoCommitsMatch && request.method === "GET") {
       const branch = url.searchParams.get("branch") || "";
       const page = Number(url.searchParams.get("page")) || 1;
-      return handleRepoCommits(request, env, repoCommitsMatch[1]!, repoCommitsMatch[2]!, branch, page);
+      const path = url.searchParams.get("path") || undefined;
+      return handleRepoCommits(request, env, repoCommitsMatch[1]!, repoCommitsMatch[2]!, branch, page, path);
     }
 
     const repoFileAtRefMatch = url.pathname.match(REPO_FILE_AT_REF_PATH);

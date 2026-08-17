@@ -388,4 +388,16 @@ describe("linkWorkspaceAndSync", () => {
 
     expect(get(workspacesStore).find((w) => w.id === ws.id)?.name).toBe("Personal Notes");
   });
+
+  it("sets repoLastSyncedAt after a successful push+pull", async () => {
+    const ws = createWorkspace("Test Workspace 4");
+    backend.seedRepo("alice", "notes", "main", []);
+    const before = Date.now();
+
+    await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+
+    const synced = get(workspacesStore).find((w) => w.id === ws.id)?.repoLastSyncedAt;
+    expect(synced).toBeDefined();
+    expect(synced!).toBeGreaterThanOrEqual(before);
+  });
 });

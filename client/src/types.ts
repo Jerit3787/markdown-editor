@@ -55,6 +55,11 @@ export interface Workspace {
     repo: string;
     branch: string;
   };
+  // Set after any successful push or pull (whichever happens last) —
+  // one combined "last synced" timestamp, not separate push/pull ones.
+  // Meaningless without repoLink, so clearWorkspaceRepoLink clears this
+  // too.
+  repoLastSyncedAt?: number;
 }
 
 export interface Doc {

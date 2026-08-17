@@ -7,7 +7,7 @@ import type { Doc, Workspace } from "./types";
 import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById, ensureActiveDocInWorkspace, clearRepoSyncMetadata } from "./stores/docs";
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
-import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace, renameWorkspace } from "./stores/workspaces";
+import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace, renameWorkspace, setWorkspaceLastSynced } from "./stores/workspaces";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { repoSyncBusyLabel } from "./stores/repoSync";
 import { showProgressToast, updateProgressToast, finishProgressToast, showToast } from "./stores/toast";
@@ -208,6 +208,7 @@ export async function pullFromRepo(
   for (const create of plan.creates) await fetchAndApply(create.repoPath, create.sha);
   for (const update of plan.updates) await fetchAndApply(update.repoPath, update.sha);
   removeDocsByRepoPaths(workspaceId, plan.deletions.map((d) => d.repoPath));
+  setWorkspaceLastSynced(workspaceId, Date.now());
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
     for (const conflict of plan.conflicts) {
@@ -388,6 +389,7 @@ export async function pushToRepo(
   }
 
   await sendChanges(plan.changes);
+  setWorkspaceLastSynced(workspaceId, Date.now());
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
     const winningDocs = plan.conflicts.filter((c) => resolutions[c.docId] === "mine").map((c) => docs.find((d) => d.id === c.docId)!);

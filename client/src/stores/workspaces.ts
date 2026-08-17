@@ -102,7 +102,12 @@ export function setWorkspaceRepoLink(id: string, repoLink: { owner: string; repo
 }
 
 export function clearWorkspaceRepoLink(id: string): void {
-  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink: undefined } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink: undefined, repoLastSyncedAt: undefined } : w)));
+  persistWorkspaces();
+}
+
+export function setWorkspaceLastSynced(id: string, timestamp: number): void {
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLastSyncedAt: timestamp } : w)));
   persistWorkspaces();
 }
 

@@ -28,6 +28,7 @@
   const activeWorkspace = $derived($workspacesStore.find((w) => w.id === $activeWorkspaceIdStore));
   const hasRepoLink = $derived(!!activeWorkspace?.repoLink);
   const repoLinkLabel = $derived(activeWorkspace?.repoLink ? `${activeWorkspace.repoLink.owner}/${activeWorkspace.repoLink.repo}` : "");
+  const repoLastSyncedLabel = $derived(activeWorkspace?.repoLastSyncedAt ? `Synced ${window.MDE.formatRelativeTime(activeWorkspace.repoLastSyncedAt)}` : "");
 
   // Every action below closes the menu it came from afterward — matching
   // the old per-menu closeFileMenu()/closeEditMenu()/etc., which
@@ -137,6 +138,9 @@
             </button>
           {:else}
             <div class="menu-section-label">{repoLinkLabel}</div>
+            {#if repoLastSyncedLabel}
+              <div class="menu-section-label menu-section-sublabel">{repoLastSyncedLabel}</div>
+            {/if}
             <button type="button" disabled={!!$repoSyncBusyLabel} onclick={() => act(() => window.MDE.pullFromRepoAction?.())}>
               <svg class="icon"><use href="#icon-download"></use></svg> {$repoSyncBusyLabel === "Pulling…" ? "Pulling…" : "Pull from Repo"}
             </button>

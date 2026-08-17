@@ -173,4 +173,23 @@ describe("workspaces store — mutations", () => {
     clearWorkspaceRepoLink(ws.id);
     expect(get(workspacesStore).find((w) => w.id === ws.id)?.repoLink).toBeUndefined();
   });
+
+  it("setWorkspaceLastSynced sets repoLastSyncedAt on the matching workspace, leaves others untouched", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceLastSynced } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    const other = createWorkspace("Other");
+    setWorkspaceLastSynced(ws.id, 12345);
+    const all = get(workspacesStore);
+    expect(all.find((w) => w.id === ws.id)?.repoLastSyncedAt).toBe(12345);
+    expect(all.find((w) => w.id === other.id)?.repoLastSyncedAt).toBeUndefined();
+  });
+
+  it("clearWorkspaceRepoLink also clears repoLastSyncedAt", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceRepoLink, setWorkspaceLastSynced, clearWorkspaceRepoLink } = await import("./workspaces");
+    const ws = createWorkspace("Notes");
+    setWorkspaceRepoLink(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+    setWorkspaceLastSynced(ws.id, 12345);
+    clearWorkspaceRepoLink(ws.id);
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.repoLastSyncedAt).toBeUndefined();
+  });
 });

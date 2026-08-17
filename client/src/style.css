@@ -1406,8 +1406,18 @@ select:not(.share-access-select):not(.share-role-select) {
      and holds it there until 150ms after closing starts (matching
      .comments-panel's own transition-duration below), so #main never
      jumps mid-animation but isn't left reserving space once the panel
-     has actually finished sliding away. */
-  grid-template-columns: auto 1fr var(--comments-track-width, 0px);
+     has actually finished sliding away.
+
+     The 82px floor in max() is load-bearing, not decorative padding:
+     .view-selector (the editor/preview toggle icons) shares this same
+     column so it lines up with .comments-panel when open, but unlike
+     comments it's a permanent toolbar element with no collapsed state
+     of its own — at 0px it has nowhere to lay out its two buttons and
+     they render squashed against the right edge. 82px is its own
+     measured natural width (two 31px buttons + gap + padding); max()
+     guarantees the track never drops below that, while still growing
+     to 320px whenever comments needs it. */
+  grid-template-columns: auto 1fr max(var(--comments-track-width, 0px), 82px);
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "toolbar toolbar view-selector"

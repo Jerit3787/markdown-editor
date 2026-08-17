@@ -20,9 +20,16 @@
   async function linkWorkspace(owner: string, repo: string, branch: string) {
     const workspaceId = $activeWorkspaceIdStore;
     if (!workspaceId) return;
+    // Closed immediately, before the sync even starts — same reasoning
+    // as OpenRepoModal.svelte's pickRepo: the progress toast should be
+    // the only "what's happening" indicator on screen, not competing
+    // with a still-open modal for the whole operation's duration. Both
+    // possible outcomes below (push-conflict / pull results with
+    // conflicts) open their OWN separate modal (repoConflictModalOpen),
+    // which is unaffected by whether this modal already closed.
+    close();
     try {
       const result = await linkWorkspaceAndSync(workspaceId, { owner, repo, branch });
-      close();
       if (result.kind === "push-conflict") {
         dismissToast(result.progressToastId);
         repoConflictState.set({

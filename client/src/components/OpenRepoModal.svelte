@@ -11,9 +11,13 @@
   }
 
   async function pickRepo(owner: string, repo: string, branch: string) {
+    // Closed immediately, before the pull even starts — otherwise this
+    // modal stays open the whole time, its own busy-button state
+    // competing with createWorkspaceFromRepo's separate progress toast
+    // for attention instead of the toast being the sole indicator.
+    close();
     try {
       await createWorkspaceFromRepo(owner, repo, branch);
-      close();
     } catch (err: any) {
       // createWorkspaceFromRepo already finished its own progress toast
       // as an error — nothing left to show here.

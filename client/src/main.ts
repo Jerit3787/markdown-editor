@@ -31,6 +31,7 @@ import WikilinkMenu from "./components/WikilinkMenu.svelte";
 import DocInfoPanel from "./components/DocInfoPanel.svelte";
 import ConfirmDialog from "./components/ConfirmDialog.svelte";
 import ShareChoiceModal from "./components/ShareChoiceModal.svelte";
+import MoveToWorkspaceModal from "./components/MoveToWorkspaceModal.svelte";
 import GithubSignInModal from "./components/GithubSignInModal.svelte";
 import LinkModal from "./components/LinkModal.svelte";
 import ImagesModal from "./components/ImagesModal.svelte";
@@ -61,6 +62,7 @@ mount(JoinWorkspaceModal, { target: document.getElementById("join-workspace-moda
 mount(DocInfoPanel, { target: document.getElementById("doc-info-panel-mount")! });
 mount(ConfirmDialog, { target: document.getElementById("confirm-dialog-mount")! });
 mount(ShareChoiceModal, { target: document.getElementById("share-choice-modal-mount")! });
+mount(MoveToWorkspaceModal, { target: document.getElementById("move-to-workspace-modal-mount")! });
 mount(GithubSignInModal, { target: document.getElementById("github-signin-modal-mount")! });
 mount(LinkModal, { target: document.getElementById("link-modal-mount")! });
 mount(ImagesModal, { target: document.getElementById("images-modal-mount")! });

@@ -1,18 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    docsStore,
-    activeIdStore,
-    activeDocContent,
-    duplicateDoc,
-    deleteDoc,
-    findDocById,
-    moveDocToWorkspace,
-    ensureActiveDocInWorkspace,
-  } from "../stores/docs";
+  import { docsStore, activeIdStore, activeDocContent, duplicateDoc, deleteDoc } from "../stores/docs";
   import { activeWorkspaceIdStore, workspacesStore } from "../stores/workspaces";
   import { docListActiveTab } from "../stores/docList";
   import { workspacePresence } from "../stores/workspacePresence";
+  import { openMoveToWorkspaceModal } from "../stores/moveToWorkspace";
 
   const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
 
@@ -110,12 +102,9 @@
     duplicateDoc(id);
   }
 
-  function move(id: string, workspaceId: string) {
+  function move(id: string) {
     closeMenu();
-    moveDocToWorkspace(id, workspaceId);
-    // Moving the currently-open document out of the active workspace
-    // needs the same active-doc fixup switching workspaces does.
-    if (id === $activeIdStore && $activeWorkspaceIdStore) ensureActiveDocInWorkspace($activeWorkspaceIdStore);
+    openMoveToWorkspaceModal(id);
   }
 
   function del(id: string) {
@@ -213,7 +202,6 @@
 
 {#if openMenuId}
   {@const menuDocId = openMenuId}
-  {@const menuDoc = findDocById(menuDocId)}
   <div class="doc-menu-popover" style:top="{menuPos.top}px" style:left="{menuPos.left}px">
     <button type="button" onclick={() => rename(menuDocId)}>
       <svg class="icon"><use href="#icon-pencil"></use></svg> Rename
@@ -222,10 +210,7 @@
       <svg class="icon"><use href="#icon-copy"></use></svg> Duplicate
     </button>
     {#if $workspacesStore.length > 1}
-      <div class="doc-menu-submenu-label">Move to workspace</div>
-      {#each $workspacesStore.filter((w) => w.id !== menuDoc?.workspaceId) as ws (ws.id)}
-        <button type="button" onclick={() => move(menuDocId, ws.id)}>{ws.name}</button>
-      {/each}
+      <button type="button" onclick={() => move(menuDocId)}>Move to workspace...</button>
     {/if}
     <button type="button" class="danger" onclick={() => del(menuDocId)}>
       <svg class="icon"><use href="#icon-trash-2"></use></svg> Delete

@@ -417,6 +417,8 @@ body.focus-mode #statusbar {
 }
 
 .primary-btn:hover { filter: brightness(1.08); }
+.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.primary-btn:disabled:hover { filter: none; }
 
 .dropdown { position: relative; }
 
@@ -484,6 +486,13 @@ body.focus-mode #statusbar {
 }
 
 .dropdown-menu button:not(.primary-btn):not(.secondary-btn):hover { background: var(--accent-dim); color: var(--accent); }
+.dropdown-menu button:not(.primary-btn):not(.secondary-btn):disabled,
+.dropdown-menu button:not(.primary-btn):not(.secondary-btn):disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--text);
+}
 
 /* Collaboration: presence bar, share menu, remote cursors */
 .presence-bar { display: flex; align-items: center; }

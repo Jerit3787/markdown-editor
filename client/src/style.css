@@ -1185,6 +1185,20 @@ body.focus-mode #statusbar {
   font-size: 13.5px;
 }
 
+/* Baseline styling for any plain <select> in the app (JoinWorkspaceModal's
+   merge-target picker, RepoConflictModal's per-conflict resolution picker,
+   and any future one) — excludes Share.svelte's .share-access-select/
+   .share-role-select, which already have their own bespoke JS-measured-
+   width styling for a different reason (see that file's own comment). */
+select:not(.share-access-select):not(.share-role-select) {
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+}
+
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 
 .images-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; max-height: 50vh; overflow-y: auto; }

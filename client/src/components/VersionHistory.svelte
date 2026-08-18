@@ -2,11 +2,12 @@
   import { get } from "svelte/store";
   import { onMount } from "svelte";
   import { versionHistoryOpen } from "../stores/versionHistory";
-  import { getActiveDoc, activeDocContent } from "../stores/docs";
+  import { getActiveDoc, activeDocContent, replaceDocImages } from "../stores/docs";
   import { workspacesStore } from "../stores/workspaces";
   import {
     listVersions,
     getVersionContent,
+    getVersionImages,
     restoreLocalVersion,
     restoreLocalVersionContent,
     listSharedVersions,
@@ -41,6 +42,7 @@
   let selectedId = $state<string | null>(null);
   let selectedEntry = $state<HistoryEntry | null>(null);
   let selectedContent = $state<string | undefined>(undefined);
+  let selectedImages = $state<Record<string, string> | undefined>(undefined);
   let viewMode = $state<"preview" | "diff">("preview");
   let previewEl: HTMLDivElement | undefined = $state();
   let loading = $state(false);
@@ -101,18 +103,33 @@
     selectedId = entry.id;
     selectedEntry = entry;
     selectedContent = undefined;
+    selectedImages = undefined;
     if (!doc) return;
-    const content =
-      entry.kind === "local"
-        ? isShared
-          ? await getSharedVersionContent(doc.workspaceId, doc.id, entry.id)
-          : await getVersionContent(doc.id, entry.id)
-        : await fetchCommitContent(doc, entry.id);
-    if (content === undefined) {
-      showToast("Couldn't load this version's content", "error");
-      return;
+    if (entry.kind === "local") {
+      if (isShared) {
+        const content = await getSharedVersionContent(doc.workspaceId, doc.id, entry.id);
+        if (content === undefined) {
+          showToast("Couldn't load this version's content", "error");
+          return;
+        }
+        selectedContent = content;
+      } else {
+        const content = await getVersionContent(doc.id, entry.id);
+        if (content === undefined) {
+          showToast("Couldn't load this version's content", "error");
+          return;
+        }
+        selectedContent = content;
+        selectedImages = await getVersionImages(doc.id, entry.id);
+      }
+    } else {
+      const content = await fetchCommitContent(doc, entry.id);
+      if (content === undefined) {
+        showToast("Couldn't load this version's content", "error");
+        return;
+      }
+      selectedContent = content;
     }
-    selectedContent = content;
   }
 
   async function loadVersions() {
@@ -155,19 +172,21 @@
         showToast("Couldn't restore this version", "error");
       }
     } else if (entry.kind === "local") {
-      const restoredContent = await restoreLocalVersion(doc.id, entry.id);
-      if (restoredContent !== undefined) {
+      const restored = await restoreLocalVersion(doc.id, entry.id);
+      if (restored !== undefined) {
         const cm = window.MDE.getEditor();
-        cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: restoredContent } });
+        cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: restored.content } });
+        replaceDocImages(doc.id, restored.images);
         showToast("Version restored", "success");
         close();
       } else {
         showToast("Couldn't restore this version", "error");
       }
     } else {
-      await restoreLocalVersionContent(doc.id, content);
+      await restoreLocalVersionContent(doc.id, content, undefined, selectedImages);
       const cm = window.MDE.getEditor();
       cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: content } });
+      replaceDocImages(doc.id, selectedImages);
       showToast("Version restored", "success");
       close();
     }
@@ -257,7 +276,7 @@
         </div>
         {#if viewMode === "diff"}
           <div class="version-history-preview">
-            <DiffView before={selectedContent ?? ""} after={$activeDocContent} />
+            <DiffView before={selectedContent ?? ""} after={$activeDocContent} beforeImages={selectedImages} afterImages={getActiveDoc()?.images} />
           </div>
         {:else}
           <div class="version-history-preview" bind:this={previewEl}></div>

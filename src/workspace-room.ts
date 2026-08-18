@@ -27,6 +27,7 @@ export interface Snapshot {
   id: string;
   timestamp: number;
   content: string;
+  images?: Record<string, string>;
 }
 
 export interface CommentReply {
@@ -513,6 +514,11 @@ export class WorkspaceRoom {
     return stored || [];
   }
 
+  imagesFromDoc(docRoom: DocRoom): Record<string, string> | undefined {
+    const map = docRoom.doc.getMap<string>("images");
+    return map.size > 0 ? (Object.fromEntries(map.entries()) as Record<string, string>) : undefined;
+  }
+
   async maybeSnapshot(docId: string, docRoom: DocRoom, now: number = Date.now()): Promise<void> {
     const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
     if (docRoom.lastSnapshotAt !== undefined && now - docRoom.lastSnapshotAt < SNAPSHOT_INTERVAL_MS) return;
@@ -523,7 +529,7 @@ export class WorkspaceRoom {
       docRoom.lastSnapshotAt = last.timestamp;
       return;
     }
-    snapshots.push({ id: uid(), timestamp: now, content });
+    snapshots.push({ id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom) });
     while (snapshots.length > 50) snapshots.shift();
     await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);
     docRoom.lastSnapshotAt = now;
@@ -531,7 +537,7 @@ export class WorkspaceRoom {
 
   async forceSnapshot(docId: string, docRoom: DocRoom, content: string, now: number = Date.now()): Promise<Snapshot> {
     const snapshots = await this.getSnapshots(docId);
-    const snap: Snapshot = { id: uid(), timestamp: now, content };
+    const snap: Snapshot = { id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom) };
     snapshots.push(snap);
     while (snapshots.length > 50) snapshots.shift();
     await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);

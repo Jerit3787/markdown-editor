@@ -322,6 +322,35 @@ describe("WorkspaceRoom version snapshots", () => {
     expect((await room.getSnapshots("docA"))[0]!.content).toBe("A");
     expect((await room.getSnapshots("docB"))[0]!.content).toBe("B");
   });
+
+  it("captures the doc's images Y.Map into the snapshot", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => {
+      docRoom.doc.getText("content").insert(0, "v1");
+      docRoom.doc.getMap<string>("images").set("img-1", "data:image/png;base64,aGk=");
+    }, "storage");
+    await room.maybeSnapshot("docA", docRoom, 1000);
+    const snapshots = await room.getSnapshots("docA");
+    expect(snapshots[0]!.images).toEqual({ "img-1": "data:image/png;base64,aGk=" });
+  });
+
+  it("stores undefined images for a doc with an empty images map", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "v1"), "storage");
+    await room.maybeSnapshot("docA", docRoom, 1000);
+    const snapshots = await room.getSnapshots("docA");
+    expect(snapshots[0]!.images).toBeUndefined();
+  });
+
+  it("forceSnapshot also captures images", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getMap<string>("images").set("img-2", "data:image/png;base64,eHk="), "storage");
+    const created = await room.forceSnapshot("docA", docRoom, "forced content", 2000);
+    expect(created.images).toEqual({ "img-2": "data:image/png;base64,eHk=" });
+  });
 });
 
 describe("WorkspaceRoom.handleVersionRestoreContentRequest", () => {

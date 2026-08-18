@@ -13,7 +13,7 @@ function fakeDoc(overrides: Partial<Doc>): Doc {
   return { id: "d1", name: "Doc", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1", ...overrides };
 }
 function fakeWorkspace(overrides: Partial<Workspace>): Workspace {
-  return { id: "w1", name: "Workspace", createdAt: 0, ...overrides };
+  return { id: "w1", name: "Workspace", createdAt: 0, updatedAt: 0, ...overrides };
 }
 
 describe("decideShareTarget", () => {

@@ -52,6 +52,21 @@
     window.MDE.switchDoc(id);
   }
 
+  // A plain left-click does the existing in-tab switch. Ctrl/Cmd-click,
+  // Shift-click, and any non-primary button are left alone entirely —
+  // the browser's native "open link" handling is what actually opens a
+  // new tab, and calling preventDefault() unconditionally here would
+  // silently swallow every modified click into an in-tab switch instead,
+  // defeating the point of this being a real link at all. Middle-click
+  // doesn't reach this handler in the first place (it fires `auxclick`,
+  // not `click`, in modern browsers), so it already opens a new tab via
+  // native behavior with no extra handling needed here.
+  function onRowLinkClick(e: MouseEvent, id: string) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    select(id);
+  }
+
   function toggleOutline(id: string, e: MouseEvent) {
     e.stopPropagation();
     const next = new Set(expandedIds);
@@ -134,9 +149,7 @@
   <ul id="docList">
     {#each rows as { doc, headings } (doc.id)}
       <li class:active={doc.id === $activeIdStore}>
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="doc-row" onclick={() => select(doc.id)}>
+        <div class="doc-row">
           {#if headings.length > 0}
             <button
               type="button"
@@ -150,15 +163,17 @@
           {:else}
             <span class="doc-outline-toggle-spacer"></span>
           {/if}
-          <svg class="icon doc-icon"><use href="#icon-file"></use></svg>
-          <span class="doc-name">{doc.name || "Untitled"}</span>
-          {#if ($workspacePresence.get(doc.id) || []).length > 0}
-            <span class="doclist-presence">
-              {#each ($workspacePresence.get(doc.id) || []).slice(0, 3) as p (p.username)}
-                <span class="presence-avatar presence-avatar-sm" style:background={p.color} title={p.username}>{p.username.charAt(0).toUpperCase()}</span>
-              {/each}
-            </span>
-          {/if}
+          <a class="doc-row-link" href={`/d/${doc.id}`} onclick={(e) => onRowLinkClick(e, doc.id)}>
+            <svg class="icon doc-icon"><use href="#icon-file"></use></svg>
+            <span class="doc-name">{doc.name || "Untitled"}</span>
+            {#if ($workspacePresence.get(doc.id) || []).length > 0}
+              <span class="doclist-presence">
+                {#each ($workspacePresence.get(doc.id) || []).slice(0, 3) as p (p.username)}
+                  <span class="presence-avatar presence-avatar-sm" style:background={p.color} title={p.username}>{p.username.charAt(0).toUpperCase()}</span>
+                {/each}
+              </span>
+            {/if}
+          </a>
           <button type="button" class="doc-menu-btn" class:active={openMenuId === doc.id} aria-label="Document options" onclick={(e) => openMenu(doc.id, e)}>
             <svg class="icon"><use href="#icon-ellipsis-vertical"></use></svg>
           </button>

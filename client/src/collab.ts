@@ -152,12 +152,9 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const docs = await Promise.all(docIds.map((id) => fetchRemoteDocContent(workspaceId, id)));
   const validDocs = docs.filter((d): d is NonNullable<typeof d> => !!d);
 
-  // A receiver with zero workspaces has nothing to choose between — skip
-  // straight to what "Add as new workspace" already does today, instead
-  // of asking a question that isn't really a question. An existing user
-  // (any workspace at all) still gets the normal choice via pendingJoin.
-  if (get(workspacesStore).length === 0) {
-    const ws = adoptSharedWorkspace(workspaceId, "Shared workspace");
+  const decision = decideJoinTarget(validDocs, get(workspacesStore).length);
+  if (decision.kind === "auto") {
+    const ws = adoptSharedWorkspace(workspaceId, decision.workspaceName);
     importRemoteDocs(ws.id, validDocs);
     switchWorkspace(ws.id);
     switchDoc(landOnDocId);

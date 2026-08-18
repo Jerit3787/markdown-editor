@@ -251,7 +251,7 @@ export interface PushPlan {
 // deduped path (e.g. notes-2.md, when another doc already claimed
 // notes.md) would push images under assets/notes/ while pull would later
 // look for them under assets/notes-2/ — silently failing to round-trip.
-function slugFromRepoPath(repoPath: string): string {
+export function slugFromRepoPath(repoPath: string): string {
   return repoPath.replace(/\.md$/i, "").split("/").pop() || "untitled";
 }
 

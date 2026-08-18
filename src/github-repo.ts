@@ -84,22 +84,32 @@ export function filterMarkdownEntries(entries: TreeEntry[]): TreeEntry[] {
 // hand back the commit sha too: the push endpoint below needs it (as
 // parents[0] for the new commit) and has no other way to get it, since
 // nothing else in this file resolves a branch to a commit.
-export async function handleRepoTree(request: Request, env: Env, owner: string, repo: string, branch: string): Promise<Response> {
+//
+// sha, when given, names an exact historical commit directly and skips
+// the branch-ref resolution entirely — used by VersionHistory.svelte to
+// look up a file's path as of an old commit (a file that's since been
+// renamed doesn't live at its current repoPath in commits before the
+// rename; contents/{currentPath}?ref={oldSha} 404s, and the only way to
+// find where it actually was is to search that commit's own tree).
+export async function handleRepoTree(request: Request, env: Env, owner: string, repo: string, branch: string, sha?: string): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
   const headers = ghHeaders(session.token);
-  const refRes = await fetch(`${API}/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, { headers });
-  if (refRes.status === 404) {
-    // A freshly created repo (or any repo with no commits yet on this
-    // branch) has no ref to resolve — this is a legitimate empty state,
-    // not an error. handleRepoPush knows how to build a repo's very
-    // first commit when it receives no baseTreeSha/parentCommitSha.
-    return Response.json({ commitSha: null, treeSha: null, tree: [] });
+  let commitSha = sha;
+  if (!commitSha) {
+    const refRes = await fetch(`${API}/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, { headers });
+    if (refRes.status === 404) {
+      // A freshly created repo (or any repo with no commits yet on this
+      // branch) has no ref to resolve — this is a legitimate empty state,
+      // not an error. handleRepoPush knows how to build a repo's very
+      // first commit when it receives no baseTreeSha/parentCommitSha.
+      return Response.json({ commitSha: null, treeSha: null, tree: [] });
+    }
+    if (!refRes.ok) return proxyJson(refRes);
+    const refData = await safeJson<{ object: { sha: string } }>(refRes);
+    if (!refData) return new Response("Failed to resolve branch: invalid response", { status: 502 });
+    commitSha = refData.object.sha;
   }
-  if (!refRes.ok) return proxyJson(refRes);
-  const refData = await safeJson<{ object: { sha: string } }>(refRes);
-  if (!refData) return new Response("Failed to resolve branch: invalid response", { status: 502 });
-  const commitSha = refData.object.sha;
 
   const treeRes = await fetch(`${API}/repos/${owner}/${repo}/git/trees/${commitSha}?recursive=1`, { headers });
   if (!treeRes.ok) return proxyJson(treeRes);

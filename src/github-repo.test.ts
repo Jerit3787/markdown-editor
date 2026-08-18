@@ -122,6 +122,27 @@ describe("handleRepoTree", () => {
     ]);
   });
 
+  it("skips branch-ref resolution and fetches the given commit's tree directly when sha is provided", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        if (url === "https://api.github.com/repos/alice/notes/git/trees/old-commit-sha?recursive=1") {
+          return new Response(JSON.stringify({ sha: "old-tree-sha", tree: [{ path: "readme.md", sha: "x", type: "blob" }] }), { status: 200 });
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      })
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/tree?sha=old-commit-sha", { headers: { Cookie: cookie } });
+    const res = await handleRepoTree(req, fakeEnv, "alice", "notes", "", "old-commit-sha");
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { commitSha: string; treeSha: string; tree: unknown };
+    expect(data).toEqual({ commitSha: "old-commit-sha", treeSha: "old-tree-sha", tree: [{ path: "readme.md", sha: "x", type: "blob" }] });
+    expect(calls).toEqual(["https://api.github.com/repos/alice/notes/git/trees/old-commit-sha?recursive=1"]);
+  });
+
   it("returns an empty tree instead of an error when the branch has no commits yet", async () => {
     vi.stubGlobal(
       "fetch",

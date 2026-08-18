@@ -122,7 +122,8 @@ export default {
     const repoTreeMatch = url.pathname.match(REPO_TREE_PATH);
     if (repoTreeMatch && request.method === "GET") {
       const branch = url.searchParams.get("branch") || "";
-      return handleRepoTree(request, env, repoTreeMatch[1]!, repoTreeMatch[2]!, branch);
+      const sha = url.searchParams.get("sha") || undefined;
+      return handleRepoTree(request, env, repoTreeMatch[1]!, repoTreeMatch[2]!, branch, sha);
     }
 
     const repoBlobMatch = url.pathname.match(REPO_BLOB_PATH);

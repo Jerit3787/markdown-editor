@@ -19,6 +19,7 @@
   import { showToast } from "../stores/toast";
   import { extractAssetImageRefs } from "../diff-image-row";
   import { decodeBase64Text, slugFromRepoPath, type TreeEntry } from "../repo-sync";
+  import { fetchAndMergeRepoHistory } from "../repo-history-sync";
   import DiffView from "./DiffView.svelte";
 
   interface LocalEntry {
@@ -189,6 +190,7 @@
     const isShared = isDocShared(doc);
     restoreAllowed = !isShared || !window.MDE.getEditor().state.readOnly;
     loading = true;
+    if (!isShared) await fetchAndMergeRepoHistory(doc);
     const localList = isShared ? await listSharedVersions(doc.workspaceId, doc.id) : await listVersions(doc.id);
     const localEntries: HistoryEntry[] = localList.map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }));
     const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);

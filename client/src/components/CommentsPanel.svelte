@@ -4,6 +4,7 @@
   import { commentsPanelOpen } from "../stores/commentsPanel";
   import { commentDraft } from "../stores/commentDraft";
   import { activeIdStore, getActiveDoc, addDocNote, deleteDocNote } from "../stores/docs";
+  import { fetchAndMergeRepoHistory } from "../repo-history-sync";
   import { workspacesStore } from "../stores/workspaces";
   import { listComments, createComment, replyToComment, resolveComment, deleteComment, type CommentThread } from "../comments";
   import { relocateAnchor } from "../anchor";
@@ -37,7 +38,9 @@
       const threads = await listComments(ctx.doc.workspaceId, ctx.doc.id);
       entries = threads.map((t) => ({ ...t, kind: "thread" as const }));
     } else {
-      entries = (ctx.doc.notes || []).map((n) => ({ ...n, kind: "note" as const }));
+      await fetchAndMergeRepoHistory(ctx.doc);
+      const freshDoc = getActiveDoc(); // re-read: fetchAndMergeRepoHistory may have just updated doc.notes
+      entries = (freshDoc?.notes || []).map((n) => ({ ...n, kind: "note" as const }));
     }
     loading = false;
     const cm = window.MDE.getEditor();

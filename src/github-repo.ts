@@ -53,7 +53,10 @@ function ghHeaders(token: string): Record<string, string> {
 }
 
 async function proxyJson(res: Response): Promise<Response> {
-  return new Response(res.body, { status: res.status, headers: { "Content-Type": "application/json" } });
+  const headers: HeadersInit = { "Content-Type": "application/json" };
+  const link = res.headers.get("Link");
+  if (link) headers["Link"] = link;
+  return new Response(res.body, { status: res.status, headers });
 }
 
 async function safeJson<T>(res: Response): Promise<T | null> {

@@ -12,6 +12,10 @@ All notable changes to this project are documented here. Format follows
   instead of snapping instantly.** An unscoped desktop-only transition
   rule was winning a CSS specificity tie against the mobile-specific one,
   silently animating a property mobile never changes.
+- **The editor/preview view-selector icons no longer squash against the
+  edge when the comments panel is collapsed.** They share a grid column
+  with the comments panel, which now reserves a minimum width instead of
+  shrinking to zero.
 
 ## [1.24.0] - 2026-08-18
 

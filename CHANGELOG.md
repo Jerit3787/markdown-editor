@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.26.1] - 2026-08-19
+
+### Fixed
+
+- **Text pulled from a GitHub commit could show up as mojibake** (em dashes, curly quotes, and accented letters turned into garbled characters) in Version History's Diff tab and anywhere else repo file content is decoded. Base64 content from GitHub's API is UTF-8, not Latin-1 — it's decoded as such now, so the corruption no longer compounds on repeated pull/push cycles either.
+- **A repo-linked document's Version History Preview tab showed a broken-image icon** for images that render fine everywhere else. The preview now resolves images against the selected version's own image map instead of the live document's, which never matched a repo commit's `assets/...`-style paths.
+
 ## [1.26.0] - 2026-08-18
 
 ### Added

@@ -152,12 +152,9 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const docs = await Promise.all(docIds.map((id) => fetchRemoteDocContent(workspaceId, id)));
   const validDocs = docs.filter((d): d is NonNullable<typeof d> => !!d);
 
-  // A receiver with zero workspaces has nothing to choose between — skip
-  // straight to what "Add as new workspace" already does today, instead
-  // of asking a question that isn't really a question. An existing user
-  // (any workspace at all) still gets the normal choice via pendingJoin.
-  if (get(workspacesStore).length === 0) {
-    const ws = adoptSharedWorkspace(workspaceId, "Shared workspace");
+  const decision = decideJoinTarget(validDocs, get(workspacesStore).length);
+  if (decision.kind === "auto") {
+    const ws = adoptSharedWorkspace(workspaceId, decision.workspaceName);
     importRemoteDocs(ws.id, validDocs);
     switchWorkspace(ws.id);
     switchDoc(landOnDocId);
@@ -748,6 +745,21 @@ export function decideShareTarget(doc: Doc, docs: Doc[], workspaces: Workspace[]
     workspaceName: workspace?.name || "Untitled workspace",
     docCount,
   };
+}
+
+export type JoinDecision = { kind: "auto"; workspaceName: string } | { kind: "choice" };
+
+// A single shared document is unambiguous — there's nothing to meaningfully
+// choose between (merge one document into an existing workspace, or give it
+// its own?) — so it always lands as its own new workspace, named after the
+// document, regardless of how many workspaces the receiver already has.
+// A multi-document workspace share still gets a real choice, except for a
+// receiver with zero workspaces, who — per item 22 — has nothing to choose
+// between either.
+export function decideJoinTarget(validDocs: { name: string }[], existingWorkspaceCount: number): JoinDecision {
+  if (validDocs.length === 1) return { kind: "auto", workspaceName: validDocs[0]!.name || "Untitled" };
+  if (existingWorkspaceCount === 0) return { kind: "auto", workspaceName: "Shared workspace" };
+  return { kind: "choice" };
 }
 
 export async function openShareModal() {

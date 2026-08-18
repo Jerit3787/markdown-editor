@@ -353,6 +353,53 @@ describe("WorkspaceRoom version snapshots", () => {
   });
 });
 
+describe("WorkspaceRoom.handleVersionRestoreRequest — images", () => {
+  it("replaces the doc's images with the restored snapshot's, not merges them", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => {
+      docRoom.doc.getText("content").insert(0, "old content");
+      docRoom.doc.getMap<string>("images").set("img-current-only", "data:image/png;base64,Y3Vycg==");
+    }, "storage");
+    const oldSnap = await room.forceSnapshot("docA", docRoom, "old content", 1000);
+    // oldSnap captured "img-current-only" too (same doc state) -- overwrite
+    // the doc's images to something ELSE before restoring, so the test can
+    // tell "replaced back to the snapshot's" apart from "left untouched".
+    docRoom.doc.transact(() => {
+      const map = docRoom.doc.getMap<string>("images");
+      for (const key of Array.from(map.keys())) map.delete(key);
+      map.set("img-newer", "data:image/png;base64,bmV3");
+    }, "local");
+
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request(`https://example.com/w/ws1/docs/docA/versions/${oldSnap.id}/restore`, {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}` },
+    });
+    const res = await room.handleVersionRestoreRequest(request, "docA", oldSnap.id);
+    expect(res.status).toBe(200);
+    expect(docRoom.doc.getMap<string>("images").toJSON()).toEqual({ "img-current-only": "data:image/png;base64,Y3Vycg==" });
+  });
+
+  it("clears the doc's images when restoring a snapshot that had none", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "no images here"), "storage");
+    const snapNoImages = await room.forceSnapshot("docA", docRoom, "no images here", 1000);
+    docRoom.doc.transact(() => docRoom.doc.getMap<string>("images").set("img-x", "data:image/png;base64,eA=="), "local");
+
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request(`https://example.com/w/ws1/docs/docA/versions/${snapNoImages.id}/restore`, {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}` },
+    });
+    await room.handleVersionRestoreRequest(request, "docA", snapNoImages.id);
+    expect(docRoom.doc.getMap<string>("images").toJSON()).toEqual({});
+  });
+});
+
 describe("WorkspaceRoom.handleVersionRestoreContentRequest", () => {
   it("replaces the doc's content and records a new snapshot", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);

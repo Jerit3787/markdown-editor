@@ -1595,6 +1595,16 @@ select:not(.share-access-select):not(.share-role-select) {
 }
 .doc-row:hover { background: var(--border); }
 
+.doc-row-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
 /* Reserves the same width whether or not a given doc has headings (and
    therefore an outline toggle), so every row's icon/name stay aligned. */
 .doc-outline-toggle, .doc-outline-toggle-spacer { width: 20px; height: 20px; flex-shrink: 0; }

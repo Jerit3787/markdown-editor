@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.27.1] - 2026-08-19
+
+### Changed
+
+- Dependency updates (Renovate): `@types/node` to v24.13.3 (major bump, package.json range updated), `@cloudflare/workers-types` to 5.20260818.1, `wrangler` to 4.124.0, `vitest` to 4.1.11, `marked` to 18.0.10, `isomorphic-git` to 1.41.5, `y-codemirror.next` to 0.3.6 (all within their existing package.json ranges, lockfile only). This release syncs the local lockfile with what's already merged to master.
+
 ## [1.27.0] - 2026-08-19
 
 ### Added

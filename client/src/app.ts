@@ -8,7 +8,6 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
-import html2pdf from "html2pdf.js";
 import type { Doc, MDEBridge } from "./types";
 import { formatRelativeTime } from "./relative-time";
 import {
@@ -41,8 +40,6 @@ import { computeBlockLineStarts, computeListItemLineStarts } from "./scroll-sync
 import { activeParagraphRange } from "./focus-mode";
 import { focusMode } from "./stores/focusMode";
 import { slashMenu } from "./stores/slashMenu";
-import { vim, getCM } from "@replit/codemirror-vim";
-import { emacs } from "@replit/codemirror-emacs";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
@@ -599,9 +596,21 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // docs call it out as required for correct visual-mode selection
   // rendering when not using CM6's basicSetup, which this app doesn't
   // use) and it's already unconditional, so it isn't added again here.
-  function keybindingsExtensionsFor(mode: KeybindingMode): Extension[] {
-    if (mode === "vim") return [vim()];
-    if (mode === "emacs") return [emacs()];
+  //
+  // Dynamically imported (not top-level imports) — @replit/codemirror-vim
+  // and @replit/codemirror-emacs only matter for the small minority of
+  // users who turn on non-default keybindings, so they shouldn't cost
+  // every page load. "normal" (the default) resolves with no import at
+  // all.
+  async function keybindingsExtensionsFor(mode: KeybindingMode): Promise<Extension[]> {
+    if (mode === "vim") {
+      const { vim } = await import("@replit/codemirror-vim");
+      return [vim()];
+    }
+    if (mode === "emacs") {
+      const { emacs } = await import("@replit/codemirror-emacs");
+      return [emacs()];
+    }
     return [];
   }
 
@@ -613,14 +622,16 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // calls this from onMount and hands the resulting view back via
   // window.MDE.registerEditor.
   function buildEditorExtensions(): Extension[] {
-    // vim()/emacs() must come before every other keymap-providing
-    // extension for correct keybinding precedence (both packages'
-    // own docs require this) — keybindingsCompartment is deliberately
-    // first here, unlike every other compartment in this array, none
-    // of which have an ordering requirement.
-    const savedKeybindingMode = (localStorage.getItem(STORAGE_KEYBINDINGS) as KeybindingMode) || "normal";
+    // Keybindings compartment starts empty regardless of the saved mode
+    // — vim()/emacs() need an async dynamic import (see
+    // keybindingsExtensionsFor), and this function's own return type is
+    // relied on to stay synchronous (Editor.svelte builds the initial
+    // EditorState directly from it). registerEditor() applies the saved
+    // mode right after the view exists, via the same applyKeybindings()
+    // helper setKeybindings() uses for a runtime switch — same
+    // reconfigure-the-compartment mechanism either way, just async here.
     return [
-      keybindingsCompartment.of(keybindingsExtensionsFor(savedKeybindingMode)),
+      keybindingsCompartment.of([]),
       readOnlyCompartment.of(EditorState.readOnly.of(false)),
       editingModeCompartment.of(localEditingModeExtensions()),
       focusModeCompartment.of([]),
@@ -760,13 +771,23 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     if (focusModeOn) centerCursorLine(cm);
   }
 
-  function setKeybindings(mode: KeybindingMode) {
-    localStorage.setItem(STORAGE_KEYBINDINGS, mode);
-    cm.dispatch({ effects: keybindingsCompartment.reconfigure(keybindingsExtensionsFor(mode)) });
-    updateKeybindingIndicator(mode);
+  // Shared by setKeybindings() (a user-triggered runtime switch) and
+  // registerEditor() (applying whatever mode was saved from a previous
+  // session, right after the view first exists) — both just need "make
+  // the compartment and indicator reflect this mode," async either way
+  // now that vim()/emacs() are dynamically imported.
+  async function applyKeybindings(mode: KeybindingMode): Promise<void> {
+    const extensions = await keybindingsExtensionsFor(mode);
+    cm.dispatch({ effects: keybindingsCompartment.reconfigure(extensions) });
+    await updateKeybindingIndicator(mode);
   }
 
-  function updateKeybindingIndicator(mode: KeybindingMode) {
+  function setKeybindings(mode: KeybindingMode) {
+    localStorage.setItem(STORAGE_KEYBINDINGS, mode);
+    void applyKeybindings(mode);
+  }
+
+  async function updateKeybindingIndicator(mode: KeybindingMode): Promise<void> {
     const el = document.getElementById("keybindingMode");
     if (mode === "normal") {
       el.hidden = true;
@@ -782,7 +803,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // a fresh CM5-compat instance (the package creates a new one every
     // time vim() initializes), so repeatedly toggling Vim mode on/off/on
     // never accumulates stale listeners on an old, discarded instance.
+    // The dynamic import here always hits module cache — applyKeybindings
+    // already imported the same module to build the vim() extension
+    // above, so this never triggers a second network fetch.
     el.hidden = false;
+    const { getCM } = await import("@replit/codemirror-vim");
     const cm5 = getCM(cm);
     const updateFromVimState = () => {
       const vimState = cm5?.state?.vim;
@@ -794,7 +819,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   function initKeybindingIndicator() {
     const mode = (localStorage.getItem(STORAGE_KEYBINDINGS) as KeybindingMode) || "normal";
-    updateKeybindingIndicator(mode);
+    void updateKeybindingIndicator(mode);
   }
 
   // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
@@ -2119,7 +2144,11 @@ ${bodyHtml}
 </html>`;
   }
 
-  function exportPdf(base: string) {
+  // Dynamically imported (not a top-level import) — html2pdf.js bundles
+  // jsPDF + html2canvas, several hundred KB that only ever matter for
+  // this one occasional export action, not the initial page load.
+  async function exportPdf(base: string) {
+    const { default: html2pdf } = await import("html2pdf.js");
     const source = document.getElementById("preview");
     const clone = source.cloneNode(true) as HTMLElement;
     clone.style.padding = "0";
@@ -2192,6 +2221,13 @@ ${bodyHtml}
     getEditorExtensions: buildEditorExtensions,
     registerEditor(view) {
       cm = view;
+      // buildEditorExtensions() always leaves the keybindings compartment
+      // empty (see its own comment) — apply whatever mode was saved from
+      // a previous session now that the view actually exists. "normal"
+      // needs no import at all, so this is a no-op dispatch for the
+      // (default, common) case.
+      const savedKeybindingMode = (localStorage.getItem(STORAGE_KEYBINDINGS) as KeybindingMode) || "normal";
+      void applyKeybindings(savedKeybindingMode);
     },
     // getActiveDoc/findDocById/createDoc/deleteDoc/duplicateDoc/
     // markActiveDocShared/setActiveDocGistId are no longer on the bridge —

@@ -227,7 +227,7 @@ describe("fetchRepoDocDates", () => {
       })
     );
     await fetchRepoDocDates("alice", "notes", "main", "docs/my notes.md");
-    expect(requestedUrl).toBe("/api/repo/alice/notes/commits?branch=main&page=1&path=docs%2Fmy%20notes.md");
+    expect(requestedUrl).toBe("/api/repo/alice/notes/commits?branch=main&page=1&path=docs/my%20notes.md");
   });
 });
 ```

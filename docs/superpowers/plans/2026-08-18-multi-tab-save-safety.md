@@ -246,7 +246,71 @@ export function persistDocs() {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `npm test -- docs.test.ts`
-Expected: PASS — all tests in the file, including the 2 new ones.
+Expected: FAIL — this plan originally stopped at Step 4, but implementing it this far surfaced a real regression:
+`removeDocsByRepoPaths removes every doc in the workspace matching one of the given paths` fails, because `mergeById` can't distinguish "this id is missing from `current` because another tab never told me about it" from "this id is missing because THIS tab just deleted it" — both look identical (absent from `current`, present in whatever's still in `localStorage`). `removeDocById` filters the doc out of `docsStore` and calls `persistDocs()`, whose merge reads `localStorage` fresh — still holding the pre-deletion state, since writing the deletion *is* what this call is doing — and the union resurrects the doc from that stale snapshot. This is not the narrower cross-tab tradeoff from the spec's Global Constraints; it broke ordinary same-tab deletion. Confirmed with the user before proceeding (this expands the task): add a companion function that lets deletion win regardless of what's still in `localStorage`.
+
+- [ ] **Step 4b: Give deletion an explicit exclusion the merge respects**
+
+Replace the `persistDocs` just written in Step 3 with:
+
+```ts
+// Deletion goes through this instead of persistDocs() directly: a plain
+// merge can't tell "this id is missing from docsStore because another tab
+// never told me about it" apart from "this id is missing because THIS tab
+// just deleted it" — both look identical (absent from current, present in
+// whatever's still in localStorage). Explicitly excluding deletedIds from
+// the external side too means a delete always wins for this tab, instead
+// of the merge resurrecting it from a pre-deletion snapshot on the very
+// save that's supposed to record the deletion.
+function persistDocsExcluding(deletedIds: Set<string>) {
+  try {
+    const raw = localStorage.getItem(STORAGE_DOCS);
+    const external = raw ? (JSON.parse(raw) as Doc[]).filter((d) => !deletedIds.has(d.id)) : [];
+    const merged = mergeById(get(docsStore), external);
+    docsStore.set(merged);
+    localStorage.setItem(STORAGE_DOCS, JSON.stringify(merged));
+  } catch (e) {
+    // Most commonly a full storage quota (large embedded images) — this
+    // used to fail silently, leaving the in-memory doc looking "saved"
+    // (the status pill doesn't know the write itself failed) while
+    // nothing actually persisted.
+    showToast("Couldn't save — your browser's local storage may be full", "error");
+  }
+}
+
+export function persistDocs() {
+  // Read fresh instead of trusting this tab's own possibly-stale copy —
+  // another tab may have saved since this tab last loaded. Merging
+  // (rather than overwriting) is what stops a save in one tab from
+  // silently destroying a document another tab created or edited.
+  persistDocsExcluding(new Set());
+}
+```
+
+Then in `removeDocById` (`client/src/stores/docs.ts`, currently around line 292-304), replace its `persistDocs();` call with `persistDocsExcluding(new Set([id]));`.
+
+Add one more test to `client/src/stores/docs.test.ts`, alongside the two added in Step 1:
+
+```ts
+  it("removeDocById's own save doesn't resurrect the doc from the pre-deletion snapshot still in localStorage", async () => {
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([{ id: "doc-a", name: "A", content: "gone soon", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }])
+    );
+    const { docsStore, removeDocById } = await import("./docs");
+
+    removeDocById("doc-a");
+
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!);
+    expect(persisted.find((d: any) => d.id === "doc-a")).toBeUndefined();
+    expect(get(docsStore).find((d) => d.id === "doc-a")).toBeUndefined();
+  });
+```
+
+- [ ] **Step 4c: Run tests to verify they pass**
+
+Run: `npm test -- docs.test.ts`
+Expected: PASS — all tests in the file, including the 3 new ones (2 from Step 1, 1 from Step 4b).
 
 - [ ] **Step 5: Commit**
 
@@ -544,13 +608,15 @@ git commit -m "feat: add Workspace.updatedAt, backfilled and bumped on every mut
 ### Task 4: Merge-on-save for `persistWorkspaces()`
 
 **Files:**
-- Modify: `client/src/stores/workspaces.ts` (the `persistWorkspaces` function, currently lines 52-58)
+- Modify: `client/src/stores/workspaces.ts` (the `persistWorkspaces` function, currently lines 52-58, and `deleteWorkspaceRecord`, currently lines 134-142)
 - Test: `client/src/stores/workspaces.test.ts`
 
 **Interfaces:**
 - Consumes: `mergeById` from Task 1's `client/src/merge-records.ts`. Relies on every `Workspace` having an accurate `updatedAt` (Task 3).
 
-- [ ] **Step 1: Write the failing test**
+**Note carried over from Task 2:** the same-tab deletion bug found there applies here identically — `deleteWorkspaceRecord` filters a workspace out of `workspacesStore` and calls `persistWorkspaces()`, whose merge would resurrect it from the pre-deletion snapshot still in `localStorage`. This task builds the exclusion-aware persist from the start instead of discovering the regression the hard way twice.
+
+- [ ] **Step 1: Write the failing tests**
 
 Add this to the `describe("workspaces store — updatedAt", ...)` block added in Task 3, in `client/src/stores/workspaces.test.ts`:
 
@@ -578,14 +644,25 @@ Add this to the `describe("workspaces store — updatedAt", ...)` block added in
     expect(persisted.find((w: any) => w.id === "ws-b").name).toBe("B from another tab");
     expect(get(workspacesStore)).toHaveLength(2);
   });
+
+  it("deleteWorkspaceRecord's own save doesn't resurrect the workspace from the pre-deletion snapshot still in localStorage", async () => {
+    localStorage.setItem("mde:workspaces", JSON.stringify([{ id: "ws-a", name: "A", createdAt: 1, updatedAt: 1 }]));
+    const { workspacesStore, deleteWorkspaceRecord } = await import("./workspaces");
+
+    deleteWorkspaceRecord("ws-a");
+
+    const persisted = JSON.parse(localStorage.getItem("mde:workspaces")!);
+    expect(persisted.find((w: any) => w.id === "ws-a")).toBeUndefined();
+    expect(get(workspacesStore).find((w) => w.id === "ws-a")).toBeUndefined();
+  });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `npm test -- workspaces.test.ts`
-Expected: FAIL — `ws-b` is missing from the persisted result because `persistWorkspaces()` currently overwrites `localStorage` with only the in-memory `workspacesStore` value.
+Expected: FAIL — both. `ws-b` is missing from the persisted result because `persistWorkspaces()` currently overwrites `localStorage` with only the in-memory `workspacesStore` value. The deletion test fails once Step 3's plain merge is in place, for the same reason `removeDocById` failed in Task 2 — a plain merge resurrects `ws-a` from the pre-deletion snapshot still in `localStorage`, since writing the deletion is what this save is trying to do.
 
-- [ ] **Step 3: Implement the merge in `persistWorkspaces`**
+- [ ] **Step 3: Implement the merge in `persistWorkspaces`, with deletion exclusion from the start**
 
 In `client/src/stores/workspaces.ts`, add this import near the top of the file (alongside the existing `import { showToast } from "./toast";`):
 
@@ -608,13 +685,16 @@ export function persistWorkspaces() {
 with:
 
 ```ts
-export function persistWorkspaces() {
+// Deletion goes through this instead of persistWorkspaces() directly —
+// see docs.ts's persistDocsExcluding, which exists for the identical
+// reason: a plain merge can't tell "missing because another tab never
+// told me about it" apart from "missing because THIS tab just deleted
+// it," so a delete's own save would otherwise resurrect the record from
+// whatever pre-deletion snapshot is still in localStorage.
+function persistWorkspacesExcluding(deletedIds: Set<string>) {
   try {
-    // Read fresh instead of trusting this tab's own possibly-stale copy —
-    // see docs.ts's persistDocs, which does the same thing for the same
-    // reason.
     const raw = localStorage.getItem(STORAGE_WORKSPACES);
-    const external = raw ? (JSON.parse(raw) as Workspace[]) : [];
+    const external = raw ? (JSON.parse(raw) as Workspace[]).filter((w) => !deletedIds.has(w.id)) : [];
     const merged = mergeById(get(workspacesStore), external);
     workspacesStore.set(merged);
     localStorage.setItem(STORAGE_WORKSPACES, JSON.stringify(merged));
@@ -622,12 +702,35 @@ export function persistWorkspaces() {
     showToast("Couldn't save — your browser's local storage may be full", "error");
   }
 }
+
+export function persistWorkspaces() {
+  // Read fresh instead of trusting this tab's own possibly-stale copy —
+  // see docs.ts's persistDocs, which does the same thing for the same
+  // reason.
+  persistWorkspacesExcluding(new Set());
+}
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+Then in `deleteWorkspaceRecord` (currently lines 134-142):
+
+```ts
+export function deleteWorkspaceRecord(id: string) {
+  const remaining = get(workspacesStore).filter((w) => w.id !== id);
+  workspacesStore.set(remaining);
+  persistWorkspaces();
+  if (get(activeWorkspaceIdStore) === id) {
+    const fallback = [...remaining].sort((a, b) => a.createdAt - b.createdAt)[0];
+    setActiveWorkspaceId(fallback ? fallback.id : null);
+  }
+}
+```
+
+replace `persistWorkspaces();` with `persistWorkspacesExcluding(new Set([id]));`.
+
+- [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `npm test -- workspaces.test.ts`
-Expected: PASS — all tests in the file, including this one.
+Expected: PASS — all tests in the file, including both new ones.
 
 - [ ] **Step 5: Run the full test suite and type-check**
 

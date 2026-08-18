@@ -105,11 +105,16 @@ export async function getVersionImages(docId: string, versionId: string): Promis
 // (bypassing the throttle) rather than deleting anything newer — the
 // restore itself becomes undoable by restoring whatever was current
 // before it.
-export async function restoreLocalVersion(docId: string, versionId: string, now: number = Date.now()): Promise<string | undefined> {
+export async function restoreLocalVersion(
+  docId: string,
+  versionId: string,
+  now: number = Date.now()
+): Promise<{ content: string; images: Record<string, string> | undefined } | undefined> {
   const content = await getVersionContent(docId, versionId);
   if (content === undefined) return undefined;
-  await appendSnapshot(docId, content, now);
-  return content;
+  const images = await getVersionImages(docId, versionId);
+  await appendSnapshot(docId, content, now, images);
+  return { content, images };
 }
 
 // For restoring content that didn't come from an existing local
@@ -117,8 +122,8 @@ export async function restoreLocalVersion(docId: string, versionId: string, now:
 // force-append-for-undo-safety guarantee as restoreLocalVersion above,
 // just skipping the snapshot lookup since the caller already has the
 // content in hand.
-export async function restoreLocalVersionContent(docId: string, content: string, now: number = Date.now()): Promise<void> {
-  await appendSnapshot(docId, content, now);
+export async function restoreLocalVersionContent(docId: string, content: string, now: number = Date.now(), images?: Record<string, string>): Promise<void> {
+  await appendSnapshot(docId, content, now, images);
 }
 
 export async function deleteHistory(docId: string): Promise<void> {

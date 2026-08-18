@@ -54,15 +54,16 @@ describe("local version history", () => {
     expect(await getVersionContent("doc-content", v!.id)).toBe("hello");
   });
 
-  it("restoreLocalVersion returns the content and force-appends a new snapshot", async () => {
-    await maybeSnapshotVersion("doc-restore", "v1", 1_000);
+  it("restoreLocalVersion returns the content and images, and force-appends a new snapshot", async () => {
+    await maybeSnapshotVersion("doc-restore", "v1", 1_000, { "img-1": "data:image/png;base64,aGk=" });
     await maybeSnapshotVersion("doc-restore", "v2", 1_000 + 6 * 60 * 1000);
     const [v1] = (await listVersions("doc-restore")).slice(-1);
-    const content = await restoreLocalVersion("doc-restore", v1!.id, 1_000 + 6.1 * 60 * 1000);
-    expect(content).toBe("v1");
+    const result = await restoreLocalVersion("doc-restore", v1!.id, 1_000 + 6.1 * 60 * 1000);
+    expect(result).toEqual({ content: "v1", images: { "img-1": "data:image/png;base64,aGk=" } });
     const versions = await listVersions("doc-restore");
     expect(versions).toHaveLength(3);
     expect(await getVersionContent("doc-restore", versions[0]!.id)).toBe("v1");
+    expect(await getVersionImages("doc-restore", versions[0]!.id)).toEqual({ "img-1": "data:image/png;base64,aGk=" });
   });
 
   it("deleteHistory removes a document's snapshots", async () => {

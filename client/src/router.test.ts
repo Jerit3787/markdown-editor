@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { parseDocIdFromPath, pushDocUrl, replaceToRoot } from "./router";
+import { parseDocIdFromPath, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
 
 beforeEach(() => {
   history.replaceState(null, "", "/");
@@ -35,6 +35,22 @@ describe("pushDocUrl", () => {
     history.pushState(null, "", "/d/abc123");
     const lengthBefore = history.length;
     pushDocUrl("abc123");
+    expect(history.length).toBe(lengthBefore);
+  });
+});
+
+describe("replaceDocUrl", () => {
+  it("sets the doc's URL as the current entry, not a new one", () => {
+    const lengthBefore = history.length;
+    replaceDocUrl("abc123");
+    expect(location.pathname).toBe("/d/abc123");
+    expect(history.length).toBe(lengthBefore);
+  });
+
+  it("does nothing when already on that doc's URL", () => {
+    history.replaceState(null, "", "/d/abc123");
+    const lengthBefore = history.length;
+    replaceDocUrl("abc123");
     expect(history.length).toBe(lengthBefore);
   });
 });

@@ -18,7 +18,8 @@
   import { renderVersionPreview } from "../version-preview";
   import { showToast } from "../stores/toast";
   import { extractAssetImageRefs } from "../diff-image-row";
-  import { decodeBase64Text } from "../repo-sync";
+  import { decodeBase64Text, slugFromRepoPath, type TreeEntry } from "../repo-sync";
+  import { fetchAndMergeRepoHistory } from "../repo-history-sync";
   import DiffView from "./DiffView.svelte";
 
   interface LocalEntry {
@@ -63,17 +64,41 @@
     return message.split("\n")[0] || message;
   }
 
+  // GitHub's commit-list-by-path endpoint (loadCommitEntries) follows
+  // renames, so the commit list can include commits from before the
+  // doc's file was renamed — but doc.repoPath is always the file's
+  // CURRENT path, which didn't exist yet at those older commits.
+  // contents/{currentPath}?ref={oldSha} 404s in that case; fall back to
+  // searching that commit's own tree for a markdown file whose slug
+  // matches ours case-insensitively (renames are almost always just a
+  // case or wording change), the same slug convention planPush/pull
+  // already use to match a doc to its repo file.
+  async function findRenamedPathAtRef(owner: string, repo: string, sha: string, wantSlug: string): Promise<string | undefined> {
+    const res = await fetch(`/api/repo/${owner}/${repo}/tree?sha=${encodeURIComponent(sha)}`);
+    if (!res.ok) return undefined;
+    const data = (await res.json()) as { tree?: TreeEntry[] };
+    const match = (data.tree || []).find(
+      (e) => e.type === "blob" && /\.md$/i.test(e.path) && slugFromRepoPath(e.path).toLowerCase() === wantSlug.toLowerCase()
+    );
+    return match?.path;
+  }
+
   async function fetchCommitContent(doc: ReturnType<typeof getActiveDoc>, sha: string): Promise<string | undefined> {
     if (!doc?.repoPath) return undefined;
     const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
     const repoLink = ws?.repoLink;
     if (!repoLink) return undefined;
-    const encodedPath = doc.repoPath.split("/").map(encodeURIComponent).join("/");
-    const res = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/contents/${encodedPath}?ref=${encodeURIComponent(sha)}`);
-    if (!res.ok) return undefined;
-    const data = (await res.json()) as { content: string; encoding: string };
-    if (data.encoding !== "base64") return data.content;
-    return decodeBase64Text(data.content);
+    const fetchAt = async (path: string): Promise<string | undefined> => {
+      const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+      const res = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/contents/${encodedPath}?ref=${encodeURIComponent(sha)}`);
+      if (!res.ok) return undefined;
+      const data = (await res.json()) as { content: string; encoding: string };
+      return data.encoding !== "base64" ? data.content : decodeBase64Text(data.content);
+    };
+    const direct = await fetchAt(doc.repoPath);
+    if (direct !== undefined) return direct;
+    const renamedPath = await findRenamedPathAtRef(repoLink.owner, repoLink.repo, sha, slugFromRepoPath(doc.repoPath));
+    return renamedPath ? await fetchAt(renamedPath) : undefined;
   }
 
   async function fetchCommitImages(doc: ReturnType<typeof getActiveDoc>, sha: string, content: string): Promise<Record<string, string>> {
@@ -165,6 +190,7 @@
     const isShared = isDocShared(doc);
     restoreAllowed = !isShared || !window.MDE.getEditor().state.readOnly;
     loading = true;
+    if (!isShared) await fetchAndMergeRepoHistory(doc);
     const localList = isShared ? await listSharedVersions(doc.workspaceId, doc.id) : await listVersions(doc.id);
     const localEntries: HistoryEntry[] = localList.map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }));
     const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);
@@ -308,7 +334,14 @@
         </div>
         {#if viewMode === "diff"}
           <div class="version-history-preview">
-            <DiffView before={selectedContent ?? ""} after={$activeDocContent} beforeImages={selectedImages} afterImages={getActiveDoc()?.images} />
+            {#if selectedContent === undefined}
+              <div class="empty-state">
+                <svg class="empty-state-icon"><use href="#icon-history"></use></svg>
+                <div class="empty-state-title">Loading…</div>
+              </div>
+            {:else}
+              <DiffView before={selectedContent} after={$activeDocContent} beforeImages={selectedImages} afterImages={getActiveDoc()?.images} />
+            {/if}
           </div>
         {:else}
           <div class="version-history-preview" bind:this={previewEl}></div>

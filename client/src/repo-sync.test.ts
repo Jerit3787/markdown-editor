@@ -12,8 +12,11 @@ import {
   linkWorkspaceAndSync,
   markerMatchesWorkspace,
   decodeBase64Text,
+  pushToRepo,
   type TreeEntry,
 } from "./repo-sync";
+import "fake-indexeddb/auto";
+import { maybeSnapshotVersion } from "./history";
 import { docsStore } from "./stores/docs";
 import { createWorkspace, workspacesStore } from "./stores/workspaces";
 import { startFakeRepoBackend, type FakeRepoBackend } from "./test-support/fake-repo-backend";
@@ -381,6 +384,78 @@ describe("planPush", () => {
     expect(plan.changes[0]!.repoPath).toBe("old-name.md");
     expect(plan.deletions).toEqual([]);
   });
+
+  it("includes a historyChanges entry for a doc with local snapshots to push", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "notes", repoPath: "notes.md", repoSha: "s1", content: "hi" })];
+    const entries: TreeEntry[] = [{ path: "notes.md", sha: "s1", type: "blob" }];
+    const localHistory = new Map([["d1", { snapshots: [{ id: "snap-1", timestamp: 1, content: "old" }], notes: [] }]]);
+    const plan = await planPush(docs, entries, false, [], localHistory);
+    expect(plan.historyChanges).toHaveLength(1);
+    expect(plan.historyChanges[0]!.historyPath).toBe(".mde/history/notes.json");
+    expect(JSON.parse(plan.historyChanges[0]!.content)).toEqual({ snapshots: [{ id: "snap-1", timestamp: 1, content: "old" }], notes: [] });
+  });
+
+  it("emits historyChanges even when the doc's own content is unchanged", async () => {
+    const bytes = new TextEncoder().encode("hi");
+    const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+    const combined = new Uint8Array(header.length + bytes.length);
+    combined.set(header);
+    combined.set(bytes, header.length);
+    const digest = await crypto.subtle.digest("SHA-1", combined);
+    const contentSha = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    const docs = [fakeDoc({ id: "d1", name: "notes", repoPath: "notes.md", repoSha: contentSha, content: "hi" })];
+    const entries: TreeEntry[] = [{ path: "notes.md", sha: contentSha, type: "blob" }];
+    const localHistory = new Map([["d1", { snapshots: [], notes: [{ id: "n1", from: 0, to: 2, quote: "hi", orphaned: false, body: "b", createdAt: 1 }] }]]);
+    const plan = await planPush(docs, entries, false, [], localHistory);
+    expect(plan.changes).toEqual([]); // content itself unchanged — confirms this isn't just "content also happened to push"
+    expect(plan.historyChanges).toHaveLength(1);
+    expect(plan.historyChanges[0]!.historyPath).toBe(".mde/history/notes.json");
+  });
+
+  it("omits historyChanges for a doc with no local snapshots or notes", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "notes", repoPath: "notes.md", repoSha: "s1", content: "hi" })];
+    const entries: TreeEntry[] = [{ path: "notes.md", sha: "s1", type: "blob" }];
+    const plan = await planPush(docs, entries, false, [], new Map([["d1", { snapshots: [], notes: [] }]]));
+    expect(plan.historyChanges).toEqual([]);
+  });
+
+  it("skips historyChanges when the pushed content matches the tree exactly", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "notes", repoPath: "notes.md", repoSha: "s1", content: "hi" })];
+    const snapshots = [{ id: "snap-1", timestamp: 1, content: "old" }];
+    const historyContent = JSON.stringify({ snapshots, notes: [] });
+    const bytes = new TextEncoder().encode(historyContent);
+    const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+    const combined = new Uint8Array(header.length + bytes.length);
+    combined.set(header);
+    combined.set(bytes, header.length);
+    const digest = await crypto.subtle.digest("SHA-1", combined);
+    const sha = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    const entries: TreeEntry[] = [
+      { path: "notes.md", sha: "s1", type: "blob" },
+      { path: ".mde/history/notes.json", sha, type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, false, [], new Map([["d1", { snapshots, notes: [] }]]));
+    expect(plan.historyChanges).toEqual([]);
+  });
+
+  it("deletes a renamed doc's old history file alongside its old content path", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "New Name", repoPath: "old-name.md", repoSha: "s1", content: "hi" })];
+    const entries: TreeEntry[] = [
+      { path: "old-name.md", sha: "s1", type: "blob" },
+      { path: ".mde/history/old-name.json", sha: "hist-sha", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.deletions).toEqual(expect.arrayContaining(["old-name.md", ".mde/history/old-name.json"]));
+  });
+
+  it("deletes a removed doc's history file via pendingRepoDeletions, same as its content path", async () => {
+    const entries: TreeEntry[] = [
+      { path: "gone.md", sha: "s1", type: "blob" },
+      { path: ".mde/history/gone.json", sha: "hist-sha", type: "blob" },
+    ];
+    const plan = await planPush([], entries, false, ["gone.md"]);
+    expect(plan.deletions).toEqual(expect.arrayContaining(["gone.md", ".mde/history/gone.json"]));
+  });
 });
 
 describe("planCreateWorkspaceFromRepo", () => {
@@ -526,5 +601,43 @@ describe("linkWorkspaceAndSync", () => {
     const synced = get(workspacesStore).find((w) => w.id === ws.id)?.repoLastSyncedAt;
     expect(synced).toBeDefined();
     expect(synced!).toBeGreaterThanOrEqual(before);
+  });
+});
+
+describe("pushToRepo", () => {
+  let backend: FakeRepoBackend;
+  let realFetch: typeof fetch;
+
+  beforeEach(async () => {
+    backend = await startFakeRepoBackend();
+    realFetch = globalThis.fetch.bind(globalThis);
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const rewritten = url.startsWith("/api/repo") ? `${backend.baseUrl}${url}` : url;
+      return realFetch(rewritten, init);
+    });
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await backend.stop();
+  });
+
+  it("includes a doc's history-file blob in the push when it has local snapshots to push", async () => {
+    // notes.md is deliberately NOT in the seeded repo — a genuinely new
+    // file for this push, so there's no blob-sha mismatch to produce a
+    // conflict and skip the doc (this test cares about the history
+    // blob riding along, not planPush's own conflict-detection, which
+    // Task 3's tests already cover directly).
+    backend.seedRepo("acme", "docs", "main", [{ path: "README.md", content: "placeholder" }]);
+    const ws = createWorkspace("Linked");
+    docsStore.set([{ id: "d1", name: "notes", content: "hi", updatedAt: 1, createdAt: 1, workspaceId: ws.id, repoPath: "notes.md" }]);
+    await maybeSnapshotVersion("d1", "hi", 1_000);
+
+    await pushToRepo(ws.id, { owner: "acme", repo: "docs", branch: "main" });
+
+    const treeRes = await fetch("/api/repo/acme/docs/tree?branch=main");
+    const treeData = (await treeRes.json()) as { tree: { path: string }[] };
+    expect(treeData.tree.some((e) => e.path === ".mde/history/notes.json")).toBe(true);
   });
 });

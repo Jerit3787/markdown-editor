@@ -123,6 +123,38 @@ describe("docs store — workspace integration", () => {
     expect(get(workspacesStore).find((w) => w.id === ws.id)?.pendingRepoDeletions).toBeUndefined();
   });
 
+  it("mergeDocNotes adds remote notes the doc doesn't have yet, by id", async () => {
+    const { docsStore, mergeDocNotes } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Linked");
+    docsStore.set([
+      {
+        id: "d1",
+        name: "D1",
+        content: "hello world",
+        updatedAt: 1,
+        createdAt: 1,
+        workspaceId: ws.id,
+        repoPath: "d1.md",
+        notes: [{ id: "local-1", from: 0, to: 5, quote: "hello", orphaned: false, body: "local note", createdAt: 1 }],
+      },
+    ]);
+    mergeDocNotes("d1", [{ id: "remote-1", from: 6, to: 11, quote: "world", orphaned: false, body: "remote note", createdAt: 2 }]);
+    const doc = get(docsStore).find((d) => d.id === "d1");
+    expect(doc?.notes?.map((n) => n.id).sort()).toEqual(["local-1", "remote-1"]);
+  });
+
+  it("mergeDocNotes does not duplicate a remote note whose id already exists locally", async () => {
+    const { docsStore, mergeDocNotes } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Linked");
+    const existing = { id: "n1", from: 0, to: 5, quote: "hello", orphaned: false, body: "note", createdAt: 1 };
+    docsStore.set([{ id: "d1", name: "D1", content: "hello", updatedAt: 1, createdAt: 1, workspaceId: ws.id, repoPath: "d1.md", notes: [existing] }]);
+    mergeDocNotes("d1", [existing]);
+    const doc = get(docsStore).find((d) => d.id === "d1");
+    expect(doc?.notes).toHaveLength(1);
+  });
+
   it("ensureActiveDocInWorkspace picks the most-recently-updated doc in the target workspace", async () => {
     const { docsStore, activeIdStore, ensureActiveDocInWorkspace } = await import("./docs");
     const { createWorkspace } = await import("./workspaces");

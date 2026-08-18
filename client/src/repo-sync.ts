@@ -3,7 +3,8 @@
 // Kept pure-function-first so the diff/conflict logic is unit-testable
 // without mocking fetch — the same reasoning src/github-repo.ts's
 // computeNewTreeEntries follows server-side.
-import type { Doc, Workspace } from "./types";
+import type { Doc, Workspace, Note } from "./types";
+import type { Snapshot } from "./history";
 import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById, ensureActiveDocInWorkspace, clearRepoSyncMetadata } from "./stores/docs";
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
@@ -11,6 +12,7 @@ import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace
 import { resolveDiagramRefs } from "./diagram-refs";
 import { repoSyncBusyLabel } from "./stores/repoSync";
 import { showProgressToast, updateProgressToast, finishProgressToast, showToast } from "./stores/toast";
+import { getHistory } from "./history";
 
 export function slugifyDocName(name: string): string {
   const slug = (name || "")
@@ -240,6 +242,7 @@ export interface PushConflict {
 
 export interface PushPlan {
   changes: { docId: string; repoPath: string; content: string; assets: ImageAsset[] }[];
+  historyChanges: { docId: string; historyPath: string; content: string }[];
   deletions: string[];
   conflicts: PushConflict[];
 }
@@ -251,8 +254,17 @@ export interface PushPlan {
 // deduped path (e.g. notes-2.md, when another doc already claimed
 // notes.md) would push images under assets/notes/ while pull would later
 // look for them under assets/notes-2/ — silently failing to round-trip.
-function slugFromRepoPath(repoPath: string): string {
+export function slugFromRepoPath(repoPath: string): string {
   return repoPath.replace(/\.md$/i, "").split("/").pop() || "untitled";
+}
+
+// .mde/history/<slug>.json — one companion file per doc holding its
+// local-only version-history snapshots and personal notes (see
+// docs/superpowers/specs/2026-08-19-repo-local-history-sync-design.md).
+// Same slug as the assets/<slug>/ folder, so a rename keeps both paths
+// in sync via the same rename/delete detection already in planPush.
+export function historyPathFor(repoPath: string): string {
+  return `.mde/history/${slugFromRepoPath(repoPath)}.json`;
 }
 
 // Git's own blob-object hash: sha1("blob " + byteLength + "\0" + content).
@@ -281,8 +293,14 @@ async function gitBlobSha(content: string): Promise<string> {
 // answer "what was your repoPath" after it's gone, and why this can't
 // just be "any tree path with no matching doc" — that would also catch
 // repo content nobody has pulled in yet).
-export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspace: boolean, pendingRepoDeletions: string[] = []): Promise<PushPlan> {
-  const plan: PushPlan = { changes: [], deletions: [], conflicts: [] };
+export async function planPush(
+  docs: Doc[],
+  mdEntries: TreeEntry[],
+  sameWorkspace: boolean,
+  pendingRepoDeletions: string[] = [],
+  localHistory: Map<string, { snapshots: Snapshot[]; notes: Note[] }> = new Map()
+): Promise<PushPlan> {
+  const plan: PushPlan = { changes: [], historyChanges: [], deletions: [], conflicts: [] };
   const treeShaByPath = new Map(mdEntries.filter((e) => e.type === "blob").map((e) => [e.path, e.sha]));
   const usedPaths = new Set(mdEntries.map((e) => e.path));
   // Paths already claimed by an earlier doc in THIS loop via a tree-name
@@ -347,14 +365,20 @@ export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspac
       }
     }
     const { content, assets } = rewriteImagesForPush(doc.content, slugFromRepoPath(repoPath), doc.images, doc.diagrams);
+    // Was a plain `continue` before history/notes needed independent
+    // consideration — a doc whose CONTENT is unchanged can still have
+    // new local snapshots or notes to push, so this no longer skips the
+    // rest of the loop body. contentUnchanged reproduces the exact same
+    // effect on plan.changes/plan.conflicts that the old continue had
+    // (see the two guards below that now check it explicitly).
+    let contentUnchanged = false;
     if (!isNewPath) {
       const currentSha = treeShaByPath.get(repoPath);
       if (currentSha !== undefined && (await gitBlobSha(content)) === currentSha) {
-        claimedPaths.add(repoPath);
-        continue;
+        contentUnchanged = true;
       }
     }
-    if (matchedExistingFile && !sameWorkspace) {
+    if (matchedExistingFile && !sameWorkspace && !contentUnchanged) {
       // Unproven whose file this actually is — flag it the same way an
       // already-linked doc's own sha mismatch would, rather than
       // silently overwriting content that might belong to someone else.
@@ -363,7 +387,17 @@ export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspac
       continue;
     }
     claimedPaths.add(repoPath);
-    plan.changes.push({ docId: doc.id, repoPath, content, assets });
+    if (!contentUnchanged) plan.changes.push({ docId: doc.id, repoPath, content, assets });
+
+    const history = localHistory.get(doc.id);
+    if (history && (history.snapshots.length > 0 || history.notes.length > 0)) {
+      const historyPath = historyPathFor(repoPath);
+      const historyContent = JSON.stringify({ snapshots: history.snapshots, notes: history.notes });
+      const currentHistorySha = treeShaByPath.get(historyPath);
+      if (currentHistorySha === undefined || (await gitBlobSha(historyContent)) !== currentHistorySha) {
+        plan.historyChanges.push({ docId: doc.id, historyPath, content: historyContent });
+      }
+    }
   }
 
   const treePaths = new Set(filterMarkdownEntries(mdEntries).map((e) => e.path));
@@ -372,6 +406,15 @@ export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspac
   }
   for (const path of pendingRepoDeletions) {
     if (treePaths.has(path) && !claimedPaths.has(path) && !plan.deletions.includes(path)) plan.deletions.push(path);
+  }
+  // Each deleted doc's companion history file (if it has one) is deleted
+  // right alongside it — same slug-derived path as its assets/<slug>/
+  // folder, so a rename or delete never leaves an orphaned history file.
+  for (const mdPath of [...plan.deletions]) {
+    const historyPath = historyPathFor(mdPath);
+    if (treeShaByPath.has(historyPath) && !claimedPaths.has(historyPath) && !plan.deletions.includes(historyPath)) {
+      plan.deletions.push(historyPath);
+    }
   }
 
   return plan;
@@ -413,17 +456,28 @@ export async function pushToRepo(
   const docs = docsInWorkspace(workspaceId);
   const sameWorkspace = await checkWorkspaceMarker(repoLink, entries, workspaceId);
   const pendingRepoDeletions = get(workspacesStore).find((w) => w.id === workspaceId)?.pendingRepoDeletions || [];
-  const plan = await planPush(docs, entries, sameWorkspace, pendingRepoDeletions);
+  // Best-effort: a device where IndexedDB is unavailable/blocked still
+  // pushes content normally, just with nothing to bundle into history —
+  // matches history.ts's own maybeSnapshotVersion try/catch philosophy.
+  const localHistory = new Map<string, { snapshots: Snapshot[]; notes: Note[] }>();
+  for (const doc of docs) {
+    const snapshots = await getHistory(doc.id).catch((): Snapshot[] => []);
+    localHistory.set(doc.id, { snapshots, notes: doc.notes || [] });
+  }
+  const plan = await planPush(docs, entries, sameWorkspace, pendingRepoDeletions, localHistory);
   if (plan.changes.length > 0) {
     onProgress?.(`Pushing ${plan.changes.length} file${plan.changes.length === 1 ? "" : "s"}…`);
   }
 
-  async function sendChanges(changes: PushPlan["changes"], deletePaths: string[] = []): Promise<void> {
-    if (changes.length === 0 && deletePaths.length === 0) return;
+  async function sendChanges(changes: PushPlan["changes"], deletePaths: string[] = [], historyChanges: PushPlan["historyChanges"] = []): Promise<void> {
+    if (changes.length === 0 && deletePaths.length === 0 && historyChanges.length === 0) return;
     const blobs: { path: string; contentBase64: string }[] = [];
     for (const change of changes) {
       blobs.push({ path: change.repoPath, contentBase64: toBase64(change.content) });
       for (const asset of change.assets) blobs.push({ path: asset.path, contentBase64: dataUrlToBase64(asset.dataUrl) });
+    }
+    for (const historyChange of historyChanges) {
+      blobs.push({ path: historyChange.historyPath, contentBase64: toBase64(historyChange.content) });
     }
     const workspace = get(workspacesStore).find((w) => w.id === workspaceId);
     if (workspace) {
@@ -462,7 +516,7 @@ export async function pushToRepo(
     }
   }
 
-  await sendChanges(plan.changes, plan.deletions);
+  await sendChanges(plan.changes, plan.deletions, plan.historyChanges);
   clearPendingRepoDeletions(workspaceId, plan.deletions);
   setWorkspaceLastSynced(workspaceId, Date.now());
 
@@ -470,8 +524,8 @@ export async function pushToRepo(
     const winningDocs = plan.conflicts.filter((c) => resolutions[c.docId] === "mine").map((c) => docs.find((d) => d.id === c.docId)!);
     // sameWorkspace is unused here — the empty tree means matchedExistingFile
     // can never become true in this retry, so its value doesn't affect anything.
-    const retryPlan = await planPush(winningDocs, [], true);
-    await sendChanges(retryPlan.changes);
+    const retryPlan = await planPush(winningDocs, [], true, [], localHistory);
+    await sendChanges(retryPlan.changes, [], retryPlan.historyChanges);
   }
 
   return { plan, applyResolved };

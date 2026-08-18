@@ -35,7 +35,7 @@
   let hidden = $state(true);
   let query = $state("");
   let selectedIndex = $state(0);
-  let inputEl: HTMLInputElement;
+  let inputEl: HTMLInputElement | undefined = $state();
 
   const activeDoc = $derived($docsStore.find((d) => d.id === $activeIdStore));
   const hasActiveDoc = $derived(!!activeDoc);
@@ -116,11 +116,11 @@
 
   const filteredEntries = $derived.by((): PaletteEntry[] => {
     const docEntries: PaletteEntry[] = $docsStore
-      .map((doc) => {
+      .map((doc): PaletteEntry | null => {
         const label = doc.name || "Untitled";
         const score = fuzzyScore(query, label);
         return score === null ? null : {
-          kind: "document" as const,
+          kind: "document",
           id: doc.id,
           label,
           sublabel: window.MDE.formatRelativeTime(doc.updatedAt),
@@ -138,10 +138,10 @@
         if (cmd.requires === "workspace") return hasWorkspace;
         return true;
       })
-      .map((cmd) => {
+      .map((cmd): PaletteEntry | null => {
         const score = fuzzyScore(query, cmd.label);
         return score === null ? null : {
-          kind: "command" as const,
+          kind: "command",
           id: cmd.id,
           label: cmd.label,
           sublabel: cmd.category,

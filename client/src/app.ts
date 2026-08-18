@@ -25,6 +25,7 @@ import {
   docsStore,
 } from "./stores/docs";
 import { workspacesStore, createWorkspace } from "./stores/workspaces";
+import { initRouter, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
 import { showToast } from "./stores/toast";
 import { viewMode } from "./stores/view";
 import { commentsPanelOpen } from "./stores/commentsPanel";
@@ -182,6 +183,13 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   document.addEventListener("DOMContentLoaded", init);
 
   function init() {
+    // Must run before the activeIdStore.subscribe below: it may switch the
+    // active document (and workspace) synchronously from the current URL,
+    // and that subscription's first fire needs to already reflect it —
+    // otherwise the editor briefly loads the wrong document before
+    // flashing to the right one.
+    initRouter();
+
     // cm is already populated by this point — Editor.svelte constructs the
     // EditorView in its own onMount and hands it back via
     // window.MDE.registerEditor(), and main.ts's mount() calls (which
@@ -222,11 +230,33 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     let firstFire = true;
     activeIdStore.subscribe((id) => {
       if (!firstFire && id === lastLoadedId) return;
+      const isFirstFire = firstFire;
       firstFire = false;
       lastLoadedId = id;
       loadDocIntoEditor(getActiveDoc());
       updatePreview();
       updateCounts();
+      // The very first (synchronous, load-time) fire establishes the
+      // starting URL via replaceState, not pushState — this document may
+      // have become active via a deep link (whose URL is already
+      // correct, so this is a harmless no-op) or via the localStorage
+      // fallback (whose URL is still bare "/" until this runs). Either
+      // way, a tab's baseline history entry must reflect a real document
+      // whenever one is active — otherwise navigating back to it later
+      // finds no docId in the URL and leaves the current document
+      // unchanged instead of restoring anything. Every later fire is a
+      // genuine change (switchDoc, "Open Recent", Command Palette,
+      // workspace switching via ensureActiveDocInWorkspace — all of them
+      // end up here, since this subscription is the one thing every path
+      // to changing activeIdStore already funnels through) and gets a
+      // real pushState entry instead.
+      if (isFirstFire) {
+        if (id) replaceDocUrl(id);
+        else replaceToRoot();
+      } else {
+        if (id) pushDocUrl(id);
+        else replaceToRoot();
+      }
     });
 
     // updateEmptyStateVariant's "no-workspace" class depends on

@@ -13,6 +13,19 @@ export function pushDocUrl(docId: string): void {
   if (location.pathname !== path) history.pushState(null, "", path);
 }
 
+// Establishes a document's URL as the CURRENT history entry rather than a
+// new one — used once, at load time, to make the very first entry in a
+// tab's history correctly reflect whichever document ended up active
+// (whether from a deep link or the localStorage fallback). Without this,
+// a tab that loaded via the fallback keeps a bare "/" as its baseline
+// entry, and navigating back to it later doesn't restore anything —
+// applyPathToState finds no docId in "/" and just leaves the current
+// document as-is.
+export function replaceDocUrl(docId: string): void {
+  const path = `/d/${docId}`;
+  if (location.pathname !== path) history.replaceState(null, "", path);
+}
+
 export function replaceToRoot(): void {
   if (location.pathname !== "/") history.replaceState(null, "", "/");
 }

@@ -443,6 +443,22 @@ export function deleteDocNote(noteId: string) {
   persistDocs();
 }
 
+// Merges a repo-linked doc's companion history file (fetched by
+// repo-history-sync.ts) into this device's notes — union by id, added
+// notes appended, existing ones left untouched. A note's from/to/quote
+// gets relocated at display time (CommentsPanel.svelte already calls
+// relocateAnchor on every render), so a merged note needs no special
+// position handling here.
+export function mergeDocNotes(docId: string, remoteNotes: Note[]): void {
+  const doc = findDocById(docId);
+  if (!doc) return;
+  const existingIds = new Set((doc.notes || []).map((n) => n.id));
+  const toAdd = remoteNotes.filter((n) => !existingIds.has(n.id));
+  if (toAdd.length === 0) return;
+  updateDoc(docId, { notes: [...(doc.notes || []), ...toAdd] });
+  persistDocs();
+}
+
 // Called from app.ts's saveNow() for documents that have never been
 // shared — keeps stored positions from drifting too far out of date, so
 // relocateAnchor's ambiguous-quote tiebreak stays accurate over many

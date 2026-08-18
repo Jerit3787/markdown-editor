@@ -227,6 +227,11 @@ export class CollabRoom {
     this.doc.transact(() => {
       text.delete(0, text.length);
       text.insert(0, snap.content);
+      const imagesMap = this.doc.getMap<string>("images");
+      for (const key of Array.from(imagesMap.keys())) imagesMap.delete(key);
+      if (snap.images) {
+        for (const [key, value] of Object.entries(snap.images)) imagesMap.set(key, value);
+      }
     }, "restore");
     const created = await this.forceSnapshot(snap.content);
     return Response.json(created);

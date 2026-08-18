@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect } from "vitest";
-import { maybeSnapshotVersion, listVersions, getVersionContent, getVersionImages, restoreLocalVersion, deleteHistory } from "./history";
+import { maybeSnapshotVersion, listVersions, getVersionContent, getVersionImages, restoreLocalVersion, deleteHistory, getHistory, mergeSnapshotsFromRepo } from "./history";
 
 // Every test uses its own docId (rather than resetting the shared fake
 // IndexedDB database between tests) so tests can't leak state into each
@@ -100,5 +100,38 @@ describe("local version history — images", () => {
 
   it("getVersionImages returns undefined for an unknown version id", async () => {
     expect(await getVersionImages("doc-images-unknown", "nonexistent")).toBeUndefined();
+  });
+});
+
+describe("mergeSnapshotsFromRepo", () => {
+  it("adds remote snapshots the local device doesn't have yet", async () => {
+    await maybeSnapshotVersion("doc-merge-add", "local v1", 1_000);
+    await mergeSnapshotsFromRepo("doc-merge-add", [{ id: "remote-1", timestamp: 500, content: "remote v0" }]);
+    const versions = await listVersions("doc-merge-add");
+    expect(versions.map((v) => v.id).sort()).toEqual(expect.arrayContaining(["remote-1"]));
+    expect(versions).toHaveLength(2);
+  });
+
+  it("does not duplicate a remote snapshot whose id already exists locally", async () => {
+    await maybeSnapshotVersion("doc-merge-dupe", "v1", 1_000);
+    const local = await getHistory("doc-merge-dupe");
+    await mergeSnapshotsFromRepo("doc-merge-dupe", [local[0]!]);
+    expect(await listVersions("doc-merge-dupe")).toHaveLength(1);
+  });
+
+  it("re-sorts by timestamp and re-caps at 50 after merging", async () => {
+    for (let i = 0; i < 40; i++) {
+      await maybeSnapshotVersion("doc-merge-cap", `v${i}`, 1_000 + i * 6 * 60 * 1000);
+    }
+    const remote = Array.from({ length: 20 }, (_, i) => ({
+      id: `remote-${i}`,
+      timestamp: 1_000 + (40 + i) * 6 * 60 * 1000,
+      content: `remote v${i}`,
+    }));
+    await mergeSnapshotsFromRepo("doc-merge-cap", remote);
+    const versions = await listVersions("doc-merge-cap");
+    expect(versions).toHaveLength(50);
+    // listVersions reverses to newest-first — the newest merged-in remote entry must survive the cap
+    expect(versions[0]!.id).toBe("remote-19");
   });
 });

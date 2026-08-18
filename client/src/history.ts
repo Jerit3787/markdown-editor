@@ -41,7 +41,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-async function getHistory(docId: string): Promise<Snapshot[]> {
+export async function getHistory(docId: string): Promise<Snapshot[]> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
@@ -124,6 +124,23 @@ export async function restoreLocalVersion(
 // content in hand.
 export async function restoreLocalVersionContent(docId: string, content: string, now: number = Date.now(), images?: Record<string, string>): Promise<void> {
   await appendSnapshot(docId, content, now, images);
+}
+
+// Merges a repo-linked doc's companion history file (fetched by
+// repo-history-sync.ts) into this device's local snapshots — union by
+// id, re-sorted by time, re-capped at MAX_SNAPSHOTS. Never overwrites:
+// a snapshot this device already has by id is left alone, so merging
+// is safe to call repeatedly and never loses this device's own
+// not-yet-pushed history.
+export async function mergeSnapshotsFromRepo(docId: string, remoteSnapshots: Snapshot[]): Promise<void> {
+  const local = await getHistory(docId);
+  const byId = new Map(local.map((s) => [s.id, s]));
+  for (const s of remoteSnapshots) {
+    if (!byId.has(s.id)) byId.set(s.id, s);
+  }
+  const merged = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp);
+  while (merged.length > MAX_SNAPSHOTS) merged.shift();
+  await putHistory(docId, merged);
 }
 
 export async function deleteHistory(docId: string): Promise<void> {

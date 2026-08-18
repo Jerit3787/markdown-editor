@@ -195,7 +195,7 @@ export async function pullFromRepo(
     const blobRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/blob/${sha}`);
     if (!blobRes.ok) throw new Error(`Couldn't read ${repoPath}: HTTP ${blobRes.status}`);
     const blobData = await blobRes.json();
-    const rawContent = blobData.encoding === "base64" ? atob(blobData.content.replace(/\n/g, "")) : blobData.content;
+    const rawContent = blobData.encoding === "base64" ? decodeBase64Text(blobData.content) : blobData.content;
     const docSlug = docSlugFor(repoPath);
 
     const imageRefs = [...rawContent.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g)].map((m) => m[1] as string);
@@ -381,6 +381,21 @@ function toBase64(str: string): string {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
+// The decode counterpart of toBase64 above — plain atob() only does
+// byte-for-byte Latin-1 decoding, which silently mangles any multi-byte
+// UTF-8 character (em dashes, curly quotes, accented letters, emoji).
+// GitHub's contents/blob APIs always return file content as UTF-8-encoded
+// base64 regardless of the file's own script, so every text fetch from
+// those APIs needs this, not a plain atob(). Left uncorrected, the
+// corruption compounds on every pull→push→pull round trip: toBase64
+// above happily UTF-8-encodes whatever string it's handed, including an
+// already-mangled one from a prior bad decode.
+export function decodeBase64Text(base64: string): string {
+  const binary = atob(base64.replace(/\n/g, ""));
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
 function dataUrlToBase64(dataUrl: string): string {
   const match = dataUrl.match(/^data:[^;]+;base64,(.*)$/);
   return match ? match[1]! : "";
@@ -477,7 +492,7 @@ async function checkWorkspaceMarker(
   const blobRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/blob/${markerEntry.sha}`);
   if (!blobRes.ok) return false;
   const blobData = await blobRes.json();
-  const content = blobData.encoding === "base64" ? atob(blobData.content.replace(/\n/g, "")) : blobData.content;
+  const content = blobData.encoding === "base64" ? decodeBase64Text(blobData.content) : blobData.content;
   return markerMatchesWorkspace(content, workspaceId);
 }
 

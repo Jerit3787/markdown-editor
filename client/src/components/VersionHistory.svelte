@@ -18,6 +18,7 @@
   import { renderVersionPreview } from "../version-preview";
   import { showToast } from "../stores/toast";
   import { extractAssetImageRefs } from "../diff-image-row";
+  import { decodeBase64Text } from "../repo-sync";
   import DiffView from "./DiffView.svelte";
 
   interface LocalEntry {
@@ -72,7 +73,7 @@
     if (!res.ok) return undefined;
     const data = (await res.json()) as { content: string; encoding: string };
     if (data.encoding !== "base64") return data.content;
-    return atob(data.content.replace(/\n/g, ""));
+    return decodeBase64Text(data.content);
   }
 
   async function fetchCommitImages(doc: ReturnType<typeof getActiveDoc>, sha: string, content: string): Promise<Record<string, string>> {

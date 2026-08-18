@@ -2583,8 +2583,18 @@ select:not(.share-access-select):not(.share-role-select) {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-#sidebar {
-  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+/* min-width: 781px (desktop only) — mobile's own #sidebar rule (see the
+   max-width: 780px media query above) animates transform, not
+   margin-left, for its bottom-sheet slide. This rule and that one have
+   equal specificity (both bare #sidebar), so without this guard this
+   one — appearing later in the file — would win the cascade tie on
+   mobile too, replacing "animate transform" with "animate margin-left"
+   (a property mobile never actually changes), silently turning the
+   sheet's slide into an instant, unanimated snap. */
+@media (min-width: 781px) {
+  #sidebar {
+    transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }
 
 /* Button Feedback */

@@ -8,6 +8,7 @@
 import { get, writable } from "svelte/store";
 import type { Workspace } from "../types";
 import { showToast } from "./toast";
+import { mergeById } from "../merge-records";
 
 const STORAGE_WORKSPACES = "mde:workspaces";
 const STORAGE_ACTIVE_WORKSPACE = "mde:activeWorkspace";
@@ -50,12 +51,29 @@ function initialActiveWorkspaceId(workspaces: Workspace[]): string | null {
 
 export const activeWorkspaceIdStore = writable<string | null>(initialActiveWorkspaceId(initialWorkspaces));
 
-export function persistWorkspaces() {
+// Deletion goes through this instead of persistWorkspaces() directly —
+// see docs.ts's persistDocsExcluding, which exists for the identical
+// reason: a plain merge can't tell "missing because another tab never
+// told me about it" apart from "missing because THIS tab just deleted
+// it," so a delete's own save would otherwise resurrect the record from
+// whatever pre-deletion snapshot is still in localStorage.
+function persistWorkspacesExcluding(deletedIds: Set<string>) {
   try {
-    localStorage.setItem(STORAGE_WORKSPACES, JSON.stringify(get(workspacesStore)));
+    const raw = localStorage.getItem(STORAGE_WORKSPACES);
+    const external = raw ? (JSON.parse(raw) as Workspace[]).filter((w) => !deletedIds.has(w.id)) : [];
+    const merged = mergeById(get(workspacesStore), external);
+    workspacesStore.set(merged);
+    localStorage.setItem(STORAGE_WORKSPACES, JSON.stringify(merged));
   } catch (e) {
     showToast("Couldn't save — your browser's local storage may be full", "error");
   }
+}
+
+export function persistWorkspaces() {
+  // Read fresh instead of trusting this tab's own possibly-stale copy —
+  // see docs.ts's persistDocs, which does the same thing for the same
+  // reason.
+  persistWorkspacesExcluding(new Set());
 }
 
 // Persist immediately if this was a first-run seed — otherwise a visitor
@@ -135,7 +153,7 @@ export function switchWorkspace(id: string): boolean {
 export function deleteWorkspaceRecord(id: string) {
   const remaining = get(workspacesStore).filter((w) => w.id !== id);
   workspacesStore.set(remaining);
-  persistWorkspaces();
+  persistWorkspacesExcluding(new Set([id]));
   if (get(activeWorkspaceIdStore) === id) {
     const fallback = [...remaining].sort((a, b) => a.createdAt - b.createdAt)[0];
     setActiveWorkspaceId(fallback ? fallback.id : null);

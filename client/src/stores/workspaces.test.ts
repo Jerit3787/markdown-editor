@@ -264,4 +264,39 @@ describe("workspaces store — updatedAt", () => {
     setWorkspaceLastSynced(original.id, 2000);
     expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
   });
+
+  it("persistWorkspaces merges with what another tab already saved instead of overwriting it", async () => {
+    localStorage.setItem("mde:workspaces", JSON.stringify([{ id: "ws-a", name: "A", createdAt: 1, updatedAt: 1 }]));
+    const { workspacesStore, persistWorkspaces } = await import("./workspaces");
+
+    // Simulate another tab having since created ws-b and saved it.
+    localStorage.setItem(
+      "mde:workspaces",
+      JSON.stringify([
+        { id: "ws-a", name: "A", createdAt: 1, updatedAt: 1 },
+        { id: "ws-b", name: "B from another tab", createdAt: 2, updatedAt: 2 },
+      ])
+    );
+
+    // This tab, unaware of ws-b, renames ws-a and saves.
+    workspacesStore.set([{ id: "ws-a", name: "A renamed here", createdAt: 1, updatedAt: 3 }]);
+    persistWorkspaces();
+
+    const persisted = JSON.parse(localStorage.getItem("mde:workspaces")!);
+    expect(persisted).toHaveLength(2);
+    expect(persisted.find((w: any) => w.id === "ws-a").name).toBe("A renamed here");
+    expect(persisted.find((w: any) => w.id === "ws-b").name).toBe("B from another tab");
+    expect(get(workspacesStore)).toHaveLength(2);
+  });
+
+  it("deleteWorkspaceRecord's own save doesn't resurrect the workspace from the pre-deletion snapshot still in localStorage", async () => {
+    localStorage.setItem("mde:workspaces", JSON.stringify([{ id: "ws-a", name: "A", createdAt: 1, updatedAt: 1 }]));
+    const { workspacesStore, deleteWorkspaceRecord } = await import("./workspaces");
+
+    deleteWorkspaceRecord("ws-a");
+
+    const persisted = JSON.parse(localStorage.getItem("mde:workspaces")!);
+    expect(persisted.find((w: any) => w.id === "ws-a")).toBeUndefined();
+    expect(get(workspacesStore).find((w) => w.id === "ws-a")).toBeUndefined();
+  });
 });

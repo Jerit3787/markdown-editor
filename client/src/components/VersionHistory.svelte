@@ -11,7 +11,7 @@
     restoreLocalVersion,
     restoreLocalVersionContent,
     listSharedVersions,
-    getSharedVersionContent,
+    getSharedVersionSnapshot,
     restoreSharedVersion,
     restoreSharedVersionContent,
   } from "../history";
@@ -107,12 +107,13 @@
     if (!doc) return;
     if (entry.kind === "local") {
       if (isShared) {
-        const content = await getSharedVersionContent(doc.workspaceId, doc.id, entry.id);
-        if (content === undefined) {
+        const result = await getSharedVersionSnapshot(doc.workspaceId, doc.id, entry.id);
+        if (result === undefined) {
           showToast("Couldn't load this version's content", "error");
           return;
         }
-        selectedContent = content;
+        selectedContent = result.content;
+        selectedImages = result.images;
       } else {
         const content = await getVersionContent(doc.id, entry.id);
         if (content === undefined) {

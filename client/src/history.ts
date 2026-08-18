@@ -151,12 +151,16 @@ export async function listSharedVersions(workspaceId: string, docId: string): Pr
   }
 }
 
-export async function getSharedVersionContent(workspaceId: string, docId: string, versionId: string): Promise<string | undefined> {
+export async function getSharedVersionSnapshot(
+  workspaceId: string,
+  docId: string,
+  versionId: string
+): Promise<{ content: string; images: Record<string, string> | undefined } | undefined> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions/${encodeURIComponent(versionId)}`);
     if (!res.ok) return undefined;
     const snap = (await res.json()) as Snapshot;
-    return snap.content;
+    return { content: snap.content, images: snap.images };
   } catch (err) {
     return undefined;
   }

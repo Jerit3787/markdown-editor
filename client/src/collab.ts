@@ -750,6 +750,21 @@ export function decideShareTarget(doc: Doc, docs: Doc[], workspaces: Workspace[]
   };
 }
 
+export type JoinDecision = { kind: "auto"; workspaceName: string } | { kind: "choice" };
+
+// A single shared document is unambiguous — there's nothing to meaningfully
+// choose between (merge one document into an existing workspace, or give it
+// its own?) — so it always lands as its own new workspace, named after the
+// document, regardless of how many workspaces the receiver already has.
+// A multi-document workspace share still gets a real choice, except for a
+// receiver with zero workspaces, who — per item 22 — has nothing to choose
+// between either.
+export function decideJoinTarget(validDocs: { name: string }[], existingWorkspaceCount: number): JoinDecision {
+  if (validDocs.length === 1) return { kind: "auto", workspaceName: validDocs[0]!.name || "Untitled" };
+  if (existingWorkspaceCount === 0) return { kind: "auto", workspaceName: "Shared workspace" };
+  return { kind: "choice" };
+}
+
 export async function openShareModal() {
   await window.MDE.githubSessionReady;
   if (!window.MDE.githubUsername) {

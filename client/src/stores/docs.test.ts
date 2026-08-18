@@ -484,4 +484,14 @@ describe("docs store — workspace integration", () => {
     const { syncRemoteDocContent } = await import("./docs");
     expect(syncRemoteDocContent("does-not-exist", "content", undefined)).toBe(false);
   });
+
+  it("replaceDocImages fully replaces a doc's image map, not merges into it", async () => {
+    const { docsStore, replaceDocImages } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Images");
+    docsStore.set([{ id: "d1", name: "D1", content: "", updatedAt: 1, createdAt: 1, workspaceId: ws.id, images: { old: "data:old" } }]);
+    replaceDocImages("d1", { new: "data:new" });
+    const doc = get(docsStore).find((d) => d.id === "d1")!;
+    expect(doc.images).toEqual({ new: "data:new" });
+  });
 });

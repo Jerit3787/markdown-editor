@@ -1304,7 +1304,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // Once a document has ever been shared, CollabRoom (server-side) is
     // the sole owner of its history — see history.ts's own comment.
     if (doc && !doc.shared) {
-      void maybeSnapshotVersion(doc.id, doc.content);
+      void maybeSnapshotVersion(doc.id, doc.content, undefined, doc.images);
       refreshDocNoteAnchors(doc.content);
     }
     setSaveStatus(savedLabel(doc));

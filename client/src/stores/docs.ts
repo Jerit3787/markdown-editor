@@ -393,6 +393,15 @@ export function setDocImage(key: string, dataUrl: string) {
   persistDocs();
 }
 
+// Full replace, not a per-key merge (setDocImage's behavior) — used when
+// restoring a historical version, which must leave the doc's images
+// looking exactly like that version did, not layer its images on top of
+// whatever the doc currently has.
+export function replaceDocImages(docId: string, images: Record<string, string> | undefined) {
+  updateDoc(docId, { images });
+  persistDocs();
+}
+
 export function deleteDocImage(key: string) {
   const doc = getActiveDoc();
   if (!doc || !doc.images) return;

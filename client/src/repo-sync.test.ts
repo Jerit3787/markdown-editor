@@ -12,8 +12,11 @@ import {
   linkWorkspaceAndSync,
   markerMatchesWorkspace,
   decodeBase64Text,
+  pushToRepo,
   type TreeEntry,
 } from "./repo-sync";
+import "fake-indexeddb/auto";
+import { maybeSnapshotVersion } from "./history";
 import { docsStore } from "./stores/docs";
 import { createWorkspace, workspacesStore } from "./stores/workspaces";
 import { startFakeRepoBackend, type FakeRepoBackend } from "./test-support/fake-repo-backend";
@@ -598,5 +601,43 @@ describe("linkWorkspaceAndSync", () => {
     const synced = get(workspacesStore).find((w) => w.id === ws.id)?.repoLastSyncedAt;
     expect(synced).toBeDefined();
     expect(synced!).toBeGreaterThanOrEqual(before);
+  });
+});
+
+describe("pushToRepo", () => {
+  let backend: FakeRepoBackend;
+  let realFetch: typeof fetch;
+
+  beforeEach(async () => {
+    backend = await startFakeRepoBackend();
+    realFetch = globalThis.fetch.bind(globalThis);
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const rewritten = url.startsWith("/api/repo") ? `${backend.baseUrl}${url}` : url;
+      return realFetch(rewritten, init);
+    });
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await backend.stop();
+  });
+
+  it("includes a doc's history-file blob in the push when it has local snapshots to push", async () => {
+    // notes.md is deliberately NOT in the seeded repo — a genuinely new
+    // file for this push, so there's no blob-sha mismatch to produce a
+    // conflict and skip the doc (this test cares about the history
+    // blob riding along, not planPush's own conflict-detection, which
+    // Task 3's tests already cover directly).
+    backend.seedRepo("acme", "docs", "main", [{ path: "README.md", content: "placeholder" }]);
+    const ws = createWorkspace("Linked");
+    docsStore.set([{ id: "d1", name: "notes", content: "hi", updatedAt: 1, createdAt: 1, workspaceId: ws.id, repoPath: "notes.md" }]);
+    await maybeSnapshotVersion("d1", "hi", 1_000);
+
+    await pushToRepo(ws.id, { owner: "acme", repo: "docs", branch: "main" });
+
+    const treeRes = await fetch("/api/repo/acme/docs/tree?branch=main");
+    const treeData = (await treeRes.json()) as { tree: { path: string }[] };
+    expect(treeData.tree.some((e) => e.path === ".mde/history/notes.json")).toBe(true);
   });
 });

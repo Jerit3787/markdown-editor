@@ -12,6 +12,7 @@ import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace
 import { resolveDiagramRefs } from "./diagram-refs";
 import { repoSyncBusyLabel } from "./stores/repoSync";
 import { showProgressToast, updateProgressToast, finishProgressToast, showToast } from "./stores/toast";
+import { getHistory } from "./history";
 
 export function slugifyDocName(name: string): string {
   const slug = (name || "")
@@ -455,17 +456,28 @@ export async function pushToRepo(
   const docs = docsInWorkspace(workspaceId);
   const sameWorkspace = await checkWorkspaceMarker(repoLink, entries, workspaceId);
   const pendingRepoDeletions = get(workspacesStore).find((w) => w.id === workspaceId)?.pendingRepoDeletions || [];
-  const plan = await planPush(docs, entries, sameWorkspace, pendingRepoDeletions);
+  // Best-effort: a device where IndexedDB is unavailable/blocked still
+  // pushes content normally, just with nothing to bundle into history —
+  // matches history.ts's own maybeSnapshotVersion try/catch philosophy.
+  const localHistory = new Map<string, { snapshots: Snapshot[]; notes: Note[] }>();
+  for (const doc of docs) {
+    const snapshots = await getHistory(doc.id).catch((): Snapshot[] => []);
+    localHistory.set(doc.id, { snapshots, notes: doc.notes || [] });
+  }
+  const plan = await planPush(docs, entries, sameWorkspace, pendingRepoDeletions, localHistory);
   if (plan.changes.length > 0) {
     onProgress?.(`Pushing ${plan.changes.length} file${plan.changes.length === 1 ? "" : "s"}…`);
   }
 
-  async function sendChanges(changes: PushPlan["changes"], deletePaths: string[] = []): Promise<void> {
-    if (changes.length === 0 && deletePaths.length === 0) return;
+  async function sendChanges(changes: PushPlan["changes"], deletePaths: string[] = [], historyChanges: PushPlan["historyChanges"] = []): Promise<void> {
+    if (changes.length === 0 && deletePaths.length === 0 && historyChanges.length === 0) return;
     const blobs: { path: string; contentBase64: string }[] = [];
     for (const change of changes) {
       blobs.push({ path: change.repoPath, contentBase64: toBase64(change.content) });
       for (const asset of change.assets) blobs.push({ path: asset.path, contentBase64: dataUrlToBase64(asset.dataUrl) });
+    }
+    for (const historyChange of historyChanges) {
+      blobs.push({ path: historyChange.historyPath, contentBase64: toBase64(historyChange.content) });
     }
     const workspace = get(workspacesStore).find((w) => w.id === workspaceId);
     if (workspace) {
@@ -504,7 +516,7 @@ export async function pushToRepo(
     }
   }
 
-  await sendChanges(plan.changes, plan.deletions);
+  await sendChanges(plan.changes, plan.deletions, plan.historyChanges);
   clearPendingRepoDeletions(workspaceId, plan.deletions);
   setWorkspaceLastSynced(workspaceId, Date.now());
 
@@ -512,8 +524,8 @@ export async function pushToRepo(
     const winningDocs = plan.conflicts.filter((c) => resolutions[c.docId] === "mine").map((c) => docs.find((d) => d.id === c.docId)!);
     // sameWorkspace is unused here — the empty tree means matchedExistingFile
     // can never become true in this retry, so its value doesn't affect anything.
-    const retryPlan = await planPush(winningDocs, [], true);
-    await sendChanges(retryPlan.changes);
+    const retryPlan = await planPush(winningDocs, [], true, [], localHistory);
+    await sendChanges(retryPlan.changes, [], retryPlan.historyChanges);
   }
 
   return { plan, applyResolved };

@@ -1024,17 +1024,25 @@ body.focus-mode #statusbar {
 .comment-draft-actions button { width: auto; margin-bottom: 0; }
 
 .comments-panel {
-  /* A real grid item in #body (see index.html), in its own "comments"
-     grid column (see #body's grid-template-areas) — not a fixed-position
-     overlay floating on top of the content like a modal. Its column is
-     shared with the view selector above it, so both stay the same width
-     automatically while open. Unlike #sidebar's column (always reserved,
-     open or collapsed), this one only holds its 320px while the panel is
-     open or actively closing — see #body's grid-template-columns comment
-     for why, and CommentsPanel.svelte for what drives the transition. */
+  /* A real grid item in #content-row (see index.html), in its own
+     "comments" grid column (see #content-row's grid-template-areas) —
+     not a fixed-position overlay floating on top of the content like a
+     modal. The column is auto-sized rather than fixed-320px, so it
+     only actually holds that width while the panel is open or
+     collapsing — see #content-row's grid-template-columns comment for
+     the full mechanism.
+
+     overflow: hidden matters beyond clipping: an auto-sized grid track
+     normally floors at its item's min-content width (here, mostly the
+     "Comments" heading's text) rather than shrinking all the way to 0
+     — CSS Grid only drops that floor to a flat 0 when the item's
+     overflow isn't visible. Without this, the track (and the dead
+     space behind it) would never fully disappear even at rest. */
   grid-area: comments;
   width: 320px;
   flex-shrink: 0;
+  overflow: hidden;
+  margin-right: 0;
   background: var(--bg);
   border-left: 1px solid var(--border);
   display: flex;
@@ -1390,38 +1398,80 @@ select:not(.share-access-select):not(.share-role-select) {
    3-column span and the view selector's column both need to track
    #sidebar's and .comments-panel's actual widths, which only a shared
    grid track (not two independently-sized flex rows) keeps in sync). */
+/* Registering this makes it an animatable <length> instead of an opaque
+   token — without this, changing it (as CommentsPanel.svelte's $effect
+   does, on every open/close) jumps grid-template-columns straight to the
+   new value with no interpolation, no matter what transition is set on
+   the rule that references it. With it, #content-row's transition below
+   smoothly interpolates the whole grid reflow in sync with
+   .comments-panel's own slide, instead of #main snapping to its new
+   width in a single frame. */
+/* Two independent layouts stacked vertically — #topbar-row (the
+   formatting toolbar + view selector) and #content-row (sidebar/editor-
+   preview/comments) — rather than one grid spanning both. A single grid
+   was tried first: #topbar-row and #content-row would be two rows of
+   the same grid, sharing grid-template-columns between them. That forced
+   a choice that has no good answer — either the shared column has a
+   floor wide enough for .view-selector's buttons (so they never get
+   squashed), which then also reserves that same width as permanently
+   empty space under it, for #content-row's entire height, any time
+   comments is collapsed (most of the time) — or no floor, which fixes
+   the dead space but leaves .view-selector with nowhere to lay out its
+   buttons at 0px. Splitting into two unrelated layouts means each can
+   size its own columns independently: #content-row's third column can
+   go to genuine 0px with nothing else depending on it, and
+   .view-selector (in #topbar-row, a plain flex row) sizes itself by its
+   own content, never touching that column at all. */
 #body {
   position: relative;
   flex: 1;
-  display: grid;
-  /* "comments" isn't auto — an auto track floors at its item's
-     min-content width (the "Comments" heading text can't shrink below
-     ~80px), so no amount of negative margin on .comments-panel.collapsed
-     can shrink an auto track to 0. It's also not a permanent fixed
-     320px either — that avoided the min-content floor but wasted 320px
-     of dead space at rest any time comments was closed (which is most
-     of the time), pushing #main visibly off-center. Instead it's a CSS
-     custom property, 0px at rest — CommentsPanel.svelte sets it to
-     320px the instant the panel opens (so there's room for the slide-in)
-     and holds it there until 150ms after closing starts (matching
-     .comments-panel's own transition-duration below), so #main never
-     jumps mid-animation but isn't left reserving space once the panel
-     has actually finished sliding away.
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 
-     The 82px floor in max() is load-bearing, not decorative padding:
-     .view-selector (the editor/preview toggle icons) shares this same
-     column so it lines up with .comments-panel when open, but unlike
-     comments it's a permanent toolbar element with no collapsed state
-     of its own — at 0px it has nowhere to lay out its two buttons and
-     they render squashed against the right edge. 82px is its own
-     measured natural width (two 31px buttons + gap + padding); max()
-     guarantees the track never drops below that, while still growing
-     to 320px whenever comments needs it. */
-  grid-template-columns: auto 1fr max(var(--comments-track-width, 0px), 82px);
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    "toolbar toolbar view-selector"
-    "sidebar main    comments";
+#topbar-row {
+  display: flex;
+  align-items: stretch;
+}
+
+#content-row {
+  display: grid;
+  /* "comments" is auto-sized, exactly like "sidebar" — sized by
+     .comments-panel's own box (320px, minus whatever margin-right it
+     currently has). Two things this needed, both on .comments-panel
+     itself, to actually behave like #sidebar's column:
+
+     1. overflow: hidden — an auto track's minimum floors at its item's
+        min-content width unless overflow isn't visible, so without
+        this the "Comments" heading's text would keep the track from
+        ever fully reaching 0.
+     2. margin-right, not grid-template-columns, drives the resize —
+        a CSS custom property here (0px at rest, animated by
+        CommentsPanel.svelte to 320px on open) was tried first, along
+        with @property to register it as an interpolable <length> so
+        grid-template-columns could transition smoothly. Instead of
+        animating, Chrome simply never applied the value at all — a
+        real browser limitation, not a mistake in that approach.
+        margin-right sidesteps it entirely: it's a plain property with
+        no custom-property/registration involved, and shrinking it is
+        a completely standard, well-supported auto-track-sizing input
+        — the same mechanism #sidebar's margin-left already relies on.
+        See .comments-panel.collapsed for why margin-right alone isn't
+        quite enough on this trailing edge the way margin-left is on
+        #sidebar's leading one. */
+  grid-template-columns: auto 1fr auto;
+  /* Explicit 1fr, not the auto/content-sized default a grid falls back
+     to without this — otherwise the single row sizes itself to its
+     tallest item's natural content height instead of filling
+     #content-row's own (flex-stretched) height, leaving blank space
+     below #main whenever its content is shorter than #sidebar or
+     .comments-panel. minmax(0, 1fr), not bare 1fr, so a tall sidebar or
+     comments list doesn't stretch the row (and #main along with it)
+     taller than the viewport — items scroll internally instead. */
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "sidebar main comments";
+  flex: 1;
   min-height: 0;
 }
 
@@ -1557,11 +1607,12 @@ select:not(.share-access-select):not(.share-role-select) {
 #toolbar-mount, #editor-mount { display: contents; }
 
 /* Wraps CommentsPanel.svelte's <div class="comments-panel"> — needs to
-   sit as a direct child of #body for its own grid-area:comments (see
-   #body's grid-template-areas) to actually place it in the comments
-   column instead of being ignored, same reasoning as #menubar-mount
-   above. Without this, the panel renders wherever plain block flow
-   puts an unstyled wrapper div instead of the grid's comments column. */
+   sit as a direct child of #content-row for its own grid-area:comments
+   (see #content-row's grid-template-areas) to actually place it in the
+   comments column instead of being ignored, same reasoning as
+   #menubar-mount above. Without this, the panel renders wherever plain
+   block flow puts an unstyled wrapper div instead of the grid's
+   comments column. */
 #comments-panel-mount { display: contents; }
 
 .outline-list {
@@ -1594,6 +1645,16 @@ select:not(.share-access-select):not(.share-role-select) {
   color: var(--text);
 }
 .doc-row:hover { background: var(--border); }
+
+.doc-row-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
 
 /* Reserves the same width whether or not a given doc has headings (and
    therefore an outline toggle), so every row's icon/name stay aligned. */
@@ -1760,7 +1821,7 @@ select:not(.share-access-select):not(.share-role-select) {
 }
 
 #toolbar {
-  grid-area: toolbar;
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1811,12 +1872,12 @@ select:not(.share-access-select):not(.share-role-select) {
 }
 .toolbar-overflow-menu .sep { display: none; }
 
-/* A separate grid item from #toolbar (see #body's grid-template-areas)
-   so it lines up in its own column above the comment sidenav — needs
-   its own copy of #toolbar's row styling (background/border/padding) to
-   read as a continuation of the same visual row. */
+/* A separate flex item alongside #toolbar in #topbar-row, sized by its
+   own content (not stretched — #toolbar's flex: 1 absorbs the rest of
+   the row) — needs its own copy of #toolbar's row styling
+   (background/border/padding) to read as a continuation of the same
+   visual row. */
 .view-selector {
-  grid-area: view-selector;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -2124,17 +2185,24 @@ select:not(.share-access-select):not(.share-role-select) {
 
 /* Comments Panel */
 .comments-panel {
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, margin-right 0.15s ease;
 }
 
 .comments-panel.collapsed {
-  /* transform, not margin — margin-right on a grid item only reduces
-     the trailing space reserved for it, it doesn't reposition the box
-     itself, so it could never actually slide the panel off-screen (see
-     #body's grid-template-columns comment above for the full story).
-     transform doesn't participate in grid layout at all, so this moves
-     the panel fully out of view without touching #main's width. */
+  /* Two properties doing two separate jobs, animated together. transform
+     doesn't participate in grid layout at all — it's what actually
+     slides the panel out of view, same as always. margin-right, on its
+     own, does NOT reposition a grid item's box (it only shrinks the
+     trailing space reserved after it) — but that's exactly what's
+     needed for the OTHER job: shrinking #content-row's auto-sized
+     third column so #main reclaims the space, the same mechanism
+     #sidebar's margin-left already uses on the opposite edge. Neither
+     property can do both jobs alone here (unlike #sidebar, which only
+     needs one, because shrinking space on the *leading* edge and
+     repositioning the box are the same motion — on this trailing edge
+     they aren't), so both run in parallel over the same duration. */
   transform: translateX(100%);
+  margin-right: -320px;
 }
 
 /* Responsive */
@@ -2298,14 +2366,20 @@ select:not(.share-access-select):not(.share-role-select) {
   #body.mode-split #divider { display: none; }
   #docTitle { max-width: 120px; }
 
-  /* Redefine grid on mobile so #main spans full width. #sidebar and
-     .comments-panel are position: fixed on mobile, so they don't need
-     grid areas. This prevents an empty column under .view-selector. */
-  #body {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "toolbar view-selector"
-      "main    main";
+  /* #sidebar and .comments-panel are position: fixed on mobile, so
+     #content-row has nothing left to actually lay out besides #main —
+     collapse to a single column. Stays a grid rather than switching to
+     display: block: block children don't stretch to fill their
+     parent's height the way grid items do, and #main needs that (it'd
+     otherwise size to its own content height and leave blank space
+     below on a short document, the same bug this whole file's history
+     is about). grid-template-rows isn't redeclared here, so it still
+     inherits minmax(0, 1fr) from the base rule above, which is what
+     actually provides that stretch. #topbar-row needs no override:
+     it's a plain flex row on every screen size, unrelated to this. */
+  #content-row {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main";
   }
 
   /* iOS Safari auto-zooms the whole page in when a focused input's

@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.25.0] - 2026-08-18
+
+### Added
+
+- **Each tab now has its own document.** The URL reflects whichever document is open — deep links work, and switching documents updates the URL so browser back/forward moves between them. Sidebar rows are real links too: Ctrl/Cmd-click (or middle-click) a document to open it in a genuine new tab, Google-Docs style.
+- **Document Info shows a repo-linked document's real commit history** for Created/Edited, instead of local-only timestamps that reset to "just now" every time you pull an existing repo.
+- **Receiving a single shared document always lands it as its own new workspace**, named after the document, with no modal to click through — for every receiver, not just someone with no workspaces yet.
+
+### Fixed
+
+- **Opening this app in more than one tab could silently destroy unrelated documents or workspaces.** Every save now merges with whatever's actually in local storage instead of blindly overwriting it with a possibly-stale copy.
+- **The comments panel left a permanent strip of dead space beside the editor whenever it was collapsed** (most of the time) — the editor and preview now genuinely fill the full width, and the panel's open/close motion is smooth again.
+
 ## [1.24.1] - 2026-08-18
 
 ### Fixed

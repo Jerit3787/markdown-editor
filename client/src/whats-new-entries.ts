@@ -79,4 +79,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "On a repo-linked document, Version History now shows the repo's commits for that file alongside your local snapshots, all in one timeline. Toggle to Diff to compare any version against your current content, and restore straight from a commit — on shared documents too.",
     screenshot: "/whats-new/version-history-repo-commits.png",
   },
+  {
+    version: "1.25.0",
+    title: "A URL for Every Document",
+    description:
+      "Each tab now has its own document — the URL updates as you switch, deep links open the right document directly, and browser back/forward moves between them. Ctrl/Cmd-click (or middle-click) a document in the sidebar to open it in a genuine new tab, Google-Docs style.",
+    screenshot: "/whats-new/tab-per-document-routing.png",
+  },
 ];

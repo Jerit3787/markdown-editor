@@ -221,6 +221,67 @@ describe("docs store — workspace integration", () => {
     expect(persisted[0].workspaceId).toBe("some-other-ws");
   });
 
+  it("persistDocs merges with what another tab already saved instead of overwriting it", async () => {
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([{ id: "doc-a", name: "A", content: "original", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }])
+    );
+    const { docsStore, persistDocs } = await import("./docs");
+
+    // Simulate another tab having since created doc-b and saved it.
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([
+        { id: "doc-a", name: "A", content: "original", updatedAt: 1, createdAt: 1, workspaceId: "ws1" },
+        { id: "doc-b", name: "B", content: "from another tab", updatedAt: 2, createdAt: 2, workspaceId: "ws1" },
+      ])
+    );
+
+    // This tab, unaware of doc-b, edits doc-a and saves.
+    docsStore.set([{ id: "doc-a", name: "A", content: "edited here", updatedAt: 3, createdAt: 1, workspaceId: "ws1" }]);
+    persistDocs();
+
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!);
+    expect(persisted).toHaveLength(2);
+    expect(persisted.find((d: any) => d.id === "doc-a").content).toBe("edited here");
+    expect(persisted.find((d: any) => d.id === "doc-b").content).toBe("from another tab");
+    expect(get(docsStore)).toHaveLength(2);
+  });
+
+  it("persistDocs keeps another tab's newer edit to a document this tab hasn't touched", async () => {
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([{ id: "doc-a", name: "A", content: "v1", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }])
+    );
+    const { docsStore, persistDocs } = await import("./docs");
+
+    // Another tab edited doc-a (newer updatedAt) after this tab loaded its own stale copy.
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([{ id: "doc-a", name: "A", content: "v2 from another tab", updatedAt: 5, createdAt: 1, workspaceId: "ws1" }])
+    );
+
+    persistDocs();
+
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!);
+    expect(persisted.find((d: any) => d.id === "doc-a").content).toBe("v2 from another tab");
+    expect(get(docsStore).find((d) => d.id === "doc-a")?.content).toBe("v2 from another tab");
+  });
+
+  it("removeDocById's own save doesn't resurrect the doc from the pre-deletion snapshot still in localStorage", async () => {
+    localStorage.setItem(
+      "mde:docs",
+      JSON.stringify([{ id: "doc-a", name: "A", content: "gone soon", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }])
+    );
+    const { docsStore, removeDocById } = await import("./docs");
+
+    removeDocById("doc-a");
+
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!);
+    expect(persisted.find((d: any) => d.id === "doc-a")).toBeUndefined();
+    expect(get(docsStore).find((d) => d.id === "doc-a")).toBeUndefined();
+  });
+
   // Finding 3 (final whole-branch review, USER DECISION: cross-workspace
   // navigation follows you to the target workspace): switchDoc is the
   // single choke point every consumer (wikilinks, Command Palette, File >

@@ -5,6 +5,7 @@
   import { activeIdStore, activeDocContent, getActiveDoc, docsStore, switchDoc } from "../stores/docs";
   import { workspacesStore } from "../stores/workspaces";
   import { findBacklinks } from "../wikilinks";
+  import { fetchRepoDocDates, type RepoDocDates } from "../repo-doc-dates";
 
   const doc = $derived($activeIdStore ? getActiveDoc() : undefined);
   const backlinks = $derived(doc ? findBacklinks(doc.name, $docsStore, doc.id) : []);
@@ -13,6 +14,31 @@
     return text.length ? text.split(/\s+/).length : 0;
   });
   const charCount = $derived($activeDocContent.length);
+
+  let repoDates = $state<RepoDocDates | undefined>(undefined);
+
+  // Repo-linked docs show their real commit history instead of local
+  // timestamps once it resolves — local timestamps render first (no
+  // loading flicker) and get replaced in place if this finds something
+  // different. Re-runs whenever the panel switches to a different doc;
+  // the abort on cleanup stops a slow fetch for a previously-viewed doc
+  // from landing after the panel has already moved on and overwriting
+  // the wrong document's display.
+  $effect(() => {
+    repoDates = undefined;
+    if (!doc?.repoPath) return;
+    const workspace = $workspacesStore.find((w) => w.id === doc.workspaceId);
+    const repoLink = workspace?.repoLink;
+    if (!repoLink) return;
+    const controller = new AbortController();
+    fetchRepoDocDates(repoLink.owner, repoLink.repo, repoLink.branch, doc.repoPath, controller.signal).then((dates) => {
+      if (!controller.signal.aborted) repoDates = dates;
+    });
+    return () => controller.abort();
+  });
+
+  const displayCreatedAt = $derived(repoDates?.createdAt ?? doc?.createdAt ?? 0);
+  const displayUpdatedAt = $derived(repoDates?.updatedAt ?? doc?.updatedAt ?? 0);
 
   function close() {
     docInfoPanelOpen.set(false);
@@ -44,11 +70,11 @@
   <Modal title="Document info" icon="icon-info" labelledBy="docInfoTitle" onClose={close}>
     <div class="doc-info-row">
       <span class="doc-info-primary">Created</span>
-      <span class="doc-info-secondary">{window.MDE.formatRelativeTime(doc.createdAt)} • {formatFullTimestamp(doc.createdAt)}</span>
+      <span class="doc-info-secondary">{window.MDE.formatRelativeTime(displayCreatedAt)} • {formatFullTimestamp(displayCreatedAt)}</span>
     </div>
     <div class="doc-info-row">
       <span class="doc-info-primary">Edited</span>
-      <span class="doc-info-secondary">{window.MDE.formatRelativeTime(doc.updatedAt)} • {formatFullTimestamp(doc.updatedAt)}</span>
+      <span class="doc-info-secondary">{window.MDE.formatRelativeTime(displayUpdatedAt)} • {formatFullTimestamp(displayUpdatedAt)}</span>
     </div>
     <div class="doc-info-row">
       <span class="doc-info-primary">Length</span>

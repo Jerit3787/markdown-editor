@@ -148,28 +148,6 @@
     document.getElementById("commentsBtn")?.classList.toggle("active", $commentsPanelOpen);
   });
 
-  // #body's "comments" grid track (see style.css) is a CSS custom
-  // property, not a permanent fixed width — 0px at rest so a collapsed
-  // panel doesn't waste 320px of dead space, but held at 320px for the
-  // ~150ms it takes .comments-panel's own transform transition to
-  // finish sliding out, so #main never jumps mid-animation. Opening
-  // widens the track immediately (there needs to be room to slide
-  // into); closing widens it, waits out the animation, then narrows it
-  // back — the effect's own cleanup cancels a pending narrow if the
-  // panel re-opens before the timeout fires.
-  $effect(() => {
-    const body = document.getElementById("body");
-    if (!body) return;
-    if ($commentsPanelOpen) {
-      body.style.setProperty("--comments-track-width", "320px");
-      return;
-    }
-    const timeoutId = setTimeout(() => {
-      body.style.setProperty("--comments-track-width", "0px");
-    }, 150);
-    return () => clearTimeout(timeoutId);
-  });
-
   onMount(() => {
     // On mobile, opening comments should close the sidenav bottom
     // sheet first — both are 75vh sheets and would otherwise stack.

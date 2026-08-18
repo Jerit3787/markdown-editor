@@ -12,6 +12,7 @@ import { confirmAction } from "./confirmDialog";
 import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
 import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace } from "./workspaces";
+import { mergeById } from "../merge-records";
 
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
@@ -121,9 +122,21 @@ export function findDocById(id: string): Doc | undefined {
   return get(docsStore).find((d) => d.id === id);
 }
 
-export function persistDocs() {
+// Deletion goes through this instead of persistDocs() directly: a plain
+// merge can't tell "this id is missing from docsStore because another tab
+// never told me about it" apart from "this id is missing because THIS tab
+// just deleted it" — both look identical (absent from current, present in
+// whatever's still in localStorage). Explicitly excluding deletedIds from
+// the external side too means a delete always wins for this tab, instead
+// of the merge resurrecting it from a pre-deletion snapshot on the very
+// save that's supposed to record the deletion.
+function persistDocsExcluding(deletedIds: Set<string>) {
   try {
-    localStorage.setItem(STORAGE_DOCS, JSON.stringify(get(docsStore)));
+    const raw = localStorage.getItem(STORAGE_DOCS);
+    const external = raw ? (JSON.parse(raw) as Doc[]).filter((d) => !deletedIds.has(d.id)) : [];
+    const merged = mergeById(get(docsStore), external);
+    docsStore.set(merged);
+    localStorage.setItem(STORAGE_DOCS, JSON.stringify(merged));
   } catch (e) {
     // Most commonly a full storage quota (large embedded images) — this
     // used to fail silently, leaving the in-memory doc looking "saved"
@@ -131,6 +144,14 @@ export function persistDocs() {
     // nothing actually persisted.
     showToast("Couldn't save — your browser's local storage may be full", "error");
   }
+}
+
+export function persistDocs() {
+  // Read fresh instead of trusting this tab's own possibly-stale copy —
+  // another tab may have saved since this tab last loaded. Merging
+  // (rather than overwriting) is what stops a save in one tab from
+  // silently destroying a document another tab created or edited.
+  persistDocsExcluding(new Set());
 }
 
 function setActiveId(id: string | null) {
@@ -278,7 +299,7 @@ export function removeDocById(id: string) {
     const remaining = get(docsStore).filter((d) => d.workspaceId === removedWorkspaceId);
     setActiveId(remaining[0] ? remaining[0].id : null);
   }
-  persistDocs();
+  persistDocsExcluding(new Set([id]));
   void deleteHistory(id);
 }
 

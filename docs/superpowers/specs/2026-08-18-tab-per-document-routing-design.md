@@ -24,16 +24,9 @@ This is a large feature; the user explicitly chose to scope this pass down to th
 
 **URL scheme:** `/d/<docId>` — no mode suffix. `wrangler.jsonc`'s asset-serving config already anticipates this exact shape in its own comment (`/d/<docId>/edit`), but the mode segment doesn't carry meaning here: a mode (`view`/`review`/`edit`) reflects a *share link's* granted role, and these are your own local documents — you always have full access. Doc IDs (`uid()` in `docs.ts`) are already lowercase alphanumeric, safe in a path with no encoding needed. `/d/<docId>` and `/w/<workspaceId>/<docId>/<mode>` (the existing share-link pattern) are disjoint — a path matches at most one of them — so `router.ts` and `collab.ts`'s existing `SHARE_PATH` handling coexist with no ordering dependency; each simply no-ops on a path that isn't its own.
 
-**Single integration point — `app.ts`'s `switchDoc` wrapper (currently line 1795):**
+**Single integration point — `app.ts`'s existing `activeIdStore.subscribe(...)` (currently line 223).** Not `switchDoc` (see below for why that was reconsidered): this subscription already fires on *every* change to which document is active, from any source — a writable's subscriber "fires immediately with the current value AND synchronously on every future `.set()`" (per its own existing comment), which is also how it already drives loading the editor. It already tracks a `lastLoadedId`/`firstFire` guard to skip redundant re-fires for the same id; the URL push reuses that same guard, skipping the very first (synchronous, load-time) fire so it never fights with `initRouter`'s own initial-URL consumption, and only pushing on genuine subsequent changes.
 
-```ts
-function switchDoc(id: string) {
-  if (!storeSwitchDoc(id)) return;
-  collapseSidebarForMobile();
-}
-```
-
-This is already the one function every doc-switch entry point funnels through — `window.MDE.switchDoc`, called by `DocList.svelte`'s row click and rename-then-focus flow, `MenuBar.svelte`'s "Open Recent," and `CommandPalette.svelte`'s doc-jump command. Adding `pushDocUrl(id)` here (guarded the same way `collapseSidebarForMobile()` already is, by `storeSwitchDoc`'s return value so a same-doc no-op switch doesn't push a redundant URL) means the URL stays in sync for *every* one of those surfaces automatically, without touching each of them individually. Only `DocList.svelte`'s rows additionally need the anchor restructuring below, since that's the one surface getting native Ctrl/Cmd-click support in this phase.
+This one hook covers every way the active document can change — `window.MDE.switchDoc` (used by `DocList.svelte`'s row click, `MenuBar.svelte`'s "Open Recent," and `CommandPalette.svelte`'s doc-jump command all funnel through it), *and* `stores/docs.ts`'s `ensureActiveDocInWorkspace` (used by `WorkspaceSwitcher.svelte` when switching or creating a workspace), which sets `activeIdStore` directly through a private `setActiveId()` helper, bypassing `switchDoc` entirely. Hooking into `switchDoc` instead (an earlier draft of this design) would have silently missed the workspace-switching path. Only `DocList.svelte`'s rows additionally need the anchor restructuring below, since that's the one surface getting native Ctrl/Cmd-click support in this phase.
 
 ## Deep link + fallback behavior
 
@@ -57,7 +50,7 @@ A plain left-click prevents the default navigation and does the existing in-tab 
 
 ## Edge cases
 
-- **Workspace switching via `WorkspaceSwitcher.svelte`** calls `stores/workspaces.ts`'s `switchWorkspace` directly, not through `app.ts`'s `switchDoc` wrapper — but it's expected to also change the active document (via the existing `ensureActiveDocInWorkspace`), and *that* should end up flowing through the same `switchDoc` funnel, keeping the URL in sync as a side effect. The exact call graph here is a plan-level detail, not a new design decision — no separate URL-push call site should be invented for workspace switching.
+- **The active document becoming `null`** (deleting the last document in a workspace, landing on the empty state) should `replaceState` back to `/` rather than leaving a dead `/d/<deleted-id>` entry that a "back" navigation would just bounce off of again. A real, non-null document change gets `pushState` (a genuine new location worth returning to via back/forward).
 - Comments (`CommentsPanel.svelte`) and Version History (`VersionHistory.svelte`) both already read the active document reactively via `activeIdStore`/`getActiveDoc()`, re-subscribing on every switch — they need no changes.
 
 ## Testing

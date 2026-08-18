@@ -86,4 +86,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Each tab now has its own document — the URL updates as you switch, deep links open the right document directly, and browser back/forward moves between them. Ctrl/Cmd-click (or middle-click) a document in the sidebar to open it in a genuine new tab, Google-Docs style.",
     screenshot: "/whats-new/tab-per-document-routing.png",
   },
+  {
+    version: "1.26.0",
+    title: "GitHub-Style Diffs",
+    description:
+      "The diff view now has line numbers, word-level highlighting for exactly what changed within a line, and a Split/Unified toggle. Images render as before/after thumbnails too, instead of raw text — for local documents, shared documents, and repo commits alike.",
+    screenshot: "/whats-new/github-style-diff-view.png",
+  },
 ];

@@ -100,6 +100,14 @@ interface SessionInfo {
   // Which document this connection currently has open, for cross-file
   // presence — null until the client sends its first MESSAGE_PRESENCE.
   viewingDocId: string | null;
+  // Awareness client IDs this connection has contributed, keyed by docId —
+  // unlike CollabRoom's single shared Awareness (one Set per session), each
+  // document here has its own independent Awareness instance (DocRoom.awareness),
+  // so a session can hold live state in several of them at once. Populated
+  // lazily in handleAwarenessUpdate and consumed in handleClose to remove
+  // this connection's states on disconnect. Optional so tests that construct
+  // a SessionInfo directly (bypassing handleSession) don't need to know about it.
+  awarenessIdsByDoc?: Map<string, Set<number>>;
 }
 
 function docStorageKey(docId: string, suffix: "update" | "snapshots" | "comments"): string {
@@ -420,6 +428,13 @@ export class WorkspaceRoom {
   handleClose(ws: WebSocket): void {
     const session = this.sessions.get(ws);
     this.sessions.delete(ws);
+    if (session?.awarenessIdsByDoc) {
+      for (const [docId, ids] of session.awarenessIdsByDoc) {
+        if (ids.size === 0) continue;
+        const docRoom = this.docs.get(docId);
+        if (docRoom) awarenessProtocol.removeAwarenessStates(docRoom.awareness, Array.from(ids), null);
+      }
+    }
     if (session) this.broadcastPresence(ws, { ...session, viewingDocId: null, username: session.username });
     if (this.sessions.size === 0) this.persistAllNow();
   }
@@ -438,6 +453,22 @@ export class WorkspaceRoom {
 
   handleAwarenessUpdate(docId: string, docRoom: DocRoom, added: number[], updated: number[], removed: number[], origin: unknown): void {
     const changed = added.concat(updated, removed);
+    // A direct Map lookup rather than `origin instanceof WebSocket` — the
+    // latter depends on a real global WebSocket constructor (absent in the
+    // plain-Node unit test environment, and unnecessary here regardless:
+    // this.sessions.get() already returns undefined for any key it doesn't
+    // hold, including the "storage"/"restore"/null origins used elsewhere).
+    const session = this.sessions.get(origin as WebSocket);
+    if (session) {
+      if (!session.awarenessIdsByDoc) session.awarenessIdsByDoc = new Map();
+      let ids = session.awarenessIdsByDoc.get(docId);
+      if (!ids) {
+        ids = new Set();
+        session.awarenessIdsByDoc.set(docId, ids);
+      }
+      added.concat(updated).forEach((id) => ids!.add(id));
+      removed.forEach((id) => ids!.delete(id));
+    }
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
     encoding.writeVarString(encoder, docId);

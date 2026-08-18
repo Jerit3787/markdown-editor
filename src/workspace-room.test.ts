@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as Y from "yjs";
 import * as syncProtocol from "y-protocols/sync";
+import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { WorkspaceRoom } from "./workspace-room";
@@ -45,6 +46,14 @@ function decodeEnvelope(data: ArrayBuffer): { type: number; docId: string; decod
   const type = decoding.readVarUint(decoder);
   const docId = decoding.readVarString(decoder);
   return { type, docId, decoder };
+}
+
+function encodeAwarenessFrame(docId: string, update: Uint8Array): ArrayBuffer {
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+  encoding.writeVarString(encoder, docId);
+  encoding.writeVarUint8Array(encoder, update);
+  return encoding.toUint8Array(encoder).buffer as ArrayBuffer;
 }
 
 describe("WorkspaceRoom multiplexed sync", () => {
@@ -155,6 +164,47 @@ describe("WorkspaceRoom multiplexed sync", () => {
     await room.handleMessage(clientWs, encoding.toUint8Array(replyEncoder).buffer as ArrayBuffer);
 
     expect(room.docs.get("docA")?.doc.getText("content").toString()).toBe("seeded content that must reach the server");
+  });
+
+  // Regression test for a real bug reported live: repeatedly switching
+  // documents in a shared workspace made the presence avatar count creep
+  // up before eventually dropping back down. Root cause (one of three
+  // contributing bugs, this one server-side): unlike the legacy CollabRoom,
+  // WorkspaceRoom.handleClose never removed a disconnected session's Yjs
+  // awareness states, so every abandoned connection left a phantom entry
+  // sitting in DocRoom.awareness until the Durable Object itself evicted.
+  it("removes a session's awareness state for a doc when its socket closes", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const clientWs = { send: () => {} } as unknown as WebSocket;
+    const otherSent: ArrayBuffer[] = [];
+    const otherWs = { send: (data: ArrayBuffer) => otherSent.push(data) } as unknown as WebSocket;
+    room.sessions.set(clientWs, { username: "alice", role: "editor", viewingDocId: "docA" });
+    room.sessions.set(otherWs, { username: "bob", role: "editor", viewingDocId: "docA" });
+
+    // alice's client announces presence on docA, same as bindActiveDoc's
+    // awareness.setLocalState(...) -> sendAwareness(...) does.
+    const localAwareness = new awarenessProtocol.Awareness(new Y.Doc());
+    localAwareness.setLocalState({ user: { name: "alice" } });
+    const update = awarenessProtocol.encodeAwarenessUpdate(localAwareness, [localAwareness.clientID]);
+    await room.handleMessage(clientWs, encodeAwarenessFrame("docA", update));
+
+    const docRoom = room.docs.get("docA")!;
+    expect(docRoom.awareness.getStates().size).toBe(1);
+    otherSent.length = 0; // clear the broadcast from the join itself
+
+    room.handleClose(clientWs);
+
+    expect(docRoom.awareness.getStates().size).toBe(0);
+    // The removal itself must also reach the remaining collaborator —
+    // otherwise their own presence bar keeps showing the stale avatar.
+    // handleClose sends this (via handleAwarenessUpdate's broadcast, fired
+    // synchronously from removeAwarenessStates) before its own separate
+    // MESSAGE_PRESENCE broadcast, so among possibly several frames sent
+    // during close, find the awareness one specifically rather than
+    // assuming position.
+    const awarenessFrame = otherSent.map(decodeEnvelope).find((f) => f.type === MESSAGE_AWARENESS);
+    expect(awarenessFrame).toBeDefined();
+    expect(awarenessFrame!.docId).toBe("docA");
   });
 });
 

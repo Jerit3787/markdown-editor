@@ -57,6 +57,15 @@ const workspaceRoom = {
   reconnectDelay: 1000,
 };
 
+// Bumped by every teardownWorkspace() call. rejoinKnownWorkspace/joinWorkspace
+// are async and fire-and-forget from handleDocChanged, so rapidly switching
+// documents can start a second join before the first one's awaits resolve —
+// without this, both attempts finish and race to own workspaceRoom, leaving
+// one attempt's Y.Doc/Awareness bindings (and their distinct clientIDs)
+// orphaned with nothing left to clean them up. Each async attempt snapshots
+// this value and bails if it no longer matches after an await.
+let joinGeneration = 0;
+
 // Documents in the shared workspace whose Y.Text/images changed while
 // they weren't the active document — the active document's content
 // already flows into docsStore through the normal CodeMirror ->
@@ -208,11 +217,19 @@ function handleDocChanged(doc: any) {
 }
 
 async function rejoinKnownWorkspace(remoteId: string, docId: string) {
+  // Snapshot right after the caller's own teardownWorkspace() (handleDocChanged
+  // calls it immediately before this) — if a later doc switch starts its own
+  // attempt before this one's awaits resolve, that later teardownWorkspace()
+  // bumps joinGeneration and every check below bails instead of racing it.
+  const myGeneration = joinGeneration;
   await window.MDE.githubSessionReady;
+  if (myGeneration !== joinGeneration) return;
   const access = await fetchWorkspaceAccess(remoteId);
+  if (myGeneration !== joinGeneration) return;
   const role = computeMyRole(access, window.MDE.githubUsername);
   if (!role) return;
-  await joinWorkspace(remoteId, { role });
+  const joined = await joinWorkspace(remoteId, { role });
+  if (joined !== joinGeneration) return;
   bindActiveDoc(docId);
   syncShareStores();
 }
@@ -268,11 +285,17 @@ async function migrateLegacyDoc(docId: string) {
 // isn't OPEN yet (a real gap this fixes: turning on sharing previously
 // created an empty room server-side and never actually sent the
 // document's content, only the framing for it).
-async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: string; seedDocId?: string }): Promise<void> {
+// Returns the generation number this attempt claimed (via its own
+// teardownWorkspace() call below) so callers that awaited this can tell
+// whether a newer attempt has since superseded it — see rejoinKnownWorkspace.
+async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: string; seedDocId?: string }): Promise<number> {
   teardownWorkspace();
+  const myGeneration = joinGeneration;
   workspaceRoom.workspaceId = workspaceId;
 
   const docIds = await fetchWorkspaceDocIds(workspaceId);
+  if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-fetch — leave workspaceRoom to the newer attempt
+
   for (const docId of docIds) createDocBinding(docId, role);
 
   if (seedDocId && !docIds.includes(seedDocId)) {
@@ -281,6 +304,7 @@ async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: s
   }
 
   connectWorkspace();
+  return myGeneration;
 }
 
 // Pushes the currently-open editor's live content (and any local
@@ -365,6 +389,7 @@ function bindActiveDoc(docId: string): void {
 }
 
 function teardownWorkspace(): void {
+  joinGeneration++;
   // Cancels any pending debounce timer and runs the flush immediately —
   // its side effects (docsStore writes, persistDocs) happen synchronously
   // within this call even though the returned Promise resolves later, so
@@ -378,16 +403,21 @@ function teardownWorkspace(): void {
     clearTimeout(workspaceRoom.reconnectTimer);
     workspaceRoom.reconnectTimer = null;
   }
-  if (workspaceRoom.ws) {
-    workspaceRoom.ws.onclose = null;
-    workspaceRoom.ws.onerror = null;
-    try { workspaceRoom.ws.close(); } catch (e) { /* already closed */ }
-  }
+  // Destroy each doc's awareness (broadcasting its own "I'm leaving" state
+  // update, see bindActiveDoc's awareness.on("update", ...) listener) BEFORE
+  // closing the socket — send() only transmits while the socket is OPEN, so
+  // closing first silently drops that broadcast almost every time, leaving
+  // a phantom presence entry the server never learns to remove.
   for (const binding of workspaceRoom.docs.values()) {
     binding.awareness.destroy();
     binding.ydoc.off("update", binding.ydocUpdateHandler);
     if (binding.undoManager) binding.undoManager.destroy();
     binding.ydoc.destroy();
+  }
+  if (workspaceRoom.ws) {
+    workspaceRoom.ws.onclose = null;
+    workspaceRoom.ws.onerror = null;
+    try { workspaceRoom.ws.close(); } catch (e) { /* already closed */ }
   }
   workspaceRoom.docs.clear();
   workspaceRoom.workspaceId = null;
@@ -652,6 +682,10 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
 // subtree, and pushes everything the component needs into stores/share.ts.
 
 export { colorForUsername };
+
+// Exported purely for collab.test.ts's join-generation race regression
+// test — not part of any real caller's public surface.
+export { handleDocChanged, workspaceRoom };
 
 function setupShareUI() {
   document.getElementById("shareBtn").addEventListener("click", openShareModal);

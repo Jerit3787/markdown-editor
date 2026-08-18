@@ -11,6 +11,7 @@ import {
   planCreateWorkspaceFromRepo,
   linkWorkspaceAndSync,
   markerMatchesWorkspace,
+  decodeBase64Text,
   type TreeEntry,
 } from "./repo-sync";
 import { docsStore } from "./stores/docs";
@@ -42,6 +43,33 @@ describe("dedupeRepoPath", () => {
   it("appends -2, -3... before the extension until free", () => {
     expect(dedupeRepoPath("notes.md", new Set(["notes.md"]))).toBe("notes-2.md");
     expect(dedupeRepoPath("notes.md", new Set(["notes.md", "notes-2.md"]))).toBe("notes-3.md");
+  });
+});
+
+describe("decodeBase64Text", () => {
+  it("round-trips ASCII text unchanged", () => {
+    const b64 = Buffer.from("hello world", "utf-8").toString("base64");
+    expect(decodeBase64Text(b64)).toBe("hello world");
+  });
+
+  it("correctly decodes multi-byte UTF-8 characters — em dash, curly quotes, accented letters", () => {
+    // Regression coverage: plain atob() decodes base64 byte-for-byte as
+    // Latin-1, which mangles any multi-byte UTF-8 character (GitHub's API
+    // always returns file content as UTF-8-encoded base64, regardless of
+    // the file's actual script/punctuation). "— café's "quote"" exercises
+    // an em dash, an accented letter, and curly quotes in one string.
+    const original = "— café's “quote”";
+    const b64 = Buffer.from(original, "utf-8").toString("base64");
+    expect(decodeBase64Text(b64)).toBe(original);
+  });
+
+  it("strips embedded newlines before decoding, matching GitHub's line-wrapped base64 responses", () => {
+    const original = "line one\nline two";
+    const rawB64 = Buffer.from(original, "utf-8").toString("base64");
+    // GitHub's contents/blob APIs wrap base64 payloads at 60 chars with
+    // literal newlines — insert one mid-string to simulate that.
+    const wrapped = rawB64.slice(0, 4) + "\n" + rawB64.slice(4);
+    expect(decodeBase64Text(wrapped)).toBe(original);
   });
 });
 

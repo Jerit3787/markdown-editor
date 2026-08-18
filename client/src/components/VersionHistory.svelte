@@ -18,6 +18,7 @@
   import { renderVersionPreview } from "../version-preview";
   import { showToast } from "../stores/toast";
   import { extractAssetImageRefs } from "../diff-image-row";
+  import { decodeBase64Text } from "../repo-sync";
   import DiffView from "./DiffView.svelte";
 
   interface LocalEntry {
@@ -72,7 +73,7 @@
     if (!res.ok) return undefined;
     const data = (await res.json()) as { content: string; encoding: string };
     if (data.encoding !== "base64") return data.content;
-    return atob(data.content.replace(/\n/g, ""));
+    return decodeBase64Text(data.content);
   }
 
   async function fetchCommitImages(doc: ReturnType<typeof getActiveDoc>, sha: string, content: string): Promise<Record<string, string>> {
@@ -231,7 +232,15 @@
   $effect(() => {
     if (viewMode === "preview" && selectedContent !== undefined && previewEl) {
       const doc = getActiveDoc();
-      if (doc) void renderVersionPreview(selectedContent, doc, previewEl);
+      // Override .images with the SELECTED version's own images
+      // (selectedImages — already resolved per-version by selectVersion,
+      // whether local snapshot, shared snapshot, or repo commit), not the
+      // live doc's current map. A repo commit's raw text references
+      // images by their assets/<slug>/... path, which never matches the
+      // live doc's img-key-keyed map — passing doc.images straight
+      // through here always failed to resolve those, showing a broken
+      // image regardless of what the image was actually named.
+      if (doc) void renderVersionPreview(selectedContent, { ...doc, images: selectedImages }, previewEl);
     }
   });
 

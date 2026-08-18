@@ -130,6 +130,31 @@ export function setWorkspaceLastSynced(id: string, timestamp: number): void {
   persistWorkspaces();
 }
 
+// See Workspace.pendingRepoDeletions's own comment for why this exists
+// instead of planPush diffing the whole repo tree against current docs.
+export function queueRepoDeletion(workspaceId: string, repoPath: string): void {
+  workspacesStore.update((all) =>
+    all.map((w) => {
+      if (w.id !== workspaceId) return w;
+      const existing = w.pendingRepoDeletions || [];
+      if (existing.includes(repoPath)) return w;
+      return { ...w, pendingRepoDeletions: [...existing, repoPath], updatedAt: Date.now() };
+    })
+  );
+  persistWorkspaces();
+}
+
+// Removes only the paths a push actually sent — not the whole queue — in
+// case a new deletion was queued while that push was still in flight.
+export function clearPendingRepoDeletions(workspaceId: string, sentPaths: string[]): void {
+  if (sentPaths.length === 0) return;
+  const sent = new Set(sentPaths);
+  workspacesStore.update((all) =>
+    all.map((w) => (w.id === workspaceId ? { ...w, pendingRepoDeletions: (w.pendingRepoDeletions || []).filter((p) => !sent.has(p)), updatedAt: Date.now() } : w))
+  );
+  persistWorkspaces();
+}
+
 export function renameWorkspace(id: string, name: string) {
   workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, name: name || "Untitled workspace", updatedAt: Date.now() } : w)));
   persistWorkspaces();

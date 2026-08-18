@@ -92,19 +92,53 @@ describe("rewriteImagesForPush", () => {
 });
 
 describe("resolveImagesFromPull", () => {
-  it("resolves an assets-relative link back to an internal ref and an images entry", () => {
-    const result = resolveImagesFromPull("![a photo](assets/my-notes/img-1.png)", "my-notes", {
-      "assets/my-notes/img-1.png": "data:image/png;base64,aGVsbG8=",
+  it("resolves an assets-relative link back to its bare filename as the internal ref", () => {
+    const result = resolveImagesFromPull("![a photo](assets/my-notes/foo.png)", "my-notes", {
+      "assets/my-notes/foo.png": "data:image/png;base64,aGVsbG8=",
     });
-    expect(result.content).toMatch(/^!\[a photo\]\(img-[a-z0-9]+-\d+\)$/);
-    const ref = result.content.match(/\(([^)]+)\)/)![1]!;
-    expect(result.images[ref]).toBe("data:image/png;base64,aGVsbG8=");
+    expect(result.content).toBe("![a photo](foo.png)");
+    expect(result.images["foo.png"]).toBe("data:image/png;base64,aGVsbG8=");
   });
 
   it("leaves links with no matching blob untouched", () => {
     const result = resolveImagesFromPull("![x](https://example.com/x.png)", "my-notes", {});
     expect(result.content).toBe("![x](https://example.com/x.png)");
     expect(result.images).toEqual({});
+  });
+
+  // Regression coverage for TODO's "changing an image reference into the
+  // locally established format counts as a diff": the old scheme minted a
+  // fresh img-<timestamp>-N ref on every pull, even for byte-identical
+  // image content, so re-pulling (e.g. after an unrelated file in the same
+  // repo changed) turned an untouched image line into a spurious diff, and
+  // pushing it back out renamed the asset in the repo on every round trip
+  // even with zero real edits (rewriteImagesForPush appends the pushed
+  // ref's own name under assets/<slug>/, so a fresh ref each pull meant a
+  // fresh asset path each push).
+  it("produces the same ref for the same pull, byte-identical or not — deterministic, not timestamp-based", () => {
+    const blobs = { "assets/my-notes/foo.png": "data:image/png;base64,aGVsbG8=" };
+    const first = resolveImagesFromPull("![a](assets/my-notes/foo.png)", "my-notes", blobs);
+    const second = resolveImagesFromPull("![a](assets/my-notes/foo.png)", "my-notes", blobs);
+    expect(first.content).toBe(second.content);
+  });
+
+  it("round-trips back through rewriteImagesForPush to the exact original asset path", () => {
+    const original = "![a photo](assets/my-notes/foo.png)";
+    const dataUrl = "data:image/png;base64,aGVsbG8=";
+    const pulled = resolveImagesFromPull(original, "my-notes", { "assets/my-notes/foo.png": dataUrl });
+    const pushed = rewriteImagesForPush(pulled.content, "my-notes", pulled.images, undefined);
+    expect(pushed.content).toBe(original);
+    expect(pushed.assets).toEqual([{ path: "assets/my-notes/foo.png", dataUrl }]);
+  });
+
+  it("reuses the same internal ref for the same image referenced twice in one doc — mirrors rewriteImagesForPush's own reuse", () => {
+    const result = resolveImagesFromPull(
+      "![a](assets/notes/foo.png) and again ![b](assets/notes/foo.png)",
+      "notes",
+      { "assets/notes/foo.png": "data:image/png;base64,aGVsbG8=" }
+    );
+    expect(result.content).toBe("![a](foo.png) and again ![b](foo.png)");
+    expect(Object.keys(result.images)).toEqual(["foo.png"]);
   });
 });
 
@@ -253,6 +287,71 @@ describe("planPush", () => {
     expect(second.repoPath).toBe("Notes-2.md");
     expect(second.assets).toEqual([{ path: "assets/Notes-2/img-1.png", dataUrl: "data:image/png;base64,aGk=" }]);
     expect(second.content).toBe("![x](assets/Notes-2/img-1.png)");
+  });
+
+  it("queues a deletion for a repo markdown file whose doc was deleted locally", async () => {
+    const entries: TreeEntry[] = [{ path: "gone.md", sha: "s1", type: "blob" }];
+    const plan = await planPush([], entries, false, ["gone.md"]);
+    expect(plan.deletions).toEqual(["gone.md"]);
+    expect(plan.changes).toEqual([]);
+  });
+
+  it("does not delete a repo markdown file that was simply never pulled in as a doc yet", async () => {
+    // Regression coverage: a naive "any tree path with no matching doc"
+    // scan would wrongly delete pre-existing repo content on first push
+    // to a freshly-linked repo, before anyone ever pulled it in — see
+    // linkWorkspaceAndSync's own test for the end-to-end version of this.
+    const entries: TreeEntry[] = [{ path: "pre-existing.md", sha: "s1", type: "blob" }];
+    const plan = await planPush([], entries, false); // pendingRepoDeletions omitted — nothing was ever locally deleted
+    expect(plan.deletions).toEqual([]);
+  });
+
+  it("does not delete a repo path a live doc still owns, even if queued", async () => {
+    const docs = [fakeDoc({ id: "d1", repoPath: "a.md", repoSha: "s1", content: "" })];
+    const entries: TreeEntry[] = [{ path: "a.md", sha: "s1", type: "blob" }];
+    // A different doc's earlier deletion happened to queue this exact
+    // path (e.g. deleted then a new doc reused the name) — this doc has
+    // since reclaimed it, so it must not be deleted out from under it.
+    const plan = await planPush(docs, entries, false, ["a.md"]);
+    expect(plan.deletions).toEqual([]);
+  });
+
+  it("does not orphan-delete a path still claimed by a doc awaiting conflict resolution, even if queued", async () => {
+    const docs = [fakeDoc({ id: "d1", repoPath: "a.md", repoSha: "s1" })];
+    const entries: TreeEntry[] = [{ path: "a.md", sha: "s2", type: "blob" }]; // remote moved -> conflict
+    const plan = await planPush(docs, entries, false, ["a.md"]);
+    expect(plan.conflicts).toEqual([{ docId: "d1", repoPath: "a.md", remoteSha: "s2" }]);
+    expect(plan.deletions).toEqual([]);
+  });
+
+  it("moves a renamed doc to a new repo path and deletes the old one", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "New Name", repoPath: "old-name.md", repoSha: "s1", content: "hi" })];
+    const entries: TreeEntry[] = [{ path: "old-name.md", sha: "s1", type: "blob" }];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.changes).toHaveLength(1);
+    expect(plan.changes[0]!.repoPath).toBe("New Name.md");
+    expect(plan.deletions).toEqual(["old-name.md"]);
+  });
+
+  it("uses the renamed doc's new path (not its old one) as the images-folder slug", async () => {
+    const docs = [
+      fakeDoc({ id: "d1", name: "New Name", repoPath: "old-name.md", repoSha: "s1", content: "![x](img-1)", images: { "img-1": "data:image/png;base64,aGk=" } }),
+    ];
+    const entries: TreeEntry[] = [{ path: "old-name.md", sha: "s1", type: "blob" }];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.changes[0]!.content).toBe("![x](assets/New Name/img-1.png)");
+  });
+
+  it("skips the rename when the target path already belongs to a real tree file (falls back to the old path)", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "Taken", repoPath: "old-name.md", repoSha: "s1", content: "hi" })];
+    const entries: TreeEntry[] = [
+      { path: "old-name.md", sha: "s1", type: "blob" },
+      { path: "Taken.md", sha: "other-sha", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.changes).toHaveLength(1);
+    expect(plan.changes[0]!.repoPath).toBe("old-name.md");
+    expect(plan.deletions).toEqual([]);
   });
 });
 

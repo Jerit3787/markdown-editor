@@ -7,7 +7,7 @@ import type { Doc, Workspace } from "./types";
 import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById, ensureActiveDocInWorkspace, clearRepoSyncMetadata } from "./stores/docs";
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
-import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace, renameWorkspace, setWorkspaceLastSynced } from "./stores/workspaces";
+import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace, renameWorkspace, setWorkspaceLastSynced, clearPendingRepoDeletions } from "./stores/workspaces";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { repoSyncBusyLabel } from "./stores/repoSync";
 import { showProgressToast, updateProgressToast, finishProgressToast, showToast } from "./stores/toast";
@@ -97,13 +97,26 @@ export function rewriteImagesForPush(
 
 export function resolveImagesFromPull(content: string, docSlug: string, blobs: Record<string, string>): { content: string; images: Record<string, string> } {
   const images: Record<string, string> = {};
-  let counter = 0;
   const prefix = `assets/${docSlug}/`;
+  // The internal ref is deterministic (the source path's own suffix after
+  // the assets/<slug>/ prefix), not a fresh Date.now()-based mint per
+  // pull — a timestamp-based ref changed on every pull even when the
+  // image itself was byte-identical, which (a) turned an untouched image
+  // line into a spurious diff whenever an unrelated part of the file was
+  // re-pulled, and (b) round-tripped back through rewriteImagesForPush as
+  // a NEW asset path every single push, silently renaming the file in
+  // the repo despite zero real edits. This exact form (the raw suffix,
+  // slashes included) is what makes that round trip exact: push's own
+  // hasExt branch writes assets/<slug>/<ref> back out unchanged.
+  const seenRefs = new Map<string, string>(); // source ref -> assigned internal key, mirrors rewriteImagesForPush's own seenRefs reuse
   const newContent = content.replace(MARKDOWN_IMAGE_RE, (match, alt, ref) => {
     if (!ref.startsWith(prefix) || !blobs[ref]) return match;
-    counter++;
-    const internalRef = `img-${Date.now().toString(36)}-${counter}`;
-    images[internalRef] = blobs[ref]!;
+    let internalRef = seenRefs.get(ref);
+    if (!internalRef) {
+      internalRef = ref.slice(prefix.length);
+      seenRefs.set(ref, internalRef);
+      images[internalRef] = blobs[ref]!;
+    }
     return `![${alt}](${internalRef})`;
   });
   return { content: newContent, images };
@@ -262,7 +275,13 @@ async function gitBlobSha(content: string): Promise<string> {
     .join("");
 }
 
-export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspace: boolean): Promise<PushPlan> {
+// pendingRepoDeletions: repo paths queued by stores/docs.ts's
+// removeDocById when a repo-linked doc was deleted locally (see
+// Workspace.pendingRepoDeletions's own comment for why a live doc can't
+// answer "what was your repoPath" after it's gone, and why this can't
+// just be "any tree path with no matching doc" — that would also catch
+// repo content nobody has pulled in yet).
+export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspace: boolean, pendingRepoDeletions: string[] = []): Promise<PushPlan> {
   const plan: PushPlan = { changes: [], deletions: [], conflicts: [] };
   const treeShaByPath = new Map(mdEntries.filter((e) => e.type === "blob").map((e) => [e.path, e.sha]));
   const usedPaths = new Set(mdEntries.map((e) => e.path));
@@ -271,6 +290,15 @@ export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspac
   // falls through to the normal dedupe-as-new path instead of also
   // claiming it.
   const claimedFromTree = new Set<string>();
+  // Every repoPath some live doc ends up owning by the end of this push
+  // (whether or not its content actually changed) — used below to make
+  // sure a rename's old path, or a pendingRepoDeletions entry, isn't
+  // deleted if some other doc has since reclaimed that exact path.
+  const claimedPaths = new Set<string>();
+  // Old paths vacated by a rename detected THIS push — safe to delete
+  // outright (unlike pendingRepoDeletions, there's no "never pulled in"
+  // ambiguity: the doc that owned this path still exists right now).
+  const renameOldPaths: string[] = [];
 
   for (const doc of docs) {
     let repoPath = doc.repoPath;
@@ -295,25 +323,55 @@ export async function planPush(docs: Doc[], mdEntries: TreeEntry[], sameWorkspac
         isNewPath = true;
       }
     } else {
-      const treeSha = treeShaByPath.get(repoPath);
-      if (treeSha !== undefined && treeSha !== doc.repoSha) {
-        plan.conflicts.push({ docId: doc.id, repoPath, remoteSha: treeSha });
-        continue;
+      // Rename detection: the doc's current name no longer slugifies to
+      // the path it was last pushed to. Move the file (write the new
+      // path, orphan-delete the old one below) instead of silently
+      // keeping content in sync at a filename that no longer matches —
+      // skipped when the target path already belongs to some other real
+      // tree file, since that's a genuine collision, not a rename; the
+      // doc just falls through to updating its old path as before.
+      const wantsSlug = slugifyDocName(doc.name);
+      const renamedBase = `${wantsSlug}.md`;
+      if (wantsSlug !== slugFromRepoPath(repoPath) && !usedPaths.has(renamedBase)) {
+        renameOldPaths.push(repoPath);
+        repoPath = dedupeRepoPath(renamedBase, usedPaths);
+        usedPaths.add(repoPath);
+        isNewPath = true;
+      } else {
+        const treeSha = treeShaByPath.get(repoPath);
+        if (treeSha !== undefined && treeSha !== doc.repoSha) {
+          plan.conflicts.push({ docId: doc.id, repoPath, remoteSha: treeSha });
+          claimedPaths.add(repoPath);
+          continue;
+        }
       }
     }
     const { content, assets } = rewriteImagesForPush(doc.content, slugFromRepoPath(repoPath), doc.images, doc.diagrams);
     if (!isNewPath) {
       const currentSha = treeShaByPath.get(repoPath);
-      if (currentSha !== undefined && (await gitBlobSha(content)) === currentSha) continue;
+      if (currentSha !== undefined && (await gitBlobSha(content)) === currentSha) {
+        claimedPaths.add(repoPath);
+        continue;
+      }
     }
     if (matchedExistingFile && !sameWorkspace) {
       // Unproven whose file this actually is — flag it the same way an
       // already-linked doc's own sha mismatch would, rather than
       // silently overwriting content that might belong to someone else.
       plan.conflicts.push({ docId: doc.id, repoPath, remoteSha: treeShaByPath.get(repoPath)! });
+      claimedPaths.add(repoPath);
       continue;
     }
+    claimedPaths.add(repoPath);
     plan.changes.push({ docId: doc.id, repoPath, content, assets });
+  }
+
+  const treePaths = new Set(filterMarkdownEntries(mdEntries).map((e) => e.path));
+  for (const path of renameOldPaths) {
+    if (treePaths.has(path) && !claimedPaths.has(path)) plan.deletions.push(path);
+  }
+  for (const path of pendingRepoDeletions) {
+    if (treePaths.has(path) && !claimedPaths.has(path) && !plan.deletions.includes(path)) plan.deletions.push(path);
   }
 
   return plan;
@@ -339,13 +397,14 @@ export async function pushToRepo(
   const entries: TreeEntry[] = treeData.tree || [];
   const docs = docsInWorkspace(workspaceId);
   const sameWorkspace = await checkWorkspaceMarker(repoLink, entries, workspaceId);
-  const plan = await planPush(docs, entries, sameWorkspace);
+  const pendingRepoDeletions = get(workspacesStore).find((w) => w.id === workspaceId)?.pendingRepoDeletions || [];
+  const plan = await planPush(docs, entries, sameWorkspace, pendingRepoDeletions);
   if (plan.changes.length > 0) {
     onProgress?.(`Pushing ${plan.changes.length} file${plan.changes.length === 1 ? "" : "s"}…`);
   }
 
-  async function sendChanges(changes: PushPlan["changes"]): Promise<void> {
-    if (changes.length === 0) return;
+  async function sendChanges(changes: PushPlan["changes"], deletePaths: string[] = []): Promise<void> {
+    if (changes.length === 0 && deletePaths.length === 0) return;
     const blobs: { path: string; contentBase64: string }[] = [];
     for (const change of changes) {
       blobs.push({ path: change.repoPath, contentBase64: toBase64(change.content) });
@@ -372,7 +431,7 @@ export async function pushToRepo(
         baseTreeSha: branchTree.treeSha,
         parentCommitSha: branchTree.commitSha,
         blobs,
-        deletePaths: [],
+        deletePaths,
       }),
     });
     if (pushRes.status === 409) throw new Error("The repo changed since this push started — pull first, then try again.");
@@ -388,7 +447,8 @@ export async function pushToRepo(
     }
   }
 
-  await sendChanges(plan.changes);
+  await sendChanges(plan.changes, plan.deletions);
+  clearPendingRepoDeletions(workspaceId, plan.deletions);
   setWorkspaceLastSynced(workspaceId, Date.now());
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {

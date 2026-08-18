@@ -308,7 +308,14 @@
         </div>
         {#if viewMode === "diff"}
           <div class="version-history-preview">
-            <DiffView before={selectedContent ?? ""} after={$activeDocContent} beforeImages={selectedImages} afterImages={getActiveDoc()?.images} />
+            {#if selectedContent === undefined}
+              <div class="empty-state">
+                <svg class="empty-state-icon"><use href="#icon-history"></use></svg>
+                <div class="empty-state-title">Loading…</div>
+              </div>
+            {:else}
+              <DiffView before={selectedContent} after={$activeDocContent} beforeImages={selectedImages} afterImages={getActiveDoc()?.images} />
+            {/if}
           </div>
         {:else}
           <div class="version-history-preview" bind:this={previewEl}></div>

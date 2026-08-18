@@ -93,4 +93,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "The diff view now has line numbers, word-level highlighting for exactly what changed within a line, and a Split/Unified toggle. Images render as before/after thumbnails too, instead of raw text — for local documents, shared documents, and repo commits alike.",
     screenshot: "/whats-new/github-style-diff-view.png",
   },
+  {
+    version: "1.27.0",
+    title: "Portable Local History",
+    description:
+      "Version History and personal notes on a repo-linked document now travel with the repo instead of staying stuck on whichever device created them. Push bundles your local snapshots and notes into the commit; opening the doc anywhere else pulls them back in automatically.",
+    screenshot: "/whats-new/portable-local-history.png",
+  },
 ];

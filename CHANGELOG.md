@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.27.0] - 2026-08-19
+
+### Added
+
+- **Local version history and personal notes on a repo-linked document now travel with the repo**, instead of being stuck on whichever device created them. Pushing bundles a doc's local snapshots and notes into the same commit as its content; opening Version History or the comments panel on another device pulls them in automatically and merges them with whatever's already there.
+
+### Fixed
+
+- **Selecting an older commit in Version History's Diff tab could show every line as newly added**, with nothing on the "before" side, while the content was still loading — or permanently, if the fetch failed. The Diff tab now shows a loading state instead, matching the Preview tab.
+- **A file renamed in the repo showed a broken diff (or a "couldn't load" error) for any commit from before the rename**, since the commit's content was looked up at the file's current path, which didn't exist yet at that point in its history. Falls back to searching that commit's own tree for the file under its old name.
+
 ## [1.26.1] - 2026-08-19
 
 ### Fixed

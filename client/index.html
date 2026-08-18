@@ -345,12 +345,18 @@
 
   <div id="body">
 
-    <!-- Formatting toolbar + view selector — Toolbar.svelte renders two
-         root elements here (see that component): #toolbar spans the
-         sidenav+editor+preview columns, .view-selector sits in its own
-         column aligned above the comment sidenav. See #body's
-         grid-template-areas in style.css. -->
-    <div id="toolbar-mount"></div>
+    <!-- Two independent layouts stacked vertically, not one grid — see
+         #body's comment in style.css for why: a single grid would force
+         the topbar row and the content row below it to share column
+         widths, which is exactly the bug this split avoids. -->
+    <div id="topbar-row">
+      <!-- Formatting toolbar + view selector — Toolbar.svelte renders two
+           root elements here (see that component): #toolbar grows to
+           fill the row, .view-selector sits at its end. -->
+      <div id="toolbar-mount"></div>
+    </div>
+
+    <div id="content-row">
 
     <!-- Dimming backdrop for the mobile bottom-sheet presentation of
          #sidebar (see the mobile media query in style.css) — shown/
@@ -440,12 +446,11 @@
     </main>
 
     <!-- Comments Panel — Svelte component, mounted in main.ts; see
-         client/src/components/CommentsPanel.svelte. A #body grid item
-         (not a fixed-position overlay) so opening it pushes #main's
-         content left/narrower instead of floating on top of it — and its
-         column width is shared with the view selector above it (see
-         #body's grid-template-areas in style.css). -->
+         client/src/components/CommentsPanel.svelte. A #content-row grid
+         item (not a fixed-position overlay) so opening it pushes #main's
+         content left/narrower instead of floating on top of it. -->
     <div id="comments-panel-mount"></div>
+    </div>
   </div>
 
   <footer id="statusbar">

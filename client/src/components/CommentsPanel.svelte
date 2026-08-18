@@ -148,15 +148,19 @@
     document.getElementById("commentsBtn")?.classList.toggle("active", $commentsPanelOpen);
   });
 
-  // #body's "comments" grid track (see style.css) is a CSS custom
-  // property, not a permanent fixed width — 0px at rest so a collapsed
-  // panel doesn't waste 320px of dead space, but held at 320px for the
-  // ~150ms it takes .comments-panel's own transform transition to
-  // finish sliding out, so #main never jumps mid-animation. Opening
+  // #content-row's "comments" grid track (see style.css) is a CSS
+  // custom property, not a permanent fixed width — 0px at rest so a
+  // collapsed panel doesn't waste 320px of dead space. It's not
+  // CSS-animated (see the grid-template-columns comment in style.css
+  // for why — a real Chrome limitation, not a missing transition here),
+  // so #main's width still jumps the instant this is set, same as
+  // .comments-panel's own transform-based slide always has. Opening
   // widens the track immediately (there needs to be room to slide
-  // into); closing widens it, waits out the animation, then narrows it
-  // back — the effect's own cleanup cancels a pending narrow if the
-  // panel re-opens before the timeout fires.
+  // into); closing widens it, waits out that ~150ms slide animation,
+  // then narrows it back — so the jump happens once the panel is
+  // already visually gone, not while it's still sliding. The effect's
+  // own cleanup cancels a pending narrow if the panel re-opens before
+  // the timeout fires.
   $effect(() => {
     const body = document.getElementById("body");
     if (!body) return;

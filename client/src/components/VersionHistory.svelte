@@ -17,6 +17,7 @@
   } from "../history";
   import { renderVersionPreview } from "../version-preview";
   import { showToast } from "../stores/toast";
+  import { extractAssetImageRefs } from "../diff-image-row";
   import DiffView from "./DiffView.svelte";
 
   interface LocalEntry {
@@ -72,6 +73,26 @@
     const data = (await res.json()) as { content: string; encoding: string };
     if (data.encoding !== "base64") return data.content;
     return atob(data.content.replace(/\n/g, ""));
+  }
+
+  async function fetchCommitImages(doc: ReturnType<typeof getActiveDoc>, sha: string, content: string): Promise<Record<string, string>> {
+    if (!doc?.repoPath) return {};
+    const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
+    const repoLink = ws?.repoLink;
+    if (!repoLink) return {};
+    const assetRefs = extractAssetImageRefs(content);
+    const images: Record<string, string> = {};
+    for (const assetPath of assetRefs) {
+      const encodedPath = assetPath.split("/").map(encodeURIComponent).join("/");
+      const res = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/contents/${encodedPath}?ref=${encodeURIComponent(sha)}`);
+      if (!res.ok) continue;
+      const data = (await res.json()) as { content: string; encoding: string };
+      // Never atob() this — it's binary image data, not text. Keeping the
+      // base64 string as-is matches repo-sync.ts's own fetchAndApply
+      // convention for the exact same kind of asset fetch during a pull.
+      images[assetPath] = `data:image/*;base64,${data.content.replace(/\n/g, "")}`;
+    }
+    return images;
   }
 
   async function loadCommitEntries(doc: ReturnType<typeof getActiveDoc>): Promise<CommitEntry[]> {
@@ -130,6 +151,7 @@
         return;
       }
       selectedContent = content;
+      selectedImages = await fetchCommitImages(doc, entry.id, content);
     }
   }
 

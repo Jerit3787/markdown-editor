@@ -1027,14 +1027,22 @@ body.focus-mode #statusbar {
   /* A real grid item in #content-row (see index.html), in its own
      "comments" grid column (see #content-row's grid-template-areas) —
      not a fixed-position overlay floating on top of the content like a
-     modal. Unlike #sidebar's column (always reserved, open or
-     collapsed), this one only holds its 320px while the panel is open
-     or actively closing — see #content-row's grid-template-columns
-     comment for why, and CommentsPanel.svelte for what drives the
-     transition. */
+     modal. The column is auto-sized rather than fixed-320px, so it
+     only actually holds that width while the panel is open or
+     collapsing — see #content-row's grid-template-columns comment for
+     the full mechanism.
+
+     overflow: hidden matters beyond clipping: an auto-sized grid track
+     normally floors at its item's min-content width (here, mostly the
+     "Comments" heading's text) rather than shrinking all the way to 0
+     — CSS Grid only drops that floor to a flat 0 when the item's
+     overflow isn't visible. Without this, the track (and the dead
+     space behind it) would never fully disappear even at rest. */
   grid-area: comments;
   width: 320px;
   flex-shrink: 0;
+  overflow: hidden;
+  margin-right: 0;
   background: var(--bg);
   border-left: 1px solid var(--border);
   display: flex;
@@ -1429,32 +1437,30 @@ select:not(.share-access-select):not(.share-role-select) {
 
 #content-row {
   display: grid;
-  /* "comments" isn't auto — an auto track floors at its item's
-     min-content width (the "Comments" heading text can't shrink below
-     ~80px), so no amount of negative margin on .comments-panel.collapsed
-     can shrink an auto track to 0. It's also not a permanent fixed
-     320px either — that avoided the min-content floor but wasted 320px
-     of dead space at rest any time comments was closed (which is most
-     of the time), pushing #main visibly off-center. Instead it's a CSS
-     custom property, 0px at rest — CommentsPanel.svelte's $effect sets
-     it to 320px on open and back to 0px on close — no floor needed,
-     since .view-selector no longer lives in this grid at all.
+  /* "comments" is auto-sized, exactly like "sidebar" — sized by
+     .comments-panel's own box (320px, minus whatever margin-right it
+     currently has). Two things this needed, both on .comments-panel
+     itself, to actually behave like #sidebar's column:
 
-     This value change is NOT CSS-animated: a `transition:
-     grid-template-columns` was tried (registering the property via
-     @property to make it interpolable), and instead of smoothly
-     animating, Chrome simply never applied the value at all — the
-     track stayed frozen at its old width even at rest, var()
-     resolving correctly but grid-template-columns ignoring it,
-     seemingly whenever a transition is watching that property in
-     combination with an @property-registered var() inside it. Given
-     that, #main's width still jumps instantly on open/close, same as
-     the very first version of this rule ever had — only .comments-
-     panel's own transform slide (see its own transition below)
-     animates smoothly, exactly like before. Revisit only with a
-     concrete reason to retry, since it's a real browser limitation,
-     not a mistake in this rule. */
-  grid-template-columns: auto 1fr var(--comments-track-width, 0px);
+     1. overflow: hidden — an auto track's minimum floors at its item's
+        min-content width unless overflow isn't visible, so without
+        this the "Comments" heading's text would keep the track from
+        ever fully reaching 0.
+     2. margin-right, not grid-template-columns, drives the resize —
+        a CSS custom property here (0px at rest, animated by
+        CommentsPanel.svelte to 320px on open) was tried first, along
+        with @property to register it as an interpolable <length> so
+        grid-template-columns could transition smoothly. Instead of
+        animating, Chrome simply never applied the value at all — a
+        real browser limitation, not a mistake in that approach.
+        margin-right sidesteps it entirely: it's a plain property with
+        no custom-property/registration involved, and shrinking it is
+        a completely standard, well-supported auto-track-sizing input
+        — the same mechanism #sidebar's margin-left already relies on.
+        See .comments-panel.collapsed for why margin-right alone isn't
+        quite enough on this trailing edge the way margin-left is on
+        #sidebar's leading one. */
+  grid-template-columns: auto 1fr auto;
   /* Explicit 1fr, not the auto/content-sized default a grid falls back
      to without this — otherwise the single row sizes itself to its
      tallest item's natural content height instead of filling
@@ -2179,18 +2185,24 @@ select:not(.share-access-select):not(.share-role-select) {
 
 /* Comments Panel */
 .comments-panel {
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, margin-right 0.15s ease;
 }
 
 .comments-panel.collapsed {
-  /* transform, not margin — margin-right on a grid item only reduces
-     the trailing space reserved for it, it doesn't reposition the box
-     itself, so it could never actually slide the panel off-screen (see
-     #content-row's grid-template-columns comment above for the full
-     story). transform doesn't participate in grid layout at all, so
-     this moves the panel fully out of view without touching #main's
-     width. */
+  /* Two properties doing two separate jobs, animated together. transform
+     doesn't participate in grid layout at all — it's what actually
+     slides the panel out of view, same as always. margin-right, on its
+     own, does NOT reposition a grid item's box (it only shrinks the
+     trailing space reserved after it) — but that's exactly what's
+     needed for the OTHER job: shrinking #content-row's auto-sized
+     third column so #main reclaims the space, the same mechanism
+     #sidebar's margin-left already uses on the opposite edge. Neither
+     property can do both jobs alone here (unlike #sidebar, which only
+     needs one, because shrinking space on the *leading* edge and
+     repositioning the box are the same motion — on this trailing edge
+     they aren't), so both run in parallel over the same duration. */
   transform: translateX(100%);
+  margin-right: -320px;
 }
 
 /* Responsive */

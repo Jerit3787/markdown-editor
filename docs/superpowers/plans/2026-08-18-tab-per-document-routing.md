@@ -30,10 +30,13 @@
   ```ts
   export function parseDocIdFromPath(pathname: string): string | null
   export function pushDocUrl(docId: string): void
+  export function replaceDocUrl(docId: string): void
   export function replaceToRoot(): void
   export function initRouter(): void
   ```
-  Task 2 calls `initRouter`, `pushDocUrl`, and `replaceToRoot` directly from `app.ts`.
+  Task 2 calls `initRouter`, `pushDocUrl`, `replaceDocUrl`, and `replaceToRoot` directly from `app.ts`.
+
+**Note found during Task 2's live verification, folded back in here:** `replaceDocUrl` wasn't in the original draft of this task — it was added after testing revealed that a tab loading via the localStorage fallback (no deep link in the URL) never gave its baseline history entry a real document URL, so navigating back to it later found no docId and left the current document unchanged instead of restoring anything. `replaceDocUrl` (like `pushDocUrl`, but `history.replaceState` instead of `pushState`) fixes this — see Task 2 Step 3.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -42,7 +45,7 @@ Create `client/src/router.test.ts`:
 ```ts
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { parseDocIdFromPath, pushDocUrl, replaceToRoot } from "./router";
+import { parseDocIdFromPath, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
 
 beforeEach(() => {
   history.replaceState(null, "", "/");
@@ -77,6 +80,22 @@ describe("pushDocUrl", () => {
     history.pushState(null, "", "/d/abc123");
     const lengthBefore = history.length;
     pushDocUrl("abc123");
+    expect(history.length).toBe(lengthBefore);
+  });
+});
+
+describe("replaceDocUrl", () => {
+  it("sets the doc's URL as the current entry, not a new one", () => {
+    const lengthBefore = history.length;
+    replaceDocUrl("abc123");
+    expect(location.pathname).toBe("/d/abc123");
+    expect(history.length).toBe(lengthBefore);
+  });
+
+  it("does nothing when already on that doc's URL", () => {
+    history.replaceState(null, "", "/d/abc123");
+    const lengthBefore = history.length;
+    replaceDocUrl("abc123");
     expect(history.length).toBe(lengthBefore);
   });
 });
@@ -123,6 +142,19 @@ export function pushDocUrl(docId: string): void {
   if (location.pathname !== path) history.pushState(null, "", path);
 }
 
+// Establishes a document's URL as the CURRENT history entry rather than a
+// new one — used once, at load time, to make the very first entry in a
+// tab's history correctly reflect whichever document ended up active
+// (whether from a deep link or the localStorage fallback). Without this,
+// a tab that loaded via the fallback keeps a bare "/" as its baseline
+// entry, and navigating back to it later doesn't restore anything —
+// applyPathToState finds no docId in "/" and just leaves the current
+// document as-is.
+export function replaceDocUrl(docId: string): void {
+  const path = `/d/${docId}`;
+  if (location.pathname !== path) history.replaceState(null, "", path);
+}
+
 export function replaceToRoot(): void {
   if (location.pathname !== "/") history.replaceState(null, "", "/");
 }
@@ -152,7 +184,7 @@ export function initRouter(): void {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `npm test -- router.test.ts`
-Expected: PASS — all 8 tests.
+Expected: PASS — all 10 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -246,14 +278,24 @@ becomes:
       loadDocIntoEditor(getActiveDoc());
       updatePreview();
       updateCounts();
-      // Skip the very first (synchronous, load-time) fire — initRouter()
-      // already applied whatever URL the tab loaded with, so pushing here
-      // too would be redundant. Every later fire is a genuine change
-      // (switchDoc, "Open Recent", Command Palette, workspace switching
-      // via ensureActiveDocInWorkspace — all of them end up here, since
-      // this subscription is the one thing every path to changing
-      // activeIdStore already funnels through).
-      if (!isFirstFire) {
+      // The very first (synchronous, load-time) fire establishes the
+      // starting URL via replaceState, not pushState — this document may
+      // have become active via a deep link (whose URL is already
+      // correct, so this is a harmless no-op) or via the localStorage
+      // fallback (whose URL is still bare "/" until this runs). Either
+      // way, a tab's baseline history entry must reflect a real document
+      // whenever one is active — otherwise navigating back to it later
+      // finds no docId in the URL and leaves the current document
+      // unchanged instead of restoring anything. Every later fire is a
+      // genuine change (switchDoc, "Open Recent", Command Palette,
+      // workspace switching via ensureActiveDocInWorkspace — all of them
+      // end up here, since this subscription is the one thing every path
+      // to changing activeIdStore already funnels through) and gets a
+      // real pushState entry instead.
+      if (isFirstFire) {
+        if (id) replaceDocUrl(id);
+        else replaceToRoot();
+      } else {
         if (id) pushDocUrl(id);
         else replaceToRoot();
       }
@@ -269,11 +311,11 @@ Expected: no errors.
 
 Run `npm run dev:client -- --port 5199` in the background, then in a browser tab:
 
-1. Seed `localStorage` with a workspace and two documents (following the same pattern used earlier this session — `mde:workspaces`, `mde:docs`, `mde:activeWorkspace`, `mde:active`), navigate to `http://localhost:5199/`, and confirm the URL stays at `/` on initial load (no auto-redirect to a `/d/...` URL just from opening the app).
-2. Switch to the second document via the sidebar. Confirm the URL becomes `/d/<that doc's id>`.
-3. Click the browser's back button. Confirm the app switches back to the first document and the URL updates accordingly.
+1. Seed `localStorage` with a workspace and two documents (following the same pattern used earlier this session — `mde:workspaces`, `mde:docs`, `mde:activeWorkspace`, `mde:active`), navigate to `http://localhost:5199/`, and confirm the URL becomes `/d/<the fallback-loaded doc's id>` (via `replaceState`, so it's still the only entry in history — check `history.length` didn't grow). It should *not* stay at bare `/`: the very first `activeIdStore` fire now establishes the correct starting URL for whichever document the localStorage fallback picked.
+2. Switch to the second document via the sidebar. Confirm the URL becomes `/d/<that doc's id>` (this time via `pushState` — a new entry).
+3. Call `history.back()` (via the JS console/`javascript_tool` — the browser-automation tool's own "back" navigation doesn't reliably interact with in-page `pushState` history). Confirm the app switches back to the first document and the URL updates to reflect it. Then `history.forward()` and confirm it switches forward to the second document again.
 4. Navigate directly to `http://localhost:5199/d/<a-real-doc-id>`. Confirm that document loads as active (and its workspace becomes the active workspace, if it belongs to a different one).
-5. Navigate to `http://localhost:5199/d/does-not-exist`. Confirm it falls back to `/` cleanly (no error, no blank page) and shows whatever document the local-storage fallback picks.
+5. Navigate to `http://localhost:5199/d/does-not-exist`. Confirm it falls back cleanly (no error, no blank page) and ends up at `/d/<whatever the local-storage fallback picks>` — not stuck at bare `/`, per point 1 above.
 6. Check the browser console for errors (`read_console_messages`, `onlyErrors: true`).
 7. Stop the dev server and close the browser tab when done.
 

@@ -152,6 +152,32 @@ describe("CollabRoom version snapshots", () => {
     expect(snapshots).toHaveLength(2);
     expect(snapshots[1]!.content).toBe("restored content");
   });
+
+  it("captures the doc's images Y.Map into the snapshot", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => {
+      room.doc.getText("content").insert(0, "v1");
+      room.doc.getMap<string>("images").set("img-1", "data:image/png;base64,aGk=");
+    }, "storage");
+    await room.maybeSnapshot(1_000);
+    const snapshots = await room.getSnapshots();
+    expect(snapshots[0]!.images).toEqual({ "img-1": "data:image/png;base64,aGk=" });
+  });
+
+  it("stores undefined images for a doc with an empty images map", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => room.doc.getText("content").insert(0, "v1"), "storage");
+    await room.maybeSnapshot(1_000);
+    const snapshots = await room.getSnapshots();
+    expect(snapshots[0]!.images).toBeUndefined();
+  });
+
+  it("forceSnapshot also captures images", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => room.doc.getMap<string>("images").set("img-2", "data:image/png;base64,eHk="), "storage");
+    const created = await room.forceSnapshot("forced content", 2_000);
+    expect(created.images).toEqual({ "img-2": "data:image/png;base64,eHk=" });
+  });
 });
 
 describe("CollabRoom comment threads", () => {

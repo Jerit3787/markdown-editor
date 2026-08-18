@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
 
 // Polyfill localStorage if not available (can happen in jsdom without proper URL setup)
@@ -191,5 +191,77 @@ describe("workspaces store — mutations", () => {
     setWorkspaceLastSynced(ws.id, 12345);
     clearWorkspaceRepoLink(ws.id);
     expect(get(workspacesStore).find((w) => w.id === ws.id)?.repoLastSyncedAt).toBeUndefined();
+  });
+});
+
+describe("workspaces store — updatedAt", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("backfills updatedAt from createdAt for a workspace stored before this field existed", async () => {
+    localStorage.setItem("mde:workspaces", JSON.stringify([{ id: "a", name: "A", createdAt: 42 }]));
+    const { workspacesStore } = await import("./workspaces");
+    expect(get(workspacesStore).find((w) => w.id === "a")?.updatedAt).toBe(42);
+  });
+
+  it("createWorkspace stamps updatedAt at creation", async () => {
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("New");
+    expect(ws.updatedAt).toBe(1000);
+  });
+
+  it("adoptSharedWorkspace stamps updatedAt at creation", async () => {
+    const { adoptSharedWorkspace } = await import("./workspaces");
+    const ws = adoptSharedWorkspace("remote-1", "Shared");
+    expect(ws.updatedAt).toBe(1000);
+  });
+
+  it("renameWorkspace bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, renameWorkspace } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    vi.setSystemTime(2000);
+    renameWorkspace(original.id, "Renamed");
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
+  });
+
+  it("mergeSharedWorkspaceInto bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, mergeSharedWorkspaceInto } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    vi.setSystemTime(2000);
+    mergeSharedWorkspaceInto(original.id, "remote-1");
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
+  });
+
+  it("setWorkspaceRepoLink bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceRepoLink } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    vi.setSystemTime(2000);
+    setWorkspaceRepoLink(original.id, { owner: "alice", repo: "notes", branch: "main" });
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
+  });
+
+  it("clearWorkspaceRepoLink bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceRepoLink, clearWorkspaceRepoLink } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    setWorkspaceRepoLink(original.id, { owner: "alice", repo: "notes", branch: "main" });
+    vi.setSystemTime(2000);
+    clearWorkspaceRepoLink(original.id);
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
+  });
+
+  it("setWorkspaceLastSynced bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceLastSynced } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    vi.setSystemTime(2000);
+    setWorkspaceLastSynced(original.id, 2000);
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
   });
 });

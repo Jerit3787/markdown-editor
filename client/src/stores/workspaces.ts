@@ -25,7 +25,8 @@ function loadWorkspacesFromStorage(): Workspace[] | null {
   const raw = localStorage.getItem(STORAGE_WORKSPACES);
   if (raw === null) return null;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw) as Workspace[];
+    return parsed.map((w) => ({ ...w, updatedAt: w.updatedAt ?? w.createdAt }));
   } catch (e) {
     return [];
   }
@@ -70,7 +71,7 @@ function setActiveWorkspaceId(id: string | null) {
 }
 
 export function createWorkspace(name: string): Workspace {
-  const ws: Workspace = { id: uid(), name, createdAt: Date.now() };
+  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), updatedAt: Date.now() };
   workspacesStore.update((all) => [ws, ...all]);
   setActiveWorkspaceId(ws.id);
   persistWorkspaces();
@@ -81,7 +82,7 @@ export function createWorkspace(name: string): Workspace {
 // a new workspace" — creates a fresh local Workspace record pointed at the
 // remote room, distinct from anything the user already has.
 export function adoptSharedWorkspace(remoteId: string, name: string): Workspace {
-  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), shared: true, remoteId };
+  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), updatedAt: Date.now(), shared: true, remoteId };
   workspacesStore.update((all) => [ws, ...all]);
   setActiveWorkspaceId(ws.id);
   persistWorkspaces();
@@ -92,27 +93,27 @@ export function adoptSharedWorkspace(remoteId: string, name: string): Workspace 
 // workspace" — the chosen local workspace keeps its own id/name but
 // starts pointing at the remote room too.
 export function mergeSharedWorkspaceInto(workspaceId: string, remoteId: string): void {
-  workspacesStore.update((all) => all.map((w) => (w.id === workspaceId ? { ...w, shared: true, remoteId } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === workspaceId ? { ...w, shared: true, remoteId, updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 
 export function setWorkspaceRepoLink(id: string, repoLink: { owner: string; repo: string; branch: string }): void {
-  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink, updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 
 export function clearWorkspaceRepoLink(id: string): void {
-  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink: undefined, repoLastSyncedAt: undefined } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink: undefined, repoLastSyncedAt: undefined, updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 
 export function setWorkspaceLastSynced(id: string, timestamp: number): void {
-  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLastSyncedAt: timestamp } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLastSyncedAt: timestamp, updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 
 export function renameWorkspace(id: string, name: string) {
-  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, name: name || "Untitled workspace" } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, name: name || "Untitled workspace", updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 

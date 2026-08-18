@@ -818,7 +818,7 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
     return false;
   }
   currentAccess = access;
-  workspacesStore.update((all) => all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: wantAnyone || access.invited.length > 0 || w.shared, remoteId: w.remoteId || doc.workspaceId } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: wantAnyone || access.invited.length > 0 || w.shared, remoteId: w.remoteId || doc.workspaceId, updatedAt: Date.now() } : w)));
   persistWorkspaces();
   if ((wantAnyone || access.invited.length > 0) && !workspaceRoom.workspaceId) {
     await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
@@ -879,7 +879,7 @@ export async function addPerson(rawUsername: string) {
   });
   if (access) {
     currentAccess = access;
-    workspacesStore.update((all) => all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: true, remoteId: w.remoteId || doc.workspaceId } : w)));
+    workspacesStore.update((all) => all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: true, remoteId: w.remoteId || doc.workspaceId, updatedAt: Date.now() } : w)));
     persistWorkspaces();
     // Restricted access never otherwise triggers joinWorkspace (only
     // switching to "anyone" does, see setAccessMode) — without this, an

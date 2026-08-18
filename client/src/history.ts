@@ -18,6 +18,7 @@ export interface Snapshot {
   id: string;
   timestamp: number;
   content: string;
+  images?: Record<string, string>;
 }
 
 export interface VersionSummary {
@@ -60,9 +61,9 @@ async function putHistory(docId: string, snapshots: Snapshot[]): Promise<void> {
   });
 }
 
-async function appendSnapshot(docId: string, content: string, now: number): Promise<void> {
+async function appendSnapshot(docId: string, content: string, now: number, images?: Record<string, string>): Promise<void> {
   const snapshots = await getHistory(docId);
-  snapshots.push({ id: uid(), timestamp: now, content });
+  snapshots.push({ id: uid(), timestamp: now, content, images });
   while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
   await putHistory(docId, snapshots);
 }
@@ -71,7 +72,7 @@ async function appendSnapshot(docId: string, content: string, now: number): Prom
 // shared. Wrapped in try/catch: IndexedDB being unavailable or over quota
 // must never block the actual (localStorage) document save — history is
 // a best-effort background record, not the document's source of truth.
-export async function maybeSnapshotVersion(docId: string, content: string, now: number = Date.now()): Promise<void> {
+export async function maybeSnapshotVersion(docId: string, content: string, now: number = Date.now(), images?: Record<string, string>): Promise<void> {
   try {
     const snapshots = await getHistory(docId);
     const last = snapshots[snapshots.length - 1];
@@ -79,7 +80,7 @@ export async function maybeSnapshotVersion(docId: string, content: string, now: 
       if (now - last.timestamp < SNAPSHOT_INTERVAL_MS) return;
       if (last.content === content) return;
     }
-    await appendSnapshot(docId, content, now);
+    await appendSnapshot(docId, content, now, images);
   } catch (err) {
     // best-effort — see comment above
   }
@@ -93,6 +94,11 @@ export async function listVersions(docId: string): Promise<VersionSummary[]> {
 export async function getVersionContent(docId: string, versionId: string): Promise<string | undefined> {
   const snapshots = await getHistory(docId);
   return snapshots.find((s) => s.id === versionId)?.content;
+}
+
+export async function getVersionImages(docId: string, versionId: string): Promise<Record<string, string> | undefined> {
+  const snapshots = await getHistory(docId);
+  return snapshots.find((s) => s.id === versionId)?.images;
 }
 
 // Non-destructive: force-appends a new snapshot for the restored content

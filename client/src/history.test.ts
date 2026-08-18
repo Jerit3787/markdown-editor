@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect } from "vitest";
-import { maybeSnapshotVersion, listVersions, getVersionContent, restoreLocalVersion, deleteHistory } from "./history";
+import { maybeSnapshotVersion, listVersions, getVersionContent, getVersionImages, restoreLocalVersion, deleteHistory } from "./history";
 
 // Every test uses its own docId (rather than resetting the shared fake
 // IndexedDB database between tests) so tests can't leak state into each
@@ -81,5 +81,23 @@ describe("local version history", () => {
     } finally {
       indexedDB = realIndexedDB;
     }
+  });
+});
+
+describe("local version history — images", () => {
+  it("stores images alongside content and getVersionImages returns them", async () => {
+    await maybeSnapshotVersion("doc-images", "hello", 1_000, { "img-1": "data:image/png;base64,aGk=" });
+    const [v] = await listVersions("doc-images");
+    expect(await getVersionImages("doc-images", v!.id)).toEqual({ "img-1": "data:image/png;base64,aGk=" });
+  });
+
+  it("getVersionImages returns undefined for a snapshot taken with no images argument", async () => {
+    await maybeSnapshotVersion("doc-no-images", "hello", 1_000);
+    const [v] = await listVersions("doc-no-images");
+    expect(await getVersionImages("doc-no-images", v!.id)).toBeUndefined();
+  });
+
+  it("getVersionImages returns undefined for an unknown version id", async () => {
+    expect(await getVersionImages("doc-images-unknown", "nonexistent")).toBeUndefined();
   });
 });

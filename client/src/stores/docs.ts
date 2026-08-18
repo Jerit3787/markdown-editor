@@ -11,7 +11,7 @@ import { deleteHistory } from "../history";
 import { confirmAction } from "./confirmDialog";
 import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
-import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace } from "./workspaces";
+import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace, queueRepoDeletion } from "./workspaces";
 import { mergeById } from "../merge-records";
 
 const STORAGE_DOCS = "mde:docs";
@@ -290,7 +290,12 @@ export function switchDoc(id: string): boolean {
 // (where the modal itself is already the confirmation). Exported so
 // that component can call it directly.
 export function removeDocById(id: string) {
-  const removedWorkspaceId = findDocById(id)?.workspaceId;
+  const removedDoc = findDocById(id);
+  const removedWorkspaceId = removedDoc?.workspaceId;
+  // The doc is about to be gone for good — this is the last moment
+  // anything knows what repo file it used to correspond to, so queue it
+  // now for repo-sync.ts's planPush to delete on the next push.
+  if (removedDoc?.repoPath && removedWorkspaceId) queueRepoDeletion(removedWorkspaceId, removedDoc.repoPath);
   docsStore.update((docs) => docs.filter((d) => d.id !== id));
   // Deleting the last remaining doc leaves docs empty and activeId null —
   // the reactive editor subscription shows the empty state rather than
@@ -385,6 +390,15 @@ export function setDocImage(key: string, dataUrl: string) {
   const doc = getActiveDoc();
   if (!doc) return;
   updateDoc(doc.id, { images: { ...(doc.images || {}), [key]: dataUrl } });
+  persistDocs();
+}
+
+// Full replace, not a per-key merge (setDocImage's behavior) — used when
+// restoring a historical version, which must leave the doc's images
+// looking exactly like that version did, not layer its images on top of
+// whatever the doc currently has.
+export function replaceDocImages(docId: string, images: Record<string, string> | undefined) {
+  updateDoc(docId, { images });
   persistDocs();
 }
 

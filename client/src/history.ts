@@ -18,6 +18,7 @@ export interface Snapshot {
   id: string;
   timestamp: number;
   content: string;
+  images?: Record<string, string>;
 }
 
 export interface VersionSummary {
@@ -60,9 +61,9 @@ async function putHistory(docId: string, snapshots: Snapshot[]): Promise<void> {
   });
 }
 
-async function appendSnapshot(docId: string, content: string, now: number): Promise<void> {
+async function appendSnapshot(docId: string, content: string, now: number, images?: Record<string, string>): Promise<void> {
   const snapshots = await getHistory(docId);
-  snapshots.push({ id: uid(), timestamp: now, content });
+  snapshots.push({ id: uid(), timestamp: now, content, images });
   while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
   await putHistory(docId, snapshots);
 }
@@ -71,7 +72,7 @@ async function appendSnapshot(docId: string, content: string, now: number): Prom
 // shared. Wrapped in try/catch: IndexedDB being unavailable or over quota
 // must never block the actual (localStorage) document save — history is
 // a best-effort background record, not the document's source of truth.
-export async function maybeSnapshotVersion(docId: string, content: string, now: number = Date.now()): Promise<void> {
+export async function maybeSnapshotVersion(docId: string, content: string, now: number = Date.now(), images?: Record<string, string>): Promise<void> {
   try {
     const snapshots = await getHistory(docId);
     const last = snapshots[snapshots.length - 1];
@@ -79,7 +80,7 @@ export async function maybeSnapshotVersion(docId: string, content: string, now: 
       if (now - last.timestamp < SNAPSHOT_INTERVAL_MS) return;
       if (last.content === content) return;
     }
-    await appendSnapshot(docId, content, now);
+    await appendSnapshot(docId, content, now, images);
   } catch (err) {
     // best-effort — see comment above
   }
@@ -95,15 +96,25 @@ export async function getVersionContent(docId: string, versionId: string): Promi
   return snapshots.find((s) => s.id === versionId)?.content;
 }
 
+export async function getVersionImages(docId: string, versionId: string): Promise<Record<string, string> | undefined> {
+  const snapshots = await getHistory(docId);
+  return snapshots.find((s) => s.id === versionId)?.images;
+}
+
 // Non-destructive: force-appends a new snapshot for the restored content
 // (bypassing the throttle) rather than deleting anything newer — the
 // restore itself becomes undoable by restoring whatever was current
 // before it.
-export async function restoreLocalVersion(docId: string, versionId: string, now: number = Date.now()): Promise<string | undefined> {
+export async function restoreLocalVersion(
+  docId: string,
+  versionId: string,
+  now: number = Date.now()
+): Promise<{ content: string; images: Record<string, string> | undefined } | undefined> {
   const content = await getVersionContent(docId, versionId);
   if (content === undefined) return undefined;
-  await appendSnapshot(docId, content, now);
-  return content;
+  const images = await getVersionImages(docId, versionId);
+  await appendSnapshot(docId, content, now, images);
+  return { content, images };
 }
 
 // For restoring content that didn't come from an existing local
@@ -111,8 +122,8 @@ export async function restoreLocalVersion(docId: string, versionId: string, now:
 // force-append-for-undo-safety guarantee as restoreLocalVersion above,
 // just skipping the snapshot lookup since the caller already has the
 // content in hand.
-export async function restoreLocalVersionContent(docId: string, content: string, now: number = Date.now()): Promise<void> {
-  await appendSnapshot(docId, content, now);
+export async function restoreLocalVersionContent(docId: string, content: string, now: number = Date.now(), images?: Record<string, string>): Promise<void> {
+  await appendSnapshot(docId, content, now, images);
 }
 
 export async function deleteHistory(docId: string): Promise<void> {
@@ -140,12 +151,16 @@ export async function listSharedVersions(workspaceId: string, docId: string): Pr
   }
 }
 
-export async function getSharedVersionContent(workspaceId: string, docId: string, versionId: string): Promise<string | undefined> {
+export async function getSharedVersionSnapshot(
+  workspaceId: string,
+  docId: string,
+  versionId: string
+): Promise<{ content: string; images: Record<string, string> | undefined } | undefined> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions/${encodeURIComponent(versionId)}`);
     if (!res.ok) return undefined;
     const snap = (await res.json()) as Snapshot;
-    return snap.content;
+    return { content: snap.content, images: snap.images };
   } catch (err) {
     return undefined;
   }

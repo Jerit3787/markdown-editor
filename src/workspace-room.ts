@@ -27,6 +27,7 @@ export interface Snapshot {
   id: string;
   timestamp: number;
   content: string;
+  images?: Record<string, string>;
 }
 
 export interface CommentReply {
@@ -100,6 +101,14 @@ interface SessionInfo {
   // Which document this connection currently has open, for cross-file
   // presence — null until the client sends its first MESSAGE_PRESENCE.
   viewingDocId: string | null;
+  // Awareness client IDs this connection has contributed, keyed by docId —
+  // unlike CollabRoom's single shared Awareness (one Set per session), each
+  // document here has its own independent Awareness instance (DocRoom.awareness),
+  // so a session can hold live state in several of them at once. Populated
+  // lazily in handleAwarenessUpdate and consumed in handleClose to remove
+  // this connection's states on disconnect. Optional so tests that construct
+  // a SessionInfo directly (bypassing handleSession) don't need to know about it.
+  awarenessIdsByDoc?: Map<string, Set<number>>;
 }
 
 function docStorageKey(docId: string, suffix: "update" | "snapshots" | "comments"): string {
@@ -420,6 +429,13 @@ export class WorkspaceRoom {
   handleClose(ws: WebSocket): void {
     const session = this.sessions.get(ws);
     this.sessions.delete(ws);
+    if (session?.awarenessIdsByDoc) {
+      for (const [docId, ids] of session.awarenessIdsByDoc) {
+        if (ids.size === 0) continue;
+        const docRoom = this.docs.get(docId);
+        if (docRoom) awarenessProtocol.removeAwarenessStates(docRoom.awareness, Array.from(ids), null);
+      }
+    }
     if (session) this.broadcastPresence(ws, { ...session, viewingDocId: null, username: session.username });
     if (this.sessions.size === 0) this.persistAllNow();
   }
@@ -438,6 +454,22 @@ export class WorkspaceRoom {
 
   handleAwarenessUpdate(docId: string, docRoom: DocRoom, added: number[], updated: number[], removed: number[], origin: unknown): void {
     const changed = added.concat(updated, removed);
+    // A direct Map lookup rather than `origin instanceof WebSocket` — the
+    // latter depends on a real global WebSocket constructor (absent in the
+    // plain-Node unit test environment, and unnecessary here regardless:
+    // this.sessions.get() already returns undefined for any key it doesn't
+    // hold, including the "storage"/"restore"/null origins used elsewhere).
+    const session = this.sessions.get(origin as WebSocket);
+    if (session) {
+      if (!session.awarenessIdsByDoc) session.awarenessIdsByDoc = new Map();
+      let ids = session.awarenessIdsByDoc.get(docId);
+      if (!ids) {
+        ids = new Set();
+        session.awarenessIdsByDoc.set(docId, ids);
+      }
+      added.concat(updated).forEach((id) => ids!.add(id));
+      removed.forEach((id) => ids!.delete(id));
+    }
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
     encoding.writeVarString(encoder, docId);
@@ -482,6 +514,11 @@ export class WorkspaceRoom {
     return stored || [];
   }
 
+  imagesFromDoc(docRoom: DocRoom): Record<string, string> | undefined {
+    const map = docRoom.doc.getMap<string>("images");
+    return map.size > 0 ? (Object.fromEntries(map.entries()) as Record<string, string>) : undefined;
+  }
+
   async maybeSnapshot(docId: string, docRoom: DocRoom, now: number = Date.now()): Promise<void> {
     const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
     if (docRoom.lastSnapshotAt !== undefined && now - docRoom.lastSnapshotAt < SNAPSHOT_INTERVAL_MS) return;
@@ -492,7 +529,7 @@ export class WorkspaceRoom {
       docRoom.lastSnapshotAt = last.timestamp;
       return;
     }
-    snapshots.push({ id: uid(), timestamp: now, content });
+    snapshots.push({ id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom) });
     while (snapshots.length > 50) snapshots.shift();
     await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);
     docRoom.lastSnapshotAt = now;
@@ -500,7 +537,7 @@ export class WorkspaceRoom {
 
   async forceSnapshot(docId: string, docRoom: DocRoom, content: string, now: number = Date.now()): Promise<Snapshot> {
     const snapshots = await this.getSnapshots(docId);
-    const snap: Snapshot = { id: uid(), timestamp: now, content };
+    const snap: Snapshot = { id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom) };
     snapshots.push(snap);
     while (snapshots.length > 50) snapshots.shift();
     await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);
@@ -541,6 +578,11 @@ export class WorkspaceRoom {
     docRoom.doc.transact(() => {
       text.delete(0, text.length);
       text.insert(0, snap.content);
+      const imagesMap = docRoom.doc.getMap<string>("images");
+      for (const key of Array.from(imagesMap.keys())) imagesMap.delete(key);
+      if (snap.images) {
+        for (const [key, value] of Object.entries(snap.images)) imagesMap.set(key, value);
+      }
     }, "restore");
     const created = await this.forceSnapshot(docId, docRoom, snap.content);
     return Response.json(created);

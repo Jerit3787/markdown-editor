@@ -66,6 +66,15 @@ export interface Workspace {
   // Meaningless without repoLink, so clearWorkspaceRepoLink clears this
   // too.
   repoLastSyncedAt?: number;
+  // Repo paths whose local doc was deleted while this workspace stayed
+  // linked — queued by stores/docs.ts's removeDocById (the doc itself is
+  // gone by the time a push runs and can no longer be asked "what was
+  // your repoPath"), consumed by repo-sync.ts's planPush to propagate the
+  // deletion to the repo on the next push. Deliberately NOT "any repo
+  // path with no matching doc": that would also catch repo content never
+  // pulled in yet (e.g. linking to a repo with pre-existing files) and
+  // delete it before it ever reached the user.
+  pendingRepoDeletions?: string[];
 }
 
 export interface Doc {

@@ -105,6 +105,24 @@ describe("docs store — workspace integration", () => {
     expect(get(activeIdStore)).toBe("a2");
   });
 
+  it("removeDocById queues the doc's repoPath for deletion on the owning workspace, so a later push can propagate it", async () => {
+    const { docsStore, removeDocById } = await import("./docs");
+    const { createWorkspace, workspacesStore } = await import("./workspaces");
+    const ws = createWorkspace("Linked");
+    docsStore.set([{ id: "d1", name: "D1", content: "", updatedAt: 1, createdAt: 1, workspaceId: ws.id, repoPath: "d1.md", repoSha: "s1" }]);
+    removeDocById("d1");
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.pendingRepoDeletions).toEqual(["d1.md"]);
+  });
+
+  it("removeDocById queues nothing for a doc that was never synced to a repo", async () => {
+    const { docsStore, removeDocById } = await import("./docs");
+    const { createWorkspace, workspacesStore } = await import("./workspaces");
+    const ws = createWorkspace("Unlinked");
+    docsStore.set([{ id: "d1", name: "D1", content: "", updatedAt: 1, createdAt: 1, workspaceId: ws.id }]);
+    removeDocById("d1");
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.pendingRepoDeletions).toBeUndefined();
+  });
+
   it("ensureActiveDocInWorkspace picks the most-recently-updated doc in the target workspace", async () => {
     const { docsStore, activeIdStore, ensureActiveDocInWorkspace } = await import("./docs");
     const { createWorkspace } = await import("./workspaces");
@@ -465,5 +483,15 @@ describe("docs store — workspace integration", () => {
   it("syncRemoteDocContent returns false when the doc id doesn't exist", async () => {
     const { syncRemoteDocContent } = await import("./docs");
     expect(syncRemoteDocContent("does-not-exist", "content", undefined)).toBe(false);
+  });
+
+  it("replaceDocImages fully replaces a doc's image map, not merges into it", async () => {
+    const { docsStore, replaceDocImages } = await import("./docs");
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("Images");
+    docsStore.set([{ id: "d1", name: "D1", content: "", updatedAt: 1, createdAt: 1, workspaceId: ws.id, images: { old: "data:old" } }]);
+    replaceDocImages("d1", { new: "data:new" });
+    const doc = get(docsStore).find((d) => d.id === "d1")!;
+    expect(doc.images).toEqual({ new: "data:new" });
   });
 });

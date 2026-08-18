@@ -152,6 +152,69 @@ describe("CollabRoom version snapshots", () => {
     expect(snapshots).toHaveLength(2);
     expect(snapshots[1]!.content).toBe("restored content");
   });
+
+  it("captures the doc's images Y.Map into the snapshot", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => {
+      room.doc.getText("content").insert(0, "v1");
+      room.doc.getMap<string>("images").set("img-1", "data:image/png;base64,aGk=");
+    }, "storage");
+    await room.maybeSnapshot(1_000);
+    const snapshots = await room.getSnapshots();
+    expect(snapshots[0]!.images).toEqual({ "img-1": "data:image/png;base64,aGk=" });
+  });
+
+  it("stores undefined images for a doc with an empty images map", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => room.doc.getText("content").insert(0, "v1"), "storage");
+    await room.maybeSnapshot(1_000);
+    const snapshots = await room.getSnapshots();
+    expect(snapshots[0]!.images).toBeUndefined();
+  });
+
+  it("forceSnapshot also captures images", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    room.doc.transact(() => room.doc.getMap<string>("images").set("img-2", "data:image/png;base64,eHk="), "storage");
+    const created = await room.forceSnapshot("forced content", 2_000);
+    expect(created.images).toEqual({ "img-2": "data:image/png;base64,eHk=" });
+  });
+});
+
+describe("CollabRoom.handleVersionRestoreRequest — images", () => {
+  it("replaces the doc's images with the restored snapshot's, not merges them", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    room.doc.transact(() => {
+      room.doc.getText("content").insert(0, "old content");
+      room.doc.getMap<string>("images").set("img-current-only", "data:image/png;base64,Y3Vycg==");
+    }, "storage");
+    const oldSnap = await room.forceSnapshot("old content", 1_000);
+    // oldSnap captured "img-current-only" too (same doc state) -- overwrite
+    // the doc's images to something ELSE before restoring, so the test can
+    // tell "replaced back to the snapshot's" apart from "left untouched".
+    room.doc.transact(() => {
+      const map = room.doc.getMap<string>("images");
+      for (const key of Array.from(map.keys())) map.delete(key);
+      map.set("img-newer", "data:image/png;base64,bmV3");
+    }, "local");
+
+    const req = await authedRequest("alice", `/room1/versions/${oldSnap.id}/restore`, { method: "POST" });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(200);
+    expect(room.doc.getMap<string>("images").toJSON()).toEqual({ "img-current-only": "data:image/png;base64,Y3Vycg==" });
+  });
+
+  it("clears the doc's images when restoring a snapshot that had none", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    room.doc.transact(() => room.doc.getText("content").insert(0, "no images here"), "storage");
+    const snapNoImages = await room.forceSnapshot("no images here", 1_000);
+    room.doc.transact(() => room.doc.getMap<string>("images").set("img-x", "data:image/png;base64,eA=="), "local");
+
+    const req = await authedRequest("alice", `/room1/versions/${snapNoImages.id}/restore`, { method: "POST" });
+    await room.fetch(req);
+    expect(room.doc.getMap<string>("images").toJSON()).toEqual({});
+  });
 });
 
 describe("CollabRoom comment threads", () => {

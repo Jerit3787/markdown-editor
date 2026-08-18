@@ -29,6 +29,7 @@ export interface Snapshot {
   id: string;
   timestamp: number;
   content: string;
+  images?: Record<string, string>;
 }
 
 const COMMENTS_KEY = "comments";
@@ -226,6 +227,11 @@ export class CollabRoom {
     this.doc.transact(() => {
       text.delete(0, text.length);
       text.insert(0, snap.content);
+      const imagesMap = this.doc.getMap<string>("images");
+      for (const key of Array.from(imagesMap.keys())) imagesMap.delete(key);
+      if (snap.images) {
+        for (const [key, value] of Object.entries(snap.images)) imagesMap.set(key, value);
+      }
     }, "restore");
     const created = await this.forceSnapshot(snap.content);
     return Response.json(created);
@@ -569,6 +575,11 @@ export class CollabRoom {
   // Called on every doc update (see handleDocUpdate) — the in-memory
   // lastSnapshotAt guard means this only touches storage when a snapshot
   // is actually due, not on every keystroke.
+  imagesFromDoc(): Record<string, string> | undefined {
+    const map = this.doc.getMap<string>("images");
+    return map.size > 0 ? (Object.fromEntries(map.entries()) as Record<string, string>) : undefined;
+  }
+
   async maybeSnapshot(now: number = Date.now()): Promise<void> {
     if (this.lastSnapshotAt !== undefined && now - this.lastSnapshotAt < SNAPSHOT_INTERVAL_MS) return;
     const content = this.doc.getText("content").toString();
@@ -580,7 +591,7 @@ export class CollabRoom {
       this.lastSnapshotAt = last.timestamp;
       return;
     }
-    snapshots.push({ id: uid(), timestamp: now, content });
+    snapshots.push({ id: uid(), timestamp: now, content, images: this.imagesFromDoc() });
     while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
     await this.state.storage.put(SNAPSHOTS_KEY, snapshots);
     this.lastSnapshotAt = now;
@@ -590,7 +601,7 @@ export class CollabRoom {
   // endpoint, so a restore itself always lands in history.
   async forceSnapshot(content: string, now: number = Date.now()): Promise<Snapshot> {
     const snapshots = await this.getSnapshots();
-    const snap: Snapshot = { id: uid(), timestamp: now, content };
+    const snap: Snapshot = { id: uid(), timestamp: now, content, images: this.imagesFromDoc() };
     snapshots.push(snap);
     while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
     await this.state.storage.put(SNAPSHOTS_KEY, snapshots);

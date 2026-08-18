@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as Y from "yjs";
 import * as syncProtocol from "y-protocols/sync";
+import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { WorkspaceRoom } from "./workspace-room";
@@ -45,6 +46,14 @@ function decodeEnvelope(data: ArrayBuffer): { type: number; docId: string; decod
   const type = decoding.readVarUint(decoder);
   const docId = decoding.readVarString(decoder);
   return { type, docId, decoder };
+}
+
+function encodeAwarenessFrame(docId: string, update: Uint8Array): ArrayBuffer {
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+  encoding.writeVarString(encoder, docId);
+  encoding.writeVarUint8Array(encoder, update);
+  return encoding.toUint8Array(encoder).buffer as ArrayBuffer;
 }
 
 describe("WorkspaceRoom multiplexed sync", () => {
@@ -155,6 +164,47 @@ describe("WorkspaceRoom multiplexed sync", () => {
     await room.handleMessage(clientWs, encoding.toUint8Array(replyEncoder).buffer as ArrayBuffer);
 
     expect(room.docs.get("docA")?.doc.getText("content").toString()).toBe("seeded content that must reach the server");
+  });
+
+  // Regression test for a real bug reported live: repeatedly switching
+  // documents in a shared workspace made the presence avatar count creep
+  // up before eventually dropping back down. Root cause (one of three
+  // contributing bugs, this one server-side): unlike the legacy CollabRoom,
+  // WorkspaceRoom.handleClose never removed a disconnected session's Yjs
+  // awareness states, so every abandoned connection left a phantom entry
+  // sitting in DocRoom.awareness until the Durable Object itself evicted.
+  it("removes a session's awareness state for a doc when its socket closes", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const clientWs = { send: () => {} } as unknown as WebSocket;
+    const otherSent: ArrayBuffer[] = [];
+    const otherWs = { send: (data: ArrayBuffer) => otherSent.push(data) } as unknown as WebSocket;
+    room.sessions.set(clientWs, { username: "alice", role: "editor", viewingDocId: "docA" });
+    room.sessions.set(otherWs, { username: "bob", role: "editor", viewingDocId: "docA" });
+
+    // alice's client announces presence on docA, same as bindActiveDoc's
+    // awareness.setLocalState(...) -> sendAwareness(...) does.
+    const localAwareness = new awarenessProtocol.Awareness(new Y.Doc());
+    localAwareness.setLocalState({ user: { name: "alice" } });
+    const update = awarenessProtocol.encodeAwarenessUpdate(localAwareness, [localAwareness.clientID]);
+    await room.handleMessage(clientWs, encodeAwarenessFrame("docA", update));
+
+    const docRoom = room.docs.get("docA")!;
+    expect(docRoom.awareness.getStates().size).toBe(1);
+    otherSent.length = 0; // clear the broadcast from the join itself
+
+    room.handleClose(clientWs);
+
+    expect(docRoom.awareness.getStates().size).toBe(0);
+    // The removal itself must also reach the remaining collaborator —
+    // otherwise their own presence bar keeps showing the stale avatar.
+    // handleClose sends this (via handleAwarenessUpdate's broadcast, fired
+    // synchronously from removeAwarenessStates) before its own separate
+    // MESSAGE_PRESENCE broadcast, so among possibly several frames sent
+    // during close, find the awareness one specifically rather than
+    // assuming position.
+    const awarenessFrame = otherSent.map(decodeEnvelope).find((f) => f.type === MESSAGE_AWARENESS);
+    expect(awarenessFrame).toBeDefined();
+    expect(awarenessFrame!.docId).toBe("docA");
   });
 });
 
@@ -271,6 +321,82 @@ describe("WorkspaceRoom version snapshots", () => {
     await room.maybeSnapshot("docB", docB, 1000);
     expect((await room.getSnapshots("docA"))[0]!.content).toBe("A");
     expect((await room.getSnapshots("docB"))[0]!.content).toBe("B");
+  });
+
+  it("captures the doc's images Y.Map into the snapshot", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => {
+      docRoom.doc.getText("content").insert(0, "v1");
+      docRoom.doc.getMap<string>("images").set("img-1", "data:image/png;base64,aGk=");
+    }, "storage");
+    await room.maybeSnapshot("docA", docRoom, 1000);
+    const snapshots = await room.getSnapshots("docA");
+    expect(snapshots[0]!.images).toEqual({ "img-1": "data:image/png;base64,aGk=" });
+  });
+
+  it("stores undefined images for a doc with an empty images map", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "v1"), "storage");
+    await room.maybeSnapshot("docA", docRoom, 1000);
+    const snapshots = await room.getSnapshots("docA");
+    expect(snapshots[0]!.images).toBeUndefined();
+  });
+
+  it("forceSnapshot also captures images", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getMap<string>("images").set("img-2", "data:image/png;base64,eHk="), "storage");
+    const created = await room.forceSnapshot("docA", docRoom, "forced content", 2000);
+    expect(created.images).toEqual({ "img-2": "data:image/png;base64,eHk=" });
+  });
+});
+
+describe("WorkspaceRoom.handleVersionRestoreRequest — images", () => {
+  it("replaces the doc's images with the restored snapshot's, not merges them", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => {
+      docRoom.doc.getText("content").insert(0, "old content");
+      docRoom.doc.getMap<string>("images").set("img-current-only", "data:image/png;base64,Y3Vycg==");
+    }, "storage");
+    const oldSnap = await room.forceSnapshot("docA", docRoom, "old content", 1000);
+    // oldSnap captured "img-current-only" too (same doc state) -- overwrite
+    // the doc's images to something ELSE before restoring, so the test can
+    // tell "replaced back to the snapshot's" apart from "left untouched".
+    docRoom.doc.transact(() => {
+      const map = docRoom.doc.getMap<string>("images");
+      for (const key of Array.from(map.keys())) map.delete(key);
+      map.set("img-newer", "data:image/png;base64,bmV3");
+    }, "local");
+
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request(`https://example.com/w/ws1/docs/docA/versions/${oldSnap.id}/restore`, {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}` },
+    });
+    const res = await room.handleVersionRestoreRequest(request, "docA", oldSnap.id);
+    expect(res.status).toBe(200);
+    expect(docRoom.doc.getMap<string>("images").toJSON()).toEqual({ "img-current-only": "data:image/png;base64,Y3Vycg==" });
+  });
+
+  it("clears the doc's images when restoring a snapshot that had none", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "no images here"), "storage");
+    const snapNoImages = await room.forceSnapshot("docA", docRoom, "no images here", 1000);
+    docRoom.doc.transact(() => docRoom.doc.getMap<string>("images").set("img-x", "data:image/png;base64,eA=="), "local");
+
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request(`https://example.com/w/ws1/docs/docA/versions/${snapNoImages.id}/restore`, {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}` },
+    });
+    await room.handleVersionRestoreRequest(request, "docA", snapNoImages.id);
+    expect(docRoom.doc.getMap<string>("images").toJSON()).toEqual({});
   });
 });
 

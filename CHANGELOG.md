@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.26.0] - 2026-08-18
+
+### Added
+
+- **The diff view now looks like GitHub's.** Line numbers on both sides, word-level highlighting for exactly what changed within a line (not the whole line), and a Split/Unified toggle to switch between side-by-side and stacked layouts.
+- **Images now render in diffs instead of showing as raw text.** A line that's just an image reference shows a before/after thumbnail comparison — for local documents, shared documents, and repo commits alike — with per-snapshot accuracy (an old version shows the image it actually had, even if it's since been replaced) and restoring a version brings its images back too.
+
+### Fixed
+
+- **Deleting or renaming a document in a repo-linked workspace now propagates to the repo on the next push.** Previously push only ever created or updated files — a deleted or renamed local document left an orphaned or stale file behind in the repo.
+- **Pulling from a repo no longer produces a phantom diff on every re-pull of an unchanged image.** Image references were re-keyed with a fresh timestamp on every pull even when the image itself was byte-identical; the key is now derived from the image's own path, so it round-trips correctly.
+- **Rapid document switching in a shared workspace could leave duplicate "who's viewing this" avatars** that lingered until the connection was evicted. Switching now cancels an in-flight join instead of letting two connections race.
+
 ## [1.25.0] - 2026-08-18
 
 ### Added

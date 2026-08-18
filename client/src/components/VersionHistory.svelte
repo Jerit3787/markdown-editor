@@ -2,20 +2,22 @@
   import { get } from "svelte/store";
   import { onMount } from "svelte";
   import { versionHistoryOpen } from "../stores/versionHistory";
-  import { getActiveDoc, activeDocContent } from "../stores/docs";
+  import { getActiveDoc, activeDocContent, replaceDocImages } from "../stores/docs";
   import { workspacesStore } from "../stores/workspaces";
   import {
     listVersions,
     getVersionContent,
+    getVersionImages,
     restoreLocalVersion,
     restoreLocalVersionContent,
     listSharedVersions,
-    getSharedVersionContent,
+    getSharedVersionSnapshot,
     restoreSharedVersion,
     restoreSharedVersionContent,
   } from "../history";
   import { renderVersionPreview } from "../version-preview";
   import { showToast } from "../stores/toast";
+  import { extractAssetImageRefs } from "../diff-image-row";
   import DiffView from "./DiffView.svelte";
 
   interface LocalEntry {
@@ -41,6 +43,7 @@
   let selectedId = $state<string | null>(null);
   let selectedEntry = $state<HistoryEntry | null>(null);
   let selectedContent = $state<string | undefined>(undefined);
+  let selectedImages = $state<Record<string, string> | undefined>(undefined);
   let viewMode = $state<"preview" | "diff">("preview");
   let previewEl: HTMLDivElement | undefined = $state();
   let loading = $state(false);
@@ -72,6 +75,26 @@
     return atob(data.content.replace(/\n/g, ""));
   }
 
+  async function fetchCommitImages(doc: ReturnType<typeof getActiveDoc>, sha: string, content: string): Promise<Record<string, string>> {
+    if (!doc?.repoPath) return {};
+    const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
+    const repoLink = ws?.repoLink;
+    if (!repoLink) return {};
+    const assetRefs = extractAssetImageRefs(content);
+    const images: Record<string, string> = {};
+    for (const assetPath of assetRefs) {
+      const encodedPath = assetPath.split("/").map(encodeURIComponent).join("/");
+      const res = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/contents/${encodedPath}?ref=${encodeURIComponent(sha)}`);
+      if (!res.ok) continue;
+      const data = (await res.json()) as { content: string; encoding: string };
+      // Never atob() this — it's binary image data, not text. Keeping the
+      // base64 string as-is matches repo-sync.ts's own fetchAndApply
+      // convention for the exact same kind of asset fetch during a pull.
+      images[assetPath] = `data:image/*;base64,${data.content.replace(/\n/g, "")}`;
+    }
+    return images;
+  }
+
   async function loadCommitEntries(doc: ReturnType<typeof getActiveDoc>): Promise<CommitEntry[]> {
     if (!doc?.repoPath) return [];
     const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
@@ -101,18 +124,35 @@
     selectedId = entry.id;
     selectedEntry = entry;
     selectedContent = undefined;
+    selectedImages = undefined;
     if (!doc) return;
-    const content =
-      entry.kind === "local"
-        ? isShared
-          ? await getSharedVersionContent(doc.workspaceId, doc.id, entry.id)
-          : await getVersionContent(doc.id, entry.id)
-        : await fetchCommitContent(doc, entry.id);
-    if (content === undefined) {
-      showToast("Couldn't load this version's content", "error");
-      return;
+    if (entry.kind === "local") {
+      if (isShared) {
+        const result = await getSharedVersionSnapshot(doc.workspaceId, doc.id, entry.id);
+        if (result === undefined) {
+          showToast("Couldn't load this version's content", "error");
+          return;
+        }
+        selectedContent = result.content;
+        selectedImages = result.images;
+      } else {
+        const content = await getVersionContent(doc.id, entry.id);
+        if (content === undefined) {
+          showToast("Couldn't load this version's content", "error");
+          return;
+        }
+        selectedContent = content;
+        selectedImages = await getVersionImages(doc.id, entry.id);
+      }
+    } else {
+      const content = await fetchCommitContent(doc, entry.id);
+      if (content === undefined) {
+        showToast("Couldn't load this version's content", "error");
+        return;
+      }
+      selectedContent = content;
+      selectedImages = await fetchCommitImages(doc, entry.id, content);
     }
-    selectedContent = content;
   }
 
   async function loadVersions() {
@@ -155,19 +195,21 @@
         showToast("Couldn't restore this version", "error");
       }
     } else if (entry.kind === "local") {
-      const restoredContent = await restoreLocalVersion(doc.id, entry.id);
-      if (restoredContent !== undefined) {
+      const restored = await restoreLocalVersion(doc.id, entry.id);
+      if (restored !== undefined) {
         const cm = window.MDE.getEditor();
-        cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: restoredContent } });
+        cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: restored.content } });
+        replaceDocImages(doc.id, restored.images);
         showToast("Version restored", "success");
         close();
       } else {
         showToast("Couldn't restore this version", "error");
       }
     } else {
-      await restoreLocalVersionContent(doc.id, content);
+      await restoreLocalVersionContent(doc.id, content, undefined, selectedImages);
       const cm = window.MDE.getEditor();
       cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: content } });
+      replaceDocImages(doc.id, selectedImages);
       showToast("Version restored", "success");
       close();
     }
@@ -257,7 +299,7 @@
         </div>
         {#if viewMode === "diff"}
           <div class="version-history-preview">
-            <DiffView before={selectedContent ?? ""} after={$activeDocContent} />
+            <DiffView before={selectedContent ?? ""} after={$activeDocContent} beforeImages={selectedImages} afterImages={getActiveDoc()?.images} />
           </div>
         {:else}
           <div class="version-history-preview" bind:this={previewEl}></div>

@@ -223,6 +223,33 @@ describe("handleRepoCommits", () => {
     const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "main", 1);
     expect(res.status).toBe(200);
   });
+
+  it("forwards GitHub's Link pagination header to the client", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify([{ sha: "abc123", commit: { message: "Fix bug", author: { name: "Alice", date: "2026-08-01T00:00:00Z" } } }]), {
+          status: 200,
+          headers: { Link: '<https://api.github.com/repositories/1/commits?page=2>; rel="next", <https://api.github.com/repositories/1/commits?page=5>; rel="last"' },
+        })
+      )
+    );
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main", { headers: { Cookie: cookie } });
+    const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "main", 1);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Link")).toBe(
+      '<https://api.github.com/repositories/1/commits?page=2>; rel="next", <https://api.github.com/repositories/1/commits?page=5>; rel="last"'
+    );
+  });
+
+  it("omits the Link header when GitHub's response doesn't have one", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })));
+    const cookie = await sessionCookieHeader("tok", "alice");
+    const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main", { headers: { Cookie: cookie } });
+    const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "main", 1);
+    expect(res.headers.get("Link")).toBeNull();
+  });
 });
 
 describe("handleRepoFileAtRef", () => {

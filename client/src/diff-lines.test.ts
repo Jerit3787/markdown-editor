@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeDiffRows } from "./diff-lines";
+import { computeDiffRows, toUnifiedLines } from "./diff-lines";
 
 describe("computeDiffRows", () => {
   it("returns all same rows for identical strings", () => {
@@ -116,6 +116,41 @@ describe("computeDiffRows — intraline segments", () => {
       { text: "red", changed: true },
       { text: " fox", changed: false },
       { text: " jumps", changed: true },
+    ]);
+  });
+});
+
+describe("toUnifiedLines", () => {
+  it("maps same/removed/added rows 1:1", () => {
+    const lines = toUnifiedLines([
+      { leftText: "a", rightText: "a", leftLine: 1, rightLine: 1, leftSegments: null, rightSegments: null, type: "same" },
+      { leftText: "old", rightText: null, leftLine: 2, rightLine: null, leftSegments: null, rightSegments: null, type: "removed" },
+      { leftText: null, rightText: "new", leftLine: null, rightLine: 2, leftSegments: null, rightSegments: null, type: "added" },
+    ]);
+    expect(lines).toEqual([
+      { text: "a", segments: null, type: "same", leftLine: 1, rightLine: 1 },
+      { text: "old", segments: null, type: "removed", leftLine: 2, rightLine: null },
+      { text: "new", segments: null, type: "added", leftLine: null, rightLine: 2 },
+    ]);
+  });
+
+  it("expands a changed row into a removed line then an added line, carrying segments", () => {
+    const leftSegments = [
+      { text: "the ", changed: false },
+      { text: "old", changed: true },
+      { text: " cat", changed: false },
+    ];
+    const rightSegments = [
+      { text: "the ", changed: false },
+      { text: "new", changed: true },
+      { text: " cat", changed: false },
+    ];
+    const lines = toUnifiedLines([
+      { leftText: "the old cat", rightText: "the new cat", leftLine: 5, rightLine: 5, leftSegments, rightSegments, type: "changed" },
+    ]);
+    expect(lines).toEqual([
+      { text: "the old cat", segments: leftSegments, type: "removed", leftLine: 5, rightLine: null },
+      { text: "the new cat", segments: rightSegments, type: "added", leftLine: null, rightLine: 5 },
     ]);
   });
 });

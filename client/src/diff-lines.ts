@@ -83,3 +83,36 @@ export function computeDiffRows(before: string, after: string): DiffRow[] {
   }
   return rows;
 }
+
+export type UnifiedLineType = "same" | "removed" | "added";
+
+export interface UnifiedLine {
+  text: string;
+  segments: DiffSegment[] | null;
+  type: UnifiedLineType;
+  leftLine: number | null;
+  rightLine: number | null;
+}
+
+// Flattens the two-column row list into a single-column sequence for
+// unified-mode rendering — a "changed" row (one line replaced by
+// another) expands into two stacked lines, removed first then added,
+// matching git/GitHub's own unified diff convention. Segments carry
+// straight through so intraline highlighting looks identical to split
+// mode, just split across two lines instead of two side-by-side cells.
+export function toUnifiedLines(rows: DiffRow[]): UnifiedLine[] {
+  const lines: UnifiedLine[] = [];
+  for (const row of rows) {
+    if (row.type === "same") {
+      lines.push({ text: row.leftText ?? "", segments: row.leftSegments, type: "same", leftLine: row.leftLine, rightLine: row.rightLine });
+    } else if (row.type === "removed") {
+      lines.push({ text: row.leftText ?? "", segments: row.leftSegments, type: "removed", leftLine: row.leftLine, rightLine: null });
+    } else if (row.type === "added") {
+      lines.push({ text: row.rightText ?? "", segments: row.rightSegments, type: "added", leftLine: null, rightLine: row.rightLine });
+    } else {
+      lines.push({ text: row.leftText ?? "", segments: row.leftSegments, type: "removed", leftLine: row.leftLine, rightLine: null });
+      lines.push({ text: row.rightText ?? "", segments: row.rightSegments, type: "added", leftLine: null, rightLine: row.rightLine });
+    }
+  }
+  return lines;
+}

@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.24.1] - 2026-08-18
+
+### Fixed
+
+- **Mobile's document sidebar (the bottom sheet) slides open/closed again
+  instead of snapping instantly.** An unscoped desktop-only transition
+  rule was winning a CSS specificity tie against the mobile-specific one,
+  silently animating a property mobile never changes.
+- **The editor/preview view-selector icons no longer squash against the
+  edge when the comments panel is collapsed.** They share a grid column
+  with the comments panel, which now reserves a minimum width instead of
+  shrinking to zero.
+
 ## [1.24.0] - 2026-08-18
 
 ### Added

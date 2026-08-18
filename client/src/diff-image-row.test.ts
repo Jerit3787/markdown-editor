@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseImageOnlyLine } from "./diff-image-row";
+import { parseImageOnlyLine, extractAssetImageRefs } from "./diff-image-row";
 
 describe("parseImageOnlyLine", () => {
   it("matches a line that is exactly one image reference", () => {
@@ -36,5 +36,24 @@ describe("parseImageOnlyLine", () => {
 
   it("matches a repo-style assets path ref", () => {
     expect(parseImageOnlyLine("![alt text](assets/my-notes/foo.png)")).toEqual({ alt: "alt text", ref: "assets/my-notes/foo.png" });
+  });
+});
+
+describe("extractAssetImageRefs", () => {
+  it("finds a single assets-path image reference", () => {
+    expect(extractAssetImageRefs("# Notes\n\n![a photo](assets/my-notes/foo.png)\n")).toEqual(["assets/my-notes/foo.png"]);
+  });
+
+  it("finds multiple assets-path references in one document", () => {
+    const content = "![a](assets/notes/a.png)\n\ntext\n\n![b](assets/notes/b.png)\n";
+    expect(extractAssetImageRefs(content)).toEqual(["assets/notes/a.png", "assets/notes/b.png"]);
+  });
+
+  it("ignores refs that aren't under assets/", () => {
+    expect(extractAssetImageRefs("![internal](img-key)\n![external](https://example.com/x.png)\n")).toEqual([]);
+  });
+
+  it("returns an empty array for content with no images", () => {
+    expect(extractAssetImageRefs("just some text\n")).toEqual([]);
   });
 });

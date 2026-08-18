@@ -12,3 +12,12 @@ export function parseImageOnlyLine(text: string | null): { alt: string; ref: str
   const match = text.trim().match(IMAGE_ONLY_LINE_RE);
   return match ? { alt: match[1]!, ref: match[2]! } : null;
 }
+
+// Same pattern repo-sync.ts's pullFromRepo/fetchAndApply already uses to
+// find asset references inside a repo file's raw text — kept as its own
+// copy here rather than importing that one, since this call site (a repo
+// COMMIT's text, not a doc mid-pull) has no docSlug/entries/blobs context
+// to share with it.
+export function extractAssetImageRefs(content: string): string[] {
+  return [...content.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g)].map((m) => m[1]!);
+}

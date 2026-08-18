@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
 
 // Polyfill localStorage if not available (can happen in jsdom without proper URL setup)
@@ -191,5 +191,112 @@ describe("workspaces store — mutations", () => {
     setWorkspaceLastSynced(ws.id, 12345);
     clearWorkspaceRepoLink(ws.id);
     expect(get(workspacesStore).find((w) => w.id === ws.id)?.repoLastSyncedAt).toBeUndefined();
+  });
+});
+
+describe("workspaces store — updatedAt", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("backfills updatedAt from createdAt for a workspace stored before this field existed", async () => {
+    localStorage.setItem("mde:workspaces", JSON.stringify([{ id: "a", name: "A", createdAt: 42 }]));
+    const { workspacesStore } = await import("./workspaces");
+    expect(get(workspacesStore).find((w) => w.id === "a")?.updatedAt).toBe(42);
+  });
+
+  it("createWorkspace stamps updatedAt at creation", async () => {
+    const { createWorkspace } = await import("./workspaces");
+    const ws = createWorkspace("New");
+    expect(ws.updatedAt).toBe(1000);
+  });
+
+  it("adoptSharedWorkspace stamps updatedAt at creation", async () => {
+    const { adoptSharedWorkspace } = await import("./workspaces");
+    const ws = adoptSharedWorkspace("remote-1", "Shared");
+    expect(ws.updatedAt).toBe(1000);
+  });
+
+  it("renameWorkspace bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, renameWorkspace } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    vi.setSystemTime(2000);
+    renameWorkspace(original.id, "Renamed");
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
+  });
+
+  it("mergeSharedWorkspaceInto bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, mergeSharedWorkspaceInto } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    vi.setSystemTime(2000);
+    mergeSharedWorkspaceInto(original.id, "remote-1");
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
+  });
+
+  it("setWorkspaceRepoLink bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceRepoLink } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    vi.setSystemTime(2000);
+    setWorkspaceRepoLink(original.id, { owner: "alice", repo: "notes", branch: "main" });
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
+  });
+
+  it("clearWorkspaceRepoLink bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceRepoLink, clearWorkspaceRepoLink } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    setWorkspaceRepoLink(original.id, { owner: "alice", repo: "notes", branch: "main" });
+    vi.setSystemTime(2000);
+    clearWorkspaceRepoLink(original.id);
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
+  });
+
+  it("setWorkspaceLastSynced bumps updatedAt", async () => {
+    const { workspacesStore, createWorkspace, setWorkspaceLastSynced } = await import("./workspaces");
+    const original = createWorkspace("Original");
+    vi.setSystemTime(2000);
+    setWorkspaceLastSynced(original.id, 2000);
+    expect(get(workspacesStore).find((w) => w.id === original.id)?.updatedAt).toBe(2000);
+  });
+
+  it("persistWorkspaces merges with what another tab already saved instead of overwriting it", async () => {
+    localStorage.setItem("mde:workspaces", JSON.stringify([{ id: "ws-a", name: "A", createdAt: 1, updatedAt: 1 }]));
+    const { workspacesStore, persistWorkspaces } = await import("./workspaces");
+
+    // Simulate another tab having since created ws-b and saved it.
+    localStorage.setItem(
+      "mde:workspaces",
+      JSON.stringify([
+        { id: "ws-a", name: "A", createdAt: 1, updatedAt: 1 },
+        { id: "ws-b", name: "B from another tab", createdAt: 2, updatedAt: 2 },
+      ])
+    );
+
+    // This tab, unaware of ws-b, renames ws-a and saves.
+    workspacesStore.set([{ id: "ws-a", name: "A renamed here", createdAt: 1, updatedAt: 3 }]);
+    persistWorkspaces();
+
+    const persisted = JSON.parse(localStorage.getItem("mde:workspaces")!);
+    expect(persisted).toHaveLength(2);
+    expect(persisted.find((w: any) => w.id === "ws-a").name).toBe("A renamed here");
+    expect(persisted.find((w: any) => w.id === "ws-b").name).toBe("B from another tab");
+    expect(get(workspacesStore)).toHaveLength(2);
+  });
+
+  it("deleteWorkspaceRecord's own save doesn't resurrect the workspace from the pre-deletion snapshot still in localStorage", async () => {
+    localStorage.setItem("mde:workspaces", JSON.stringify([{ id: "ws-a", name: "A", createdAt: 1, updatedAt: 1 }]));
+    const { workspacesStore, deleteWorkspaceRecord } = await import("./workspaces");
+
+    deleteWorkspaceRecord("ws-a");
+
+    const persisted = JSON.parse(localStorage.getItem("mde:workspaces")!);
+    expect(persisted.find((w: any) => w.id === "ws-a")).toBeUndefined();
+    expect(get(workspacesStore).find((w) => w.id === "ws-a")).toBeUndefined();
   });
 });

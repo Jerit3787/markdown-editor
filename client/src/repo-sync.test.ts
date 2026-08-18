@@ -258,13 +258,13 @@ describe("planPush", () => {
 
 describe("planCreateWorkspaceFromRepo", () => {
   it("plans to switch to an existing workspace already linked to the same owner/repo/branch", () => {
-    const workspaces: Workspace[] = [{ id: "w1", name: "notes", createdAt: 0, repoLink: { owner: "octocat", repo: "notes", branch: "main" } }];
+    const workspaces: Workspace[] = [{ id: "w1", name: "notes", createdAt: 0, updatedAt: 0, repoLink: { owner: "octocat", repo: "notes", branch: "main" } }];
     const plan = planCreateWorkspaceFromRepo("octocat", "notes", "main", workspaces);
     expect(plan).toEqual({ action: "switch", workspaceId: "w1" });
   });
 
   it("does not match a workspace linked to a different branch", () => {
-    const workspaces: Workspace[] = [{ id: "w1", name: "other", createdAt: 0, repoLink: { owner: "octocat", repo: "notes", branch: "dev" } }];
+    const workspaces: Workspace[] = [{ id: "w1", name: "other", createdAt: 0, updatedAt: 0, repoLink: { owner: "octocat", repo: "notes", branch: "dev" } }];
     const plan = planCreateWorkspaceFromRepo("octocat", "notes", "main", workspaces);
     expect(plan).toEqual({ action: "create", workspaceName: "notes" });
   });
@@ -275,7 +275,7 @@ describe("planCreateWorkspaceFromRepo", () => {
   });
 
   it("dedupes the new workspace name against existing workspace names", () => {
-    const workspaces: Workspace[] = [{ id: "w1", name: "notes", createdAt: 0 }];
+    const workspaces: Workspace[] = [{ id: "w1", name: "notes", createdAt: 0, updatedAt: 0 }];
     const plan = planCreateWorkspaceFromRepo("octocat", "notes", "main", workspaces);
     expect(plan).toEqual({ action: "create", workspaceName: "notes-2" });
   });

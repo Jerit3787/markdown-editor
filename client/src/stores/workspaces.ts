@@ -8,6 +8,7 @@
 import { get, writable } from "svelte/store";
 import type { Workspace } from "../types";
 import { showToast } from "./toast";
+import { mergeById } from "../merge-records";
 
 const STORAGE_WORKSPACES = "mde:workspaces";
 const STORAGE_ACTIVE_WORKSPACE = "mde:activeWorkspace";
@@ -25,7 +26,8 @@ function loadWorkspacesFromStorage(): Workspace[] | null {
   const raw = localStorage.getItem(STORAGE_WORKSPACES);
   if (raw === null) return null;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw) as Workspace[];
+    return parsed.map((w) => ({ ...w, updatedAt: w.updatedAt ?? w.createdAt }));
   } catch (e) {
     return [];
   }
@@ -49,12 +51,29 @@ function initialActiveWorkspaceId(workspaces: Workspace[]): string | null {
 
 export const activeWorkspaceIdStore = writable<string | null>(initialActiveWorkspaceId(initialWorkspaces));
 
-export function persistWorkspaces() {
+// Deletion goes through this instead of persistWorkspaces() directly —
+// see docs.ts's persistDocsExcluding, which exists for the identical
+// reason: a plain merge can't tell "missing because another tab never
+// told me about it" apart from "missing because THIS tab just deleted
+// it," so a delete's own save would otherwise resurrect the record from
+// whatever pre-deletion snapshot is still in localStorage.
+function persistWorkspacesExcluding(deletedIds: Set<string>) {
   try {
-    localStorage.setItem(STORAGE_WORKSPACES, JSON.stringify(get(workspacesStore)));
+    const raw = localStorage.getItem(STORAGE_WORKSPACES);
+    const external = raw ? (JSON.parse(raw) as Workspace[]).filter((w) => !deletedIds.has(w.id)) : [];
+    const merged = mergeById(get(workspacesStore), external);
+    workspacesStore.set(merged);
+    localStorage.setItem(STORAGE_WORKSPACES, JSON.stringify(merged));
   } catch (e) {
     showToast("Couldn't save — your browser's local storage may be full", "error");
   }
+}
+
+export function persistWorkspaces() {
+  // Read fresh instead of trusting this tab's own possibly-stale copy —
+  // see docs.ts's persistDocs, which does the same thing for the same
+  // reason.
+  persistWorkspacesExcluding(new Set());
 }
 
 // Persist immediately if this was a first-run seed — otherwise a visitor
@@ -70,7 +89,7 @@ function setActiveWorkspaceId(id: string | null) {
 }
 
 export function createWorkspace(name: string): Workspace {
-  const ws: Workspace = { id: uid(), name, createdAt: Date.now() };
+  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), updatedAt: Date.now() };
   workspacesStore.update((all) => [ws, ...all]);
   setActiveWorkspaceId(ws.id);
   persistWorkspaces();
@@ -81,7 +100,7 @@ export function createWorkspace(name: string): Workspace {
 // a new workspace" — creates a fresh local Workspace record pointed at the
 // remote room, distinct from anything the user already has.
 export function adoptSharedWorkspace(remoteId: string, name: string): Workspace {
-  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), shared: true, remoteId };
+  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), updatedAt: Date.now(), shared: true, remoteId };
   workspacesStore.update((all) => [ws, ...all]);
   setActiveWorkspaceId(ws.id);
   persistWorkspaces();
@@ -92,27 +111,27 @@ export function adoptSharedWorkspace(remoteId: string, name: string): Workspace 
 // workspace" — the chosen local workspace keeps its own id/name but
 // starts pointing at the remote room too.
 export function mergeSharedWorkspaceInto(workspaceId: string, remoteId: string): void {
-  workspacesStore.update((all) => all.map((w) => (w.id === workspaceId ? { ...w, shared: true, remoteId } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === workspaceId ? { ...w, shared: true, remoteId, updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 
 export function setWorkspaceRepoLink(id: string, repoLink: { owner: string; repo: string; branch: string }): void {
-  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink, updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 
 export function clearWorkspaceRepoLink(id: string): void {
-  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink: undefined, repoLastSyncedAt: undefined } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink: undefined, repoLastSyncedAt: undefined, updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 
 export function setWorkspaceLastSynced(id: string, timestamp: number): void {
-  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLastSyncedAt: timestamp } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLastSyncedAt: timestamp, updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 
 export function renameWorkspace(id: string, name: string) {
-  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, name: name || "Untitled workspace" } : w)));
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, name: name || "Untitled workspace", updatedAt: Date.now() } : w)));
   persistWorkspaces();
 }
 
@@ -134,7 +153,7 @@ export function switchWorkspace(id: string): boolean {
 export function deleteWorkspaceRecord(id: string) {
   const remaining = get(workspacesStore).filter((w) => w.id !== id);
   workspacesStore.set(remaining);
-  persistWorkspaces();
+  persistWorkspacesExcluding(new Set([id]));
   if (get(activeWorkspaceIdStore) === id) {
     const fallback = [...remaining].sort((a, b) => a.createdAt - b.createdAt)[0];
     setActiveWorkspaceId(fallback ? fallback.id : null);

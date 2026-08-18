@@ -38,6 +38,12 @@ export interface Workspace {
   id: string;
   name: string;
   createdAt: number;
+  // Backfilled from createdAt for any workspace that predates this field
+  // (see stores/workspaces.ts's loadWorkspacesFromStorage) — always
+  // present on every workspace in workspacesStore after load. Bumped on
+  // every mutation so persistWorkspaces() can merge across tabs by
+  // recency instead of blindly overwriting localStorage.
+  updatedAt: number;
   // Set once this workspace has ever been shared or joined from a share
   // link — mirrors the same "try to reconnect on load" role Doc.shared
   // plays for local documents, just at workspace scope.

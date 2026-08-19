@@ -1,11 +1,9 @@
 /* Markdown Editor — static, client-side, localStorage-backed */
-import { EditorState, StateField, StateEffect, Compartment, Transaction, type Extension } from "@codemirror/state";
-import { EditorView, Decoration, drawSelection, keymap, type DecorationSet } from "@codemirror/view";
-import { history, historyKeymap, undo as cmUndo, redo as cmRedo, defaultKeymap, indentWithTab } from "@codemirror/commands";
+import { StateField, StateEffect, Transaction, type Extension } from "@codemirror/state";
+import { EditorView, Decoration, keymap, type DecorationSet } from "@codemirror/view";
+import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { tags as t } from "@lezer/highlight";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import type { Doc, MDEBridge } from "./types";
@@ -37,8 +35,6 @@ import { aboutModalOpen } from "./stores/aboutModals";
 import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { computeBlockLineStarts, computeListItemLineStarts } from "./scroll-sync";
-import { activeParagraphRange } from "./focus-mode";
-import { editorTheme, markdownHighlightStyle } from "./editor-theme";
 import { focusMode } from "./stores/focusMode";
 import { slashMenu } from "./stores/slashMenu";
 import { resolveDiagramRefs } from "./diagram-refs";
@@ -86,7 +82,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   const STORAGE_THEME = "mde:theme";
   const STORAGE_VIEW = "mde:view";
-  const STORAGE_KEYBINDINGS = "mde:keybindings";
   const APP_NAME = "Markdown Editor";
 
   function updatePageTitle(docName: string) {
@@ -144,38 +139,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     return renderMathPlaceholders(preview, currentMathSources);
   }, 400);
 
-  // ---------- Editor extension compartments ----------
-  // readOnlyCompartment: viewer/reviewer roles in a shared room (collab.ts
-  // drives this via window.MDE.setReadOnly).
-  // editingModeCompartment: swaps the whole editing/undo stack between
-  // local (CM6's own history()) and collaborative (y-codemirror.next's
-  // yCollab extensions + its Yjs-aware undo keymap) as one atomic unit —
-  // never both at once, since they'd fight over Mod-Z. collab.ts drives
-  // this via window.MDE.enterCollabMode/exitCollabMode.
-  const readOnlyCompartment = new Compartment();
-  const editingModeCompartment = new Compartment();
-  const focusModeCompartment = new Compartment();
-  const keybindingsCompartment = new Compartment();
-
-  function localEditingModeExtensions(): Extension {
-    return [history(), keymap.of(historyKeymap)];
-  }
-
-  // Set by collab.ts when a room is joined (a fresh Y.UndoManager per
-  // join) so window.MDE.undo()/redo() — the Edit-menu's programmatic
-  // triggers, as opposed to a real Mod-Z keypress the editingMode keymap
-  // already handles — can route to whichever undo system is actually
-  // active. y-codemirror.next's own undo/redo StateCommands aren't part
-  // of its public API surface (only their keymap bindings are exported),
-  // so this talks to the Y.UndoManager instance directly instead — same
-  // effect, since the collab extension's own listeners are registered
-  // against that instance regardless of what calls .undo()/.redo() on it.
-  interface UndoManagerLike {
-    undo(): void;
-    redo(): void;
-  }
-  let collabUndoManager: UndoManagerLike | null = null;
-
   // ---------- Storage helpers ----------
   // ---------- Init ----------
   document.addEventListener("DOMContentLoaded", init);
@@ -208,9 +171,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // #topbar (the View menu's own toggle) is itself hidden while Focus
     // Mode is on, so this floating button (mobile-only, see style.css)
     // is the only way back out there.
-    document.getElementById("focusModeExitBtn")?.addEventListener("click", toggleFocusMode);
+    // Focus mode is a store now (Editor.svelte reacts to it via $effect)
+    // — this button only ever turns focus mode off, never on, so a plain
+    // set(false) is correct (unlike MenuBar.svelte's toggle button).
+    document.getElementById("focusModeExitBtn")?.addEventListener("click", () => focusMode.set(false));
     initEmptyState();
-    initKeybindingIndicator();
 
     // stores/docs.ts owns docs/activeId (self-initialized from localStorage
     // at module-evaluation time, before this ever runs) — this just reacts
@@ -287,7 +252,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   function initModalEscapeKey() {
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
-      if (focusModeOn) toggleFocusMode();
+      if (get(focusMode)) focusMode.set(false);
       // [data-svelte-modal] backdrops (e.g. Settings) manage their own
       // `hidden`-equivalent as reactive component state, not the DOM
       // `hidden` attribute — mutating that attribute directly from outside
@@ -556,52 +521,16 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     });
   });
 
-  type KeybindingMode = "normal" | "vim" | "emacs";
-
-  // drawSelection() is now in the base extension list (see
-  // buildEditorExtensions) — vim mode needs it (the vim package's own
-  // docs call it out as required for correct visual-mode selection
-  // rendering when not using CM6's basicSetup, which this app doesn't
-  // use) and it's already unconditional, so it isn't added again here.
-  //
-  // Dynamically imported (not top-level imports) — @replit/codemirror-vim
-  // and @replit/codemirror-emacs only matter for the small minority of
-  // users who turn on non-default keybindings, so they shouldn't cost
-  // every page load. "normal" (the default) resolves with no import at
-  // all.
-  async function keybindingsExtensionsFor(mode: KeybindingMode): Promise<Extension[]> {
-    if (mode === "vim") {
-      const { vim } = await import("@replit/codemirror-vim");
-      return [vim()];
-    }
-    if (mode === "emacs") {
-      const { emacs } = await import("@replit/codemirror-emacs");
-      return [emacs()];
-    }
-    return [];
-  }
-
   // Editor.svelte (mounted at #editor-mount) owns the actual EditorView
-  // construction/mount/destroy lifecycle — this just builds the extension
-  // list, since that's almost entirely app.ts's own callbacks/state
-  // (scheduleSave, wrapSelection, the collab compartments, ...) and has
-  // nothing to do with where the DOM host element lives. The component
-  // calls this from onMount and hands the resulting view back via
-  // window.MDE.registerEditor.
+  // construction/mount/destroy lifecycle, the readOnly/editing-mode/
+  // focus-mode/keybindings compartments, and the base theme/highlighting
+  // extensions (see docs/superpowers/specs/2026-08-19-editor-core-migration-design.md,
+  // "Phase A"). This builds only what app.ts still owns — formatting
+  // keymaps, the markdown language, comment/image/slash/wikilink fields,
+  // the save/preview updateListener, paste/drop handlers — which
+  // Editor.svelte splices in via window.MDE.getEditorExtensions().
   function buildEditorExtensions(): Extension[] {
-    // Keybindings compartment starts empty regardless of the saved mode
-    // — vim()/emacs() need an async dynamic import (see
-    // keybindingsExtensionsFor), and this function's own return type is
-    // relied on to stay synchronous (Editor.svelte builds the initial
-    // EditorState directly from it). registerEditor() applies the saved
-    // mode right after the view exists, via the same applyKeybindings()
-    // helper setKeybindings() uses for a runtime switch — same
-    // reconfigure-the-compartment mechanism either way, just async here.
     return [
-      keybindingsCompartment.of([]),
-      readOnlyCompartment.of(EditorState.readOnly.of(false)),
-      editingModeCompartment.of(localEditingModeExtensions()),
-      focusModeCompartment.of([]),
       keymap.of([
         { key: "Mod-b", run: () => { wrapSelection("**", "**", "bold text"); return true; } },
         { key: "Mod-i", run: () => { wrapSelection("_", "_", "italic text"); return true; } },
@@ -629,19 +558,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       keymap.of(markdownKeymap),
       keymap.of(defaultKeymap),
       markdown({ extensions: [GFM] }),
-      syntaxHighlighting(markdownHighlightStyle),
-      editorTheme,
       EditorView.lineWrapping,
-      // CM6's own decoration-based selection overlay — renders
-      // regardless of DOM focus, unlike the browser's native text
-      // selection (what CM6 falls back to without this), which visibly
-      // disappears the moment focus moves elsewhere — e.g. to the
-      // Comments panel's draft textarea while writing a comment on the
-      // very text you just selected. editorTheme's own
-      // .cm-selectionBackground rule was already written to keep the
-      // same color in both focus states; this is what actually makes
-      // that apply.
-      drawSelection(),
       imageMarkerField,
       slashTriggerField,
       slashMenuSyncListener,
@@ -682,112 +599,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     ];
   }
 
-  // ---------- Focus Mode ----------
-  const dimLineMark = Decoration.line({ class: "cm-dimmed-line" });
-
-  function computeDimDecorations(state: EditorState): DecorationSet {
-    const { from, to } = activeParagraphRange(state.doc, state.selection.main.head);
-    const marks = [];
-    for (let ln = 1; ln <= state.doc.lines; ln++) {
-      const line = state.doc.line(ln);
-      if (line.to < from || line.from > to) marks.push(dimLineMark.range(line.from));
-    }
-    return Decoration.set(marks);
-  }
-
-  const focusDimField = StateField.define<DecorationSet>({
-    create: (state) => computeDimDecorations(state),
-    update(deco, tr) {
-      if (!tr.docChanged && !tr.selection) return deco;
-      return computeDimDecorations(tr.state);
-    },
-    provide: (f) => EditorView.decorations.from(f),
-  });
-
-  // Mutates scrollDOM.scrollTop directly — a plain DOM property write,
-  // not cm.dispatch() — so there's no concern about dispatching a new
-  // transaction from inside this same updateListener callback. Mirrors
-  // how initSyncScroll() already manipulates cm.scrollDOM directly
-  // elsewhere in this file, and reuses lineBlockAt(), the same API
-  // editorPixelRangeForLines() (scroll-sync) relies on for real pixel
-  // positions.
-  function centerCursorLine(view: EditorView) {
-    const pos = view.state.selection.main.head;
-    const block = view.lineBlockAt(pos);
-    const target = block.top - view.scrollDOM.clientHeight / 2 + block.height / 2;
-    view.scrollDOM.scrollTop = Math.max(0, target);
-  }
-
-  const typewriterListener = EditorView.updateListener.of((update) => {
-    if (update.docChanged || update.selectionSet) centerCursorLine(update.view);
-  });
-
-  function focusModeExtensions(): Extension[] {
-    return [focusDimField, typewriterListener];
-  }
-
-  let focusModeOn = false;
-
-  function toggleFocusMode() {
-    focusModeOn = !focusModeOn;
-    focusMode.set(focusModeOn);
-    document.body.classList.toggle("focus-mode", focusModeOn);
-    cm.dispatch({
-      effects: focusModeCompartment.reconfigure(focusModeOn ? focusModeExtensions() : []),
-    });
-    if (focusModeOn) centerCursorLine(cm);
-  }
-
-  // Shared by setKeybindings() (a user-triggered runtime switch) and
-  // registerEditor() (applying whatever mode was saved from a previous
-  // session, right after the view first exists) — both just need "make
-  // the compartment and indicator reflect this mode," async either way
-  // now that vim()/emacs() are dynamically imported.
-  async function applyKeybindings(mode: KeybindingMode): Promise<void> {
-    const extensions = await keybindingsExtensionsFor(mode);
-    cm.dispatch({ effects: keybindingsCompartment.reconfigure(extensions) });
-    await updateKeybindingIndicator(mode);
-  }
-
-  function setKeybindings(mode: KeybindingMode) {
-    localStorage.setItem(STORAGE_KEYBINDINGS, mode);
-    void applyKeybindings(mode);
-  }
-
-  async function updateKeybindingIndicator(mode: KeybindingMode): Promise<void> {
-    const el = document.getElementById("keybindingMode");
-    if (mode === "normal") {
-      el.hidden = true;
-      return;
-    }
-    if (mode === "emacs") {
-      el.hidden = false;
-      el.textContent = "EMACS";
-      return;
-    }
-    // vim — getCM(view) only resolves once vim() has actually
-    // initialized on this view. Each call to setKeybindings("vim") gets
-    // a fresh CM5-compat instance (the package creates a new one every
-    // time vim() initializes), so repeatedly toggling Vim mode on/off/on
-    // never accumulates stale listeners on an old, discarded instance.
-    // The dynamic import here always hits module cache — applyKeybindings
-    // already imported the same module to build the vim() extension
-    // above, so this never triggers a second network fetch.
-    el.hidden = false;
-    const { getCM } = await import("@replit/codemirror-vim");
-    const cm5 = getCM(cm);
-    const updateFromVimState = () => {
-      const vimState = cm5?.state?.vim;
-      el.textContent = vimState?.mode ? vimState.mode.toUpperCase() : "NORMAL";
-    };
-    updateFromVimState();
-    cm5?.on("vim-mode-change", updateFromVimState);
-  }
-
-  function initKeybindingIndicator() {
-    const mode = (localStorage.getItem(STORAGE_KEYBINDINGS) as KeybindingMode) || "normal";
-    void updateKeybindingIndicator(mode);
-  }
 
   // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
   // Line-mapped, not proportional to the whole document — see
@@ -1237,10 +1048,19 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // runs, but a stale collab extension config (bound to the OLD room's
   // Y.Text) must not survive into whatever doc loads next.
   function setEditorContent(content: string) {
-    collabUndoManager = null;
+    // collabUndoManager/editingModeCompartment now live in Editor.svelte
+    // (Phase A of the editor-core migration) — window.MDE.exitCollabMode()
+    // does the exact same reset. Defense-in-depth: collab.ts's
+    // onBeforeDocLoad hook already calls this before this function runs,
+    // but a stale collab extension config bound to the OLD room's Y.Text
+    // must never survive into whatever doc loads next, so this doesn't
+    // rely solely on that hook having fired. A separate dispatch from
+    // the content-swap below, but harmless: it carries no document
+    // changes, so CM6's own history extension never records it as an
+    // undo-able entry.
+    window.MDE.exitCollabMode?.();
     cm.dispatch({
       changes: { from: 0, to: cm.state.doc.length, insert: content },
-      effects: editingModeCompartment.reconfigure(localEditingModeExtensions()),
       annotations: Transaction.addToHistory.of(false),
       selection: { anchor: 0 },
     });
@@ -2188,13 +2008,6 @@ ${bodyHtml}
     getEditorExtensions: buildEditorExtensions,
     registerEditor(view) {
       cm = view;
-      // buildEditorExtensions() always leaves the keybindings compartment
-      // empty (see its own comment) — apply whatever mode was saved from
-      // a previous session now that the view actually exists. "normal"
-      // needs no import at all, so this is a no-op dispatch for the
-      // (default, common) case.
-      const savedKeybindingMode = (localStorage.getItem(STORAGE_KEYBINDINGS) as KeybindingMode) || "normal";
-      void applyKeybindings(savedKeybindingMode);
     },
     // getActiveDoc/findDocById/createDoc/deleteDoc/duplicateDoc/
     // markActiveDocShared/setActiveDocGistId are no longer on the bridge —
@@ -2248,27 +2061,6 @@ ${bodyHtml}
     enableMenuBarHoverSwitch,
     initSubmenus,
     closeSubmenus,
-    undo() {
-      if (collabUndoManager) collabUndoManager.undo();
-      else cmUndo(cm);
-      cm.focus();
-    },
-    redo() {
-      if (collabUndoManager) collabUndoManager.redo();
-      else cmRedo(cm);
-      cm.focus();
-    },
-    setReadOnly(readOnly) {
-      cm.dispatch({ effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(readOnly)) });
-    },
-    enterCollabMode(extensions, undoManager) {
-      collabUndoManager = undoManager;
-      cm.dispatch({ effects: editingModeCompartment.reconfigure(extensions) });
-    },
-    exitCollabMode() {
-      collabUndoManager = null;
-      cm.dispatch({ effects: editingModeCompartment.reconfigure(localEditingModeExtensions()) });
-    },
     cutSelection: menuClipboardCut,
     copySelection: menuClipboardCopy,
     pasteClipboard: menuClipboardPaste,
@@ -2295,7 +2087,6 @@ ${bodyHtml}
       aboutModalOpen.set(true);
     },
     setView,
-    toggleFocusMode,
     openDiagramEditor() {
       diagramEditorRef.set(null);
       diagramEditorOpen.set(true);
@@ -2303,7 +2094,6 @@ ${bodyHtml}
     setCommentMarkers(entries) {
       setCommentMarkers(entries);
     },
-    setKeybindings,
     formatRelativeTime,
   };
   window.MDE = bridge;

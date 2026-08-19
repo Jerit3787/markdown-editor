@@ -134,10 +134,13 @@ export interface Doc {
 // instance instead of touching internals directly.
 export interface MDEBridge {
   getEditor(): EditorView;
-  // Editor.svelte's construction handoff: it builds the actual EditorView
-  // (DOM host + mount/destroy lifecycle are its job), but the extension
-  // list is almost entirely app.ts's own callbacks/state, so it asks for
-  // that here and hands the resulting view back via registerEditor.
+  // Editor.svelte owns the EditorView's construction/mount/destroy
+  // lifecycle AND, as of Phase A of the app.ts migration, the readOnly/
+  // editing-mode/focus-mode/keybindings compartments and their base
+  // theme/highlighting extensions. This asks app.ts for whatever it
+  // still owns (Phase B/C/D territory — formatting keymaps, markdown
+  // language, comment/image/slash/wikilink fields, the save/preview
+  // updateListener, paste/drop handlers) to splice into the final list.
   getEditorExtensions(): Extension[];
   registerEditor(view: EditorView): void;
   // Doc CRUD/state reads (getActiveDoc, findDocById, createDoc, deleteDoc,
@@ -175,14 +178,18 @@ export interface MDEBridge {
   enableMenuBarHoverSwitch(pairs: { btn: HTMLElement; menu: HTMLElement }[]): void;
   initSubmenus(root: HTMLElement): void;
   closeSubmenus(root: HTMLElement): void;
-  undo(): void;
-  redo(): void;
-  // Reconfigures the editor's readOnly facet and its editing-mode/undo
-  // stack — collab.ts drives both when a room is joined/left/its role
-  // changes (see app.ts's editingModeCompartment/readOnlyCompartment).
-  setReadOnly(readOnly: boolean): void;
-  enterCollabMode(extensions: Extension, undoManager: { undo(): void; redo(): void }): void;
-  exitCollabMode(): void;
+  // Optional (assigned by Editor.svelte's onMount, not app.ts's own
+  // bridge literal) — same pattern as publishGist?/openGistPicker?
+  // below: app.ts's bridge object is typed/assigned before Editor.svelte
+  // mounts, so these can't be required there. Reconfigures the editor's
+  // readOnly facet and its editing-mode/undo stack — collab.ts drives
+  // setReadOnly/enterCollabMode/exitCollabMode when a room is
+  // joined/left/its role changes.
+  undo?(): void;
+  redo?(): void;
+  setReadOnly?(readOnly: boolean): void;
+  enterCollabMode?(extensions: Extension, undoManager: { undo(): void; redo(): void }): void;
+  exitCollabMode?(): void;
   cutSelection(): void;
   copySelection(): void;
   pasteClipboard(): void;
@@ -197,10 +204,8 @@ export interface MDEBridge {
   openShortcuts(): void;
   openAbout(): void;
   setView(mode: "editor" | "split" | "preview"): void;
-  toggleFocusMode(): void;
   openDiagramEditor(): void;
   setCommentMarkers(entries: { id: string; from: number; to: number }[]): void;
-  setKeybindings(mode: "normal" | "vim" | "emacs"): void;
   formatRelativeTime(ts: number): string;
   // Set by gist.ts at module load, same pattern as onGithubAuthComplete —
   // optional because app.ts's own bridge literal (where every other

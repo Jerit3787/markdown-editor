@@ -101,7 +101,7 @@
     { id: "view-split", label: "Switch to Split view", category: "View", run: () => window.MDE.setView("split") },
     { id: "view-preview", label: "Switch to Preview view", category: "View", run: () => window.MDE.setView("preview") },
     { id: "toggle-sidebar", label: "Toggle Sidebar", category: "View", run: () => window.MDE.toggleSidebar() },
-    { id: "toggle-focus", label: $focusMode ? "Turn off Focus Mode" : "Turn on Focus Mode", category: "View", run: () => window.MDE.toggleFocusMode() },
+    { id: "toggle-focus", label: $focusMode ? "Turn off Focus Mode" : "Turn on Focus Mode", category: "View", run: () => focusMode.update((v) => !v) },
     // Edit
     { id: "undo", label: "Undo", category: "Edit", run: () => window.MDE.undo(), requires: "doc" },
     { id: "redo", label: "Redo", category: "Edit", run: () => window.MDE.redo(), requires: "doc" },

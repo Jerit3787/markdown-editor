@@ -11,6 +11,7 @@
     "build": "vite build --config client/vite.config.ts",
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit && svelte-check --tsconfig client/tsconfig.json --tsgo-experimental-api",
     "test:e2e:local": "playwright test --project=local",
     "test:e2e:collab": "bash scripts/e2e-collab.sh",
     "test:e2e": "npm run test:e2e:local && npm run test:e2e:collab"
@@ -20,11 +21,13 @@
     "@playwright/test": "^1.62.1",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "@types/node": "^24.0.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
     "playwright": "^1.62.1",
     "svelte": "^5.56.8",
-    "typescript": "^7.0.2",
+    "svelte-check": "^4.7.6",
+    "typescript": "^6.0.3",
     "vite": "^8.2.1",
     "vitest": "^4.1.10",
     "wrangler": "^4.19.1"

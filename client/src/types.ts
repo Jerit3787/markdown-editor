@@ -196,6 +196,9 @@ export interface MDEBridge {
   // initImageUploads() (the #imageFileInput file-picker path) is the
   // only caller.
   insertImageWithUpload?(file: File, pos?: number): void;
+  // Assigned by Editor.svelte's onMount, same reasoning — Phase B moved
+  // commentMarkerField there. CommentsPanel.svelte is the only caller.
+  setCommentMarkers?(entries: { id: string; from: number; to: number }[]): void;
   cutSelection(): void;
   copySelection(): void;
   pasteClipboard(): void;
@@ -211,7 +214,6 @@ export interface MDEBridge {
   openAbout(): void;
   setView(mode: "editor" | "split" | "preview"): void;
   openDiagramEditor(): void;
-  setCommentMarkers(entries: { id: string; from: number; to: number }[]): void;
   formatRelativeTime(ts: number): string;
   // Set by gist.ts at module load, same pattern as onGithubAuthComplete —
   // optional because app.ts's own bridge literal (where every other

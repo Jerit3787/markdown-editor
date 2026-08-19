@@ -1,6 +1,6 @@
 /* Markdown Editor — static, client-side, localStorage-backed */
 import { StateField, StateEffect, Transaction, type Extension } from "@codemirror/state";
-import { EditorView, Decoration, keymap, type DecorationSet } from "@codemirror/view";
+import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
@@ -41,7 +41,6 @@ import { resolveDiagramRefs } from "./diagram-refs";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
 import { maybeSnapshotVersion } from "./history";
-import { commentDraft } from "./stores/commentDraft";
 import { relocateAnchor } from "./anchor";
 import { renameCollision } from "./stores/renameCollision";
 import { transformWikilinks, resolveWikilinkTarget } from "./wikilinks";
@@ -300,60 +299,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   // ---------- Editor (CodeMirror 6) ----------
 
-  // ---------- Comment markers ----------
-  // Mirrors imageMarkerField exactly — a DecorationSet StateField whose
-  // ranges auto-remap through every transaction via .map(tr.changes), so
-  // highlights track live typing regardless of whether the document is
-  // local or shared (this is a CodeMirror-level concern, independent of
-  // how content itself syncs).
-  const addCommentMarkerEffect = StateEffect.define<{ id: string; from: number; to: number }>();
-  const removeCommentMarkerEffect = StateEffect.define<string>();
-  const clearCommentMarkersEffect = StateEffect.define<null>();
-
-  const commentMarkerField = StateField.define<DecorationSet>({
-    create: () => Decoration.none,
-    update(value, tr) {
-      let deco = value.map(tr.changes);
-      for (const effect of tr.effects) {
-        if (effect.is(addCommentMarkerEffect)) {
-          const mark = Decoration.mark({ class: "cm-comment-marker", id: effect.value.id });
-          deco = deco.update({ add: [mark.range(effect.value.from, effect.value.to)] });
-        } else if (effect.is(removeCommentMarkerEffect)) {
-          deco = deco.update({ filter: (_f, _t, d) => (d.spec as { id: string }).id !== effect.value });
-        } else if (effect.is(clearCommentMarkersEffect)) {
-          deco = Decoration.none;
-        }
-      }
-      return deco;
-    },
-    provide: (f) => EditorView.decorations.from(f),
-  });
-
-  // Fully replaces the marker set — called whenever a document loads or
-  // its entry list changes (create/delete). Simple full-resync rather
-  // than incremental add/remove, since entry counts per document are
-  // small.
-  function setCommentMarkers(entries: { id: string; from: number; to: number }[]) {
-    cm.dispatch({
-      effects: [clearCommentMarkersEffect.of(null), ...entries.map((e) => addCommentMarkerEffect.of(e))],
-    });
-  }
-
-  const commentDraftSyncListener = EditorView.updateListener.of((update) => {
-    const sel = update.state.selection.main;
-    if (sel.empty) {
-      commentDraft.set({ visible: false, from: 0, to: 0, coords: null });
-      return;
-    }
-    const rect = update.view.coordsAtPos(sel.to);
-    commentDraft.set({
-      visible: true,
-      from: sel.from,
-      to: sel.to,
-      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
-    });
-  });
-
   // ---------- Slash commands ----------
   interface SlashTriggerState {
     open: boolean;
@@ -514,8 +459,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       slashMenuSyncListener,
       wikilinkTriggerField,
       wikilinkMenuSyncListener,
-      commentMarkerField,
-      commentDraftSyncListener,
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           scheduleSave();
@@ -952,7 +895,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       resizeDocTitle();
       updatePageTitle("Welcome");
       setSaveStatus("");
-      setCommentMarkers([]);
+      window.MDE.setCommentMarkers?.([]);
       window.MDE.onActiveDocChanged && window.MDE.onActiveDocChanged(undefined as unknown as Doc);
       return;
     }
@@ -973,9 +916,9 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
           return r ? { id: n.id, from: r.from, to: r.to } : null;
         })
         .filter((x): x is { id: string; from: number; to: number } => x !== null);
-      setCommentMarkers(relocated);
+      window.MDE.setCommentMarkers?.(relocated);
     } else {
-      setCommentMarkers([]);
+      window.MDE.setCommentMarkers?.([]);
     }
     window.MDE.onActiveDocChanged && window.MDE.onActiveDocChanged(doc);
   }
@@ -1967,9 +1910,6 @@ ${bodyHtml}
     openDiagramEditor() {
       diagramEditorRef.set(null);
       diagramEditorOpen.set(true);
-    },
-    setCommentMarkers(entries) {
-      setCommentMarkers(entries);
     },
     formatRelativeTime,
   };

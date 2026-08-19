@@ -10,6 +10,7 @@
   import { activeParagraphRange } from "../focus-mode";
   import { getActiveDoc } from "../stores/docs";
   import { imageKey } from "../image-key";
+  import { commentDraft } from "../stores/commentDraft";
 
   let hostEl: HTMLDivElement | undefined = $state();
   // $state (not a plain let): the two $effects below guard their real work
@@ -269,6 +270,60 @@
       });
   }
 
+  // ---------- Comment markers ----------
+  // Mirrors imageMarkerField exactly — a DecorationSet StateField whose
+  // ranges auto-remap through every transaction via .map(tr.changes), so
+  // highlights track live typing regardless of whether the document is
+  // local or shared (this is a CodeMirror-level concern, independent of
+  // how content itself syncs).
+  const addCommentMarkerEffect = StateEffect.define<{ id: string; from: number; to: number }>();
+  const removeCommentMarkerEffect = StateEffect.define<string>();
+  const clearCommentMarkersEffect = StateEffect.define<null>();
+
+  const commentMarkerField = StateField.define<DecorationSet>({
+    create: () => Decoration.none,
+    update(value, tr) {
+      let deco = value.map(tr.changes);
+      for (const effect of tr.effects) {
+        if (effect.is(addCommentMarkerEffect)) {
+          const mark = Decoration.mark({ class: "cm-comment-marker", id: effect.value.id });
+          deco = deco.update({ add: [mark.range(effect.value.from, effect.value.to)] });
+        } else if (effect.is(removeCommentMarkerEffect)) {
+          deco = deco.update({ filter: (_f, _t, d) => (d.spec as { id: string }).id !== effect.value });
+        } else if (effect.is(clearCommentMarkersEffect)) {
+          deco = Decoration.none;
+        }
+      }
+      return deco;
+    },
+    provide: (f) => EditorView.decorations.from(f),
+  });
+
+  // Fully replaces the marker set — called whenever a document loads or
+  // its entry list changes (create/delete). Simple full-resync rather
+  // than incremental add/remove, since entry counts per document are
+  // small.
+  function setCommentMarkers(entries: { id: string; from: number; to: number }[]) {
+    view!.dispatch({
+      effects: [clearCommentMarkersEffect.of(null), ...entries.map((e) => addCommentMarkerEffect.of(e))],
+    });
+  }
+
+  const commentDraftSyncListener = EditorView.updateListener.of((update) => {
+    const sel = update.state.selection.main;
+    if (sel.empty) {
+      commentDraft.set({ visible: false, from: 0, to: 0, coords: null });
+      return;
+    }
+    const rect = update.view.coordsAtPos(sel.to);
+    commentDraft.set({
+      visible: true,
+      from: sel.from,
+      to: sel.to,
+      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
+    });
+  });
+
   // Reactive replacements for the old imperative setKeybindings()/
   // toggleFocusMode() dispatch calls — re-runs whenever the store value
   // changes, whether that's Settings.svelte's runtime switch or the
@@ -311,10 +366,11 @@
           return true;
         },
       }),
+      commentMarkerField,
+      commentDraftSyncListener,
       // Everything Phase C/D still own (formatting keymaps, markdown
-      // language, comment/slash/wikilink fields, the save/preview
-      // updateListener) — see app.ts's own buildEditorExtensions() and
-      // its doc comment.
+      // language, slash/wikilink fields, the save/preview updateListener)
+      // — see app.ts's own buildEditorExtensions() and its doc comment.
       ...window.MDE.getEditorExtensions(),
     ];
   }
@@ -353,6 +409,7 @@
       view!.dispatch({ effects: editingModeCompartment.reconfigure(localEditingModeExtensions()) });
     };
     window.MDE.insertImageWithUpload = insertImageWithUpload;
+    window.MDE.setCommentMarkers = setCommentMarkers;
   });
 
   onDestroy(() => {

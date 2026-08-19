@@ -32,7 +32,6 @@ import { aboutModalOpen } from "./stores/aboutModals";
 import { focusMode } from "./stores/focusMode";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { escapeHtml } from "./escape-html";
-import { wrapSelection, insertLink } from "./formatting-commands";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { maybeSnapshotVersion } from "./history";
 import { relocateAnchor } from "./anchor";
@@ -232,9 +231,9 @@ import katexCss from "katex/dist/katex.min.css?raw";
   function buildEditorExtensions(): Extension[] {
     return [
       keymap.of([
-        { key: "Mod-b", run: () => { wrapSelection("**", "**", "bold text"); return true; } },
-        { key: "Mod-i", run: () => { wrapSelection("_", "_", "italic text"); return true; } },
-        { key: "Mod-k", run: () => { insertLink(); return true; } },
+        { key: "Mod-b", run: () => { window.MDE.runCmd?.("bold"); return true; } },
+        { key: "Mod-i", run: () => { window.MDE.runCmd?.("italic"); return true; } },
+        { key: "Mod-k", run: () => { window.MDE.runCmd?.("link"); return true; } },
       ]),
       // Tab/Shift-Tab indent-select-lines by default (indentWithTab
       // captures Tab entirely — it no longer moves focus out of the

@@ -1,19 +1,27 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { viewMode, isEditorOn, isPreviewOn, toggleEditorPane, togglePreviewPane } from "./view";
+import { get } from "svelte/store";
 
 describe("isEditorOn / isPreviewOn", () => {
-  it("editor mode: editor on, preview off", () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="body"></div>';
+    vi.resetModules();
+  });
+
+  it("editor mode: editor on, preview off", async () => {
+    const { isEditorOn, isPreviewOn } = await import("./view");
     expect(isEditorOn("editor")).toBe(true);
     expect(isPreviewOn("editor")).toBe(false);
   });
 
-  it("preview mode: editor off, preview on", () => {
+  it("preview mode: editor off, preview on", async () => {
+    const { isEditorOn, isPreviewOn } = await import("./view");
     expect(isEditorOn("preview")).toBe(false);
     expect(isPreviewOn("preview")).toBe(true);
   });
 
-  it("split mode: both on", () => {
+  it("split mode: both on", async () => {
+    const { isEditorOn, isPreviewOn } = await import("./view");
     expect(isEditorOn("split")).toBe(true);
     expect(isPreviewOn("split")).toBe(true);
   });
@@ -21,42 +29,49 @@ describe("isEditorOn / isPreviewOn", () => {
 
 describe("toggleEditorPane / togglePreviewPane", () => {
   beforeEach(() => {
-    window.MDE = { setView: vi.fn() } as unknown as typeof window.MDE;
+    document.body.innerHTML = '<div id="body"></div>';
+    vi.resetModules();
   });
 
-  it("toggleEditorPane from split turns editor off (-> preview)", () => {
+  it("toggleEditorPane from split turns editor off (-> preview)", async () => {
+    const { viewMode, toggleEditorPane } = await import("./view");
     viewMode.set("split");
     toggleEditorPane();
-    expect(window.MDE.setView).toHaveBeenCalledWith("preview");
+    expect(get(viewMode)).toBe("preview");
   });
 
-  it("toggleEditorPane from preview turns editor on (-> split)", () => {
+  it("toggleEditorPane from preview turns editor on (-> split)", async () => {
+    const { viewMode, toggleEditorPane } = await import("./view");
     viewMode.set("preview");
     toggleEditorPane();
-    expect(window.MDE.setView).toHaveBeenCalledWith("split");
+    expect(get(viewMode)).toBe("split");
   });
 
-  it("toggleEditorPane from editor is a no-op (editor is the only pane on)", () => {
+  it("toggleEditorPane from editor is a no-op (editor is the only pane on)", async () => {
+    const { viewMode, toggleEditorPane } = await import("./view");
     viewMode.set("editor");
     toggleEditorPane();
-    expect(window.MDE.setView).not.toHaveBeenCalled();
+    expect(get(viewMode)).toBe("editor");
   });
 
-  it("togglePreviewPane from split turns preview off (-> editor)", () => {
+  it("togglePreviewPane from split turns preview off (-> editor)", async () => {
+    const { viewMode, togglePreviewPane } = await import("./view");
     viewMode.set("split");
     togglePreviewPane();
-    expect(window.MDE.setView).toHaveBeenCalledWith("editor");
+    expect(get(viewMode)).toBe("editor");
   });
 
-  it("togglePreviewPane from editor turns preview on (-> split)", () => {
+  it("togglePreviewPane from editor turns preview on (-> split)", async () => {
+    const { viewMode, togglePreviewPane } = await import("./view");
     viewMode.set("editor");
     togglePreviewPane();
-    expect(window.MDE.setView).toHaveBeenCalledWith("split");
+    expect(get(viewMode)).toBe("split");
   });
 
-  it("togglePreviewPane from preview is a no-op (preview is the only pane on)", () => {
+  it("togglePreviewPane from preview is a no-op (preview is the only pane on)", async () => {
+    const { viewMode, togglePreviewPane } = await import("./view");
     viewMode.set("preview");
     togglePreviewPane();
-    expect(window.MDE.setView).not.toHaveBeenCalled();
+    expect(get(viewMode)).toBe("preview");
   });
 });

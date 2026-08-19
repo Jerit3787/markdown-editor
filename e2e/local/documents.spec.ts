@@ -5,7 +5,7 @@ test("app loads and shows the seeded document", async ({ page, docId }) => {
   await expect(page.locator("#editor-mount .cm-content")).toBeVisible();
   const docsInStorage = await page.evaluate(() => JSON.parse(localStorage.getItem("mde:docs") || "[]"));
   expect(docsInStorage).toHaveLength(1);
-  expect(docsInStorage[0].id).toBe(docId + "-deliberately-wrong");
+  expect(docsInStorage[0].id).toBe(docId);
 });
 
 test("typing in the editor updates the doc content", async ({ page }) => {

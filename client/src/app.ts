@@ -43,7 +43,6 @@ import { debounceWithFlush } from "./debounce";
 import { maybeSnapshotVersion } from "./history";
 import { commentDraft } from "./stores/commentDraft";
 import { relocateAnchor } from "./anchor";
-import { imageKey } from "./image-key";
 import { renameCollision } from "./stores/renameCollision";
 import { transformWikilinks, resolveWikilinkTarget } from "./wikilinks";
 import { wikilinkMenu } from "./stores/wikilinkMenu";
@@ -301,54 +300,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   // ---------- Editor (CodeMirror 6) ----------
 
-  // ---- image-upload placeholder marker ----
-  // A live-tracked highlight over "![Encoding photo.png…]()" while it's
-  // being read, so the eventual real markdown link can be swapped in at
-  // wherever that placeholder ends up — including if concurrent typing
-  // (local or a collaborator's) shifted it since the upload started. CM6
-  // decorations auto-map their position through every subsequent edit,
-  // the same live tracking CM5's TextMarker gave this for free.
-  let imageMarkerIdSeq = 0;
-  const addImageMarkerEffect = StateEffect.define<{ id: number; from: number; to: number }>();
-  const removeImageMarkerEffect = StateEffect.define<number>();
-  const imageMarkerField = StateField.define<DecorationSet>({
-    create: () => Decoration.none,
-    update(value, tr) {
-      let deco = value.map(tr.changes);
-      for (const effect of tr.effects) {
-        if (effect.is(addImageMarkerEffect)) {
-          const mark = Decoration.mark({ class: "cm-image-uploading", id: effect.value.id });
-          deco = deco.update({ add: [mark.range(effect.value.from, effect.value.to)] });
-        } else if (effect.is(removeImageMarkerEffect)) {
-          deco = deco.update({ filter: (_f, _t, d) => (d.spec as { id: number }).id !== effect.value });
-        }
-      }
-      return deco;
-    },
-    provide: (f) => EditorView.decorations.from(f),
-  });
-
-  function addImageMarker(from: number, to: number): number {
-    const id = ++imageMarkerIdSeq;
-    cm.dispatch({ effects: addImageMarkerEffect.of({ id, from, to }) });
-    return id;
-  }
-
-  function findImageMarker(id: number): { from: number; to: number } | undefined {
-    let found: { from: number; to: number } | undefined;
-    cm.state.field(imageMarkerField).between(0, cm.state.doc.length, (from, to, deco) => {
-      if ((deco.spec as { id: number }).id === id) {
-        found = { from, to };
-        return false;
-      }
-    });
-    return found;
-  }
-
-  function removeImageMarker(id: number) {
-    cm.dispatch({ effects: removeImageMarkerEffect.of(id) });
-  }
-
   // ---------- Comment markers ----------
   // Mirrors imageMarkerField exactly — a DecorationSet StateField whose
   // ranges auto-remap through every transaction via .map(tr.changes), so
@@ -559,7 +510,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       keymap.of(defaultKeymap),
       markdown({ extensions: [GFM] }),
       EditorView.lineWrapping,
-      imageMarkerField,
       slashTriggerField,
       slashMenuSyncListener,
       wikilinkTriggerField,
@@ -578,23 +528,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         }
         if (update.selectionSet) updateCursorPos();
         if (update.docChanged || update.selectionSet) followCursorInPreview();
-      }),
-      EditorView.domEventHandlers({
-        paste: (event) => {
-          const files = imageFilesFrom(event.clipboardData);
-          if (files.length === 0) return false;
-          event.preventDefault();
-          files.forEach((file) => insertImageWithUpload(file));
-          return true;
-        },
-        drop: (event, view) => {
-          const files = imageFilesFrom(event.dataTransfer);
-          if (files.length === 0) return false;
-          event.preventDefault();
-          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-          files.forEach((file) => insertImageWithUpload(file, pos ?? undefined));
-          return true;
-        },
       }),
     ];
   }
@@ -913,74 +846,18 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   }
 
   // ---------- Image embedding (paste / drop / toolbar) ----------
-  // Images are embedded directly as base64 data URIs in the markdown — no
-  // upload, no server involved. Kept fairly small since it counts against
-  // both localStorage's ~5-10MB quota and, for shared documents, the size
-  // of every Yjs sync payload sent to collaborators. Paste/drop themselves
-  // are wired in initEditor() (EditorView.domEventHandlers) — this only
-  // needs the toolbar/menu's own file-picker input.
-  const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-
+  // Image markers and insertImageWithUpload live in Editor.svelte now
+  // (Phase B of the editor-core migration) — this just wires the
+  // toolbar/menu file-picker's raw #imageFileInput element (still
+  // index.html-owned, out of scope for this phase) to the moved logic
+  // via the bridge.
   function initImageUploads() {
     document.getElementById("imageFileInput").addEventListener("change", (e) => {
       const file = (e.target as HTMLInputElement).files[0];
-      if (file) insertImageWithUpload(file);
+      if (file) window.MDE.insertImageWithUpload?.(file);
       (e.target as HTMLInputElement).value = "";
     });
   }
-
-  function imageFilesFrom(dataTransfer: DataTransfer | null) {
-    if (!dataTransfer || !dataTransfer.files) return [];
-    return Array.from(dataTransfer.files).filter((f) => f.type.startsWith("image/"));
-  }
-
-  function insertImageWithUpload(file: File, pos?: number) {
-    const from = pos ?? cm.state.selection.main.head;
-    if (file.size > MAX_IMAGE_BYTES) {
-      cm.dispatch({ changes: { from, insert: `![${file.name}: image too large, 2MB max]()` } });
-      return;
-    }
-
-    const placeholder = `![Encoding ${file.name}…]()`;
-    const to = from + placeholder.length;
-    cm.dispatch({ changes: { from, insert: placeholder } });
-    // Live-tracks the placeholder's position as other edits (local typing,
-    // or a collaborator's) land while the file is being read.
-    const markerId = addImageMarker(from, to);
-
-    readImageAsDataURL(file)
-      .then((dataUrl) => {
-        const range = findImageMarker(markerId);
-        removeImageMarker(markerId);
-        if (!range) return; // doc was switched away mid-read; drop it
-        const doc = getActiveDoc();
-        if (!doc) return;
-        const key = imageKey(file.name, doc.images || {});
-        setDocImage(key, dataUrl);
-        window.MDE.onImageAdded && window.MDE.onImageAdded(key, dataUrl);
-        cm.dispatch({ changes: { from: range.from, to: range.to, insert: `![${altTextFromFilename(file.name)}](${key})` } });
-        updatePreview();
-      })
-      .catch((err) => {
-        const range = findImageMarker(markerId);
-        removeImageMarker(markerId);
-        if (range) cm.dispatch({ changes: { from: range.from, to: range.to, insert: `![image failed to load: ${err.message}]()` } });
-      });
-  }
-
-  function altTextFromFilename(name: string) {
-    return name.replace(/\.[^.]+$/, "") || "image";
-  }
-
-  function readImageAsDataURL(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error || new Error("read failed"));
-      reader.readAsDataURL(file);
-    });
-  }
-
 
   function resolveImageRefs(text: string, doc: Doc | undefined) {
     if (!doc || !doc.images) return text;

@@ -190,6 +190,12 @@ export interface MDEBridge {
   setReadOnly?(readOnly: boolean): void;
   enterCollabMode?(extensions: Extension, undoManager: { undo(): void; redo(): void }): void;
   exitCollabMode?(): void;
+  // Assigned by Editor.svelte's onMount, same reasoning as the five
+  // methods above — Phase B of the editor-core migration moved the
+  // image-marker field and upload logic there. app.ts's
+  // initImageUploads() (the #imageFileInput file-picker path) is the
+  // only caller.
+  insertImageWithUpload?(file: File, pos?: number): void;
   cutSelection(): void;
   copySelection(): void;
   pasteClipboard(): void;

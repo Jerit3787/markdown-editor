@@ -1622,11 +1622,16 @@ select:not(.share-access-select):not(.share-role-select) {
    Svelte-mounted. */
 #menubar-mount { display: contents; }
 
-/* Wraps Toolbar.svelte's <div id="toolbar"> and Editor.svelte's
-   <div id="editorWrap"> — both need to sit as direct flex children of
-   #editorPane (.pane's column flex layout), same reasoning as
-   #menubar-mount above. */
-#toolbar-mount, #editor-mount { display: contents; }
+/* Wraps Toolbar.svelte's <div id="toolbar">, Editor.svelte's
+   <div id="editorWrap">, and Preview.svelte's <div id="preview"> — all
+   three need to sit as direct flex children of #editorPane/#previewPane
+   (.pane's flex layout) for their own flex:1/overflow-y:auto rules to
+   apply, same reasoning as #menubar-mount above. Without this,
+   #preview's flex:1 is meaningless one level too deep, its scrollable
+   area collapses, and sync-scroll's preview.scrollTop writes become
+   silent no-ops (confirmed live — this was Phase C's own migration bug,
+   not a pre-existing issue with #preview itself). */
+#toolbar-mount, #editor-mount, #preview-mount { display: contents; }
 
 /* Wraps CommentsPanel.svelte's <div class="comments-panel"> — needs to
    sit as a direct child of #content-row for its own grid-area:comments

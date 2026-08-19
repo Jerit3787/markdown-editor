@@ -4,8 +4,6 @@ import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
 import type { Doc, MDEBridge } from "./types";
 import { formatRelativeTime } from "./relative-time";
 import {
@@ -19,7 +17,6 @@ import {
   setDocImage,
   refreshDocNoteAnchors,
   findCollidingDoc,
-  docsStore,
 } from "./stores/docs";
 import { workspacesStore, createWorkspace } from "./stores/workspaces";
 import { initRouter, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
@@ -32,18 +29,13 @@ import { linkModalOpen, linkModalPrefillText } from "./stores/linkModal";
 import { imagesModalOpen } from "./stores/imagesModal";
 import { shortcutsModalOpen } from "./stores/shortcutsModal";
 import { aboutModalOpen } from "./stores/aboutModals";
-import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
-import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
-import { computeBlockLineStarts, computeListItemLineStarts } from "./scroll-sync";
 import { focusMode } from "./stores/focusMode";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { escapeHtml } from "./escape-html";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
-import { debounceWithFlush } from "./debounce";
 import { maybeSnapshotVersion } from "./history";
 import { relocateAnchor } from "./anchor";
 import { renameCollision } from "./stores/renameCollision";
-import { transformWikilinks, resolveWikilinkTarget } from "./wikilinks";
 import { get } from "svelte/store";
 // Unlike Mermaid's SVGs (which bake their own <style> in at render time),
 // KaTeX's HTML output has no self-contained styling — it's entirely
@@ -53,26 +45,6 @@ import { get } from "svelte/store";
 // copy inlined here or math would render broken/unstyled in exported
 // HTML files.
 import katexCss from "katex/dist/katex.min.css?raw";
-import markedFootnote from "marked-footnote";
-
-// Registered once, at module scope — marked.use() mutates the shared
-// marked singleton permanently, so this must never run inside
-// updatePreview() or any other per-render function. Verified directly
-// (a throwaway Node spike, not shipped) that this composes correctly
-// with this file's existing pattern of creating a *fresh*
-// marked.Renderer() per updatePreview() call and passing it via
-// marked.parse(text, { renderer, ... }) — both the extension's footnote
-// handling and the custom renderer overrides apply together correctly,
-// and re-parsing the same content repeatedly (matching this app's
-// per-keystroke re-render) produces identical output each time rather
-// than accumulating state across calls.
-//
-// headingClass: "sr-only" — the package's default heading text
-// ("Footnotes") for the trailing section is meant to be visually hidden
-// but screen-reader-visible; style.css defines .sr-only for this.
-// refMarkers left at its default (false) for bare superscript numbers,
-// matching GitHub's own footnote rendering.
-marked.use(markedFootnote({ headingClass: "sr-only" }));
 
 (function () {
   "use strict";
@@ -88,53 +60,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // ---------- State ----------
   let cm: EditorView = null as unknown as EditorView;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
-
-  // Runs after every mermaid render pass — adds a hover-revealed "Edit"
-  // button to each diagram backed by a real ref (see mermaid-preview.ts's
-  // data-diagram-ref). Idempotent: skips a block that already has one, so
-  // it's safe to call after every render, not just the first.
-  function addDiagramEditButtons() {
-    const preview = document.getElementById("preview");
-    if (!preview) return;
-    preview.querySelectorAll(".mermaid[data-diagram-ref]").forEach((block) => {
-      if (block.querySelector(".mermaid-edit-btn")) return;
-      const ref = block.getAttribute("data-diagram-ref");
-      if (!ref) return;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "mermaid-edit-btn";
-      btn.textContent = "Edit";
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        diagramEditorRef.set(ref);
-        diagramEditorOpen.set(true);
-      });
-      block.appendChild(btn);
-    });
-  }
-
-  // Diagrams re-render on a debounce (mirrors the save debounce below) so
-  // typing inside/near a ```mermaid fence doesn't re-layout SVG on every
-  // keystroke; theme changes and export force an immediate run instead —
-  // see mermaidRenderScheduler.runNow()/.flush() call sites.
-  const mermaidRenderScheduler = debounceWithFlush(() => {
-    const preview = document.getElementById("preview");
-    if (!preview) return;
-    const theme = mermaidThemeFor(document.documentElement.getAttribute("data-theme"));
-    return renderMermaidDiagrams(preview, theme).then(addDiagramEditButtons);
-  }, 400);
-
-  // Set at the top of updatePreview(), right before mathRenderScheduler is
-  // triggered — the scheduler's callback reads whatever this currently
-  // points to, same pattern mermaidRenderScheduler uses implicitly by just
-  // reading the DOM #preview already wrote.
-  let currentMathSources: Map<string, MathSource> = new Map();
-
-  const mathRenderScheduler = debounceWithFlush(() => {
-    const preview = document.getElementById("preview");
-    if (!preview) return;
-    return renderMathPlaceholders(preview, currentMathSources);
-  }, 400);
 
   // ---------- Storage helpers ----------
   // ---------- Init ----------
@@ -153,8 +78,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // window.MDE.registerEditor(), and main.ts's mount() calls (which
     // trigger that) run synchronously before this DOMContentLoaded handler
     // ever fires, same guarantee every other Svelte component here relies on.
-    initSyncScroll();
-    initWikilinkNavigation();
     initImageUploads();
     initToolbar();
     initSaveStatus();
@@ -194,7 +117,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       firstFire = false;
       lastLoadedId = id;
       loadDocIntoEditor(getActiveDoc());
-      updatePreview();
+      window.MDE.updatePreview?.();
       updateCounts();
       // The very first (synchronous, load-time) fire establishes the
       // starting URL via replaceState, not pushState — this document may
@@ -298,16 +221,15 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   // ---------- Editor (CodeMirror 6) ----------
 
-  // Editor.svelte (mounted at #editor-mount) owns the actual EditorView
-  // construction/mount/destroy lifecycle, the readOnly/editing-mode/
-  // focus-mode/keybindings compartments, the base theme/highlighting
-  // extensions, and (as of Phase B of the editor-core migration) the
-  // image/comment marker fields, slash-command and wikilink-autocomplete
-  // fields, and the Escape keymap that closes their popups — see
-  // docs/superpowers/specs/2026-08-19-editor-core-migration-phase-b-design.md.
+  // Editor.svelte owns the EditorView itself and the compartments/
+  // marker-fields/menu-fields from Phases A/B; Preview.svelte (Phase C)
+  // owns the render pipeline, sync-scroll, and wikilink-navigation-in-
+  // preview — see docs/superpowers/specs/2026-08-19-editor-core-migration-phase-c-design.md.
   // This builds only what app.ts still owns — formatting keymaps, the
-  // markdown language, and the save/preview updateListener — which
-  // Editor.svelte splices in via window.MDE.getEditorExtensions().
+  // markdown language, and the still-mixed-purpose updateListener below
+  // (save/counts/doc-content-store stay app.ts's; its two preview calls
+  // route through the bridge) — which Editor.svelte splices in via
+  // window.MDE.getEditorExtensions().
   function buildEditorExtensions(): Extension[] {
     return [
       keymap.of([
@@ -327,7 +249,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           scheduleSave();
-          updatePreview();
+          window.MDE.updatePreview?.();
           updateCounts();
           // Undebounced (unlike doc.content, which only syncs on the
           // debounced save) — DocList.svelte's outline for whichever doc
@@ -335,282 +257,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
           activeDocContent.set(cm.state.doc.toString());
         }
         if (update.selectionSet) updateCursorPos();
-        if (update.docChanged || update.selectionSet) followCursorInPreview();
+        if (update.docChanged || update.selectionSet) window.MDE.followCursorInPreview?.();
       }),
     ];
   }
 
-
-  // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
-  // Line-mapped, not proportional to the whole document — see
-  // updatePreview()'s data-line tagging. A pure whole-document percentage
-  // match used to desync badly once a single block's rendered height (a
-  // tall diagram, a large image) was very disproportionate to how many
-  // source lines it represents. This finds which tagged block a line (or
-  // scroll position) falls inside, then interpolates *within* that
-  // block using each side's own actual pixel height for its line range
-  // — not the line count itself. A long-but-unwrapped-in-source
-  // paragraph can occupy a single logical line yet many wrapped rows (so
-  // many editor pixels) — line-count interpolation treated that whole
-  // wrapped span as one fixed point (0% into the block, unmoving while
-  // scrolling through it), then jumped through any short block right
-  // after it almost instantly, since a short block's line count bought
-  // it almost no share of the editor's scroll range even though its
-  // preview footprint could be much taller. Pixel-to-pixel interpolation
-  // (each side's own rendered height for the block, not source line
-  // count) doesn't have this failure mode.
-  //
-  // Shared across initSyncScroll()'s explicit-scroll listeners and
-  // followCursorInPreview() below (cursor/typing-driven, not scroll-event
-  // driven) so the two can't fight each other via feedback loops.
-  let syncingScroll = false;
-
-  interface PreviewBlockMatch {
-    element: HTMLElement;
-    startLine: number;
-    endLine: number; // exclusive — the next block's start line, or doc.lines for the last block
-    top: number; // this block's offsetTop
-    bottom: number; // the next block's offsetTop, or the preview's full scrollHeight for the last block
-  }
-
-  function taggedPreviewBlocks(preview: HTMLElement): { element: HTMLElement; line: number }[] {
-    return Array.from(preview.querySelectorAll<HTMLElement>("[data-line]")).map((element) => ({
-      element,
-      line: Number(element.getAttribute("data-line")),
-    }));
-  }
-
-  // element.offsetTop for a direct (or, since list items are now also
-  // tagged, indirectly-but-unpositioned) descendant of #preview is
-  // already measured from #preview's own border edge — the same
-  // reference frame #preview.scrollTop uses. Padding sits *inside* that
-  // border edge, so a descendant positioned right after the padding
-  // already has that padding baked into its own offsetTop; adding it
-  // again double-counts it. Verified empirically: setting
-  // `preview.scrollTop = element.offsetTop` (no padding term) lands
-  // that element's own top exactly at the viewport's top edge — adding
-  // paddingTop on top of that overshot by exactly paddingTop every
-  // time, which is what made cursor-follow/scroll-sync land content
-  // consistently ~40px (this app's #preview padding) above where it
-  // needed to be, compounding with every block change through a
-  // document.
-  function previewBlockForLine(preview: HTMLElement, line: number, totalLines: number): PreviewBlockMatch | undefined {
-    const blocks = taggedPreviewBlocks(preview);
-    let idx = -1;
-    for (let i = 0; i < blocks.length; i++) {
-      if (blocks[i].line <= line) idx = i;
-      else break; // tagged elements are in document order — line numbers are non-decreasing
-    }
-    if (idx === -1) return undefined;
-
-    const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
-    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
-    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
-  }
-
-  function previewBlockForScrollTop(preview: HTMLElement, scrollTop: number, totalLines: number): PreviewBlockMatch | undefined {
-    const blocks = taggedPreviewBlocks(preview);
-    if (blocks.length === 0) return undefined;
-
-    let idx = 0;
-    for (let i = 0; i < blocks.length; i++) {
-      if (blocks[i].element.offsetTop <= scrollTop) idx = i;
-      else break;
-    }
-    const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
-    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
-    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
-  }
-
-  // .cm-content's own CSS top padding (style.css). CodeMirror's line-block
-  // coordinates (lineBlockAt/lineBlockAtHeight, and documentTop internally)
-  // are always relative to the top of the document text itself — 0 is the
-  // top of line 1, padding excluded, per CodeMirror's own source
-  // (EditorView.documentTop = contentDOM.getBoundingClientRect().top +
-  // viewState.paddingTop — "points directly to the top of the first line,
-  // not above the padding"). cm.scrollDOM.scrollTop, by contrast, is a
-  // physical DOM scroll position that DOES include that padding as
-  // scrollable space above line 1. Every conversion between the two needs
-  // this same offset, applied in a consistent direction — read from one
-  // place so a future padding change can't silently desync one call site
-  // from another the way it previously did (see CHANGELOG.md).
-  function editorPaddingTop(): number {
-    return parseFloat(getComputedStyle(cm.contentDOM).paddingTop) || 0;
-  }
-
-  // The editor's own rendered pixel range for a block's [startLine, endLine)
-  // span — e.g. a heavily-wrapped single-line paragraph reports a tall
-  // range here despite being one source line, which is exactly the
-  // signal line-count interpolation was blind to. Converts CodeMirror's
-  // document-relative top into scrollDOM's physical scroll-pixel space —
-  // see editorPaddingTop()'s comment for why the offset is needed.
-  function editorPixelRangeForLines(startLine: number, endLine: number): { top: number; bottom: number } {
-    const totalLines = cm.state.doc.lines;
-    const paddingTop = editorPaddingTop();
-    const top = cm.lineBlockAt(cm.state.doc.line(Math.min(startLine + 1, totalLines)).from).top + paddingTop;
-    const bottom = endLine < totalLines
-      ? cm.lineBlockAt(cm.state.doc.line(endLine + 1).from).top + paddingTop
-      : cm.scrollDOM.scrollHeight;
-    return { top, bottom };
-  }
-
-  // Maps pos's fraction through [fromTop, fromBottom) onto [toTop, toBottom).
-  function interpolateAcross(pos: number, fromTop: number, fromBottom: number, toTop: number, toBottom: number): number {
-    const span = Math.max(1, fromBottom - fromTop);
-    const fraction = Math.min(1, (pos - fromTop) / span);
-    return Math.max(0, toTop + fraction * (toBottom - toTop));
-  }
-
-  // How close to a pane's absolute max scrollTop still counts as "at the
-  // end" for the at-max special case below. CodeMirror's own
-  // scroll-cursor-into-view behavior (e.g. Cmd+Down to the document end)
-  // was observed leaving a few px of unscrolled slack rather than
-  // landing on the exact pixel — likely scroller padding/line-height
-  // rounding — so a strict `>= max` check missed it.
-  const SYNC_SCROLL_END_SLACK_PX = 8;
-
-  function initSyncScroll() {
-    const body = document.getElementById("body") as HTMLElement;
-    const preview = document.getElementById("preview") as HTMLElement;
-
-    cm.scrollDOM.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split")) return;
-      const el = cm.scrollDOM;
-      const editorMax = el.scrollHeight - el.clientHeight;
-      if (editorMax <= 0) return;
-      // At the editor's true end: mirror the preview's true end too,
-      // rather than the interpolated position below, which can fall
-      // short of it — the last block's own bottom doesn't necessarily
-      // line up with the true bottom of the scrollable preview content
-      // once trailing padding/margins don't exactly fill the remaining
-      // viewport height. Without this, scrolling either pane to its
-      // actual end could leave the other pane visibly short of its own
-      // end.
-      if (el.scrollTop >= editorMax - SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        preview.scrollTop = preview.scrollHeight - preview.clientHeight;
-        requestAnimationFrame(() => { syncingScroll = false; });
-        return;
-      }
-      // Mirrors the true-end case above, at the top: the interpolation
-      // below maps the editor's first visible block onto the preview's
-      // matching block, but the two panes' leading whitespace (their own
-      // independent top padding/margins, plus per-block gaps that don't
-      // scale identically between the editor's monospace layout and the
-      // preview's own typography) doesn't cancel out exactly at the
-      // boundary — pos 0 in the editor can still interpolate to a few tens
-      // of pixels short of true 0 in the preview. Snap explicitly instead
-      // of accepting whatever the interpolation lands on, exactly like the
-      // true-end case already does.
-      if (el.scrollTop <= SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        preview.scrollTop = 0;
-        requestAnimationFrame(() => { syncingScroll = false; });
-        return;
-      }
-      // el.scrollTop is physical scroll-pixel space; lineBlockAtHeight
-      // expects document-relative space (see editorPaddingTop()) — without
-      // subtracting the padding back out here, every topLine resolution
-      // was off by roughly one editorPaddingTop() worth of content,
-      // independently of the +paddingTop compensation applied everywhere
-      // coordinates flow the other way (document-relative -> scroll-pixel).
-      const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(Math.max(0, el.scrollTop - editorPaddingTop())).from).number - 1;
-      const match = previewBlockForLine(preview, topLine, cm.state.doc.lines);
-      if (!match) return;
-      const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
-      syncingScroll = true;
-      preview.scrollTop = interpolateAcross(el.scrollTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
-      requestAnimationFrame(() => { syncingScroll = false; });
-    });
-
-    preview.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split")) return;
-      const previewMax = preview.scrollHeight - preview.clientHeight;
-      if (previewMax <= 0) return;
-      // Mirrors the editor-at-max case above, in the other direction.
-      if (preview.scrollTop >= previewMax - SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        cm.dispatch({ effects: EditorView.scrollIntoView(cm.state.doc.length, { y: "end" }) });
-        requestAnimationFrame(() => { syncingScroll = false; });
-        return;
-      }
-      // Mirrors the true-end case above, and the editor-side true-start
-      // case in the other listener — same interpolation-doesn't-land-
-      // exactly-on-0 reasoning, from the preview side. A direct scrollTop
-      // assignment, not EditorView.scrollIntoView(0, {y:"start"}) (unlike
-      // the true-end case's cm.dispatch below) — scrollIntoView aligns
-      // document position 0 (which sits *after* .cm-content's own top
-      // padding) to the viewport edge, which scrolls past some of that
-      // padding rather than resting at the true scrollTop-0 position that
-      // shows all of it. That slack scales with the padding value: a few
-      // px for the small 4px bottom padding the true-end case deals with,
-      // but tens of px for the 40px top padding here.
-      if (preview.scrollTop <= SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        cm.scrollDOM.scrollTop = 0;
-        requestAnimationFrame(() => { syncingScroll = false; });
-        return;
-      }
-      const match = previewBlockForScrollTop(preview, preview.scrollTop, cm.state.doc.lines);
-      if (!match) return;
-      const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
-      syncingScroll = true;
-      cm.scrollDOM.scrollTop = interpolateAcross(preview.scrollTop, match.top, match.bottom, editorRange.top, editorRange.bottom);
-      requestAnimationFrame(() => { syncingScroll = false; });
-    });
-  }
-
-  // ---------- Wikilinks ----------
-  // One delegated listener on the stable #preview container, not
-  // per-element — updatePreview() replaces the whole innerHTML on every
-  // keystroke, so per-element listeners would need constant
-  // re-attachment (same reasoning as every other preview-content
-  // interaction in this file).
-  function initWikilinkNavigation() {
-    const previewEl = document.getElementById("preview");
-    previewEl.addEventListener("click", (e) => {
-      const link = (e.target as HTMLElement).closest<HTMLElement>(".wikilink");
-      if (!link) return;
-      e.preventDefault();
-      const name = link.getAttribute("data-doc-name");
-      if (!name) return;
-      const target = resolveWikilinkTarget(name, get(docsStore));
-      if (target) {
-        storeSwitchDoc(target.id);
-      } else {
-        createDoc({ name });
-      }
-    });
-  }
-
-  // initSyncScroll()'s listeners only react to explicit scroll *events* —
-  // typing or moving the cursor onto a line that's already visible in the
-  // editor's current viewport (so the editor itself never scrolls) never
-  // fired them, even when the *preview's* corresponding position was
-  // well out of view (e.g. below a tall diagram or image, or elsewhere
-  // within a tall block). Called on every doc change and cursor move;
-  // brings the cursor's interpolated position into view only when it
-  // isn't already visible, so the preview doesn't jump around on every
-  // keystroke while editing something already on screen.
-  function followCursorInPreview() {
-    const body = document.getElementById("body") as HTMLElement;
-    if (!body.classList.contains("mode-split")) return;
-    const preview = document.getElementById("preview") as HTMLElement;
-    const cursorPos = cm.state.selection.main.head;
-    const cursorLine = cm.state.doc.lineAt(cursorPos).number - 1;
-    const match = previewBlockForLine(preview, cursorLine, cm.state.doc.lines);
-    if (!match) return;
-    const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
-    // cursorEditorTop must be in the same scroll-pixel space as
-    // editorRange.top/bottom (both already +paddingTop) for interpolation
-    // across them to be meaningful — see editorPaddingTop()'s comment.
-    const cursorEditorTop = cm.lineBlockAt(cursorPos).top + editorPaddingTop();
-    const targetScrollTop = interpolateAcross(cursorEditorTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
-    if (targetScrollTop >= preview.scrollTop && targetScrollTop <= preview.scrollTop + preview.clientHeight) return; // already visible
-    syncingScroll = true;
-    preview.scrollTop = targetScrollTop;
-    requestAnimationFrame(() => { syncingScroll = false; });
-  }
 
   // ---------- Edit menu clipboard commands ----------
   // The browser's native Ctrl/Cmd+X/C/V already work on the editor without
@@ -881,125 +532,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         ? `https://github.com/${workspaceRepoLink.owner}/${workspaceRepoLink.repo}/blob/${workspaceRepoLink.branch}/${doc.repoPath}`
         : `https://github.com/${workspaceRepoLink.owner}/${workspaceRepoLink.repo}`;
     }
-  }
-
-  // ---------- Preview ----------
-  function updatePreview() {
-    const raw = cm.state.doc.toString();
-    const doc = getActiveDoc();
-    const renderer = new marked.Renderer();
-    // ![alt](refName) resolves against doc.images; anything not a known
-    // ref (a real URL, or an old doc predating this feature that still has
-    // the full data URI inline) passes through untouched. marked 18's
-    // renderer overrides take a single token object, not positional args
-    // (changed across the marked 12 -> 18 upgrade — verified against the
-    // actual loaded version's marked.d.ts, not assumed).
-    renderer.image = ({ href, title, text }) => {
-      const resolved = doc && doc.images && doc.images[href] ? doc.images[href] : href;
-      const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
-      return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || "")}"${titleAttr}>`;
-    };
-    // ```mermaid fences render as diagrams (see mermaid-preview.ts); every
-    // other language falls through to marked's own default code renderer.
-    // mermaidCodeRenderer() itself keeps its original positional (code,
-    // infostring, escaped) signature — it's a plain, independently-tested
-    // utility with no marked-specific shape of its own — so the object <->
-    // positional conversion happens only here, at the marked boundary.
-    const defaultCodeRenderer = marked.Renderer.prototype.code.bind(renderer);
-    renderer.code = ({ text, lang, escaped }) =>
-      mermaidCodeRenderer(
-        text,
-        lang,
-        !!escaped,
-        (code, infostring, esc) => defaultCodeRenderer({ type: "code", raw: code, text: code, lang: infostring, escaped: esc }),
-        doc?.diagrams
-      );
-    // [[Name]] links (see wikilinks.ts's transformWikilinks, applied
-    // below) become "wikilink:"-scheme links — resolved against the
-    // current document list at render time so a rename/delete elsewhere
-    // is reflected on the next keystroke, same as every other preview
-    // content.
-    const defaultLinkRenderer = marked.Renderer.prototype.link.bind(renderer);
-    renderer.link = ({ href, title, text, tokens }) => {
-      if (!href.startsWith("wikilink:")) return defaultLinkRenderer({ type: "link", raw: href, href, title: title ?? null, text, tokens: tokens ?? [] });
-      const name = decodeURIComponent(href.slice("wikilink:".length));
-      const exists = !!resolveWikilinkTarget(name, get(docsStore));
-      const cls = exists ? "wikilink" : "wikilink wikilink-missing";
-      return `<a href="#" class="${cls}" data-doc-name="${escapeHtml(name)}">${escapeHtml(text)}</a>`;
-    };
-    const { text: extractedRaw, sources } = extractMathSpans(transformWikilinks(raw));
-    currentMathSources = sources;
-    const html = marked.parse(extractedRaw, { gfm: true, breaks: false, renderer }) as string;
-    // KaTeX's output includes a MathML companion tree (for accessibility)
-    // alongside its visible HTML — DOMPurify's default allowlist is
-    // HTML-only and strips MathML entirely without ADD_TAGS/ADD_ATTR
-    // below. Verified against real katex.renderToString() output
-    // (sqrt, frac, sum, matrix, vector/underline) — nothing else needed.
-    const clean = DOMPurify.sanitize(html, {
-      ADD_TAGS: ["math", "semantics", "mrow", "mi", "mn", "mo", "msup", "msub", "msubsup", "msqrt", "mroot", "mfrac", "mtable", "mtr", "mtd", "mspace", "mtext", "mstyle", "mover", "munder", "munderover", "mpadded", "annotation"],
-      ADD_ATTR: ["target", "mathvariant", "encoding", "xmlns"],
-    });
-    const previewEl = document.getElementById("preview");
-    // marked.parse() always regenerates every ```mermaid fence as its raw
-    // source text (mermaidCodeRenderer has no way to know a diagram was
-    // already rendered), and this whole function re-runs on every
-    // keystroke anywhere in the document — so without this, every
-    // existing diagram would flash back to raw source text on every
-    // keystroke, only catching up once mermaidRenderScheduler's debounced
-    // pass fires ~400ms later. Snapshot already-rendered diagrams here,
-    // keyed by the exact source they were rendered from (same identity
-    // mermaid-preview.ts itself uses for its own data-mermaid-source
-    // cache), and splice the still-current ones back in immediately below
-    // — only a diagram whose source actually changed, or one seen for the
-    // first time, still needs to wait for the real re-render.
-    const renderedDiagrams = new Map<string, Element>();
-    previewEl.querySelectorAll("pre.mermaid.mermaid-rendered[data-mermaid-source]").forEach((el) => {
-      const source = el.getAttribute("data-mermaid-source");
-      if (source !== null) renderedDiagrams.set(source, el);
-    });
-    previewEl.innerHTML = clean;
-    if (renderedDiagrams.size > 0) {
-      previewEl.querySelectorAll("pre.mermaid").forEach((el) => {
-        const cached = renderedDiagrams.get(el.textContent ?? "");
-        if (cached) el.replaceWith(cached);
-      });
-    }
-    // Tags each top-level preview block with the source line it was
-    // rendered from, for sync-scroll (see initSyncScroll()) to snap to
-    // instead of using raw scroll percentage — which breaks down badly
-    // once a block's rendered height (a tall diagram, a large image) is
-    // very disproportionate to how many source lines it represents.
-    // computeBlockLineStarts() runs on the *original* raw text (not
-    // extractedRaw) — see its own comment for why. Non-space top-level
-    // tokens and top-level DOM children correspond 1:1 in order for
-    // every standard block type; the length-capped loop degrades
-    // gracefully (leaving a mismatched tail untagged) rather than
-    // throwing if some edge case ever breaks that correspondence.
-    const lineStarts = computeBlockLineStarts(raw);
-    const previewChildren = Array.from(previewEl.children);
-    for (let i = 0; i < lineStarts.length && i < previewChildren.length; i++) {
-      previewChildren[i].setAttribute("data-line", String(lineStarts[i]));
-    }
-    // A list block's own single tag only anchors interpolation at its
-    // first item — for any list with more than a couple of items, the
-    // editor's fixed-width wrapping and the preview's proportional-font
-    // wrapping diverge per item, not just once per block, which left
-    // scroll-sync/cursor-follow landing well off from the item actually
-    // being edited the deeper into a list you went. Tagging each <li>
-    // with its own start line (same [data-line] convention everything
-    // else already keys off) gives the same interpolation one anchor
-    // per item instead of one per whole list.
-    const listItemLineStarts = computeListItemLineStarts(raw);
-    for (let i = 0; i < listItemLineStarts.length && i < previewChildren.length; i++) {
-      const itemLines = listItemLineStarts[i];
-      if (!itemLines) continue;
-      const liEls = Array.from(previewChildren[i].children).filter((el): el is HTMLElement => el.tagName === "LI");
-      for (let j = 0; j < itemLines.length && j < liEls.length; j++) {
-        liEls[j].setAttribute("data-line", String(itemLines[j]));
-      }
-    }
-    mermaidRenderScheduler.trigger();
-    mathRenderScheduler.trigger();
   }
 
   // ---------- Counts / cursor ----------
@@ -1533,8 +1065,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // in-flight or still-scheduled mermaid/math render has landed first,
     // so a diagram or formula pasted right before exporting doesn't
     // export as raw source.
-    await mermaidRenderScheduler.flush();
-    await mathRenderScheduler.flush();
+    await window.MDE.flushPreviewRenders?.();
 
     if (format === "txt") {
       const text = (document.getElementById("preview") as HTMLElement).innerText;
@@ -1669,14 +1200,6 @@ ${bodyHtml}
 
   window.addEventListener("beforeunload", saveNow);
 
-  // The editor theme (see editorTheme above) flips automatically via CSS
-  // keyed off [data-theme] — mermaid can't do that, since it bakes theme
-  // into the rendered SVG, so it needs an explicit re-render whenever
-  // Settings.svelte's applyTheme() changes documentElement's data-theme.
-  new MutationObserver(() => {
-    void mermaidRenderScheduler.runNow();
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-
   // ---------- Bridge for js/collab.ts (live collaboration) ----------
   // collab.ts runs as a separate module with no access to this closure, so
   // it drives doc switching/creation and reads the CodeMirror instance
@@ -1700,14 +1223,6 @@ ${bodyHtml}
     refreshSaveStatus() {
       setSaveStatus(savedLabel(getActiveDoc()));
     },
-    // Re-runs the full marked parse pass. Needed after editing an existing
-    // diagram through DiagramEditor.svelte: saving there updates
-    // doc.diagrams[ref] but never touches the document's own text (the
-    // fence still just holds the ref), so the normal "re-render on doc
-    // change" path never fires on its own — this forces it.
-    refreshPreview() {
-      updatePreview();
-    },
     // Editor text with any ![](refName) image references inlined back to
     // their real data URIs — what gets published to a Gist, since a Gist
     // needs to stand on its own outside this app.
@@ -1717,13 +1232,12 @@ ${bodyHtml}
     },
     setDocImage(key, dataUrl) {
       setDocImage(key, dataUrl);
-      updatePreview();
+      window.MDE.updatePreview?.();
     },
     onImageAdded: null,
     toggleDropdown,
     closeAllDropdowns,
     insertLinkIntoEditor,
-    updatePreview,
     requireGithubSignIn(hint) {
       if (hint) githubSignInModalHint.set(hint);
       githubSignInModalOpen.set(true);

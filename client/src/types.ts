@@ -155,14 +155,12 @@ export interface MDEBridge {
   switchDoc(id: string): void;
   jumpToLine(id: string, line: number): void;
   refreshSaveStatus(): void;
-  refreshPreview(): void;
   getResolvedContent(): string;
   setDocImage(key: string, dataUrl: string): void;
   onImageAdded: ((key: string, dataUrl: string) => void) | null;
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
   insertLinkIntoEditor(text: string, url: string): void;
-  updatePreview(): void;
   requireGithubSignIn(hint?: string): void;
   openGithubSignInPopup(): void;
   githubUsername: string | null;
@@ -200,6 +198,23 @@ export interface MDEBridge {
   // Assigned by Editor.svelte's onMount, same reasoning — Phase B moved
   // commentMarkerField there. CommentsPanel.svelte is the only caller.
   setCommentMarkers?(entries: { id: string; from: number; to: number }[]): void;
+  // Assigned by Preview.svelte's onMount, same reasoning — Phase C
+  // moved the render pipeline there. Callers: app.ts's updateListener,
+  // its activeIdStore.subscribe, and its bridge's own setDocImage
+  // wrapper.
+  updatePreview?(): void;
+  // Re-runs the full render pipeline — used by DiagramEditor.svelte
+  // after editing an existing diagram (doc.diagrams[ref] changes
+  // without the document text itself changing, so the normal
+  // doc-changed-triggered path never fires on its own).
+  refreshPreview?(): void;
+  // Assigned by Preview.svelte's onMount. Called from app.ts's
+  // updateListener on every docChanged/selectionSet.
+  followCursorInPreview?(): void;
+  // Assigned by Preview.svelte's onMount. Awaited by app.ts's
+  // exportAs() before reading #preview's rendered DOM for txt/html/pdf
+  // export, so an in-flight diagram/math render has landed first.
+  flushPreviewRenders?(): Promise<void>;
   cutSelection(): void;
   copySelection(): void;
   pasteClipboard(): void;

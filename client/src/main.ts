@@ -8,6 +8,7 @@ import "./app";
 import "./collab";
 import "./gist";
 import "./repo-sync-ui";
+import "./formatting-commands";
 import "./style.css";
 
 import { mount } from "svelte";

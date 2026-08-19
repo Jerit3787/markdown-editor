@@ -160,7 +160,6 @@ export interface MDEBridge {
   onImageAdded: ((key: string, dataUrl: string) => void) | null;
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
-  insertLinkIntoEditor(text: string, url: string): void;
   requireGithubSignIn(hint?: string): void;
   openGithubSignInPopup(): void;
   githubUsername: string | null;
@@ -218,8 +217,6 @@ export interface MDEBridge {
   cutSelection(): void;
   copySelection(): void;
   pasteClipboard(): void;
-  runCmd(cmd: string): void;
-  insertAtCursor(text: string): void;
   newDoc(): void;
   openLocalFile(): void;
   exportAs(format: string): Promise<void>;
@@ -242,6 +239,14 @@ export interface MDEBridge {
   pushToRepoAction?(): void;
   pullFromRepoAction?(): void;
   unlinkRepo?(): void;
+  // Set by formatting-commands.ts at module load, same pattern as
+  // publishGist? above. MenuBar.svelte/CommandPalette.svelte/
+  // SlashMenu.svelte call runCmd; DiagramEditor.svelte calls
+  // insertAtCursor after creating a new diagram; LinkModal.svelte calls
+  // insertLinkIntoEditor.
+  runCmd?(cmd: string): void;
+  insertAtCursor?(text: string): void;
+  insertLinkIntoEditor?(text: string, url: string): void;
 }
 
 declare global {

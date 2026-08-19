@@ -34,27 +34,22 @@ for real (unrelated to testing) while the patch is applied, run
 
 Note: `/api/auth/github/me` actively re-verifies the session token
 against GitHub's real API (see the project's own memory notes) — a fake
-`dev-fake-token` correctly fails that check, so `two-user-live-sync.mjs`
-intercepts that one request at the network level (`stubGithubIdentity`)
-rather than relying on the dev-login cookie for anything gated by
-`window.MDE.githubUsername`. Server-side Durable Object authorization is
-unaffected either way — it only decrypts the session locally.
+`dev-fake-token` correctly fails that check, so both
+`e2e/collab/support/dev-login.ts` (`signInAsDevUser`) and
+`simulate-collaborator-ws.mjs`/`repo-sync-e2e.mjs` below intercept that
+one request at the network level rather than relying on the dev-login
+cookie for anything gated by `window.MDE.githubUsername`. Server-side
+Durable Object authorization is unaffected either way — it only
+decrypts the session locally.
 
 ## Scripts
 
-### `two-user-live-sync.mjs`
-
-Two fully independent Playwright browser contexts (separate cookie
-jars) simulating two real collaborators end-to-end: alice creates a
-document, shares it (exercising the relocate-into-its-own-workspace
-flow), bob opens the resulting `/w/<id>/<id>/edit` link, goes through
-the join-workspace modal, and the test asserts bob actually received
-alice's seeded content — then that a live edit from alice appears in
-bob's browser with no reload.
-
-```
-node scripts/manual-testing/two-user-live-sync.mjs
-```
+The two-browser-context live-sync scenario formerly covered here by
+`two-user-live-sync.mjs` is now a formal, assertion-based Playwright
+test: `e2e/collab/live-sync.spec.ts`, run via `npm run test:e2e:collab`
+(see `scripts/e2e-collab.sh` for the automated
+enable-dev-login → build → wrangler dev → test → disable-dev-login
+cycle this section used to require doing by hand).
 
 ### `simulate-collaborator-ws.mjs`
 

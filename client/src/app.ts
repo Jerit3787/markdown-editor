@@ -1,5 +1,5 @@
 /* Markdown Editor — static, client-side, localStorage-backed */
-import { StateField, StateEffect, Transaction, type Extension } from "@codemirror/state";
+import { Transaction, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
@@ -36,7 +36,6 @@ import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./m
 import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
 import { computeBlockLineStarts, computeListItemLineStarts } from "./scroll-sync";
 import { focusMode } from "./stores/focusMode";
-import { slashMenu } from "./stores/slashMenu";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
@@ -44,7 +43,6 @@ import { maybeSnapshotVersion } from "./history";
 import { relocateAnchor } from "./anchor";
 import { renameCollision } from "./stores/renameCollision";
 import { transformWikilinks, resolveWikilinkTarget } from "./wikilinks";
-import { wikilinkMenu } from "./stores/wikilinkMenu";
 import { get } from "svelte/store";
 // Unlike Mermaid's SVGs (which bake their own <style> in at render time),
 // KaTeX's HTML output has no self-contained styling — it's entirely
@@ -299,131 +297,15 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   // ---------- Editor (CodeMirror 6) ----------
 
-  // ---------- Slash commands ----------
-  interface SlashTriggerState {
-    open: boolean;
-    triggerPos: number;
-  }
-
-  const closeSlashMenuEffect = StateEffect.define<null>();
-
-  // Mirrors imageMarkerField's shape — a plain StateField (no
-  // decorations to provide) tracking whether the slash-command popup
-  // should be open and, if so, where the triggering "/" is.
-  const slashTriggerField = StateField.define<SlashTriggerState | null>({
-    create: () => null,
-    update(value, tr) {
-      if (tr.effects.some((e) => e.is(closeSlashMenuEffect))) return null;
-      if (!tr.docChanged && !tr.selection) return value;
-
-      if (tr.docChanged) {
-        let triggered: SlashTriggerState | null = null;
-        tr.changes.iterChanges((_fromA, _toA, fromB, toB, inserted) => {
-          if (toB - fromB === 1 && inserted.toString() === "/") {
-            const line = tr.state.doc.lineAt(fromB);
-            const before = tr.state.doc.sliceString(line.from, fromB);
-            if (before.trim() === "") triggered = { open: true, triggerPos: fromB };
-          }
-        });
-        if (triggered) return triggered;
-      }
-
-      if (!value?.open) return null;
-
-      // Validate the existing open state is still valid: the "/" is
-      // still there, the cursor hasn't moved before it, and no
-      // space/newline has been typed into the query.
-      const pos = tr.state.selection.main.head;
-      if (pos <= value.triggerPos) return null;
-      if (tr.state.doc.length <= value.triggerPos || tr.state.doc.sliceString(value.triggerPos, value.triggerPos + 1) !== "/") return null;
-      const query = tr.state.sliceDoc(value.triggerPos + 1, pos);
-      if (query.includes(" ") || query.includes("\n")) return null;
-      return value;
-    },
-  });
-
-  const slashMenuSyncListener = EditorView.updateListener.of((update) => {
-    const value = update.state.field(slashTriggerField);
-    if (!value?.open) {
-      slashMenu.set({ open: false, query: "", triggerPos: 0, coords: null });
-      return;
-    }
-    const pos = update.state.selection.main.head;
-    const query = update.state.sliceDoc(value.triggerPos + 1, pos);
-    const rect = update.view.coordsAtPos(value.triggerPos);
-    slashMenu.set({
-      open: true,
-      query,
-      triggerPos: value.triggerPos,
-      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
-    });
-  });
-
-  // ---------- Wikilink autocomplete ----------
-  interface WikilinkTriggerState {
-    open: boolean;
-    triggerPos: number; // position right after the triggering "[["
-  }
-
-  const closeWikilinkMenuEffect = StateEffect.define<null>();
-
-  // Structurally the same as slashTriggerField, but with different
-  // close conditions — document names commonly contain spaces (unlike
-  // slash-command names), so this doesn't close on a space; it closes
-  // on "]" typed (the user closing the brackets by hand), a newline,
-  // the cursor moving before the trigger, or the "[[" prefix itself
-  // being deleted.
-  const wikilinkTriggerField = StateField.define<WikilinkTriggerState | null>({
-    create: () => null,
-    update(value, tr) {
-      if (tr.effects.some((e) => e.is(closeWikilinkMenuEffect))) return null;
-      if (!tr.docChanged && !tr.selection) return value;
-
-      if (tr.docChanged) {
-        let triggered: WikilinkTriggerState | null = null;
-        tr.changes.iterChanges((_fromA, _toA, fromB, toB, inserted) => {
-          if (toB - fromB === 1 && inserted.toString() === "[" && fromB > 0 && tr.state.sliceDoc(fromB - 1, fromB) === "[") {
-            triggered = { open: true, triggerPos: toB };
-          }
-        });
-        if (triggered) return triggered;
-      }
-
-      if (!value?.open) return null;
-
-      const pos = tr.state.selection.main.head;
-      if (pos < value.triggerPos) return null;
-      if (tr.state.sliceDoc(Math.max(0, value.triggerPos - 2), value.triggerPos) !== "[[") return null;
-      const query = tr.state.sliceDoc(value.triggerPos, pos);
-      if (query.includes("]") || query.includes("\n")) return null;
-      return value;
-    },
-  });
-
-  const wikilinkMenuSyncListener = EditorView.updateListener.of((update) => {
-    const value = update.state.field(wikilinkTriggerField);
-    if (!value?.open) {
-      wikilinkMenu.set({ open: false, query: "", triggerPos: 0, coords: null });
-      return;
-    }
-    const pos = update.state.selection.main.head;
-    const query = update.state.sliceDoc(value.triggerPos, pos);
-    const rect = update.view.coordsAtPos(value.triggerPos);
-    wikilinkMenu.set({
-      open: true,
-      query,
-      triggerPos: value.triggerPos,
-      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
-    });
-  });
-
   // Editor.svelte (mounted at #editor-mount) owns the actual EditorView
   // construction/mount/destroy lifecycle, the readOnly/editing-mode/
-  // focus-mode/keybindings compartments, and the base theme/highlighting
-  // extensions (see docs/superpowers/specs/2026-08-19-editor-core-migration-design.md,
-  // "Phase A"). This builds only what app.ts still owns — formatting
-  // keymaps, the markdown language, comment/image/slash/wikilink fields,
-  // the save/preview updateListener, paste/drop handlers — which
+  // focus-mode/keybindings compartments, the base theme/highlighting
+  // extensions, and (as of Phase B of the editor-core migration) the
+  // image/comment marker fields, slash-command and wikilink-autocomplete
+  // fields, and the Escape keymap that closes their popups — see
+  // docs/superpowers/specs/2026-08-19-editor-core-migration-phase-b-design.md.
+  // This builds only what app.ts still owns — formatting keymaps, the
+  // markdown language, and the save/preview updateListener — which
   // Editor.svelte splices in via window.MDE.getEditorExtensions().
   function buildEditorExtensions(): Extension[] {
     return [
@@ -431,20 +313,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
         { key: "Mod-b", run: () => { wrapSelection("**", "**", "bold text"); return true; } },
         { key: "Mod-i", run: () => { wrapSelection("_", "_", "italic text"); return true; } },
         { key: "Mod-k", run: () => { insertLink(); return true; } },
-        {
-          key: "Escape",
-          run: (view) => {
-            if (view.state.field(slashTriggerField)?.open) {
-              view.dispatch({ effects: closeSlashMenuEffect.of(null) });
-              return true;
-            }
-            if (view.state.field(wikilinkTriggerField)?.open) {
-              view.dispatch({ effects: closeWikilinkMenuEffect.of(null) });
-              return true;
-            }
-            return false;
-          },
-        },
       ]),
       // Tab/Shift-Tab indent-select-lines by default (indentWithTab
       // captures Tab entirely — it no longer moves focus out of the
@@ -455,10 +323,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       keymap.of(defaultKeymap),
       markdown({ extensions: [GFM] }),
       EditorView.lineWrapping,
-      slashTriggerField,
-      slashMenuSyncListener,
-      wikilinkTriggerField,
-      wikilinkMenuSyncListener,
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           scheduleSave();

@@ -11,6 +11,8 @@
   import { getActiveDoc } from "../stores/docs";
   import { imageKey } from "../image-key";
   import { commentDraft } from "../stores/commentDraft";
+  import { slashMenu } from "../stores/slashMenu";
+  import { wikilinkMenu } from "../stores/wikilinkMenu";
 
   let hostEl: HTMLDivElement | undefined = $state();
   // $state (not a plain let): the two $effects below guard their real work
@@ -324,6 +326,144 @@
     });
   });
 
+  // ---------- Slash commands ----------
+  interface SlashTriggerState {
+    open: boolean;
+    triggerPos: number;
+  }
+
+  const closeSlashMenuEffect = StateEffect.define<null>();
+
+  // A plain StateField (no decorations to provide) tracking whether the
+  // slash-command popup should be open and, if so, where the triggering
+  // "/" is.
+  const slashTriggerField = StateField.define<SlashTriggerState | null>({
+    create: () => null,
+    update(value, tr) {
+      if (tr.effects.some((e) => e.is(closeSlashMenuEffect))) return null;
+      if (!tr.docChanged && !tr.selection) return value;
+
+      if (tr.docChanged) {
+        let triggered: SlashTriggerState | null = null;
+        tr.changes.iterChanges((_fromA, _toA, fromB, toB, inserted) => {
+          if (toB - fromB === 1 && inserted.toString() === "/") {
+            const line = tr.state.doc.lineAt(fromB);
+            const before = tr.state.doc.sliceString(line.from, fromB);
+            if (before.trim() === "") triggered = { open: true, triggerPos: fromB };
+          }
+        });
+        if (triggered) return triggered;
+      }
+
+      if (!value?.open) return null;
+
+      // Validate the existing open state is still valid: the "/" is
+      // still there, the cursor hasn't moved before it, and no
+      // space/newline has been typed into the query.
+      const pos = tr.state.selection.main.head;
+      if (pos <= value.triggerPos) return null;
+      if (tr.state.doc.length <= value.triggerPos || tr.state.doc.sliceString(value.triggerPos, value.triggerPos + 1) !== "/") return null;
+      const query = tr.state.sliceDoc(value.triggerPos + 1, pos);
+      if (query.includes(" ") || query.includes("\n")) return null;
+      return value;
+    },
+  });
+
+  const slashMenuSyncListener = EditorView.updateListener.of((update) => {
+    const value = update.state.field(slashTriggerField);
+    if (!value?.open) {
+      slashMenu.set({ open: false, query: "", triggerPos: 0, coords: null });
+      return;
+    }
+    const pos = update.state.selection.main.head;
+    const query = update.state.sliceDoc(value.triggerPos + 1, pos);
+    const rect = update.view.coordsAtPos(value.triggerPos);
+    slashMenu.set({
+      open: true,
+      query,
+      triggerPos: value.triggerPos,
+      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
+    });
+  });
+
+  // ---------- Wikilink autocomplete ----------
+  interface WikilinkTriggerState {
+    open: boolean;
+    triggerPos: number; // position right after the triggering "[["
+  }
+
+  const closeWikilinkMenuEffect = StateEffect.define<null>();
+
+  // Structurally the same as slashTriggerField, but with different
+  // close conditions — document names commonly contain spaces (unlike
+  // slash-command names), so this doesn't close on a space; it closes
+  // on "]" typed (the user closing the brackets by hand), a newline,
+  // the cursor moving before the trigger, or the "[[" prefix itself
+  // being deleted.
+  const wikilinkTriggerField = StateField.define<WikilinkTriggerState | null>({
+    create: () => null,
+    update(value, tr) {
+      if (tr.effects.some((e) => e.is(closeWikilinkMenuEffect))) return null;
+      if (!tr.docChanged && !tr.selection) return value;
+
+      if (tr.docChanged) {
+        let triggered: WikilinkTriggerState | null = null;
+        tr.changes.iterChanges((_fromA, _toA, fromB, toB, inserted) => {
+          if (toB - fromB === 1 && inserted.toString() === "[" && fromB > 0 && tr.state.sliceDoc(fromB - 1, fromB) === "[") {
+            triggered = { open: true, triggerPos: toB };
+          }
+        });
+        if (triggered) return triggered;
+      }
+
+      if (!value?.open) return null;
+
+      const pos = tr.state.selection.main.head;
+      if (pos < value.triggerPos) return null;
+      if (tr.state.sliceDoc(Math.max(0, value.triggerPos - 2), value.triggerPos) !== "[[") return null;
+      const query = tr.state.sliceDoc(value.triggerPos, pos);
+      if (query.includes("]") || query.includes("\n")) return null;
+      return value;
+    },
+  });
+
+  const wikilinkMenuSyncListener = EditorView.updateListener.of((update) => {
+    const value = update.state.field(wikilinkTriggerField);
+    if (!value?.open) {
+      wikilinkMenu.set({ open: false, query: "", triggerPos: 0, coords: null });
+      return;
+    }
+    const pos = update.state.selection.main.head;
+    const query = update.state.sliceDoc(value.triggerPos, pos);
+    const rect = update.view.coordsAtPos(value.triggerPos);
+    wikilinkMenu.set({
+      open: true,
+      query,
+      triggerPos: value.triggerPos,
+      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
+    });
+  });
+
+  // Split out of app.ts's old combined keymap array, which also held
+  // Mod-b/Mod-i/Mod-k (Phase D's formatting shortcuts, still app.ts's) —
+  // this phase's own trigger fields only.
+  const menuEscapeKeymap = keymap.of([
+    {
+      key: "Escape",
+      run: (v: EditorView) => {
+        if (v.state.field(slashTriggerField)?.open) {
+          v.dispatch({ effects: closeSlashMenuEffect.of(null) });
+          return true;
+        }
+        if (v.state.field(wikilinkTriggerField)?.open) {
+          v.dispatch({ effects: closeWikilinkMenuEffect.of(null) });
+          return true;
+        }
+        return false;
+      },
+    },
+  ]);
+
   // Reactive replacements for the old imperative setKeybindings()/
   // toggleFocusMode() dispatch calls — re-runs whenever the store value
   // changes, whether that's Settings.svelte's runtime switch or the
@@ -368,9 +508,14 @@
       }),
       commentMarkerField,
       commentDraftSyncListener,
+      menuEscapeKeymap,
+      slashTriggerField,
+      slashMenuSyncListener,
+      wikilinkTriggerField,
+      wikilinkMenuSyncListener,
       // Everything Phase C/D still own (formatting keymaps, markdown
-      // language, slash/wikilink fields, the save/preview updateListener)
-      // — see app.ts's own buildEditorExtensions() and its doc comment.
+      // language, the save/preview updateListener) — see app.ts's own
+      // buildEditorExtensions() and its doc comment.
       ...window.MDE.getEditorExtensions(),
     ];
   }

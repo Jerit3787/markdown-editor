@@ -135,12 +135,13 @@ export interface Doc {
 export interface MDEBridge {
   getEditor(): EditorView;
   // Editor.svelte owns the EditorView's construction/mount/destroy
-  // lifecycle AND, as of Phase A of the app.ts migration, the readOnly/
-  // editing-mode/focus-mode/keybindings compartments and their base
-  // theme/highlighting extensions. This asks app.ts for whatever it
-  // still owns (Phase B/C/D territory — formatting keymaps, markdown
-  // language, comment/image/slash/wikilink fields, the save/preview
-  // updateListener, paste/drop handlers) to splice into the final list.
+  // lifecycle and, as of Phase A and Phase B of the app.ts migration, the
+  // readOnly/editing-mode/focus-mode/keybindings compartments, their base
+  // theme/highlighting extensions, and the image/comment marker fields,
+  // slash-command and wikilink-autocomplete fields, and paste/drop
+  // handling. This asks app.ts for whatever it still owns (Phase C/D
+  // territory — formatting keymaps, markdown language, the save/preview
+  // updateListener) to splice into the final list.
   getEditorExtensions(): Extension[];
   registerEditor(view: EditorView): void;
   // Doc CRUD/state reads (getActiveDoc, findDocById, createDoc, deleteDoc,

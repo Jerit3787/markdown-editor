@@ -3,7 +3,7 @@
   import { docsStore, activeIdStore, deleteDoc } from "../stores/docs";
   import { githubUsername } from "../stores/github";
   import { gistBusyLabel } from "../stores/gist";
-  import { viewMode } from "../stores/view";
+  import { viewMode, setView } from "../stores/view";
   import { focusMode } from "../stores/focusMode";
   import { diagramEditorOpen, diagramEditorRef } from "../stores/diagramEditor";
   import { workspacesStore } from "../stores/workspaces";
@@ -97,11 +97,11 @@
     { id: "export-pdf", label: "Export as PDF", category: "Export", run: () => window.MDE.exportAs("pdf"), requires: "doc" },
     { id: "export-txt", label: "Export as Plain text", category: "Export", run: () => window.MDE.exportAs("txt"), requires: "doc" },
     // View
-    { id: "view-editor", label: "Switch to Editor view", category: "View", run: () => window.MDE.setView("editor") },
-    { id: "view-split", label: "Switch to Split view", category: "View", run: () => window.MDE.setView("split") },
-    { id: "view-preview", label: "Switch to Preview view", category: "View", run: () => window.MDE.setView("preview") },
+    { id: "view-editor", label: "Switch to Editor view", category: "View", run: () => setView("editor") },
+    { id: "view-split", label: "Switch to Split view", category: "View", run: () => setView("split") },
+    { id: "view-preview", label: "Switch to Preview view", category: "View", run: () => setView("preview") },
     { id: "toggle-sidebar", label: "Toggle Sidebar", category: "View", run: () => window.MDE.toggleSidebar() },
-    { id: "toggle-focus", label: $focusMode ? "Turn off Focus Mode" : "Turn on Focus Mode", category: "View", run: () => window.MDE.toggleFocusMode() },
+    { id: "toggle-focus", label: $focusMode ? "Turn off Focus Mode" : "Turn on Focus Mode", category: "View", run: () => focusMode.update((v) => !v) },
     // Edit
     { id: "undo", label: "Undo", category: "Edit", run: () => window.MDE.undo(), requires: "doc" },
     { id: "redo", label: "Redo", category: "Edit", run: () => window.MDE.redo(), requires: "doc" },

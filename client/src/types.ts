@@ -134,10 +134,14 @@ export interface Doc {
 // instance instead of touching internals directly.
 export interface MDEBridge {
   getEditor(): EditorView;
-  // Editor.svelte's construction handoff: it builds the actual EditorView
-  // (DOM host + mount/destroy lifecycle are its job), but the extension
-  // list is almost entirely app.ts's own callbacks/state, so it asks for
-  // that here and hands the resulting view back via registerEditor.
+  // Editor.svelte owns the EditorView's construction/mount/destroy
+  // lifecycle and, as of Phase A and Phase B of the app.ts migration, the
+  // readOnly/editing-mode/focus-mode/keybindings compartments, their base
+  // theme/highlighting extensions, and the image/comment marker fields,
+  // slash-command and wikilink-autocomplete fields, and paste/drop
+  // handling. This asks app.ts for whatever it still owns (Phase C/D
+  // territory — formatting keymaps, markdown language, the save/preview
+  // updateListener) to splice into the final list.
   getEditorExtensions(): Extension[];
   registerEditor(view: EditorView): void;
   // Doc CRUD/state reads (getActiveDoc, findDocById, createDoc, deleteDoc,
@@ -151,14 +155,11 @@ export interface MDEBridge {
   switchDoc(id: string): void;
   jumpToLine(id: string, line: number): void;
   refreshSaveStatus(): void;
-  refreshPreview(): void;
   getResolvedContent(): string;
   setDocImage(key: string, dataUrl: string): void;
   onImageAdded: ((key: string, dataUrl: string) => void) | null;
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
-  insertLinkIntoEditor(text: string, url: string): void;
-  updatePreview(): void;
   requireGithubSignIn(hint?: string): void;
   openGithubSignInPopup(): void;
   githubUsername: string | null;
@@ -175,19 +176,47 @@ export interface MDEBridge {
   enableMenuBarHoverSwitch(pairs: { btn: HTMLElement; menu: HTMLElement }[]): void;
   initSubmenus(root: HTMLElement): void;
   closeSubmenus(root: HTMLElement): void;
-  undo(): void;
-  redo(): void;
-  // Reconfigures the editor's readOnly facet and its editing-mode/undo
-  // stack — collab.ts drives both when a room is joined/left/its role
-  // changes (see app.ts's editingModeCompartment/readOnlyCompartment).
-  setReadOnly(readOnly: boolean): void;
-  enterCollabMode(extensions: Extension, undoManager: { undo(): void; redo(): void }): void;
-  exitCollabMode(): void;
+  // Optional (assigned by Editor.svelte's onMount, not app.ts's own
+  // bridge literal) — same pattern as publishGist?/openGistPicker?
+  // below: app.ts's bridge object is typed/assigned before Editor.svelte
+  // mounts, so these can't be required there. Reconfigures the editor's
+  // readOnly facet and its editing-mode/undo stack — collab.ts drives
+  // setReadOnly/enterCollabMode/exitCollabMode when a room is
+  // joined/left/its role changes.
+  undo?(): void;
+  redo?(): void;
+  setReadOnly?(readOnly: boolean): void;
+  enterCollabMode?(extensions: Extension, undoManager: { undo(): void; redo(): void }): void;
+  exitCollabMode?(): void;
+  // Assigned by Editor.svelte's onMount, same reasoning as the five
+  // methods above — Phase B of the editor-core migration moved the
+  // image-marker field and upload logic there. app.ts's
+  // initImageUploads() (the #imageFileInput file-picker path) is the
+  // only caller.
+  insertImageWithUpload?(file: File, pos?: number): void;
+  // Assigned by Editor.svelte's onMount, same reasoning — Phase B moved
+  // commentMarkerField there. CommentsPanel.svelte is the only caller.
+  setCommentMarkers?(entries: { id: string; from: number; to: number }[]): void;
+  // Assigned by Preview.svelte's onMount, same reasoning — Phase C
+  // moved the render pipeline there. Callers: app.ts's updateListener,
+  // its activeIdStore.subscribe, and its bridge's own setDocImage
+  // wrapper.
+  updatePreview?(): void;
+  // Re-runs the full render pipeline — used by DiagramEditor.svelte
+  // after editing an existing diagram (doc.diagrams[ref] changes
+  // without the document text itself changing, so the normal
+  // doc-changed-triggered path never fires on its own).
+  refreshPreview?(): void;
+  // Assigned by Preview.svelte's onMount. Called from app.ts's
+  // updateListener on every docChanged/selectionSet.
+  followCursorInPreview?(): void;
+  // Assigned by Preview.svelte's onMount. Awaited by app.ts's
+  // exportAs() before reading #preview's rendered DOM for txt/html/pdf
+  // export, so an in-flight diagram/math render has landed first.
+  flushPreviewRenders?(): Promise<void>;
   cutSelection(): void;
   copySelection(): void;
   pasteClipboard(): void;
-  runCmd(cmd: string): void;
-  insertAtCursor(text: string): void;
   newDoc(): void;
   openLocalFile(): void;
   exportAs(format: string): Promise<void>;
@@ -196,11 +225,7 @@ export interface MDEBridge {
   openImagesManager(): void;
   openShortcuts(): void;
   openAbout(): void;
-  setView(mode: "editor" | "split" | "preview"): void;
-  toggleFocusMode(): void;
   openDiagramEditor(): void;
-  setCommentMarkers(entries: { id: string; from: number; to: number }[]): void;
-  setKeybindings(mode: "normal" | "vim" | "emacs"): void;
   formatRelativeTime(ts: number): string;
   // Set by gist.ts at module load, same pattern as onGithubAuthComplete —
   // optional because app.ts's own bridge literal (where every other
@@ -213,6 +238,14 @@ export interface MDEBridge {
   pushToRepoAction?(): void;
   pullFromRepoAction?(): void;
   unlinkRepo?(): void;
+  // Set by formatting-commands.ts at module load, same pattern as
+  // publishGist? above. MenuBar.svelte/CommandPalette.svelte/
+  // SlashMenu.svelte call runCmd; DiagramEditor.svelte calls
+  // insertAtCursor after creating a new diagram; LinkModal.svelte calls
+  // insertLinkIntoEditor.
+  runCmd?(cmd: string): void;
+  insertAtCursor?(text: string): void;
+  insertLinkIntoEditor?(text: string, url: string): void;
 }
 
 declare global {

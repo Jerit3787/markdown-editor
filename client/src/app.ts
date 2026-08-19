@@ -1,14 +1,9 @@
 /* Markdown Editor — static, client-side, localStorage-backed */
-import { EditorState, StateField, StateEffect, Compartment, Transaction, type Extension } from "@codemirror/state";
-import { EditorView, Decoration, drawSelection, keymap, type DecorationSet } from "@codemirror/view";
-import { history, historyKeymap, undo as cmUndo, redo as cmRedo, defaultKeymap, indentWithTab } from "@codemirror/commands";
+import { Transaction, type Extension } from "@codemirror/state";
+import { EditorView, keymap } from "@codemirror/view";
+import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { tags as t } from "@lezer/highlight";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
-import html2pdf from "html2pdf.js";
 import type { Doc, MDEBridge } from "./types";
 import { formatRelativeTime } from "./relative-time";
 import {
@@ -22,7 +17,6 @@ import {
   setDocImage,
   refreshDocNoteAnchors,
   findCollidingDoc,
-  docsStore,
 } from "./stores/docs";
 import { workspacesStore, createWorkspace } from "./stores/workspaces";
 import { initRouter, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
@@ -35,24 +29,13 @@ import { linkModalOpen, linkModalPrefillText } from "./stores/linkModal";
 import { imagesModalOpen } from "./stores/imagesModal";
 import { shortcutsModalOpen } from "./stores/shortcutsModal";
 import { aboutModalOpen } from "./stores/aboutModals";
-import { mermaidCodeRenderer, mermaidThemeFor, renderMermaidDiagrams } from "./mermaid-preview";
-import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./math-preview";
-import { computeBlockLineStarts, computeListItemLineStarts } from "./scroll-sync";
-import { activeParagraphRange } from "./focus-mode";
 import { focusMode } from "./stores/focusMode";
-import { slashMenu } from "./stores/slashMenu";
-import { vim, getCM } from "@replit/codemirror-vim";
-import { emacs } from "@replit/codemirror-emacs";
 import { resolveDiagramRefs } from "./diagram-refs";
+import { escapeHtml } from "./escape-html";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
-import { debounceWithFlush } from "./debounce";
 import { maybeSnapshotVersion } from "./history";
-import { commentDraft } from "./stores/commentDraft";
 import { relocateAnchor } from "./anchor";
-import { imageKey } from "./image-key";
 import { renameCollision } from "./stores/renameCollision";
-import { transformWikilinks, resolveWikilinkTarget } from "./wikilinks";
-import { wikilinkMenu } from "./stores/wikilinkMenu";
 import { get } from "svelte/store";
 // Unlike Mermaid's SVGs (which bake their own <style> in at render time),
 // KaTeX's HTML output has no self-contained styling — it's entirely
@@ -62,33 +45,11 @@ import { get } from "svelte/store";
 // copy inlined here or math would render broken/unstyled in exported
 // HTML files.
 import katexCss from "katex/dist/katex.min.css?raw";
-import markedFootnote from "marked-footnote";
-
-// Registered once, at module scope — marked.use() mutates the shared
-// marked singleton permanently, so this must never run inside
-// updatePreview() or any other per-render function. Verified directly
-// (a throwaway Node spike, not shipped) that this composes correctly
-// with this file's existing pattern of creating a *fresh*
-// marked.Renderer() per updatePreview() call and passing it via
-// marked.parse(text, { renderer, ... }) — both the extension's footnote
-// handling and the custom renderer overrides apply together correctly,
-// and re-parsing the same content repeatedly (matching this app's
-// per-keystroke re-render) produces identical output each time rather
-// than accumulating state across calls.
-//
-// headingClass: "sr-only" — the package's default heading text
-// ("Footnotes") for the trailing section is meant to be visually hidden
-// but screen-reader-visible; style.css defines .sr-only for this.
-// refMarkers left at its default (false) for bare superscript numbers,
-// matching GitHub's own footnote rendering.
-marked.use(markedFootnote({ headingClass: "sr-only" }));
 
 (function () {
   "use strict";
 
   const STORAGE_THEME = "mde:theme";
-  const STORAGE_VIEW = "mde:view";
-  const STORAGE_KEYBINDINGS = "mde:keybindings";
   const APP_NAME = "Markdown Editor";
 
   function updatePageTitle(docName: string) {
@@ -98,85 +59,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // ---------- State ----------
   let cm: EditorView = null as unknown as EditorView;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
-
-  // Runs after every mermaid render pass — adds a hover-revealed "Edit"
-  // button to each diagram backed by a real ref (see mermaid-preview.ts's
-  // data-diagram-ref). Idempotent: skips a block that already has one, so
-  // it's safe to call after every render, not just the first.
-  function addDiagramEditButtons() {
-    const preview = document.getElementById("preview");
-    if (!preview) return;
-    preview.querySelectorAll(".mermaid[data-diagram-ref]").forEach((block) => {
-      if (block.querySelector(".mermaid-edit-btn")) return;
-      const ref = block.getAttribute("data-diagram-ref");
-      if (!ref) return;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "mermaid-edit-btn";
-      btn.textContent = "Edit";
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        diagramEditorRef.set(ref);
-        diagramEditorOpen.set(true);
-      });
-      block.appendChild(btn);
-    });
-  }
-
-  // Diagrams re-render on a debounce (mirrors the save debounce below) so
-  // typing inside/near a ```mermaid fence doesn't re-layout SVG on every
-  // keystroke; theme changes and export force an immediate run instead —
-  // see mermaidRenderScheduler.runNow()/.flush() call sites.
-  const mermaidRenderScheduler = debounceWithFlush(() => {
-    const preview = document.getElementById("preview");
-    if (!preview) return;
-    const theme = mermaidThemeFor(document.documentElement.getAttribute("data-theme"));
-    return renderMermaidDiagrams(preview, theme).then(addDiagramEditButtons);
-  }, 400);
-
-  // Set at the top of updatePreview(), right before mathRenderScheduler is
-  // triggered — the scheduler's callback reads whatever this currently
-  // points to, same pattern mermaidRenderScheduler uses implicitly by just
-  // reading the DOM #preview already wrote.
-  let currentMathSources: Map<string, MathSource> = new Map();
-
-  const mathRenderScheduler = debounceWithFlush(() => {
-    const preview = document.getElementById("preview");
-    if (!preview) return;
-    return renderMathPlaceholders(preview, currentMathSources);
-  }, 400);
-
-  // ---------- Editor extension compartments ----------
-  // readOnlyCompartment: viewer/reviewer roles in a shared room (collab.ts
-  // drives this via window.MDE.setReadOnly).
-  // editingModeCompartment: swaps the whole editing/undo stack between
-  // local (CM6's own history()) and collaborative (y-codemirror.next's
-  // yCollab extensions + its Yjs-aware undo keymap) as one atomic unit —
-  // never both at once, since they'd fight over Mod-Z. collab.ts drives
-  // this via window.MDE.enterCollabMode/exitCollabMode.
-  const readOnlyCompartment = new Compartment();
-  const editingModeCompartment = new Compartment();
-  const focusModeCompartment = new Compartment();
-  const keybindingsCompartment = new Compartment();
-
-  function localEditingModeExtensions(): Extension {
-    return [history(), keymap.of(historyKeymap)];
-  }
-
-  // Set by collab.ts when a room is joined (a fresh Y.UndoManager per
-  // join) so window.MDE.undo()/redo() — the Edit-menu's programmatic
-  // triggers, as opposed to a real Mod-Z keypress the editingMode keymap
-  // already handles — can route to whichever undo system is actually
-  // active. y-codemirror.next's own undo/redo StateCommands aren't part
-  // of its public API surface (only their keymap bindings are exported),
-  // so this talks to the Y.UndoManager instance directly instead — same
-  // effect, since the collab extension's own listeners are registered
-  // against that instance regardless of what calls .undo()/.redo() on it.
-  interface UndoManagerLike {
-    undo(): void;
-    redo(): void;
-  }
-  let collabUndoManager: UndoManagerLike | null = null;
 
   // ---------- Storage helpers ----------
   // ---------- Init ----------
@@ -195,13 +77,10 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // window.MDE.registerEditor(), and main.ts's mount() calls (which
     // trigger that) run synchronously before this DOMContentLoaded handler
     // ever fires, same guarantee every other Svelte component here relies on.
-    initSyncScroll();
-    initWikilinkNavigation();
     initImageUploads();
     initToolbar();
     initSaveStatus();
     initSidebar();
-    initViewToggle();
     initImport();
     initShortStatus();
     initImagesManager();
@@ -210,9 +89,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // #topbar (the View menu's own toggle) is itself hidden while Focus
     // Mode is on, so this floating button (mobile-only, see style.css)
     // is the only way back out there.
-    document.getElementById("focusModeExitBtn")?.addEventListener("click", toggleFocusMode);
+    // Focus mode is a store now (Editor.svelte reacts to it via $effect)
+    // — this button only ever turns focus mode off, never on, so a plain
+    // set(false) is correct (unlike MenuBar.svelte's toggle button).
+    document.getElementById("focusModeExitBtn")?.addEventListener("click", () => focusMode.set(false));
     initEmptyState();
-    initKeybindingIndicator();
 
     // stores/docs.ts owns docs/activeId (self-initialized from localStorage
     // at module-evaluation time, before this ever runs) — this just reacts
@@ -234,7 +115,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       firstFire = false;
       lastLoadedId = id;
       loadDocIntoEditor(getActiveDoc());
-      updatePreview();
+      window.MDE.updatePreview?.();
       updateCounts();
       // The very first (synchronous, load-time) fire establishes the
       // starting URL via replaceState, not pushState — this document may
@@ -289,7 +170,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   function initModalEscapeKey() {
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
-      if (focusModeOn) toggleFocusMode();
+      if (get(focusMode)) focusMode.set(false);
       // [data-svelte-modal] backdrops (e.g. Settings) manage their own
       // `hidden`-equivalent as reactive component state, not the DOM
       // `hidden` attribute — mutating that attribute directly from outside
@@ -337,311 +218,22 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // needs no separate reconfiguration when the theme changes.
 
   // ---------- Editor (CodeMirror 6) ----------
-  const editorTheme = EditorView.theme({
-    "&": { color: "var(--text)", backgroundColor: "var(--bg)", height: "100%" },
-    // Equal top/side padding matching #preview's own 40px, for visual
-    // balance between the two panes; bottom kept small (not also 40px) —
-    // a full 40px bottom padding left a gap at the editor's true scroll
-    // end large enough to visibly desync from the preview's own end.
-    // Scoped to only this editor instance via this theme extension
-    // (not a global `.cm-content` CSS rule) — DiagramEditor.svelte builds
-    // a separate CodeMirror instance with its own extensions and never
-    // includes this theme, so a global rule would have (and previously
-    // did) leak 40px of padding into that unrelated, much smaller editor.
-    ".cm-content": { fontFamily: "var(--mono)", fontSize: "14.5px", lineHeight: "1.6", padding: "40px 40px 4px 40px", caretColor: "var(--text)" },
-    ".cm-scroller": { overflow: "auto", fontFamily: "var(--mono)" },
-    "&.cm-focused": { outline: "none" },
-    ".cm-cursor": { borderLeftColor: "var(--text)" },
-    ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "var(--accent-dim) !important" },
-    ".cm-image-uploading": { opacity: "0.6", fontStyle: "italic" },
-    ".cm-dimmed-line": { opacity: "0.35", transition: "opacity 0.2s ease" },
-    ".cm-comment-marker": { backgroundColor: "color-mix(in srgb, var(--accent) 18%, transparent)", borderBottom: "2px solid var(--accent)" },
-  });
 
-  const markdownHighlightStyle = HighlightStyle.define([
-    { tag: t.heading1, fontWeight: "700", fontSize: "1.3em", color: "var(--text)" },
-    { tag: t.heading2, fontWeight: "700", fontSize: "1.15em", color: "var(--text)" },
-    { tag: [t.heading3, t.heading4, t.heading5, t.heading6], fontWeight: "700", color: "var(--text)" },
-    { tag: t.strong, fontWeight: "700" },
-    { tag: t.emphasis, fontStyle: "italic" },
-    { tag: t.strikethrough, textDecoration: "line-through" },
-    { tag: t.monospace, fontFamily: "var(--mono)" },
-    { tag: [t.link, t.url], color: "var(--accent)" },
-    { tag: t.quote, color: "var(--text-dim)", fontStyle: "italic" },
-    { tag: t.list, color: "var(--accent)" },
-    { tag: [t.meta, t.processingInstruction, t.contentSeparator], color: "var(--text-dim)" },
-  ]);
-
-  // ---- image-upload placeholder marker ----
-  // A live-tracked highlight over "![Encoding photo.png…]()" while it's
-  // being read, so the eventual real markdown link can be swapped in at
-  // wherever that placeholder ends up — including if concurrent typing
-  // (local or a collaborator's) shifted it since the upload started. CM6
-  // decorations auto-map their position through every subsequent edit,
-  // the same live tracking CM5's TextMarker gave this for free.
-  let imageMarkerIdSeq = 0;
-  const addImageMarkerEffect = StateEffect.define<{ id: number; from: number; to: number }>();
-  const removeImageMarkerEffect = StateEffect.define<number>();
-  const imageMarkerField = StateField.define<DecorationSet>({
-    create: () => Decoration.none,
-    update(value, tr) {
-      let deco = value.map(tr.changes);
-      for (const effect of tr.effects) {
-        if (effect.is(addImageMarkerEffect)) {
-          const mark = Decoration.mark({ class: "cm-image-uploading", id: effect.value.id });
-          deco = deco.update({ add: [mark.range(effect.value.from, effect.value.to)] });
-        } else if (effect.is(removeImageMarkerEffect)) {
-          deco = deco.update({ filter: (_f, _t, d) => (d.spec as { id: number }).id !== effect.value });
-        }
-      }
-      return deco;
-    },
-    provide: (f) => EditorView.decorations.from(f),
-  });
-
-  function addImageMarker(from: number, to: number): number {
-    const id = ++imageMarkerIdSeq;
-    cm.dispatch({ effects: addImageMarkerEffect.of({ id, from, to }) });
-    return id;
-  }
-
-  function findImageMarker(id: number): { from: number; to: number } | undefined {
-    let found: { from: number; to: number } | undefined;
-    cm.state.field(imageMarkerField).between(0, cm.state.doc.length, (from, to, deco) => {
-      if ((deco.spec as { id: number }).id === id) {
-        found = { from, to };
-        return false;
-      }
-    });
-    return found;
-  }
-
-  function removeImageMarker(id: number) {
-    cm.dispatch({ effects: removeImageMarkerEffect.of(id) });
-  }
-
-  // ---------- Comment markers ----------
-  // Mirrors imageMarkerField exactly — a DecorationSet StateField whose
-  // ranges auto-remap through every transaction via .map(tr.changes), so
-  // highlights track live typing regardless of whether the document is
-  // local or shared (this is a CodeMirror-level concern, independent of
-  // how content itself syncs).
-  const addCommentMarkerEffect = StateEffect.define<{ id: string; from: number; to: number }>();
-  const removeCommentMarkerEffect = StateEffect.define<string>();
-  const clearCommentMarkersEffect = StateEffect.define<null>();
-
-  const commentMarkerField = StateField.define<DecorationSet>({
-    create: () => Decoration.none,
-    update(value, tr) {
-      let deco = value.map(tr.changes);
-      for (const effect of tr.effects) {
-        if (effect.is(addCommentMarkerEffect)) {
-          const mark = Decoration.mark({ class: "cm-comment-marker", id: effect.value.id });
-          deco = deco.update({ add: [mark.range(effect.value.from, effect.value.to)] });
-        } else if (effect.is(removeCommentMarkerEffect)) {
-          deco = deco.update({ filter: (_f, _t, d) => (d.spec as { id: string }).id !== effect.value });
-        } else if (effect.is(clearCommentMarkersEffect)) {
-          deco = Decoration.none;
-        }
-      }
-      return deco;
-    },
-    provide: (f) => EditorView.decorations.from(f),
-  });
-
-  // Fully replaces the marker set — called whenever a document loads or
-  // its entry list changes (create/delete). Simple full-resync rather
-  // than incremental add/remove, since entry counts per document are
-  // small.
-  function setCommentMarkers(entries: { id: string; from: number; to: number }[]) {
-    cm.dispatch({
-      effects: [clearCommentMarkersEffect.of(null), ...entries.map((e) => addCommentMarkerEffect.of(e))],
-    });
-  }
-
-  const commentDraftSyncListener = EditorView.updateListener.of((update) => {
-    const sel = update.state.selection.main;
-    if (sel.empty) {
-      commentDraft.set({ visible: false, from: 0, to: 0, coords: null });
-      return;
-    }
-    const rect = update.view.coordsAtPos(sel.to);
-    commentDraft.set({
-      visible: true,
-      from: sel.from,
-      to: sel.to,
-      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
-    });
-  });
-
-  // ---------- Slash commands ----------
-  interface SlashTriggerState {
-    open: boolean;
-    triggerPos: number;
-  }
-
-  const closeSlashMenuEffect = StateEffect.define<null>();
-
-  // Mirrors imageMarkerField's shape — a plain StateField (no
-  // decorations to provide) tracking whether the slash-command popup
-  // should be open and, if so, where the triggering "/" is.
-  const slashTriggerField = StateField.define<SlashTriggerState | null>({
-    create: () => null,
-    update(value, tr) {
-      if (tr.effects.some((e) => e.is(closeSlashMenuEffect))) return null;
-      if (!tr.docChanged && !tr.selection) return value;
-
-      if (tr.docChanged) {
-        let triggered: SlashTriggerState | null = null;
-        tr.changes.iterChanges((_fromA, _toA, fromB, toB, inserted) => {
-          if (toB - fromB === 1 && inserted.toString() === "/") {
-            const line = tr.state.doc.lineAt(fromB);
-            const before = tr.state.doc.sliceString(line.from, fromB);
-            if (before.trim() === "") triggered = { open: true, triggerPos: fromB };
-          }
-        });
-        if (triggered) return triggered;
-      }
-
-      if (!value?.open) return null;
-
-      // Validate the existing open state is still valid: the "/" is
-      // still there, the cursor hasn't moved before it, and no
-      // space/newline has been typed into the query.
-      const pos = tr.state.selection.main.head;
-      if (pos <= value.triggerPos) return null;
-      if (tr.state.doc.length <= value.triggerPos || tr.state.doc.sliceString(value.triggerPos, value.triggerPos + 1) !== "/") return null;
-      const query = tr.state.sliceDoc(value.triggerPos + 1, pos);
-      if (query.includes(" ") || query.includes("\n")) return null;
-      return value;
-    },
-  });
-
-  const slashMenuSyncListener = EditorView.updateListener.of((update) => {
-    const value = update.state.field(slashTriggerField);
-    if (!value?.open) {
-      slashMenu.set({ open: false, query: "", triggerPos: 0, coords: null });
-      return;
-    }
-    const pos = update.state.selection.main.head;
-    const query = update.state.sliceDoc(value.triggerPos + 1, pos);
-    const rect = update.view.coordsAtPos(value.triggerPos);
-    slashMenu.set({
-      open: true,
-      query,
-      triggerPos: value.triggerPos,
-      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
-    });
-  });
-
-  // ---------- Wikilink autocomplete ----------
-  interface WikilinkTriggerState {
-    open: boolean;
-    triggerPos: number; // position right after the triggering "[["
-  }
-
-  const closeWikilinkMenuEffect = StateEffect.define<null>();
-
-  // Structurally the same as slashTriggerField, but with different
-  // close conditions — document names commonly contain spaces (unlike
-  // slash-command names), so this doesn't close on a space; it closes
-  // on "]" typed (the user closing the brackets by hand), a newline,
-  // the cursor moving before the trigger, or the "[[" prefix itself
-  // being deleted.
-  const wikilinkTriggerField = StateField.define<WikilinkTriggerState | null>({
-    create: () => null,
-    update(value, tr) {
-      if (tr.effects.some((e) => e.is(closeWikilinkMenuEffect))) return null;
-      if (!tr.docChanged && !tr.selection) return value;
-
-      if (tr.docChanged) {
-        let triggered: WikilinkTriggerState | null = null;
-        tr.changes.iterChanges((_fromA, _toA, fromB, toB, inserted) => {
-          if (toB - fromB === 1 && inserted.toString() === "[" && fromB > 0 && tr.state.sliceDoc(fromB - 1, fromB) === "[") {
-            triggered = { open: true, triggerPos: toB };
-          }
-        });
-        if (triggered) return triggered;
-      }
-
-      if (!value?.open) return null;
-
-      const pos = tr.state.selection.main.head;
-      if (pos < value.triggerPos) return null;
-      if (tr.state.sliceDoc(Math.max(0, value.triggerPos - 2), value.triggerPos) !== "[[") return null;
-      const query = tr.state.sliceDoc(value.triggerPos, pos);
-      if (query.includes("]") || query.includes("\n")) return null;
-      return value;
-    },
-  });
-
-  const wikilinkMenuSyncListener = EditorView.updateListener.of((update) => {
-    const value = update.state.field(wikilinkTriggerField);
-    if (!value?.open) {
-      wikilinkMenu.set({ open: false, query: "", triggerPos: 0, coords: null });
-      return;
-    }
-    const pos = update.state.selection.main.head;
-    const query = update.state.sliceDoc(value.triggerPos, pos);
-    const rect = update.view.coordsAtPos(value.triggerPos);
-    wikilinkMenu.set({
-      open: true,
-      query,
-      triggerPos: value.triggerPos,
-      coords: rect ? { left: rect.left, bottom: rect.bottom } : null,
-    });
-  });
-
-  type KeybindingMode = "normal" | "vim" | "emacs";
-
-  // drawSelection() is now in the base extension list (see
-  // buildEditorExtensions) — vim mode needs it (the vim package's own
-  // docs call it out as required for correct visual-mode selection
-  // rendering when not using CM6's basicSetup, which this app doesn't
-  // use) and it's already unconditional, so it isn't added again here.
-  function keybindingsExtensionsFor(mode: KeybindingMode): Extension[] {
-    if (mode === "vim") return [vim()];
-    if (mode === "emacs") return [emacs()];
-    return [];
-  }
-
-  // Editor.svelte (mounted at #editor-mount) owns the actual EditorView
-  // construction/mount/destroy lifecycle — this just builds the extension
-  // list, since that's almost entirely app.ts's own callbacks/state
-  // (scheduleSave, wrapSelection, the collab compartments, ...) and has
-  // nothing to do with where the DOM host element lives. The component
-  // calls this from onMount and hands the resulting view back via
-  // window.MDE.registerEditor.
+  // Editor.svelte owns the EditorView itself and the compartments/
+  // marker-fields/menu-fields from Phases A/B; Preview.svelte (Phase C)
+  // owns the render pipeline, sync-scroll, and wikilink-navigation-in-
+  // preview — see docs/superpowers/specs/2026-08-19-editor-core-migration-phase-c-design.md.
+  // This builds only what app.ts still owns — formatting keymaps, the
+  // markdown language, and the still-mixed-purpose updateListener below
+  // (save/counts/doc-content-store stay app.ts's; its two preview calls
+  // route through the bridge) — which Editor.svelte splices in via
+  // window.MDE.getEditorExtensions().
   function buildEditorExtensions(): Extension[] {
-    // vim()/emacs() must come before every other keymap-providing
-    // extension for correct keybinding precedence (both packages'
-    // own docs require this) — keybindingsCompartment is deliberately
-    // first here, unlike every other compartment in this array, none
-    // of which have an ordering requirement.
-    const savedKeybindingMode = (localStorage.getItem(STORAGE_KEYBINDINGS) as KeybindingMode) || "normal";
     return [
-      keybindingsCompartment.of(keybindingsExtensionsFor(savedKeybindingMode)),
-      readOnlyCompartment.of(EditorState.readOnly.of(false)),
-      editingModeCompartment.of(localEditingModeExtensions()),
-      focusModeCompartment.of([]),
       keymap.of([
-        { key: "Mod-b", run: () => { wrapSelection("**", "**", "bold text"); return true; } },
-        { key: "Mod-i", run: () => { wrapSelection("_", "_", "italic text"); return true; } },
-        { key: "Mod-k", run: () => { insertLink(); return true; } },
-        {
-          key: "Escape",
-          run: (view) => {
-            if (view.state.field(slashTriggerField)?.open) {
-              view.dispatch({ effects: closeSlashMenuEffect.of(null) });
-              return true;
-            }
-            if (view.state.field(wikilinkTriggerField)?.open) {
-              view.dispatch({ effects: closeWikilinkMenuEffect.of(null) });
-              return true;
-            }
-            return false;
-          },
-        },
+        { key: "Mod-b", run: () => { window.MDE.runCmd?.("bold"); return true; } },
+        { key: "Mod-i", run: () => { window.MDE.runCmd?.("italic"); return true; } },
+        { key: "Mod-k", run: () => { window.MDE.runCmd?.("link"); return true; } },
       ]),
       // Tab/Shift-Tab indent-select-lines by default (indentWithTab
       // captures Tab entirely — it no longer moves focus out of the
@@ -651,30 +243,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       keymap.of(markdownKeymap),
       keymap.of(defaultKeymap),
       markdown({ extensions: [GFM] }),
-      syntaxHighlighting(markdownHighlightStyle),
-      editorTheme,
       EditorView.lineWrapping,
-      // CM6's own decoration-based selection overlay — renders
-      // regardless of DOM focus, unlike the browser's native text
-      // selection (what CM6 falls back to without this), which visibly
-      // disappears the moment focus moves elsewhere — e.g. to the
-      // Comments panel's draft textarea while writing a comment on the
-      // very text you just selected. editorTheme's own
-      // .cm-selectionBackground rule was already written to keep the
-      // same color in both focus states; this is what actually makes
-      // that apply.
-      drawSelection(),
-      imageMarkerField,
-      slashTriggerField,
-      slashMenuSyncListener,
-      wikilinkTriggerField,
-      wikilinkMenuSyncListener,
-      commentMarkerField,
-      commentDraftSyncListener,
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           scheduleSave();
-          updatePreview();
+          window.MDE.updatePreview?.();
           updateCounts();
           // Undebounced (unlike doc.content, which only syncs on the
           // debounced save) — DocList.svelte's outline for whichever doc
@@ -682,391 +255,11 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
           activeDocContent.set(cm.state.doc.toString());
         }
         if (update.selectionSet) updateCursorPos();
-        if (update.docChanged || update.selectionSet) followCursorInPreview();
-      }),
-      EditorView.domEventHandlers({
-        paste: (event) => {
-          const files = imageFilesFrom(event.clipboardData);
-          if (files.length === 0) return false;
-          event.preventDefault();
-          files.forEach((file) => insertImageWithUpload(file));
-          return true;
-        },
-        drop: (event, view) => {
-          const files = imageFilesFrom(event.dataTransfer);
-          if (files.length === 0) return false;
-          event.preventDefault();
-          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-          files.forEach((file) => insertImageWithUpload(file, pos ?? undefined));
-          return true;
-        },
+        if (update.docChanged || update.selectionSet) window.MDE.followCursorInPreview?.();
       }),
     ];
   }
 
-  // ---------- Focus Mode ----------
-  const dimLineMark = Decoration.line({ class: "cm-dimmed-line" });
-
-  function computeDimDecorations(state: EditorState): DecorationSet {
-    const { from, to } = activeParagraphRange(state.doc, state.selection.main.head);
-    const marks = [];
-    for (let ln = 1; ln <= state.doc.lines; ln++) {
-      const line = state.doc.line(ln);
-      if (line.to < from || line.from > to) marks.push(dimLineMark.range(line.from));
-    }
-    return Decoration.set(marks);
-  }
-
-  const focusDimField = StateField.define<DecorationSet>({
-    create: (state) => computeDimDecorations(state),
-    update(deco, tr) {
-      if (!tr.docChanged && !tr.selection) return deco;
-      return computeDimDecorations(tr.state);
-    },
-    provide: (f) => EditorView.decorations.from(f),
-  });
-
-  // Mutates scrollDOM.scrollTop directly — a plain DOM property write,
-  // not cm.dispatch() — so there's no concern about dispatching a new
-  // transaction from inside this same updateListener callback. Mirrors
-  // how initSyncScroll() already manipulates cm.scrollDOM directly
-  // elsewhere in this file, and reuses lineBlockAt(), the same API
-  // editorPixelRangeForLines() (scroll-sync) relies on for real pixel
-  // positions.
-  function centerCursorLine(view: EditorView) {
-    const pos = view.state.selection.main.head;
-    const block = view.lineBlockAt(pos);
-    const target = block.top - view.scrollDOM.clientHeight / 2 + block.height / 2;
-    view.scrollDOM.scrollTop = Math.max(0, target);
-  }
-
-  const typewriterListener = EditorView.updateListener.of((update) => {
-    if (update.docChanged || update.selectionSet) centerCursorLine(update.view);
-  });
-
-  function focusModeExtensions(): Extension[] {
-    return [focusDimField, typewriterListener];
-  }
-
-  let focusModeOn = false;
-
-  function toggleFocusMode() {
-    focusModeOn = !focusModeOn;
-    focusMode.set(focusModeOn);
-    document.body.classList.toggle("focus-mode", focusModeOn);
-    cm.dispatch({
-      effects: focusModeCompartment.reconfigure(focusModeOn ? focusModeExtensions() : []),
-    });
-    if (focusModeOn) centerCursorLine(cm);
-  }
-
-  function setKeybindings(mode: KeybindingMode) {
-    localStorage.setItem(STORAGE_KEYBINDINGS, mode);
-    cm.dispatch({ effects: keybindingsCompartment.reconfigure(keybindingsExtensionsFor(mode)) });
-    updateKeybindingIndicator(mode);
-  }
-
-  function updateKeybindingIndicator(mode: KeybindingMode) {
-    const el = document.getElementById("keybindingMode");
-    if (mode === "normal") {
-      el.hidden = true;
-      return;
-    }
-    if (mode === "emacs") {
-      el.hidden = false;
-      el.textContent = "EMACS";
-      return;
-    }
-    // vim — getCM(view) only resolves once vim() has actually
-    // initialized on this view. Each call to setKeybindings("vim") gets
-    // a fresh CM5-compat instance (the package creates a new one every
-    // time vim() initializes), so repeatedly toggling Vim mode on/off/on
-    // never accumulates stale listeners on an old, discarded instance.
-    el.hidden = false;
-    const cm5 = getCM(cm);
-    const updateFromVimState = () => {
-      const vimState = cm5?.state?.vim;
-      el.textContent = vimState?.mode ? vimState.mode.toUpperCase() : "NORMAL";
-    };
-    updateFromVimState();
-    cm5?.on("vim-mode-change", updateFromVimState);
-  }
-
-  function initKeybindingIndicator() {
-    const mode = (localStorage.getItem(STORAGE_KEYBINDINGS) as KeybindingMode) || "normal";
-    updateKeybindingIndicator(mode);
-  }
-
-  // ---------- Synced scrolling (editor <-> preview, split mode only) ----------
-  // Line-mapped, not proportional to the whole document — see
-  // updatePreview()'s data-line tagging. A pure whole-document percentage
-  // match used to desync badly once a single block's rendered height (a
-  // tall diagram, a large image) was very disproportionate to how many
-  // source lines it represents. This finds which tagged block a line (or
-  // scroll position) falls inside, then interpolates *within* that
-  // block using each side's own actual pixel height for its line range
-  // — not the line count itself. A long-but-unwrapped-in-source
-  // paragraph can occupy a single logical line yet many wrapped rows (so
-  // many editor pixels) — line-count interpolation treated that whole
-  // wrapped span as one fixed point (0% into the block, unmoving while
-  // scrolling through it), then jumped through any short block right
-  // after it almost instantly, since a short block's line count bought
-  // it almost no share of the editor's scroll range even though its
-  // preview footprint could be much taller. Pixel-to-pixel interpolation
-  // (each side's own rendered height for the block, not source line
-  // count) doesn't have this failure mode.
-  //
-  // Shared across initSyncScroll()'s explicit-scroll listeners and
-  // followCursorInPreview() below (cursor/typing-driven, not scroll-event
-  // driven) so the two can't fight each other via feedback loops.
-  let syncingScroll = false;
-
-  interface PreviewBlockMatch {
-    element: HTMLElement;
-    startLine: number;
-    endLine: number; // exclusive — the next block's start line, or doc.lines for the last block
-    top: number; // this block's offsetTop
-    bottom: number; // the next block's offsetTop, or the preview's full scrollHeight for the last block
-  }
-
-  function taggedPreviewBlocks(preview: HTMLElement): { element: HTMLElement; line: number }[] {
-    return Array.from(preview.querySelectorAll<HTMLElement>("[data-line]")).map((element) => ({
-      element,
-      line: Number(element.getAttribute("data-line")),
-    }));
-  }
-
-  // element.offsetTop for a direct (or, since list items are now also
-  // tagged, indirectly-but-unpositioned) descendant of #preview is
-  // already measured from #preview's own border edge — the same
-  // reference frame #preview.scrollTop uses. Padding sits *inside* that
-  // border edge, so a descendant positioned right after the padding
-  // already has that padding baked into its own offsetTop; adding it
-  // again double-counts it. Verified empirically: setting
-  // `preview.scrollTop = element.offsetTop` (no padding term) lands
-  // that element's own top exactly at the viewport's top edge — adding
-  // paddingTop on top of that overshot by exactly paddingTop every
-  // time, which is what made cursor-follow/scroll-sync land content
-  // consistently ~40px (this app's #preview padding) above where it
-  // needed to be, compounding with every block change through a
-  // document.
-  function previewBlockForLine(preview: HTMLElement, line: number, totalLines: number): PreviewBlockMatch | undefined {
-    const blocks = taggedPreviewBlocks(preview);
-    let idx = -1;
-    for (let i = 0; i < blocks.length; i++) {
-      if (blocks[i].line <= line) idx = i;
-      else break; // tagged elements are in document order — line numbers are non-decreasing
-    }
-    if (idx === -1) return undefined;
-
-    const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
-    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
-    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
-  }
-
-  function previewBlockForScrollTop(preview: HTMLElement, scrollTop: number, totalLines: number): PreviewBlockMatch | undefined {
-    const blocks = taggedPreviewBlocks(preview);
-    if (blocks.length === 0) return undefined;
-
-    let idx = 0;
-    for (let i = 0; i < blocks.length; i++) {
-      if (blocks[i].element.offsetTop <= scrollTop) idx = i;
-      else break;
-    }
-    const endLine = idx + 1 < blocks.length ? blocks[idx + 1].line : totalLines;
-    const bottom = idx + 1 < blocks.length ? blocks[idx + 1].element.offsetTop : preview.scrollHeight;
-    return { element: blocks[idx].element, startLine: blocks[idx].line, endLine, top: blocks[idx].element.offsetTop, bottom };
-  }
-
-  // .cm-content's own CSS top padding (style.css). CodeMirror's line-block
-  // coordinates (lineBlockAt/lineBlockAtHeight, and documentTop internally)
-  // are always relative to the top of the document text itself — 0 is the
-  // top of line 1, padding excluded, per CodeMirror's own source
-  // (EditorView.documentTop = contentDOM.getBoundingClientRect().top +
-  // viewState.paddingTop — "points directly to the top of the first line,
-  // not above the padding"). cm.scrollDOM.scrollTop, by contrast, is a
-  // physical DOM scroll position that DOES include that padding as
-  // scrollable space above line 1. Every conversion between the two needs
-  // this same offset, applied in a consistent direction — read from one
-  // place so a future padding change can't silently desync one call site
-  // from another the way it previously did (see CHANGELOG.md).
-  function editorPaddingTop(): number {
-    return parseFloat(getComputedStyle(cm.contentDOM).paddingTop) || 0;
-  }
-
-  // The editor's own rendered pixel range for a block's [startLine, endLine)
-  // span — e.g. a heavily-wrapped single-line paragraph reports a tall
-  // range here despite being one source line, which is exactly the
-  // signal line-count interpolation was blind to. Converts CodeMirror's
-  // document-relative top into scrollDOM's physical scroll-pixel space —
-  // see editorPaddingTop()'s comment for why the offset is needed.
-  function editorPixelRangeForLines(startLine: number, endLine: number): { top: number; bottom: number } {
-    const totalLines = cm.state.doc.lines;
-    const paddingTop = editorPaddingTop();
-    const top = cm.lineBlockAt(cm.state.doc.line(Math.min(startLine + 1, totalLines)).from).top + paddingTop;
-    const bottom = endLine < totalLines
-      ? cm.lineBlockAt(cm.state.doc.line(endLine + 1).from).top + paddingTop
-      : cm.scrollDOM.scrollHeight;
-    return { top, bottom };
-  }
-
-  // Maps pos's fraction through [fromTop, fromBottom) onto [toTop, toBottom).
-  function interpolateAcross(pos: number, fromTop: number, fromBottom: number, toTop: number, toBottom: number): number {
-    const span = Math.max(1, fromBottom - fromTop);
-    const fraction = Math.min(1, (pos - fromTop) / span);
-    return Math.max(0, toTop + fraction * (toBottom - toTop));
-  }
-
-  // How close to a pane's absolute max scrollTop still counts as "at the
-  // end" for the at-max special case below. CodeMirror's own
-  // scroll-cursor-into-view behavior (e.g. Cmd+Down to the document end)
-  // was observed leaving a few px of unscrolled slack rather than
-  // landing on the exact pixel — likely scroller padding/line-height
-  // rounding — so a strict `>= max` check missed it.
-  const SYNC_SCROLL_END_SLACK_PX = 8;
-
-  function initSyncScroll() {
-    const body = document.getElementById("body") as HTMLElement;
-    const preview = document.getElementById("preview") as HTMLElement;
-
-    cm.scrollDOM.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split")) return;
-      const el = cm.scrollDOM;
-      const editorMax = el.scrollHeight - el.clientHeight;
-      if (editorMax <= 0) return;
-      // At the editor's true end: mirror the preview's true end too,
-      // rather than the interpolated position below, which can fall
-      // short of it — the last block's own bottom doesn't necessarily
-      // line up with the true bottom of the scrollable preview content
-      // once trailing padding/margins don't exactly fill the remaining
-      // viewport height. Without this, scrolling either pane to its
-      // actual end could leave the other pane visibly short of its own
-      // end.
-      if (el.scrollTop >= editorMax - SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        preview.scrollTop = preview.scrollHeight - preview.clientHeight;
-        requestAnimationFrame(() => { syncingScroll = false; });
-        return;
-      }
-      // Mirrors the true-end case above, at the top: the interpolation
-      // below maps the editor's first visible block onto the preview's
-      // matching block, but the two panes' leading whitespace (their own
-      // independent top padding/margins, plus per-block gaps that don't
-      // scale identically between the editor's monospace layout and the
-      // preview's own typography) doesn't cancel out exactly at the
-      // boundary — pos 0 in the editor can still interpolate to a few tens
-      // of pixels short of true 0 in the preview. Snap explicitly instead
-      // of accepting whatever the interpolation lands on, exactly like the
-      // true-end case already does.
-      if (el.scrollTop <= SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        preview.scrollTop = 0;
-        requestAnimationFrame(() => { syncingScroll = false; });
-        return;
-      }
-      // el.scrollTop is physical scroll-pixel space; lineBlockAtHeight
-      // expects document-relative space (see editorPaddingTop()) — without
-      // subtracting the padding back out here, every topLine resolution
-      // was off by roughly one editorPaddingTop() worth of content,
-      // independently of the +paddingTop compensation applied everywhere
-      // coordinates flow the other way (document-relative -> scroll-pixel).
-      const topLine = cm.state.doc.lineAt(cm.lineBlockAtHeight(Math.max(0, el.scrollTop - editorPaddingTop())).from).number - 1;
-      const match = previewBlockForLine(preview, topLine, cm.state.doc.lines);
-      if (!match) return;
-      const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
-      syncingScroll = true;
-      preview.scrollTop = interpolateAcross(el.scrollTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
-      requestAnimationFrame(() => { syncingScroll = false; });
-    });
-
-    preview.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split")) return;
-      const previewMax = preview.scrollHeight - preview.clientHeight;
-      if (previewMax <= 0) return;
-      // Mirrors the editor-at-max case above, in the other direction.
-      if (preview.scrollTop >= previewMax - SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        cm.dispatch({ effects: EditorView.scrollIntoView(cm.state.doc.length, { y: "end" }) });
-        requestAnimationFrame(() => { syncingScroll = false; });
-        return;
-      }
-      // Mirrors the true-end case above, and the editor-side true-start
-      // case in the other listener — same interpolation-doesn't-land-
-      // exactly-on-0 reasoning, from the preview side. A direct scrollTop
-      // assignment, not EditorView.scrollIntoView(0, {y:"start"}) (unlike
-      // the true-end case's cm.dispatch below) — scrollIntoView aligns
-      // document position 0 (which sits *after* .cm-content's own top
-      // padding) to the viewport edge, which scrolls past some of that
-      // padding rather than resting at the true scrollTop-0 position that
-      // shows all of it. That slack scales with the padding value: a few
-      // px for the small 4px bottom padding the true-end case deals with,
-      // but tens of px for the 40px top padding here.
-      if (preview.scrollTop <= SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        cm.scrollDOM.scrollTop = 0;
-        requestAnimationFrame(() => { syncingScroll = false; });
-        return;
-      }
-      const match = previewBlockForScrollTop(preview, preview.scrollTop, cm.state.doc.lines);
-      if (!match) return;
-      const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
-      syncingScroll = true;
-      cm.scrollDOM.scrollTop = interpolateAcross(preview.scrollTop, match.top, match.bottom, editorRange.top, editorRange.bottom);
-      requestAnimationFrame(() => { syncingScroll = false; });
-    });
-  }
-
-  // ---------- Wikilinks ----------
-  // One delegated listener on the stable #preview container, not
-  // per-element — updatePreview() replaces the whole innerHTML on every
-  // keystroke, so per-element listeners would need constant
-  // re-attachment (same reasoning as every other preview-content
-  // interaction in this file).
-  function initWikilinkNavigation() {
-    const previewEl = document.getElementById("preview");
-    previewEl.addEventListener("click", (e) => {
-      const link = (e.target as HTMLElement).closest<HTMLElement>(".wikilink");
-      if (!link) return;
-      e.preventDefault();
-      const name = link.getAttribute("data-doc-name");
-      if (!name) return;
-      const target = resolveWikilinkTarget(name, get(docsStore));
-      if (target) {
-        storeSwitchDoc(target.id);
-      } else {
-        createDoc({ name });
-      }
-    });
-  }
-
-  // initSyncScroll()'s listeners only react to explicit scroll *events* —
-  // typing or moving the cursor onto a line that's already visible in the
-  // editor's current viewport (so the editor itself never scrolls) never
-  // fired them, even when the *preview's* corresponding position was
-  // well out of view (e.g. below a tall diagram or image, or elsewhere
-  // within a tall block). Called on every doc change and cursor move;
-  // brings the cursor's interpolated position into view only when it
-  // isn't already visible, so the preview doesn't jump around on every
-  // keystroke while editing something already on screen.
-  function followCursorInPreview() {
-    const body = document.getElementById("body") as HTMLElement;
-    if (!body.classList.contains("mode-split")) return;
-    const preview = document.getElementById("preview") as HTMLElement;
-    const cursorPos = cm.state.selection.main.head;
-    const cursorLine = cm.state.doc.lineAt(cursorPos).number - 1;
-    const match = previewBlockForLine(preview, cursorLine, cm.state.doc.lines);
-    if (!match) return;
-    const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
-    // cursorEditorTop must be in the same scroll-pixel space as
-    // editorRange.top/bottom (both already +paddingTop) for interpolation
-    // across them to be meaningful — see editorPaddingTop()'s comment.
-    const cursorEditorTop = cm.lineBlockAt(cursorPos).top + editorPaddingTop();
-    const targetScrollTop = interpolateAcross(cursorEditorTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
-    if (targetScrollTop >= preview.scrollTop && targetScrollTop <= preview.scrollTop + preview.clientHeight) return; // already visible
-    syncingScroll = true;
-    preview.scrollTop = targetScrollTop;
-    requestAnimationFrame(() => { syncingScroll = false; });
-  }
 
   // ---------- Edit menu clipboard commands ----------
   // The browser's native Ctrl/Cmd+X/C/V already work on the editor without
@@ -1110,74 +303,18 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   }
 
   // ---------- Image embedding (paste / drop / toolbar) ----------
-  // Images are embedded directly as base64 data URIs in the markdown — no
-  // upload, no server involved. Kept fairly small since it counts against
-  // both localStorage's ~5-10MB quota and, for shared documents, the size
-  // of every Yjs sync payload sent to collaborators. Paste/drop themselves
-  // are wired in initEditor() (EditorView.domEventHandlers) — this only
-  // needs the toolbar/menu's own file-picker input.
-  const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-
+  // Image markers and insertImageWithUpload live in Editor.svelte now
+  // (Phase B of the editor-core migration) — this just wires the
+  // toolbar/menu file-picker's raw #imageFileInput element (still
+  // index.html-owned, out of scope for this phase) to the moved logic
+  // via the bridge.
   function initImageUploads() {
     document.getElementById("imageFileInput").addEventListener("change", (e) => {
       const file = (e.target as HTMLInputElement).files[0];
-      if (file) insertImageWithUpload(file);
+      if (file) window.MDE.insertImageWithUpload?.(file);
       (e.target as HTMLInputElement).value = "";
     });
   }
-
-  function imageFilesFrom(dataTransfer: DataTransfer | null) {
-    if (!dataTransfer || !dataTransfer.files) return [];
-    return Array.from(dataTransfer.files).filter((f) => f.type.startsWith("image/"));
-  }
-
-  function insertImageWithUpload(file: File, pos?: number) {
-    const from = pos ?? cm.state.selection.main.head;
-    if (file.size > MAX_IMAGE_BYTES) {
-      cm.dispatch({ changes: { from, insert: `![${file.name}: image too large, 2MB max]()` } });
-      return;
-    }
-
-    const placeholder = `![Encoding ${file.name}…]()`;
-    const to = from + placeholder.length;
-    cm.dispatch({ changes: { from, insert: placeholder } });
-    // Live-tracks the placeholder's position as other edits (local typing,
-    // or a collaborator's) land while the file is being read.
-    const markerId = addImageMarker(from, to);
-
-    readImageAsDataURL(file)
-      .then((dataUrl) => {
-        const range = findImageMarker(markerId);
-        removeImageMarker(markerId);
-        if (!range) return; // doc was switched away mid-read; drop it
-        const doc = getActiveDoc();
-        if (!doc) return;
-        const key = imageKey(file.name, doc.images || {});
-        setDocImage(key, dataUrl);
-        window.MDE.onImageAdded && window.MDE.onImageAdded(key, dataUrl);
-        cm.dispatch({ changes: { from: range.from, to: range.to, insert: `![${altTextFromFilename(file.name)}](${key})` } });
-        updatePreview();
-      })
-      .catch((err) => {
-        const range = findImageMarker(markerId);
-        removeImageMarker(markerId);
-        if (range) cm.dispatch({ changes: { from: range.from, to: range.to, insert: `![image failed to load: ${err.message}]()` } });
-      });
-  }
-
-  function altTextFromFilename(name: string) {
-    return name.replace(/\.[^.]+$/, "") || "image";
-  }
-
-  function readImageAsDataURL(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error || new Error("read failed"));
-      reader.readAsDataURL(file);
-    });
-  }
-
 
   function resolveImageRefs(text: string, doc: Doc | undefined) {
     if (!doc || !doc.images) return text;
@@ -1245,10 +382,19 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
   // runs, but a stale collab extension config (bound to the OLD room's
   // Y.Text) must not survive into whatever doc loads next.
   function setEditorContent(content: string) {
-    collabUndoManager = null;
+    // collabUndoManager/editingModeCompartment now live in Editor.svelte
+    // (Phase A of the editor-core migration) — window.MDE.exitCollabMode()
+    // does the exact same reset. Defense-in-depth: collab.ts's
+    // onBeforeDocLoad hook already calls this before this function runs,
+    // but a stale collab extension config bound to the OLD room's Y.Text
+    // must never survive into whatever doc loads next, so this doesn't
+    // rely solely on that hook having fired. A separate dispatch from
+    // the content-swap below, but harmless: it carries no document
+    // changes, so CM6's own history extension never records it as an
+    // undo-able entry.
+    window.MDE.exitCollabMode?.();
     cm.dispatch({
       changes: { from: 0, to: cm.state.doc.length, insert: content },
-      effects: editingModeCompartment.reconfigure(localEditingModeExtensions()),
       annotations: Transaction.addToHistory.of(false),
       selection: { anchor: 0 },
     });
@@ -1263,7 +409,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
       resizeDocTitle();
       updatePageTitle("Welcome");
       setSaveStatus("");
-      setCommentMarkers([]);
+      window.MDE.setCommentMarkers?.([]);
       window.MDE.onActiveDocChanged && window.MDE.onActiveDocChanged(undefined as unknown as Doc);
       return;
     }
@@ -1284,9 +430,9 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
           return r ? { id: n.id, from: r.from, to: r.to } : null;
         })
         .filter((x): x is { id: string; from: number; to: number } => x !== null);
-      setCommentMarkers(relocated);
+      window.MDE.setCommentMarkers?.(relocated);
     } else {
-      setCommentMarkers([]);
+      window.MDE.setCommentMarkers?.([]);
     }
     window.MDE.onActiveDocChanged && window.MDE.onActiveDocChanged(doc);
   }
@@ -1386,125 +532,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     }
   }
 
-  // ---------- Preview ----------
-  function updatePreview() {
-    const raw = cm.state.doc.toString();
-    const doc = getActiveDoc();
-    const renderer = new marked.Renderer();
-    // ![alt](refName) resolves against doc.images; anything not a known
-    // ref (a real URL, or an old doc predating this feature that still has
-    // the full data URI inline) passes through untouched. marked 18's
-    // renderer overrides take a single token object, not positional args
-    // (changed across the marked 12 -> 18 upgrade — verified against the
-    // actual loaded version's marked.d.ts, not assumed).
-    renderer.image = ({ href, title, text }) => {
-      const resolved = doc && doc.images && doc.images[href] ? doc.images[href] : href;
-      const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
-      return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || "")}"${titleAttr}>`;
-    };
-    // ```mermaid fences render as diagrams (see mermaid-preview.ts); every
-    // other language falls through to marked's own default code renderer.
-    // mermaidCodeRenderer() itself keeps its original positional (code,
-    // infostring, escaped) signature — it's a plain, independently-tested
-    // utility with no marked-specific shape of its own — so the object <->
-    // positional conversion happens only here, at the marked boundary.
-    const defaultCodeRenderer = marked.Renderer.prototype.code.bind(renderer);
-    renderer.code = ({ text, lang, escaped }) =>
-      mermaidCodeRenderer(
-        text,
-        lang,
-        !!escaped,
-        (code, infostring, esc) => defaultCodeRenderer({ type: "code", raw: code, text: code, lang: infostring, escaped: esc }),
-        doc?.diagrams
-      );
-    // [[Name]] links (see wikilinks.ts's transformWikilinks, applied
-    // below) become "wikilink:"-scheme links — resolved against the
-    // current document list at render time so a rename/delete elsewhere
-    // is reflected on the next keystroke, same as every other preview
-    // content.
-    const defaultLinkRenderer = marked.Renderer.prototype.link.bind(renderer);
-    renderer.link = ({ href, title, text, tokens }) => {
-      if (!href.startsWith("wikilink:")) return defaultLinkRenderer({ type: "link", raw: href, href, title: title ?? null, text, tokens: tokens ?? [] });
-      const name = decodeURIComponent(href.slice("wikilink:".length));
-      const exists = !!resolveWikilinkTarget(name, get(docsStore));
-      const cls = exists ? "wikilink" : "wikilink wikilink-missing";
-      return `<a href="#" class="${cls}" data-doc-name="${escapeHtml(name)}">${escapeHtml(text)}</a>`;
-    };
-    const { text: extractedRaw, sources } = extractMathSpans(transformWikilinks(raw));
-    currentMathSources = sources;
-    const html = marked.parse(extractedRaw, { gfm: true, breaks: false, renderer }) as string;
-    // KaTeX's output includes a MathML companion tree (for accessibility)
-    // alongside its visible HTML — DOMPurify's default allowlist is
-    // HTML-only and strips MathML entirely without ADD_TAGS/ADD_ATTR
-    // below. Verified against real katex.renderToString() output
-    // (sqrt, frac, sum, matrix, vector/underline) — nothing else needed.
-    const clean = DOMPurify.sanitize(html, {
-      ADD_TAGS: ["math", "semantics", "mrow", "mi", "mn", "mo", "msup", "msub", "msubsup", "msqrt", "mroot", "mfrac", "mtable", "mtr", "mtd", "mspace", "mtext", "mstyle", "mover", "munder", "munderover", "mpadded", "annotation"],
-      ADD_ATTR: ["target", "mathvariant", "encoding", "xmlns"],
-    });
-    const previewEl = document.getElementById("preview");
-    // marked.parse() always regenerates every ```mermaid fence as its raw
-    // source text (mermaidCodeRenderer has no way to know a diagram was
-    // already rendered), and this whole function re-runs on every
-    // keystroke anywhere in the document — so without this, every
-    // existing diagram would flash back to raw source text on every
-    // keystroke, only catching up once mermaidRenderScheduler's debounced
-    // pass fires ~400ms later. Snapshot already-rendered diagrams here,
-    // keyed by the exact source they were rendered from (same identity
-    // mermaid-preview.ts itself uses for its own data-mermaid-source
-    // cache), and splice the still-current ones back in immediately below
-    // — only a diagram whose source actually changed, or one seen for the
-    // first time, still needs to wait for the real re-render.
-    const renderedDiagrams = new Map<string, Element>();
-    previewEl.querySelectorAll("pre.mermaid.mermaid-rendered[data-mermaid-source]").forEach((el) => {
-      const source = el.getAttribute("data-mermaid-source");
-      if (source !== null) renderedDiagrams.set(source, el);
-    });
-    previewEl.innerHTML = clean;
-    if (renderedDiagrams.size > 0) {
-      previewEl.querySelectorAll("pre.mermaid").forEach((el) => {
-        const cached = renderedDiagrams.get(el.textContent ?? "");
-        if (cached) el.replaceWith(cached);
-      });
-    }
-    // Tags each top-level preview block with the source line it was
-    // rendered from, for sync-scroll (see initSyncScroll()) to snap to
-    // instead of using raw scroll percentage — which breaks down badly
-    // once a block's rendered height (a tall diagram, a large image) is
-    // very disproportionate to how many source lines it represents.
-    // computeBlockLineStarts() runs on the *original* raw text (not
-    // extractedRaw) — see its own comment for why. Non-space top-level
-    // tokens and top-level DOM children correspond 1:1 in order for
-    // every standard block type; the length-capped loop degrades
-    // gracefully (leaving a mismatched tail untagged) rather than
-    // throwing if some edge case ever breaks that correspondence.
-    const lineStarts = computeBlockLineStarts(raw);
-    const previewChildren = Array.from(previewEl.children);
-    for (let i = 0; i < lineStarts.length && i < previewChildren.length; i++) {
-      previewChildren[i].setAttribute("data-line", String(lineStarts[i]));
-    }
-    // A list block's own single tag only anchors interpolation at its
-    // first item — for any list with more than a couple of items, the
-    // editor's fixed-width wrapping and the preview's proportional-font
-    // wrapping diverge per item, not just once per block, which left
-    // scroll-sync/cursor-follow landing well off from the item actually
-    // being edited the deeper into a list you went. Tagging each <li>
-    // with its own start line (same [data-line] convention everything
-    // else already keys off) gives the same interpolation one anchor
-    // per item instead of one per whole list.
-    const listItemLineStarts = computeListItemLineStarts(raw);
-    for (let i = 0; i < listItemLineStarts.length && i < previewChildren.length; i++) {
-      const itemLines = listItemLineStarts[i];
-      if (!itemLines) continue;
-      const liEls = Array.from(previewChildren[i].children).filter((el): el is HTMLElement => el.tagName === "LI");
-      for (let j = 0; j < itemLines.length && j < liEls.length; j++) {
-        liEls[j].setAttribute("data-line", String(itemLines[j]));
-      }
-    }
-    mermaidRenderScheduler.trigger();
-    mathRenderScheduler.trigger();
-  }
-
   // ---------- Counts / cursor ----------
   function updateCounts() {
     const text = cm.state.doc.toString();
@@ -1597,137 +624,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     const mirror = document.getElementById("docTitleMirror");
     mirror.textContent = input.value || input.placeholder || "";
     input.style.width = mirror.offsetWidth + "px";
-  }
-
-  function runCmd(cmd: string) {
-    switch (cmd) {
-      case "bold": return wrapSelection("**", "**", "bold text");
-      case "italic": return wrapSelection("_", "_", "italic text");
-      case "strike": return wrapSelection("~~", "~~", "strikethrough");
-      case "h1": return prefixLine("# ");
-      case "h2": return prefixLine("## ");
-      case "h3": return prefixLine("### ");
-      case "quote": return prefixLine("> ");
-      case "code": return wrapSelection("`", "`", "code");
-      case "codeblock": return wrapSelection("```\n", "\n```", "code");
-      case "ul": return prefixLine("- ");
-      case "ol": return prefixLine("1. ");
-      case "task": return prefixLine("- [ ] ");
-      case "link": return insertLink();
-      case "image": return insertImage();
-      case "table": return insertTable();
-      case "hr": return insertBlock("\n---\n");
-      case "math": return insertMathSnippet();
-      case "footnote": return insertFootnoteSnippet();
-    }
-  }
-
-  function wrapSelection(before: string, after: string, placeholder?: string) {
-    const { from, to } = cm.state.selection.main;
-    const sel = cm.state.sliceDoc(from, to);
-    const text = sel || placeholder || "";
-    const insert = before + text + after;
-    if (!sel && placeholder) {
-      // Select just the inserted placeholder so typing immediately
-      // replaces it, instead of leaving the cursor after it.
-      const selFrom = from + before.length;
-      const selTo = selFrom + placeholder.length;
-      cm.dispatch({ changes: { from, to, insert }, selection: { anchor: selFrom, head: selTo } });
-    } else {
-      cm.dispatch(cm.state.replaceSelection(insert));
-    }
-  }
-
-  function prefixLine(prefix: string) {
-    const line = cm.state.doc.lineAt(cm.state.selection.main.head);
-    if (line.text.startsWith(prefix)) {
-      cm.dispatch({ changes: { from: line.from, to: line.from + prefix.length, insert: "" } });
-    } else {
-      // Without an explicit selection, an insertion landing exactly at
-      // the cursor's position (the common case — an empty line) maps
-      // the cursor to stay *before* the inserted text by default,
-      // leaving it sitting in front of "# " instead of ready to type
-      // after it.
-      const head = cm.state.selection.main.head;
-      cm.dispatch({ changes: { from: line.from, insert: prefix }, selection: { anchor: head + prefix.length } });
-    }
-  }
-
-  // A popup instead of dropping raw `[text](https://)` markdown into the
-  // editor — friendlier for anyone not already fluent in markdown syntax.
-  function insertLink() {
-    const { from, to } = cm.state.selection.main;
-    linkModalPrefillText.set(cm.state.sliceDoc(from, to));
-    linkModalOpen.set(true);
-  }
-
-  function insertLinkIntoEditor(text: string, url: string) {
-    cm.dispatch(cm.state.replaceSelection(`[${text || "link text"}](${url || "https://"})`));
-    cm.focus();
-  }
-
-  function insertImage() {
-    document.getElementById("imageFileInput").click();
-  }
-
-  function insertTable() {
-    insertBlock(
-      "\n| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n| Cell | Cell | Cell |\n"
-    );
-  }
-
-  function insertBlock(block: string) {
-    const pos = cm.state.selection.main.head;
-    cm.dispatch({ changes: { from: pos, insert: block }, selection: { anchor: pos + block.length } });
-  }
-
-  // Inserts a block math snippet with the cursor on the blank line
-  // between the delimiters, so typing immediately starts the LaTeX
-  // source — same "insert and place the cursor usefully" shape as
-  // insertTable()/insertBlock(), just with an interior cursor position
-  // rather than one trailing the whole insert.
-  function insertMathSnippet() {
-    const pos = cm.state.selection.main.head;
-    const block = "$$\n\n$$";
-    const cursorPos = pos + 3; // after "$$\n"
-    cm.dispatch({ changes: { from: pos, insert: block }, selection: { anchor: cursorPos } });
-  }
-
-  // Inserts a [^N] reference at the cursor and a [^N]: definition at the
-  // document's end, auto-numbered past any existing numeric footnote
-  // references — a hand-written named footnote like [^note] is ignored
-  // by the scan (matches [^(\d+)] only) and never collides with this
-  // button's own numbering. One atomic transaction (both changes
-  // dispatched together) — a single undo step, not two.
-  function insertFootnoteSnippet() {
-    const text = cm.state.doc.toString();
-    const existingLabels = [...text.matchAll(/\[\^(\d+)\]/g)]
-      .map((m) => parseInt(m[1], 10))
-      .filter((n) => !Number.isNaN(n));
-    const nextLabel = existingLabels.length > 0 ? Math.max(...existingLabels) + 1 : 1;
-    const pos = cm.state.selection.main.head;
-    const ref = `[^${nextLabel}]`;
-    const def = `\n\n[^${nextLabel}]: `;
-    const docEnd = cm.state.doc.length;
-    cm.dispatch({
-      changes: [
-        { from: pos, insert: ref },
-        { from: docEnd, insert: def },
-      ],
-      selection: { anchor: docEnd + ref.length + def.length },
-    });
-  }
-
-  // ---------- View toggle ----------
-  function initViewToggle() {
-    const saved = (localStorage.getItem(STORAGE_VIEW) as "editor" | "split" | "preview") || "split";
-    setView(saved);
-  }
-
-  function setView(view: "editor" | "split" | "preview") {
-    document.getElementById("body").className = `mode-${view}`;
-    localStorage.setItem(STORAGE_VIEW, view);
-    viewMode.set(view);
   }
 
   // ---------- Sidebar / documents ----------
@@ -1841,12 +737,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     cm.dispatch({ selection: { anchor: lineInfo.from }, effects: EditorView.scrollIntoView(lineInfo.from, { y: "center" }) });
     cm.focus();
     collapseSidebarForMobile();
-  }
-
-  function escapeHtml(str: string) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
   }
 
   // ---------- Dropdowns ----------
@@ -2042,8 +932,7 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     // in-flight or still-scheduled mermaid/math render has landed first,
     // so a diagram or formula pasted right before exporting doesn't
     // export as raw source.
-    await mermaidRenderScheduler.flush();
-    await mathRenderScheduler.flush();
+    await window.MDE.flushPreviewRenders?.();
 
     if (format === "txt") {
       const text = (document.getElementById("preview") as HTMLElement).innerText;
@@ -2119,7 +1008,11 @@ ${bodyHtml}
 </html>`;
   }
 
-  function exportPdf(base: string) {
+  // Dynamically imported (not a top-level import) — html2pdf.js bundles
+  // jsPDF + html2canvas, several hundred KB that only ever matter for
+  // this one occasional export action, not the initial page load.
+  async function exportPdf(base: string) {
+    const { default: html2pdf } = await import("html2pdf.js");
     const source = document.getElementById("preview");
     const clone = source.cloneNode(true) as HTMLElement;
     clone.style.padding = "0";
@@ -2174,14 +1067,6 @@ ${bodyHtml}
 
   window.addEventListener("beforeunload", saveNow);
 
-  // The editor theme (see editorTheme above) flips automatically via CSS
-  // keyed off [data-theme] — mermaid can't do that, since it bakes theme
-  // into the rendered SVG, so it needs an explicit re-render whenever
-  // Settings.svelte's applyTheme() changes documentElement's data-theme.
-  new MutationObserver(() => {
-    void mermaidRenderScheduler.runNow();
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-
   // ---------- Bridge for js/collab.ts (live collaboration) ----------
   // collab.ts runs as a separate module with no access to this closure, so
   // it drives doc switching/creation and reads the CodeMirror instance
@@ -2205,14 +1090,6 @@ ${bodyHtml}
     refreshSaveStatus() {
       setSaveStatus(savedLabel(getActiveDoc()));
     },
-    // Re-runs the full marked parse pass. Needed after editing an existing
-    // diagram through DiagramEditor.svelte: saving there updates
-    // doc.diagrams[ref] but never touches the document's own text (the
-    // fence still just holds the ref), so the normal "re-render on doc
-    // change" path never fires on its own — this forces it.
-    refreshPreview() {
-      updatePreview();
-    },
     // Editor text with any ![](refName) image references inlined back to
     // their real data URIs — what gets published to a Gist, since a Gist
     // needs to stand on its own outside this app.
@@ -2222,13 +1099,11 @@ ${bodyHtml}
     },
     setDocImage(key, dataUrl) {
       setDocImage(key, dataUrl);
-      updatePreview();
+      window.MDE.updatePreview?.();
     },
     onImageAdded: null,
     toggleDropdown,
     closeAllDropdowns,
-    insertLinkIntoEditor,
-    updatePreview,
     requireGithubSignIn(hint) {
       if (hint) githubSignInModalHint.set(hint);
       githubSignInModalOpen.set(true);
@@ -2245,32 +1120,9 @@ ${bodyHtml}
     enableMenuBarHoverSwitch,
     initSubmenus,
     closeSubmenus,
-    undo() {
-      if (collabUndoManager) collabUndoManager.undo();
-      else cmUndo(cm);
-      cm.focus();
-    },
-    redo() {
-      if (collabUndoManager) collabUndoManager.redo();
-      else cmRedo(cm);
-      cm.focus();
-    },
-    setReadOnly(readOnly) {
-      cm.dispatch({ effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(readOnly)) });
-    },
-    enterCollabMode(extensions, undoManager) {
-      collabUndoManager = undoManager;
-      cm.dispatch({ effects: editingModeCompartment.reconfigure(extensions) });
-    },
-    exitCollabMode() {
-      collabUndoManager = null;
-      cm.dispatch({ effects: editingModeCompartment.reconfigure(localEditingModeExtensions()) });
-    },
     cutSelection: menuClipboardCut,
     copySelection: menuClipboardCopy,
     pasteClipboard: menuClipboardPaste,
-    runCmd,
-    insertAtCursor: (text: string) => insertBlock(text),
     newDoc: createNewDoc,
     openLocalFile() {
       if (get(workspacesStore).length === 0) {
@@ -2291,16 +1143,10 @@ ${bodyHtml}
     openAbout() {
       aboutModalOpen.set(true);
     },
-    setView,
-    toggleFocusMode,
     openDiagramEditor() {
       diagramEditorRef.set(null);
       diagramEditorOpen.set(true);
     },
-    setCommentMarkers(entries) {
-      setCommentMarkers(entries);
-    },
-    setKeybindings,
     formatRelativeTime,
   };
   window.MDE = bridge;

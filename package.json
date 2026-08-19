@@ -1,7 +1,7 @@
 {
   "name": "markdown-editor",
   "private": true,
-  "version": "1.27.1",
+  "version": "1.27.2",
   "type": "module",
   "license": "MIT",
   "description": "A fast, static markdown editor with live preview and real-time multi-user collaboration.",
@@ -10,10 +10,14 @@
     "dev:client": "vite dev --config client/vite.config.ts",
     "build": "vite build --config client/vite.config.ts",
     "deploy": "npm run build && wrangler deploy",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e:local": "playwright test --project=local",
+    "test:e2e:collab": "bash scripts/e2e-collab.sh",
+    "test:e2e": "npm run test:e2e:local && npm run test:e2e:collab"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260804.1",
+    "@playwright/test": "^1.62.1",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "@types/node": "^24.0.0",
     "fake-indexeddb": "^6.2.5",

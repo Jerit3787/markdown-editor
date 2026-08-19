@@ -2,9 +2,10 @@
   import { onMount } from "svelte";
   import { diagramEditorOpen, diagramEditorRef } from "../stores/diagramEditor";
   import { viewMode, isEditorOn, isPreviewOn, toggleEditorPane, togglePreviewPane } from "../stores/view";
+  import { runCmd } from "../formatting-commands";
 
   function run(cmd: string) {
-    window.MDE.runCmd(cmd);
+    runCmd(cmd);
     window.MDE.getEditor().focus();
   }
 

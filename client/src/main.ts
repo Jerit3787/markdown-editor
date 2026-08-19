@@ -8,6 +8,7 @@ import "./app";
 import "./collab";
 import "./gist";
 import "./repo-sync-ui";
+import "./formatting-commands";
 import "./style.css";
 
 import { mount } from "svelte";
@@ -24,6 +25,7 @@ import WorkspaceSwitcher from "./components/WorkspaceSwitcher.svelte";
 import Toast from "./components/Toast.svelte";
 import MenuBar from "./components/MenuBar.svelte";
 import Editor from "./components/Editor.svelte";
+import Preview from "./components/Preview.svelte";
 import Toolbar from "./components/Toolbar.svelte";
 import RenameCollisionModal from "./components/RenameCollisionModal.svelte";
 import JoinWorkspaceModal from "./components/JoinWorkspaceModal.svelte";
@@ -87,6 +89,10 @@ mount(WorkspaceSwitcher, { target: document.getElementById("workspace-switcher-m
 mount(Toast, { target: document.getElementById("toast-mount")! });
 mount(MenuBar, { target: document.getElementById("menubar-mount")! });
 mount(Editor, { target: document.getElementById("editor-mount")! });
+// Preview.svelte's own onMount calls window.MDE.getEditor() synchronously
+// (initSyncScroll attaches a listener to its scrollDOM) — must mount
+// after Editor, same constraint CommentsPanel documents below.
+mount(Preview, { target: document.getElementById("preview-mount")! });
 // CommentsPanel is the first component whose own reactive $effect calls
 // window.MDE.getEditor() eagerly (not just from a later click handler,
 // like every other window.MDE consumer above) — it must mount after

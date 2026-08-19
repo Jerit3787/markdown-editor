@@ -224,7 +224,7 @@
         <svg class="icon"><use href="#icon-panel-left"></use></svg> Toggle Sidebar
       </button>
       <div class="menu-divider"></div>
-      <button class="menu-view-btn" class:active={$focusMode} type="button" onclick={() => act(() => window.MDE.toggleFocusMode())}>
+      <button class="menu-view-btn" class:active={$focusMode} type="button" onclick={() => act(() => focusMode.update((v) => !v))}>
         <svg class="icon menu-check"><use href="#icon-check"></use></svg> Focus Mode
       </button>
     </div>

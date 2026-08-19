@@ -3,6 +3,16 @@ import { docsStore, switchDoc } from "./stores/docs";
 
 const DOC_PATH = /^\/d\/([A-Za-z0-9]{1,64})$/;
 
+// Shared with collab.ts's own route match. DOMContentLoaded listeners fire
+// in registration order, and app.ts's router listener (which drives
+// replaceToRoot/replaceDocUrl below, via its activeIdStore subscription)
+// always runs before collab.ts's — so without this guard, a direct visit to
+// a /w/:remoteId/:docId/(view|review|edit) share link got its URL silently
+// rewritten to "/" (or "/d/<some other doc>") before collab.ts's own
+// DOMContentLoaded listener ever got to check location.pathname against
+// this same pattern, breaking every direct share-link join.
+export const SHARE_PATH = /^\/w\/([A-Za-z0-9_-]{1,128})\/([A-Za-z0-9_-]{1,128})\/(?:view|review|edit)$/;
+
 export function parseDocIdFromPath(pathname: string): string | null {
   const match = pathname.match(DOC_PATH);
   return match ? match[1]! : null;
@@ -22,11 +32,13 @@ export function pushDocUrl(docId: string): void {
 // applyPathToState finds no docId in "/" and just leaves the current
 // document as-is.
 export function replaceDocUrl(docId: string): void {
+  if (SHARE_PATH.test(location.pathname)) return;
   const path = `/d/${docId}`;
   if (location.pathname !== path) history.replaceState(null, "", path);
 }
 
 export function replaceToRoot(): void {
+  if (SHARE_PATH.test(location.pathname)) return;
   if (location.pathname !== "/") history.replaceState(null, "", "/");
 }
 

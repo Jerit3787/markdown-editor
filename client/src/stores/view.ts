@@ -1,12 +1,20 @@
 import { writable, get } from "svelte/store";
 
-// Mirrors app.ts's initViewToggle() closure state — written there (the
-// source of truth, since it also owns main.className/localStorage/cm.refresh
-// side effects), read here by MenuBar.svelte for the View menu's
-// checkmarks and by Toolbar.svelte for the view-selector buttons'
-// active state.
+// Sole owner of view-mode state, including the #body className and
+// localStorage side effects — same full-ownership treatment
+// stores/keybindings.ts already got in Phase A of the editor-core
+// migration. Read by MenuBar.svelte for the View menu's checkmarks and
+// by Toolbar.svelte for the view-selector buttons' active state.
 export type ViewMode = "editor" | "split" | "preview";
-export const viewMode = writable<ViewMode>("split");
+
+const STORAGE_VIEW = "mde:view";
+
+function loadViewMode(): ViewMode {
+  const raw = localStorage.getItem(STORAGE_VIEW);
+  return raw === "editor" || raw === "preview" ? raw : "split";
+}
+
+export const viewMode = writable<ViewMode>(loadViewMode());
 
 export function isEditorOn(mode: ViewMode): boolean {
   return mode !== "preview";
@@ -14,6 +22,20 @@ export function isEditorOn(mode: ViewMode): boolean {
 export function isPreviewOn(mode: ViewMode): boolean {
   return mode !== "editor";
 }
+
+export function setView(view: ViewMode): void {
+  document.getElementById("body")!.className = `mode-${view}`;
+  localStorage.setItem(STORAGE_VIEW, view);
+  viewMode.set(view);
+}
+
+// Applies the loaded mode's #body class on module load — mirrors
+// app.ts's old initViewToggle(), now self-contained here instead of
+// being kicked off from its DOMContentLoaded-gated init(). #body
+// already exists by module-load time (a plain div early in index.html,
+// well before any <script type="module"> tag) — same guarantee
+// docsStore's/keybindingMode's own self-init already relies on.
+document.getElementById("body")!.className = `mode-${get(viewMode)}`;
 
 // Toggling the only pane that's currently on is a no-op — there's
 // always at least one pane visible, never both hidden at once. Past
@@ -24,10 +46,10 @@ export function isPreviewOn(mode: ViewMode): boolean {
 export function toggleEditorPane(): void {
   const mode = get(viewMode);
   if (isEditorOn(mode) && !isPreviewOn(mode)) return;
-  window.MDE.setView(isEditorOn(mode) ? "preview" : "split");
+  setView(isEditorOn(mode) ? "preview" : "split");
 }
 export function togglePreviewPane(): void {
   const mode = get(viewMode);
   if (isPreviewOn(mode) && !isEditorOn(mode)) return;
-  window.MDE.setView(isPreviewOn(mode) ? "editor" : "split");
+  setView(isPreviewOn(mode) ? "editor" : "split");
 }

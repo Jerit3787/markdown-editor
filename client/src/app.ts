@@ -37,6 +37,7 @@ import { extractMathSpans, renderMathPlaceholders, type MathSource } from "./mat
 import { computeBlockLineStarts, computeListItemLineStarts } from "./scroll-sync";
 import { focusMode } from "./stores/focusMode";
 import { resolveDiagramRefs } from "./diagram-refs";
+import { escapeHtml } from "./escape-html";
 import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { debounceWithFlush } from "./debounce";
 import { maybeSnapshotVersion } from "./history";
@@ -1337,12 +1338,6 @@ marked.use(markedFootnote({ headingClass: "sr-only" }));
     cm.dispatch({ selection: { anchor: lineInfo.from }, effects: EditorView.scrollIntoView(lineInfo.from, { y: "center" }) });
     cm.focus();
     collapseSidebarForMobile();
-  }
-
-  function escapeHtml(str: string) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
   }
 
   // ---------- Dropdowns ----------

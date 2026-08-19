@@ -51,7 +51,6 @@ import katexCss from "katex/dist/katex.min.css?raw";
   "use strict";
 
   const STORAGE_THEME = "mde:theme";
-  const STORAGE_VIEW = "mde:view";
   const APP_NAME = "Markdown Editor";
 
   function updatePageTitle(docName: string) {
@@ -83,7 +82,6 @@ import katexCss from "katex/dist/katex.min.css?raw";
     initToolbar();
     initSaveStatus();
     initSidebar();
-    initViewToggle();
     initImport();
     initShortStatus();
     initImagesManager();
@@ -629,18 +627,6 @@ import katexCss from "katex/dist/katex.min.css?raw";
     input.style.width = mirror.offsetWidth + "px";
   }
 
-  // ---------- View toggle ----------
-  function initViewToggle() {
-    const saved = (localStorage.getItem(STORAGE_VIEW) as "editor" | "split" | "preview") || "split";
-    setView(saved);
-  }
-
-  function setView(view: "editor" | "split" | "preview") {
-    document.getElementById("body").className = `mode-${view}`;
-    localStorage.setItem(STORAGE_VIEW, view);
-    viewMode.set(view);
-  }
-
   // ---------- Sidebar / documents ----------
   const isMobile = () => window.matchMedia("(max-width: 780px)").matches;
 
@@ -1158,7 +1144,6 @@ ${bodyHtml}
     openAbout() {
       aboutModalOpen.set(true);
     },
-    setView,
     openDiagramEditor() {
       diagramEditorRef.set(null);
       diagramEditorOpen.set(true);

@@ -225,7 +225,6 @@ export interface MDEBridge {
   openImagesManager(): void;
   openShortcuts(): void;
   openAbout(): void;
-  setView(mode: "editor" | "split" | "preview"): void;
   openDiagramEditor(): void;
   formatRelativeTime(ts: number): string;
   // Set by gist.ts at module load, same pattern as onGithubAuthComplete —

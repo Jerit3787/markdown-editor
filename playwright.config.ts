@@ -9,7 +9,14 @@ export default defineConfig({
   // a genuinely broken test (it still fails the required check if all
   // 3 attempts fail).
   retries: process.env.CI ? 2 : 0,
-  reporter: "list",
+  // "list" alone prints to stdout but never writes anything to disk —
+  // the CI job's upload-artifact step needs an actual playwright-report/
+  // directory to exist, which only the "html" reporter produces
+  // (confirmed live: a first CI run's upload step found nothing to
+  // upload with "list" alone, uploading zero files silently rather than
+  // failing the job outright). open: "never" keeps CI from trying to
+  // launch a browser to preview the report it just wrote.
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
     ...devices["Desktop Chrome"],
     // Captured starting from the first retry of anything that failed

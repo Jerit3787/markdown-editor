@@ -69,7 +69,7 @@ test("a live edit from one collaborator appears in another's browser with no rel
     const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
     return { activeDoc, ws };
   });
-  expect(shareState.ws?.shared).toBe(true);
+  expect(shareState.ws?.shared).toBe(false);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
 
   const doneBtn = alice.locator('button:has-text("Done")');

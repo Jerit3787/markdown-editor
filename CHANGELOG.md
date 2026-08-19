@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.27.2] - 2026-08-19
+
+### Fixed
+
+- **Opening a shared workspace link for the first time landed on the empty homepage instead of the shared document.** The app's own routing logic was clearing the share link's URL before the code that actually joins the shared workspace ever got a chance to see it — this broke every direct visit to a `/w/...` share link, not just first-time visitors.
+
+### Changed
+
+- Internal: the editor's core logic — CodeMirror setup, formatting commands, comment/image markers, slash commands, wikilink autocomplete, the live preview pane, and view-mode toggling — has fully moved out of one large `app.ts` into focused Svelte components and stores. No user-facing behavior change.
+- Added a real Playwright end-to-end test suite (`npm run test:e2e`), covering formatting, view modes, keybindings, focus mode, images, comments, slash/wikilink commands, live preview rendering, export, and — for the first time — live collaboration itself (real-time sync, read-only viewer access, undo/redo inside a shared room). Manual/on-demand only, not part of CI.
+
 ## [1.27.1] - 2026-08-19
 
 ### Changed

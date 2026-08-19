@@ -27,6 +27,14 @@ import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
 import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace } from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
+// Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
+// (Google-Docs-style), not query params. The mode segment is purely
+// informational for whoever's reading the link — actual access is always
+// resolved server-side from the workspace's access record (see
+// computeMyRole), never trusted from the URL. Defined in router.ts (not
+// here) so app.ts's own replaceToRoot/replaceDocUrl can guard against
+// clobbering this path before this file's DOMContentLoaded listener runs.
+import { SHARE_PATH } from "./router";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -125,13 +133,6 @@ function init() {
     handleDocChanged(getActiveDoc());
   }
 }
-
-// Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
-// (Google-Docs-style), not query params. The mode segment is purely
-// informational for whoever's reading the link — actual access is always
-// resolved server-side from the workspace's access record (see
-// computeMyRole), never trusted from the URL.
-const SHARE_PATH = /^\/w\/([A-Za-z0-9_-]{1,128})\/([A-Za-z0-9_-]{1,128})\/(?:view|review|edit)$/;
 
 async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const localMatch = get(workspacesStore).find((w) => w.remoteId === workspaceId);

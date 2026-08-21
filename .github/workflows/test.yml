@@ -8,6 +8,11 @@ on:
     branches:
       - master
 
+# Least-privilege default: none of these jobs write to the repo, open
+# issues/PRs, or otherwise need more than read access to check out code.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

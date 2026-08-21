@@ -84,17 +84,13 @@ test("a live edit from one collaborator appears in another's browser with no rel
   }
   await dismissWhatsNew(bob);
 
-  await expect
-    .poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""))
-    .toContain("PLAYWRIGHT E2E content");
+  await expect.poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("PLAYWRIGHT E2E content");
 
   await alice.click("#editor-mount .cm-content");
   await alice.keyboard.press("End");
   await alice.keyboard.type(" [LIVE APPEND]");
 
-  await expect
-    .poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""))
-    .toContain("[LIVE APPEND]");
+  await expect.poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("[LIVE APPEND]");
 
   await aliceCtx.close();
   await bobCtx.close();

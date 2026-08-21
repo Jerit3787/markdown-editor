@@ -61,7 +61,9 @@ function loadDocsFromStorage(): Doc[] {
       if (neededWorkspaceBackfill && get(workspacesStore).length === 0) createWorkspace("My Workspace");
       return normalizeLoadedDocs(parsed);
     }
-  } catch (e) { /* ignore corrupt storage */ }
+  } catch (e) {
+    /* ignore corrupt storage */
+  }
   // No seeded Welcome doc — a brand-new visitor (or someone who deletes
   // every document) sees the empty state instead, same as VS Code with no
   // folder/file open.
@@ -228,10 +230,7 @@ export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string 
   // never match, orphaning the doc invisibly.
   let workspaceId = get(activeWorkspaceIdStore) ?? get(workspacesStore)[0]?.id;
   if (!workspaceId) workspaceId = createWorkspace("My Workspace").id;
-  const doc: Doc = Object.assign(
-    { id: uid(), name: "Untitled", content: "", updatedAt: Date.now(), createdAt: Date.now(), workspaceId },
-    partial
-  );
+  const doc: Doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now(), createdAt: Date.now(), workspaceId }, partial);
   doc.name = ensureUniqueName(doc.name, get(docsStore));
   docsStore.update((docs) => [doc, ...docs]);
   setActiveId(doc.id);
@@ -514,7 +513,7 @@ export function upsertDocFromRepo(
     diagrams?: Record<string, string>;
     repoSha: string;
     repoImageShas?: Record<string, string>;
-  }
+  },
 ): void {
   const existing = docsInWorkspace(workspaceId).find((d) => d.repoPath === repoPath);
   if (existing) {

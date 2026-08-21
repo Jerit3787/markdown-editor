@@ -105,8 +105,7 @@ async function publish() {
       // file as; a real rename needs GitHub's own rename form (the
       // *old* key, with a `filename` property naming the new one).
       const knownFilename = doc.gistFilename || filename;
-      const files =
-        knownFilename !== filename ? { [knownFilename]: { filename, content } } : { [filename]: { content } };
+      const files = knownFilename !== filename ? { [knownFilename]: { filename, content } } : { [filename]: { content } };
       const res = await fetch(`/api/gist/${gistId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -190,7 +189,7 @@ async function pushImagesAndRewrite(
   gistId: string,
   rawContent: string,
   images: Record<string, string> | undefined,
-  onProgress?: (message: string) => void
+  onProgress?: (message: string) => void,
 ): Promise<string | null> {
   const sources = new Map<string, string>(); // markdown src text -> data URI to push
   for (const match of rawContent.matchAll(MARKDOWN_IMAGE_RE)) {

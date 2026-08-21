@@ -35,7 +35,7 @@ describe("handleRepoList", () => {
   it("proxies the user's repos when signed in", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify([{ full_name: "alice/notes", private: true, default_branch: "main" }]), { status: 200 }))
+      vi.fn(async () => new Response(JSON.stringify([{ full_name: "alice/notes", private: true, default_branch: "main" }]), { status: 200 })),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/list", { headers: { Cookie: cookie } });
@@ -108,7 +108,7 @@ describe("handleRepoTree", () => {
           return new Response(JSON.stringify({ sha: "tree-sha", tree: [{ path: "a.md", sha: "x", type: "blob" }] }), { status: 200 });
         }
         throw new Error(`unexpected fetch: ${url}`);
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/tree?branch=main", { headers: { Cookie: cookie } });
@@ -132,7 +132,7 @@ describe("handleRepoTree", () => {
           return new Response(JSON.stringify({ sha: "old-tree-sha", tree: [{ path: "readme.md", sha: "x", type: "blob" }] }), { status: 200 });
         }
         throw new Error(`unexpected fetch: ${url}`);
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/tree?sha=old-commit-sha", { headers: { Cookie: cookie } });
@@ -151,7 +151,7 @@ describe("handleRepoTree", () => {
           return new Response(JSON.stringify({ message: "Not Found" }), { status: 404 });
         }
         throw new Error(`unexpected fetch: ${url}`);
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/tree?branch=main", { headers: { Cookie: cookie } });
@@ -175,7 +175,7 @@ describe("handleRepoBlob", () => {
       vi.fn(async (url: string) => {
         expect(url).toBe("https://api.github.com/repos/alice/notes/git/blobs/x");
         return new Response(JSON.stringify({ sha: "x", content: "aGVsbG8=", encoding: "base64" }), { status: 200 });
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/blob/x", { headers: { Cookie: cookie } });
@@ -198,8 +198,10 @@ describe("handleRepoCommits", () => {
       "fetch",
       vi.fn(async (url: string) => {
         expect(url).toBe("https://api.github.com/repos/alice/notes/commits?sha=main&page=2&per_page=30");
-        return new Response(JSON.stringify([{ sha: "abc123", commit: { message: "Fix bug", author: { name: "Alice", date: "2026-08-01T00:00:00Z" } } }]), { status: 200 });
-      })
+        return new Response(JSON.stringify([{ sha: "abc123", commit: { message: "Fix bug", author: { name: "Alice", date: "2026-08-01T00:00:00Z" } } }]), {
+          status: 200,
+        });
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main&page=2", { headers: { Cookie: cookie } });
@@ -210,7 +212,10 @@ describe("handleRepoCommits", () => {
   });
 
   it("proxies a non-200 upstream response through unchanged", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ message: "Not Found" }), { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ message: "Not Found" }), { status: 404 })),
+    );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=missing-branch", { headers: { Cookie: cookie } });
     const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "missing-branch", 1);
@@ -223,7 +228,7 @@ describe("handleRepoCommits", () => {
       vi.fn(async (url: string) => {
         expect(url).toBe("https://api.github.com/repos/alice/notes/commits?sha=main&page=1&per_page=30&path=Notes.md");
         return new Response(JSON.stringify([]), { status: 200 });
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main&path=Notes.md", { headers: { Cookie: cookie } });
@@ -237,7 +242,7 @@ describe("handleRepoCommits", () => {
       vi.fn(async (url: string) => {
         expect(url).toBe("https://api.github.com/repos/alice/notes/commits?sha=main&page=1&per_page=30");
         return new Response(JSON.stringify([]), { status: 200 });
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main", { headers: { Cookie: cookie } });
@@ -248,24 +253,30 @@ describe("handleRepoCommits", () => {
   it("forwards GitHub's Link pagination header to the client", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify([{ sha: "abc123", commit: { message: "Fix bug", author: { name: "Alice", date: "2026-08-01T00:00:00Z" } } }]), {
-          status: 200,
-          headers: { Link: '<https://api.github.com/repositories/1/commits?page=2>; rel="next", <https://api.github.com/repositories/1/commits?page=5>; rel="last"' },
-        })
-      )
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify([{ sha: "abc123", commit: { message: "Fix bug", author: { name: "Alice", date: "2026-08-01T00:00:00Z" } } }]), {
+            status: 200,
+            headers: {
+              Link: '<https://api.github.com/repositories/1/commits?page=2>; rel="next", <https://api.github.com/repositories/1/commits?page=5>; rel="last"',
+            },
+          }),
+      ),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main", { headers: { Cookie: cookie } });
     const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "main", 1);
     expect(res.status).toBe(200);
     expect(res.headers.get("Link")).toBe(
-      '<https://api.github.com/repositories/1/commits?page=2>; rel="next", <https://api.github.com/repositories/1/commits?page=5>; rel="last"'
+      '<https://api.github.com/repositories/1/commits?page=2>; rel="next", <https://api.github.com/repositories/1/commits?page=5>; rel="last"',
     );
   });
 
   it("omits the Link header when GitHub's response doesn't have one", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })),
+    );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/commits?branch=main", { headers: { Cookie: cookie } });
     const res = await handleRepoCommits(req, fakeEnv, "alice", "notes", "main", 1);
@@ -286,7 +297,7 @@ describe("handleRepoFileAtRef", () => {
       vi.fn(async (url: string) => {
         expect(url).toBe("https://api.github.com/repos/alice/notes/contents/folder%20a/My%20Notes.md?ref=abc123");
         return new Response(JSON.stringify({ content: "aGVsbG8=", encoding: "base64" }), { status: 200 });
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/contents/folder%20a/My%20Notes.md?ref=abc123", { headers: { Cookie: cookie } });
@@ -297,7 +308,10 @@ describe("handleRepoFileAtRef", () => {
   });
 
   it("proxies a non-200 upstream response through unchanged", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ message: "Not Found" }), { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ message: "Not Found" }), { status: 404 })),
+    );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/contents/Missing.md?ref=main", { headers: { Cookie: cookie } });
     const res = await handleRepoFileAtRef(req, fakeEnv, "alice", "notes", "Missing.md", "main");
@@ -313,7 +327,7 @@ describe("computeNewTreeEntries", () => {
         { path: "a.md", sha: "new-a" },
         { path: "b.md", sha: "new-b" },
       ],
-      []
+      [],
     );
     expect(result).toEqual([
       { path: "a.md", mode: "100644", type: "blob", sha: "new-a" },
@@ -348,7 +362,7 @@ describe("handleRepoPush", () => {
         if (url.endsWith("/git/commits")) return new Response(JSON.stringify({ sha: "new-commit-sha" }), { status: 201 });
         if (url.includes("/git/refs/heads/")) return new Response(JSON.stringify({ ref: "refs/heads/main" }), { status: 200 });
         throw new Error(`unexpected fetch: ${url}`);
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/push", {
@@ -383,7 +397,7 @@ describe("handleRepoPush", () => {
         if (url.endsWith("/git/trees")) return new Response(JSON.stringify({ sha: "t" }), { status: 201 });
         if (url.endsWith("/git/commits")) return new Response(JSON.stringify({ sha: "c" }), { status: 201 });
         return new Response(JSON.stringify({ message: "Update is not a fast forward" }), { status: 422 });
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/push", {
@@ -415,7 +429,7 @@ describe("handleRepoPush", () => {
         if (url.endsWith("/git/commits")) return new Response(JSON.stringify({ sha: "new-commit-sha" }), { status: 201 });
         if (url.endsWith("/git/refs")) return new Response(JSON.stringify({ ref: "refs/heads/main", object: { sha: "new-commit-sha" } }), { status: 201 });
         throw new Error(`unexpected fetch: ${url}`);
-      })
+      }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/repo/alice/notes/push", {

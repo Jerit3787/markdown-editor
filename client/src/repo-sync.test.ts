@@ -163,11 +163,9 @@ describe("resolveImagesFromPull", () => {
   });
 
   it("reuses the same internal ref for the same image referenced twice in one doc — mirrors rewriteImagesForPush's own reuse", () => {
-    const result = resolveImagesFromPull(
-      "![a](assets/notes/foo.png) and again ![b](assets/notes/foo.png)",
-      "notes",
-      { "assets/notes/foo.png": "data:image/png;base64,aGVsbG8=" }
-    );
+    const result = resolveImagesFromPull("![a](assets/notes/foo.png) and again ![b](assets/notes/foo.png)", "notes", {
+      "assets/notes/foo.png": "data:image/png;base64,aGVsbG8=",
+    });
     expect(result.content).toBe("![a](foo.png) and again ![b](foo.png)");
     expect(Object.keys(result.images)).toEqual(["foo.png"]);
   });
@@ -366,7 +364,14 @@ describe("planPush", () => {
 
   it("uses the renamed doc's new path (not its old one) as the images-folder slug", async () => {
     const docs = [
-      fakeDoc({ id: "d1", name: "New Name", repoPath: "old-name.md", repoSha: "s1", content: "![x](img-1)", images: { "img-1": "data:image/png;base64,aGk=" } }),
+      fakeDoc({
+        id: "d1",
+        name: "New Name",
+        repoPath: "old-name.md",
+        repoSha: "s1",
+        content: "![x](img-1)",
+        images: { "img-1": "data:image/png;base64,aGk=" },
+      }),
     ];
     const entries: TreeEntry[] = [{ path: "old-name.md", sha: "s1", type: "blob" }];
     const plan = await planPush(docs, entries, false);
@@ -402,7 +407,9 @@ describe("planPush", () => {
     combined.set(header);
     combined.set(bytes, header.length);
     const digest = await crypto.subtle.digest("SHA-1", combined);
-    const contentSha = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    const contentSha = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
     const docs = [fakeDoc({ id: "d1", name: "notes", repoPath: "notes.md", repoSha: contentSha, content: "hi" })];
     const entries: TreeEntry[] = [{ path: "notes.md", sha: contentSha, type: "blob" }];
     const localHistory = new Map([["d1", { snapshots: [], notes: [{ id: "n1", from: 0, to: 2, quote: "hi", orphaned: false, body: "b", createdAt: 1 }] }]]);
@@ -429,7 +436,9 @@ describe("planPush", () => {
     combined.set(header);
     combined.set(bytes, header.length);
     const digest = await crypto.subtle.digest("SHA-1", combined);
-    const sha = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    const sha = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
     const entries: TreeEntry[] = [
       { path: "notes.md", sha: "s1", type: "blob" },
       { path: ".mde/history/notes.json", sha, type: "blob" },

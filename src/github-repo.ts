@@ -126,11 +126,21 @@ export async function handleRepoBlob(request: Request, env: Env, owner: string, 
   return proxyJson(res);
 }
 
-export async function handleRepoCommits(request: Request, env: Env, owner: string, repo: string, branch: string, page: number, path?: string): Promise<Response> {
+export async function handleRepoCommits(
+  request: Request,
+  env: Env,
+  owner: string,
+  repo: string,
+  branch: string,
+  page: number,
+  path?: string,
+): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
   const pathParam = path ? `&path=${encodeURIComponent(path)}` : "";
-  const res = await fetch(`${API}/repos/${owner}/${repo}/commits?sha=${encodeURIComponent(branch)}&page=${page}&per_page=30${pathParam}`, { headers: ghHeaders(session.token) });
+  const res = await fetch(`${API}/repos/${owner}/${repo}/commits?sha=${encodeURIComponent(branch)}&page=${page}&per_page=30${pathParam}`, {
+    headers: ghHeaders(session.token),
+  });
   return proxyJson(res);
 }
 
@@ -145,7 +155,7 @@ export async function handleRepoFileAtRef(request: Request, env: Env, owner: str
 export function computeNewTreeEntries(
   baseTreeEntries: TreeEntry[],
   blobShas: { path: string; sha: string }[],
-  deletePaths: string[]
+  deletePaths: string[],
 ): { path: string; mode: "100644"; type: "blob"; sha: string | null }[] {
   const entries: { path: string; mode: "100644"; type: "blob"; sha: string | null }[] = [];
   for (const { path, sha } of blobShas) entries.push({ path, mode: "100644", type: "blob", sha });
@@ -201,7 +211,7 @@ export async function handleRepoPush(request: Request, env: Env, owner: string, 
   const treeEntries = computeNewTreeEntries(
     [],
     blobs.map((b) => ({ path: b.path, sha: blobShas[b.path]! })),
-    deletePaths
+    deletePaths,
   );
   const treeBody: { tree: typeof treeEntries; base_tree?: string } = { tree: treeEntries };
   if (!isFirstCommit) treeBody.base_tree = baseTreeSha;

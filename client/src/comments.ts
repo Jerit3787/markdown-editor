@@ -33,7 +33,14 @@ export async function listComments(workspaceId: string, docId: string): Promise<
   }
 }
 
-export async function createComment(workspaceId: string, docId: string, from: number, to: number, quote: string, body: string): Promise<CommentThread | undefined> {
+export async function createComment(
+  workspaceId: string,
+  docId: string,
+  from: number,
+  to: number,
+  quote: string,
+  body: string,
+): Promise<CommentThread | undefined> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments`, {
       method: "POST",
@@ -49,11 +56,14 @@ export async function createComment(workspaceId: string, docId: string, from: nu
 
 export async function replyToComment(workspaceId: string, docId: string, threadId: string, body: string): Promise<CommentThread | undefined> {
   try {
-    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}/reply`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body }),
-    });
+    const res = await fetch(
+      `/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}/reply`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      },
+    );
     if (!res.ok) return undefined;
     return (await res.json()) as CommentThread;
   } catch (err) {
@@ -63,11 +73,14 @@ export async function replyToComment(workspaceId: string, docId: string, threadI
 
 export async function resolveComment(workspaceId: string, docId: string, threadId: string, resolved: boolean): Promise<CommentThread | undefined> {
   try {
-    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}/resolve`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolved }),
-    });
+    const res = await fetch(
+      `/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}/resolve`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolved }),
+      },
+    );
     if (!res.ok) return undefined;
     return (await res.json()) as CommentThread;
   } catch (err) {
@@ -77,7 +90,9 @@ export async function resolveComment(workspaceId: string, docId: string, threadI
 
 export async function deleteComment(workspaceId: string, docId: string, threadId: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}`, { method: "DELETE" });
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}`, {
+      method: "DELETE",
+    });
     return res.ok;
   } catch (err) {
     return false;

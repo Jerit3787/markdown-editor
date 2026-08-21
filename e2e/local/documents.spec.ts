@@ -11,15 +11,11 @@ test("app loads and shows the seeded document", async ({ page, docId }) => {
 test("typing in the editor updates the doc content", async ({ page }) => {
   await page.click("#editor-mount .cm-content");
   await page.keyboard.type("hello world");
-  await expect
-    .poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString()))
-    .toBe("hello world");
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("hello world");
 });
 
 test("creating a new document adds it to the sidebar and switches to it", async ({ page }) => {
   const before = await page.evaluate(() => JSON.parse(localStorage.getItem("mde:docs") || "[]").length);
   await page.evaluate(() => window.MDE.newDoc());
-  await expect
-    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mde:docs") || "[]").length))
-    .toBe(before + 1);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mde:docs") || "[]").length)).toBe(before + 1);
 });

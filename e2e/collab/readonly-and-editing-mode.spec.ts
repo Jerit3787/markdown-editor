@@ -62,17 +62,11 @@ test("undo/redo route through the collab UndoManager while in a shared room, and
   await page.click("#editor-mount .cm-content");
   await page.keyboard.press("End");
   await page.keyboard.type(" plus a collab edit");
-  await expect
-    .poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString()))
-    .toContain("plus a collab edit");
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toContain("plus a collab edit");
   await page.evaluate(() => window.MDE.undo());
-  await expect
-    .poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString()))
-    .not.toContain("plus a collab edit");
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).not.toContain("plus a collab edit");
   await page.evaluate(() => window.MDE.redo());
-  await expect
-    .poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString()))
-    .toContain("plus a collab edit");
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toContain("plus a collab edit");
 });
 
 test("a viewer-access room makes the editor read-only, and editable access allows typing", async ({ browser }) => {
@@ -132,9 +126,7 @@ test("a viewer-access room makes the editor read-only, and editable access allow
   }
   await dismissWhatsNew(viewer);
 
-  await expect
-    .poll(() => viewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""))
-    .toContain("owner-authored content");
+  await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("owner-authored content");
 
   // Read-only: CodeMirror's readOnly facet blocks dispatched changes.
   await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor().state.readOnly)).toBe(true);

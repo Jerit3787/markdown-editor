@@ -46,8 +46,7 @@ commitments.
       document names are now enforced unique (silent `-2` suffixing,
       with a three-way Replace/Save-as/Cancel prompt only for a
       deliberate rename that collides) so link resolution is always
-      unambiguous; bundled in the same release: a merged Document Info
-      + Backlinks panel, and a sidebar sort-order fix (only a real
+      unambiguous; bundled in the same release: a merged Document Info + Backlinks panel, and a sidebar sort-order fix (only a real
       content edit reorders the list, not merely opening a document)
       (v1.15.0)
 - [x] Desktop view selector — Editor pane / Preview pane toggle buttons
@@ -83,7 +82,7 @@ commitments.
       into `Modal` would fight their own layouts rather than simplify
       them — left as-is, see the Backlog entry below (v1.19.2)
 - [x] **Workspace core.** First of four planned sub-projects toward
-      sharing a whole *workspace* (a named group of documents) instead
+      sharing a whole _workspace_ (a named group of documents) instead
       of one document at a time. Introduces `Workspace` as a real
       container documents belong to: create/switch/rename/delete
       workspaces from a new switcher in the sidebar header, one active
@@ -115,7 +114,7 @@ commitments.
       link-then-sync an existing one automatically.** File > Open >
       From GitHub Repo creates a workspace from any repo in one step,
       switching to an already-linked workspace instead of duplicating
-      it; linking an *existing* workspace to a repo now immediately
+      it; linking an _existing_ workspace to a repo now immediately
       pushes its local docs out and pulls in whatever the repo already
       has, instead of requiring a manual Push then Pull afterward
       (v1.23.0).
@@ -251,7 +250,7 @@ to matter later.
       position or format — v1.9.0 ships one fixed presentation
 - [ ] Pixel-perfect / sub-block scroll interpolation in synced scrolling
       — the line-mapped sync-scroll fix snaps to block boundaries, which
-      solved the reported problem; finer interpolation *within* a tall
+      solved the reported problem; finer interpolation _within_ a tall
       block is a possible future refinement
 - [ ] Embedded license text (full MIT/MPL/Apache body) per package in
       the Open Source Licenses list — v1.8.0 shows just the identifier

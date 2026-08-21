@@ -1,0 +1,7 @@
+node_modules/
+client/dist/
+test-results/
+playwright-report/
+blob-report/
+package-lock.json
+docs/

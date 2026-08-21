@@ -22,7 +22,10 @@ export interface FakeGithubServer {
 
 function gitBlobSha(contentBytes: Buffer): string {
   const header = Buffer.from(`blob ${contentBytes.length}\0`, "utf-8");
-  return crypto.createHash("sha1").update(Buffer.concat([header, contentBytes])).digest("hex");
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.concat([header, contentBytes]))
+    .digest("hex");
 }
 
 // Buffer.prototype.toString(encoding) doesn't type-check on

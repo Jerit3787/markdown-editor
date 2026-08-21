@@ -10,16 +10,14 @@
   "workers_dev": false,
   "observability": { "enabled": true },
 
-  "routes": [
-    { "pattern": "editor.danplace.tech", "custom_domain": true }
-  ],
+  "routes": [{ "pattern": "editor.danplace.tech", "custom_domain": true }],
 
   // GITHUB_CLIENT_ID is the public half of the GitHub OAuth App (Settings
   // → Developer settings → OAuth Apps) used for "Sign in with GitHub" /
   // Gist publish. GITHUB_CLIENT_SECRET and SESSION_SECRET are Worker
   // secrets (wrangler secret put ...), never committed.
   "vars": {
-    "GITHUB_CLIENT_ID": "Ov23liV4lb0YiRtTwpm9"
+    "GITHUB_CLIENT_ID": "Ov23liV4lb0YiRtTwpm9",
   },
 
   // Serves the built client (client/dist/, produced by `npm run build` —
@@ -39,7 +37,7 @@
     "directory": "./client/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": true
+    "run_worker_first": true,
   },
 
   // One Durable Object instance per collaboration room, holding that room's
@@ -50,13 +48,13 @@
   "durable_objects": {
     "bindings": [
       { "name": "COLLAB_ROOM", "class_name": "CollabRoom" },
-      { "name": "WORKSPACE_ROOM", "class_name": "WorkspaceRoom" }
-    ]
+      { "name": "WORKSPACE_ROOM", "class_name": "WorkspaceRoom" },
+    ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["CollabRoom"] },
     { "tag": "v2", "new_sqlite_classes": ["ImageQuota"] },
     { "tag": "v3", "deleted_classes": ["ImageQuota"] },
-    { "tag": "v4", "new_sqlite_classes": ["WorkspaceRoom"] }
-  ]
+    { "tag": "v4", "new_sqlite_classes": ["WorkspaceRoom"] },
+  ],
 }

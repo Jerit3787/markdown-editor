@@ -28,9 +28,11 @@ the two items still listed below — see CHANGELOG.md for the full list
 of what was fixed, including the real root causes found along the way
 (a filename-sanitization bug was why images "couldn't be imported,"
 not a rendering bug; a Gist API filename-matching bug was why renaming
-+ updating created a duplicate file, not a publish bug).
+
+- updating created a duplicate file, not a publish bug).
 
 ### Comments
+
 - [ ] Replying to a comment or marking one resolved is broken in
       practice (confirmed 2026-08-13) — reviewed the full path (server
       routes, HTTP handlers, client fetch wrappers, panel UI) against
@@ -42,6 +44,7 @@ not a rendering bug; a Gist API filename-matching bug was why renaming
       interacting to test properly.
 
 ### Layout / sizing
+
 - [ ] Toolbar/tooltip ordering isn't grouped by type — re-arrange so
       related tools sit together. (Deferred: needs an actual proposed
       grouping to react to, not a guess at what "by type" means here.)
@@ -73,7 +76,7 @@ its own, same process as every feature shipped this session.
       etc.) and add a Markdown compatibility checker under the
       Document Info panel — flag syntax that's flavor-specific or
       won't render the same elsewhere.
-- [ ] **Shared document name sync.** Only document *content* syncs
+- [ ] **Shared document name sync.** Only document _content_ syncs
       between collaborators today (via Yjs's `ytext`) — the document
       name is purely local per-browser and never touches the collab
       layer at all, so a rename by one party never reaches anyone
@@ -184,6 +187,7 @@ sequenced relative to each other yet.
   Document sidenav and comments move to a bottom-sheet modal on
   mobile. Use a tabbed document/headings switcher (older-style tabs)
   to help with quicker navigation in the smaller space.
+
 - [x] **Standardized modal layout — Phase 1.** (Shipped v1.19.0.) Every
       modal in the app should follow one structure: header row (logo,
       title, quick action), scrollable content area, optional footer

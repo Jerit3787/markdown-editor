@@ -1,6 +1,15 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect } from "vitest";
-import { maybeSnapshotVersion, listVersions, getVersionContent, getVersionImages, restoreLocalVersion, deleteHistory, getHistory, mergeSnapshotsFromRepo } from "./history";
+import {
+  maybeSnapshotVersion,
+  listVersions,
+  getVersionContent,
+  getVersionImages,
+  restoreLocalVersion,
+  deleteHistory,
+  getHistory,
+  mergeSnapshotsFromRepo,
+} from "./history";
 
 // Every test uses its own docId (rather than resetting the shared fake
 // IndexedDB database between tests) so tests can't leak state into each

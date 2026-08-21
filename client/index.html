@@ -1,394 +1,426 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Markdown Editor — Live Preview & Real-Time Collaboration</title>
-<meta name="description" content="A fast, free markdown editor with live preview, multiple documents, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text. No account needed.">
-<meta name="theme-color" content="#2563eb">
-<link rel="canonical" href="https://editor.danplace.tech/">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markdown Editor — Live Preview & Real-Time Collaboration</title>
+    <meta
+      name="description"
+      content="A fast, free markdown editor with live preview, multiple documents, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text. No account needed."
+    />
+    <meta name="theme-color" content="#2563eb" />
+    <link rel="canonical" href="https://editor.danplace.tech/" />
 
-<!-- Favicons -->
-<link rel="icon" type="image/svg+xml" href="/logo.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
 
-<!-- Open Graph / social previews -->
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://editor.danplace.tech/">
-<meta property="og:title" content="Markdown Editor — Live Preview & Real-Time Collaboration">
-<meta property="og:description" content="A fast, free markdown editor with live preview, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text.">
-<meta property="og:image" content="https://editor.danplace.tech/og-image.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Markdown Editor — Live Preview & Real-Time Collaboration">
-<meta name="twitter:description" content="A fast, free markdown editor with live preview, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text.">
-<meta name="twitter:image" content="https://editor.danplace.tech/og-image.png">
-</head>
-<body>
-
-<!-- Icon sprite (Lucide, ISC license: https://lucide.dev) — inlined once,
+    <!-- Open Graph / social previews -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://editor.danplace.tech/" />
+    <meta property="og:title" content="Markdown Editor — Live Preview & Real-Time Collaboration" />
+    <meta
+      property="og:description"
+      content="A fast, free markdown editor with live preview, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text."
+    />
+    <meta property="og:image" content="https://editor.danplace.tech/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Markdown Editor — Live Preview & Real-Time Collaboration" />
+    <meta
+      name="twitter:description"
+      content="A fast, free markdown editor with live preview, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text."
+    />
+    <meta name="twitter:image" content="https://editor.danplace.tech/og-image.png" />
+  </head>
+  <body>
+    <!-- Icon sprite (Lucide, ISC license: https://lucide.dev) — inlined once,
      referenced everywhere via <svg class="icon"><use href="#icon-name"/></svg>
      so every icon renders as a crisp, theme-colored vector instead of a
      platform-dependent emoji glyph. -->
-<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
-  <symbol id="icon-braces" viewBox="0 0 24 24">
-    <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1" />
-    <path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1" />
-  </symbol>
-  <symbol id="icon-chevron-down" viewBox="0 0 24 24">
-    <path d="m6 9 6 6 6-6" />
-  </symbol>
-  <symbol id="icon-code" viewBox="0 0 24 24">
-    <path d="m16 18 6-6-6-6" />
-    <path d="m8 6-6 6 6 6" />
-  </symbol>
-  <symbol id="icon-copy" viewBox="0 0 24 24">
-    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-  </symbol>
-  <symbol id="icon-scissors" viewBox="0 0 24 24">
-    <circle cx="6" cy="6" r="3" />
-    <path d="M8.12 8.12 12 12" />
-    <path d="M20 4 8.12 15.88" />
-    <circle cx="6" cy="18" r="3" />
-    <path d="M14.8 14.8 20 20" />
-  </symbol>
-  <symbol id="icon-clipboard" viewBox="0 0 24 24">
-    <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
-    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-  </symbol>
-  <symbol id="icon-lock" viewBox="0 0 24 24">
-    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-  </symbol>
-  <symbol id="icon-globe" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10" />
-    <path d="M2 12h20" />
-    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-  </symbol>
-  <symbol id="icon-download" viewBox="0 0 24 24">
-    <path d="M12 15V3" />
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <path d="m7 10 5 5 5-5" />
-  </symbol>
-  <symbol id="icon-ellipsis-vertical" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="1" />
-    <circle cx="12" cy="5" r="1" />
-    <circle cx="12" cy="19" r="1" />
-  </symbol>
-  <symbol id="icon-image" viewBox="0 0 24 24">
-    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-    <circle cx="9" cy="9" r="2" />
-    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-  </symbol>
-  <symbol id="icon-link" viewBox="0 0 24 24">
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-  </symbol>
-  <symbol id="icon-list-ordered" viewBox="0 0 24 24">
-    <path d="M11 5h10" />
-    <path d="M11 12h10" />
-    <path d="M11 19h10" />
-    <path d="M4 4h1v5" />
-    <path d="M4 9h2" />
-    <path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" />
-  </symbol>
-  <symbol id="icon-list" viewBox="0 0 24 24">
-    <path d="M3 5h.01" />
-    <path d="M3 12h.01" />
-    <path d="M3 19h.01" />
-    <path d="M8 5h13" />
-    <path d="M8 12h13" />
-    <path d="M8 19h13" />
-  </symbol>
-  <symbol id="icon-menu" viewBox="0 0 24 24">
-    <path d="M4 5h16" />
-    <path d="M4 12h16" />
-    <path d="M4 19h16" />
-  </symbol>
-  <symbol id="icon-moon" viewBox="0 0 24 24">
-    <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
-  </symbol>
-  <symbol id="icon-plus" viewBox="0 0 24 24">
-    <path d="M5 12h14" />
-    <path d="M12 5v14" />
-  </symbol>
-  <symbol id="icon-quote" viewBox="0 0 24 24">
-    <path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
-    <path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
-  </symbol>
-  <symbol id="icon-square-check" viewBox="0 0 24 24">
-    <rect width="18" height="18" x="3" y="3" rx="2" />
-    <path d="m9 12 2 2 4-4" />
-  </symbol>
-  <symbol id="icon-strikethrough" viewBox="0 0 24 24">
-    <path d="M16 4H9a3 3 0 0 0-2.83 4" />
-    <path d="M14 12a4 4 0 0 1 0 8H6" />
-    <line x1="4" x2="20" y1="12" y2="12" />
-  </symbol>
-  <symbol id="icon-sun" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="4" />
-    <path d="M12 2v2" />
-    <path d="M12 20v2" />
-    <path d="m4.93 4.93 1.41 1.41" />
-    <path d="m17.66 17.66 1.41 1.41" />
-    <path d="M2 12h2" />
-    <path d="M20 12h2" />
-    <path d="m6.34 17.66-1.41 1.41" />
-    <path d="m19.07 4.93-1.41 1.41" />
-  </symbol>
-  <symbol id="icon-table" viewBox="0 0 24 24">
-    <path d="M12 3v18" />
-    <rect width="18" height="18" x="3" y="3" rx="2" />
-    <path d="M3 9h18" />
-    <path d="M3 15h18" />
-  </symbol>
-  <symbol id="icon-workflow" viewBox="0 0 24 24">
-    <rect width="8" height="8" x="3" y="3" rx="2" />
-    <path d="M7 11v4a2 2 0 0 0 2 2h4" />
-    <rect width="8" height="8" x="13" y="13" rx="2" />
-  </symbol>
-  <symbol id="icon-upload" viewBox="0 0 24 24">
-    <path d="M12 3v12" />
-    <path d="m17 8-5-5-5 5" />
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-  </symbol>
-  <symbol id="icon-users" viewBox="0 0 24 24">
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-    <path d="M16 3.128a4 4 0 0 1 0 7.744" />
-    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-    <circle cx="9" cy="7" r="4" />
-  </symbol>
-  <symbol id="icon-x" viewBox="0 0 24 24">
-    <path d="M18 6 6 18" />
-    <path d="m6 6 12 12" />
-  </symbol>
-  <symbol id="icon-check" viewBox="0 0 24 24">
-    <path d="M20 6 9 17l-5-5" />
-  </symbol>
-  <symbol id="icon-cloud" viewBox="0 0 24 24">
-    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h.79a4.5 4.5 0 1 1 0 9Z" />
-  </symbol>
-  <symbol id="icon-cloud-check" viewBox="0 0 24 24">
-    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h.79a4.5 4.5 0 1 1 0 9Z" />
-    <path d="m9 13 2 2 4-4" />
-  </symbol>
-  <symbol id="icon-external-link" viewBox="0 0 24 24">
-    <path d="M15 3h6v6" />
-    <path d="M10 14 21 3" />
-    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-  </symbol>
-  <symbol id="icon-github" viewBox="0 0 24 24">
-    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-    <path d="M9 18c-4.51 2-5-2-7-2" />
-  </symbol>
-  <symbol id="icon-log-out" viewBox="0 0 24 24">
-    <path d="m16 17 5-5-5-5" />
-    <path d="M21 12H9" />
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-  </symbol>
-  <symbol id="icon-images" viewBox="0 0 24 24">
-    <path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16" />
-    <path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2" />
-    <circle cx="13" cy="7" r="1" fill="currentColor" />
-    <rect x="8" y="2" width="14" height="14" rx="2" />
-  </symbol>
-  <symbol id="icon-alert-triangle" viewBox="0 0 24 24">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-    <line x1="12" y1="9" x2="12" y2="13" />
-    <line x1="12" y1="17" x2="12.01" y2="17" />
-  </symbol>
-  <symbol id="icon-trash-2" viewBox="0 0 24 24">
-    <path d="M10 11v6" />
-    <path d="M14 11v6" />
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-    <path d="M3 6h18" />
-    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-  </symbol>
-  <symbol id="icon-rocket" viewBox="0 0 24 24">
-    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
-    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09" />
-    <path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" />
-    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" />
-  </symbol>
-  <symbol id="icon-settings" viewBox="0 0 24 24">
-    <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
-    <circle cx="12" cy="12" r="3" />
-  </symbol>
-  <symbol id="icon-share-2" viewBox="0 0 24 24">
-    <circle cx="18" cy="5" r="3" />
-    <circle cx="6" cy="12" r="3" />
-    <circle cx="18" cy="19" r="3" />
-    <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
-    <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
-  </symbol>
-  <symbol id="icon-undo-2" viewBox="0 0 24 24">
-    <path d="M9 14 4 9l5-5" />
-    <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
-  </symbol>
-  <symbol id="icon-redo-2" viewBox="0 0 24 24">
-    <path d="m15 14 5-5-5-5" />
-    <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" />
-  </symbol>
-  <symbol id="icon-keyboard" viewBox="0 0 24 24">
-    <path d="M10 8h.01" />
-    <path d="M12 12h.01" />
-    <path d="M14 8h.01" />
-    <path d="M16 12h.01" />
-    <path d="M18 8h.01" />
-    <path d="M6 8h.01" />
-    <path d="M7 16h10" />
-    <path d="M8 12h.01" />
-    <rect width="20" height="16" x="2" y="4" rx="2" />
-  </symbol>
-  <symbol id="icon-panel-left" viewBox="0 0 24 24">
-    <rect width="18" height="18" x="3" y="3" rx="2" />
-    <path d="M9 3v18" />
-  </symbol>
-  <symbol id="icon-panel-right" viewBox="0 0 24 24">
-    <rect width="18" height="18" x="3" y="3" rx="2" />
-    <path d="M15 3v18" />
-  </symbol>
-  <symbol id="icon-file-plus" viewBox="0 0 24 24">
-    <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
-    <path d="M14 2v5a1 1 0 0 0 1 1h5" />
-    <path d="M9 15h6" />
-    <path d="M12 18v-6" />
-  </symbol>
-  <symbol id="icon-file" viewBox="0 0 24 24">
-    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-  </symbol>
-  <symbol id="icon-pencil" viewBox="0 0 24 24">
-    <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
-    <path d="m15 5 4 4" />
-  </symbol>
-  <symbol id="icon-chevron-right" viewBox="0 0 24 24">
-    <path d="m9 18 6-6-6-6" />
-  </symbol>
-  <symbol id="icon-chevron-left" viewBox="0 0 24 24">
-    <path d="m15 18-6-6 6-6" />
-  </symbol>
-  <symbol id="icon-history" viewBox="0 0 24 24">
-    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-    <path d="M3 3v5h5" />
-    <path d="M12 7v5l4 2" />
-  </symbol>
-  <symbol id="icon-message-square" viewBox="0 0 24 24">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-  </symbol>
-  <symbol id="icon-info" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10" />
-    <path d="M12 16v-4" />
-    <path d="M12 8h.01" />
-  </symbol>
-  <symbol id="icon-search" viewBox="0 0 24 24">
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.3-4.3" />
-  </symbol>
-</svg>
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none">
+      <symbol id="icon-braces" viewBox="0 0 24 24">
+        <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1" />
+        <path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1" />
+      </symbol>
+      <symbol id="icon-chevron-down" viewBox="0 0 24 24">
+        <path d="m6 9 6 6 6-6" />
+      </symbol>
+      <symbol id="icon-code" viewBox="0 0 24 24">
+        <path d="m16 18 6-6-6-6" />
+        <path d="m8 6-6 6 6 6" />
+      </symbol>
+      <symbol id="icon-copy" viewBox="0 0 24 24">
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+      </symbol>
+      <symbol id="icon-scissors" viewBox="0 0 24 24">
+        <circle cx="6" cy="6" r="3" />
+        <path d="M8.12 8.12 12 12" />
+        <path d="M20 4 8.12 15.88" />
+        <circle cx="6" cy="18" r="3" />
+        <path d="M14.8 14.8 20 20" />
+      </symbol>
+      <symbol id="icon-clipboard" viewBox="0 0 24 24">
+        <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      </symbol>
+      <symbol id="icon-lock" viewBox="0 0 24 24">
+        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </symbol>
+      <symbol id="icon-globe" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M2 12h20" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+      </symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24">
+        <path d="M12 15V3" />
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <path d="m7 10 5 5 5-5" />
+      </symbol>
+      <symbol id="icon-ellipsis-vertical" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="12" cy="5" r="1" />
+        <circle cx="12" cy="19" r="1" />
+      </symbol>
+      <symbol id="icon-image" viewBox="0 0 24 24">
+        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+        <circle cx="9" cy="9" r="2" />
+        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+      </symbol>
+      <symbol id="icon-link" viewBox="0 0 24 24">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+      </symbol>
+      <symbol id="icon-list-ordered" viewBox="0 0 24 24">
+        <path d="M11 5h10" />
+        <path d="M11 12h10" />
+        <path d="M11 19h10" />
+        <path d="M4 4h1v5" />
+        <path d="M4 9h2" />
+        <path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" />
+      </symbol>
+      <symbol id="icon-list" viewBox="0 0 24 24">
+        <path d="M3 5h.01" />
+        <path d="M3 12h.01" />
+        <path d="M3 19h.01" />
+        <path d="M8 5h13" />
+        <path d="M8 12h13" />
+        <path d="M8 19h13" />
+      </symbol>
+      <symbol id="icon-menu" viewBox="0 0 24 24">
+        <path d="M4 5h16" />
+        <path d="M4 12h16" />
+        <path d="M4 19h16" />
+      </symbol>
+      <symbol id="icon-moon" viewBox="0 0 24 24">
+        <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+      </symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24">
+        <path d="M5 12h14" />
+        <path d="M12 5v14" />
+      </symbol>
+      <symbol id="icon-quote" viewBox="0 0 24 24">
+        <path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
+        <path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
+      </symbol>
+      <symbol id="icon-square-check" viewBox="0 0 24 24">
+        <rect width="18" height="18" x="3" y="3" rx="2" />
+        <path d="m9 12 2 2 4-4" />
+      </symbol>
+      <symbol id="icon-strikethrough" viewBox="0 0 24 24">
+        <path d="M16 4H9a3 3 0 0 0-2.83 4" />
+        <path d="M14 12a4 4 0 0 1 0 8H6" />
+        <line x1="4" x2="20" y1="12" y2="12" />
+      </symbol>
+      <symbol id="icon-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2" />
+        <path d="M12 20v2" />
+        <path d="m4.93 4.93 1.41 1.41" />
+        <path d="m17.66 17.66 1.41 1.41" />
+        <path d="M2 12h2" />
+        <path d="M20 12h2" />
+        <path d="m6.34 17.66-1.41 1.41" />
+        <path d="m19.07 4.93-1.41 1.41" />
+      </symbol>
+      <symbol id="icon-table" viewBox="0 0 24 24">
+        <path d="M12 3v18" />
+        <rect width="18" height="18" x="3" y="3" rx="2" />
+        <path d="M3 9h18" />
+        <path d="M3 15h18" />
+      </symbol>
+      <symbol id="icon-workflow" viewBox="0 0 24 24">
+        <rect width="8" height="8" x="3" y="3" rx="2" />
+        <path d="M7 11v4a2 2 0 0 0 2 2h4" />
+        <rect width="8" height="8" x="13" y="13" rx="2" />
+      </symbol>
+      <symbol id="icon-upload" viewBox="0 0 24 24">
+        <path d="M12 3v12" />
+        <path d="m17 8-5-5-5 5" />
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      </symbol>
+      <symbol id="icon-users" viewBox="0 0 24 24">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <path d="M16 3.128a4 4 0 0 1 0 7.744" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <circle cx="9" cy="7" r="4" />
+      </symbol>
+      <symbol id="icon-x" viewBox="0 0 24 24">
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24">
+        <path d="M20 6 9 17l-5-5" />
+      </symbol>
+      <symbol id="icon-cloud" viewBox="0 0 24 24">
+        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h.79a4.5 4.5 0 1 1 0 9Z" />
+      </symbol>
+      <symbol id="icon-cloud-check" viewBox="0 0 24 24">
+        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h.79a4.5 4.5 0 1 1 0 9Z" />
+        <path d="m9 13 2 2 4-4" />
+      </symbol>
+      <symbol id="icon-external-link" viewBox="0 0 24 24">
+        <path d="M15 3h6v6" />
+        <path d="M10 14 21 3" />
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      </symbol>
+      <symbol id="icon-github" viewBox="0 0 24 24">
+        <path
+          d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"
+        />
+        <path d="M9 18c-4.51 2-5-2-7-2" />
+      </symbol>
+      <symbol id="icon-log-out" viewBox="0 0 24 24">
+        <path d="m16 17 5-5-5-5" />
+        <path d="M21 12H9" />
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      </symbol>
+      <symbol id="icon-images" viewBox="0 0 24 24">
+        <path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16" />
+        <path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2" />
+        <circle cx="13" cy="7" r="1" fill="currentColor" />
+        <rect x="8" y="2" width="14" height="14" rx="2" />
+      </symbol>
+      <symbol id="icon-alert-triangle" viewBox="0 0 24 24">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </symbol>
+      <symbol id="icon-trash-2" viewBox="0 0 24 24">
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+        <path d="M3 6h18" />
+        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      </symbol>
+      <symbol id="icon-rocket" viewBox="0 0 24 24">
+        <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+        <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09" />
+        <path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" />
+        <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" />
+      </symbol>
+      <symbol id="icon-settings" viewBox="0 0 24 24">
+        <path
+          d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+        />
+        <circle cx="12" cy="12" r="3" />
+      </symbol>
+      <symbol id="icon-share-2" viewBox="0 0 24 24">
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
+        <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
+      </symbol>
+      <symbol id="icon-undo-2" viewBox="0 0 24 24">
+        <path d="M9 14 4 9l5-5" />
+        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+      </symbol>
+      <symbol id="icon-redo-2" viewBox="0 0 24 24">
+        <path d="m15 14 5-5-5-5" />
+        <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" />
+      </symbol>
+      <symbol id="icon-keyboard" viewBox="0 0 24 24">
+        <path d="M10 8h.01" />
+        <path d="M12 12h.01" />
+        <path d="M14 8h.01" />
+        <path d="M16 12h.01" />
+        <path d="M18 8h.01" />
+        <path d="M6 8h.01" />
+        <path d="M7 16h10" />
+        <path d="M8 12h.01" />
+        <rect width="20" height="16" x="2" y="4" rx="2" />
+      </symbol>
+      <symbol id="icon-panel-left" viewBox="0 0 24 24">
+        <rect width="18" height="18" x="3" y="3" rx="2" />
+        <path d="M9 3v18" />
+      </symbol>
+      <symbol id="icon-panel-right" viewBox="0 0 24 24">
+        <rect width="18" height="18" x="3" y="3" rx="2" />
+        <path d="M15 3v18" />
+      </symbol>
+      <symbol id="icon-file-plus" viewBox="0 0 24 24">
+        <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
+        <path d="M14 2v5a1 1 0 0 0 1 1h5" />
+        <path d="M9 15h6" />
+        <path d="M12 18v-6" />
+      </symbol>
+      <symbol id="icon-file" viewBox="0 0 24 24">
+        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+        <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      </symbol>
+      <symbol id="icon-pencil" viewBox="0 0 24 24">
+        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+        <path d="m15 5 4 4" />
+      </symbol>
+      <symbol id="icon-chevron-right" viewBox="0 0 24 24">
+        <path d="m9 18 6-6-6-6" />
+      </symbol>
+      <symbol id="icon-chevron-left" viewBox="0 0 24 24">
+        <path d="m15 18-6-6 6-6" />
+      </symbol>
+      <symbol id="icon-history" viewBox="0 0 24 24">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+        <path d="M12 7v5l4 2" />
+      </symbol>
+      <symbol id="icon-message-square" viewBox="0 0 24 24">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </symbol>
+      <symbol id="icon-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 16v-4" />
+        <path d="M12 8h.01" />
+      </symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </symbol>
+    </svg>
 
-<div id="app">
+    <div id="app">
+      <!-- Top bar: identity/actions row, then a File/Edit/View/Help menu bar -->
+      <header id="topbar">
+        <div id="brand"><img src="/logo.svg" width="40" height="40" alt="Markdown Editor" /></div>
 
-  <!-- Top bar: identity/actions row, then a File/Edit/View/Help menu bar -->
-  <header id="topbar">
-    <div id="brand"><img src="/logo.svg" width="40" height="40" alt="Markdown Editor"></div>
+        <div id="topbarRow1" class="topbar-row">
+          <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title" />
+          <span id="docTitleMirror" aria-hidden="true"></span>
 
-    <div id="topbarRow1" class="topbar-row">
-      <input id="docTitle" type="text" value="Untitled" spellcheck="false" aria-label="Document title">
-      <span id="docTitleMirror" aria-hidden="true"></span>
-
-      <div class="dropdown">
-        <button id="saveStatusBtn" class="icon-btn" type="button" title="Saved locally" aria-label="Save status"><svg class="icon"><use id="saveStatusIcon" href="#icon-cloud-check"></use></svg></button>
-        <div id="saveStatusPopup" class="dropdown-menu save-status-popup">
-          <div class="menu-section-label" id="saveStatusHeadline">Saved</div>
-          <p id="saveStatusDetail" class="modal-hint">Last saved just now, to this browser's local storage.</p>
-          <a id="saveStatusGistLink" class="menu-link-item" href="#" target="_blank" rel="noopener" hidden><svg class="icon"><use href="#icon-github"></use></svg> Also linked to a GitHub Gist</a>
-          <a id="saveStatusRepoLink" class="menu-link-item" href="#" target="_blank" rel="noopener" hidden><svg class="icon"><use href="#icon-github"></use></svg> Also linked to a GitHub repo</a>
-        </div>
-      </div>
-    </div>
-
-    <div id="menubar-mount"></div>
-
-    <div id="topbarActionsCol">
-      <div id="presenceBar" class="presence-bar" hidden></div>
-      <div class="topbar-actions">
-        <button id="commentsBtn" class="icon-btn" type="button" title="Comments" aria-label="Comments"><svg class="icon"><use href="#icon-message-square"></use></svg></button>
-        <button id="versionHistoryBtn" class="icon-btn" type="button" title="Version history" aria-label="Version history"><svg class="icon"><use href="#icon-history"></use></svg></button>
-        <div class="share-btn-group" id="shareBtnGroup">
-          <button id="shareBtn" class="share-pill share-pill-main" type="button" title="Share">
-            <svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span>
-          </button>
-          <button id="shareDropdownBtn" class="share-pill share-pill-dropdown desktop-only" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Share options">
-            <svg class="icon"><use href="#icon-chevron-down"></use></svg>
-          </button>
-          <div id="shareDropdownMenu" class="dropdown-menu" style="right: 0; min-width: 260px;">
-            <button type="button" class="dropdown-item" id="shareCopyLinkBtn">
-              <svg class="icon"><use href="#icon-link"></use></svg> Copy link
+          <div class="dropdown">
+            <button id="saveStatusBtn" class="icon-btn" type="button" title="Saved locally" aria-label="Save status">
+              <svg class="icon"><use id="saveStatusIcon" href="#icon-cloud-check"></use></svg>
             </button>
-            <div class="dropdown-divider"></div>
-            <div class="dropdown-text">
-              <div class="dropdown-text-title" id="shareAccessTitle">Restricted</div>
-              <div class="dropdown-text-desc" id="shareAccessDesc">Only people with access can open with the link.</div>
+            <div id="saveStatusPopup" class="dropdown-menu save-status-popup">
+              <div class="menu-section-label" id="saveStatusHeadline">Saved</div>
+              <p id="saveStatusDetail" class="modal-hint">Last saved just now, to this browser's local storage.</p>
+              <a id="saveStatusGistLink" class="menu-link-item" href="#" target="_blank" rel="noopener" hidden
+                ><svg class="icon"><use href="#icon-github"></use></svg> Also linked to a GitHub Gist</a
+              >
+              <a id="saveStatusRepoLink" class="menu-link-item" href="#" target="_blank" rel="noopener" hidden
+                ><svg class="icon"><use href="#icon-github"></use></svg> Also linked to a GitHub repo</a
+              >
             </div>
           </div>
         </div>
-        <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
-      </div>
-    </div>
-  </header>
 
-  <div id="body">
+        <div id="menubar-mount"></div>
 
-    <!-- Two independent layouts stacked vertically, not one grid — see
+        <div id="topbarActionsCol">
+          <div id="presenceBar" class="presence-bar" hidden></div>
+          <div class="topbar-actions">
+            <button id="commentsBtn" class="icon-btn" type="button" title="Comments" aria-label="Comments">
+              <svg class="icon"><use href="#icon-message-square"></use></svg>
+            </button>
+            <button id="versionHistoryBtn" class="icon-btn" type="button" title="Version history" aria-label="Version history">
+              <svg class="icon"><use href="#icon-history"></use></svg>
+            </button>
+            <div class="share-btn-group" id="shareBtnGroup">
+              <button id="shareBtn" class="share-pill share-pill-main" type="button" title="Share">
+                <svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span>
+              </button>
+              <button
+                id="shareDropdownBtn"
+                class="share-pill share-pill-dropdown desktop-only"
+                type="button"
+                aria-haspopup="true"
+                aria-expanded="false"
+                aria-label="Share options"
+              >
+                <svg class="icon"><use href="#icon-chevron-down"></use></svg>
+              </button>
+              <div id="shareDropdownMenu" class="dropdown-menu" style="right: 0; min-width: 260px">
+                <button type="button" class="dropdown-item" id="shareCopyLinkBtn">
+                  <svg class="icon"><use href="#icon-link"></use></svg> Copy link
+                </button>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-text">
+                  <div class="dropdown-text-title" id="shareAccessTitle">Restricted</div>
+                  <div class="dropdown-text-desc" id="shareAccessDesc">Only people with access can open with the link.</div>
+                </div>
+              </div>
+            </div>
+            <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">
+              <svg class="icon"><use href="#icon-settings"></use></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div id="body">
+        <!-- Two independent layouts stacked vertically, not one grid — see
          #body's comment in style.css for why: a single grid would force
          the topbar row and the content row below it to share column
          widths, which is exactly the bug this split avoids. -->
-    <div id="topbar-row">
-      <!-- Formatting toolbar + view selector — Toolbar.svelte renders two
+        <div id="topbar-row">
+          <!-- Formatting toolbar + view selector — Toolbar.svelte renders two
            root elements here (see that component): #toolbar grows to
            fill the row, .view-selector sits at its end. -->
-      <div id="toolbar-mount"></div>
-    </div>
+          <div id="toolbar-mount"></div>
+        </div>
 
-    <div id="content-row">
-
-    <!-- Dimming backdrop for the mobile bottom-sheet presentation of
+        <div id="content-row">
+          <!-- Dimming backdrop for the mobile bottom-sheet presentation of
          #sidebar (see the mobile media query in style.css) — shown/
          hidden by app.ts's collapseSidebarForMobile()/toggleSidebar()
          alongside #sidebar's own .collapsed class. Always present in
          the DOM (hidden by default); harmless on desktop since it's
          only ever un-hidden when isMobile() is true. -->
-    <div id="sidebarBackdrop"></div>
+          <div id="sidebarBackdrop"></div>
 
-    <!-- Sidebar: document list -->
-    <aside id="sidebar">
-      <div id="sidebarHeader">
-        <div id="sidebarHeaderLeft">
-          <!-- Naturally laid out inside the panel (Google-Docs style) —
+          <!-- Sidebar: document list -->
+          <aside id="sidebar">
+            <div id="sidebarHeader">
+              <div id="sidebarHeaderLeft">
+                <!-- Naturally laid out inside the panel (Google-Docs style) —
                collapses off-screen along with the rest of #sidebar, no
                manual positioning needed. -->
-          <button id="sidebarToggleIn" class="icon-btn" title="Hide documents panel" aria-label="Hide documents panel"><svg class="icon"><use href="#icon-chevron-left"></use></svg></button>
-          <!-- WorkspaceSwitcher Svelte component mounts here — see
+                <button id="sidebarToggleIn" class="icon-btn" title="Hide documents panel" aria-label="Hide documents panel">
+                  <svg class="icon"><use href="#icon-chevron-left"></use></svg>
+                </button>
+                <!-- WorkspaceSwitcher Svelte component mounts here — see
                client/src/components/WorkspaceSwitcher.svelte -->
-          <div id="workspace-switcher-mount"></div>
-        </div>
-        <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document"><svg class="icon"><use href="#icon-plus"></use></svg></button>
-      </div>
-      <!-- DocList Svelte component mounts its own <ul id="docList"> here,
+                <div id="workspace-switcher-mount"></div>
+              </div>
+              <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document">
+                <svg class="icon"><use href="#icon-plus"></use></svg>
+              </button>
+            </div>
+            <!-- DocList Svelte component mounts its own <ul id="docList"> here,
            each row individually collapsible to its own heading outline
            (Google-Docs "Document tabs" style) — see
            client/src/components/DocList.svelte -->
-      <div id="doclist-mount"></div>
-      <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden>
-    </aside>
+            <div id="doclist-mount"></div>
+            <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden />
+          </aside>
 
-    <!-- Applies #sidebar's collapsed (bottom-sheet-hidden) state
+          <!-- Applies #sidebar's collapsed (bottom-sheet-hidden) state
          synchronously, before the browser's first paint — app.ts's own
          initSidebar()/collapseSidebarForMobile() run as part of a
          deferred module script, well after that first paint, so without
@@ -400,181 +432,199 @@
          light/dark theme. Idempotent with app.ts's own later call:
          re-adding an already-present class is a no-op, so this doesn't
          need to stay in sync with anything there. -->
-    <script>
-      if (window.matchMedia("(max-width: 780px)").matches) {
-        document.getElementById("sidebar").classList.add("collapsed");
-      }
-    </script>
+          <script>
+            if (window.matchMedia("(max-width: 780px)").matches) {
+              document.getElementById("sidebar").classList.add("collapsed");
+            }
+          </script>
 
-    <!-- Editor + Preview -->
-    <main id="main">
-      <section id="editorPane" class="pane">
-        <div id="editor-mount"></div>
-      </section>
+          <!-- Editor + Preview -->
+          <main id="main">
+            <section id="editorPane" class="pane">
+              <div id="editor-mount"></div>
+            </section>
 
-      <div id="divider"></div>
+            <div id="divider"></div>
 
-      <section id="previewPane" class="pane">
-        <div id="preview-mount"></div>
-      </section>
+            <section id="previewPane" class="pane">
+              <div id="preview-mount"></div>
+            </section>
 
-      <!-- Shown instead of editorPane/previewPane/divider (see app.ts's
+            <!-- Shown instead of editorPane/previewPane/divider (see app.ts's
            updateMainView) when no document is open — a brand-new visitor
            with nothing in storage yet, or after deleting the last
            remaining document. -->
-      <div id="emptyState" class="empty-state" hidden>
-        <div class="empty-state-inner empty-state-has-workspace">
-          <img src="/logo.svg" width="52" height="52" alt="">
-          <h1>Markdown Editor</h1>
-          <p>A fast, distraction-free markdown editor that runs entirely in your browser — no server, no account, nothing leaves your machine.</p>
-          <div class="empty-state-actions">
-            <button type="button" id="emptyNewDocBtn" class="primary-btn"><svg class="icon"><use href="#icon-file-plus"></use></svg> New document</button>
-            <button type="button" id="emptyOpenLocalBtn" class="secondary-btn"><svg class="icon"><use href="#icon-upload"></use></svg> Open from device</button>
-            <button type="button" id="emptyOpenGistBtn" class="secondary-btn"><svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Gist</button>
-          </div>
-        </div>
-        <div class="empty-state-inner empty-state-no-workspace">
-          <img src="/logo.svg" width="52" height="52" alt="">
-          <h1>No workspace yet</h1>
-          <p>Create a workspace to start adding documents.</p>
-          <div class="empty-state-actions">
-            <button type="button" id="emptyNewWorkspaceBtn" class="primary-btn"><svg class="icon"><use href="#icon-plus"></use></svg> New workspace</button>
-            <button type="button" id="emptyOpenRepoBtn" class="secondary-btn"><svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Repo</button>
-          </div>
-        </div>
-      </div>
-    </main>
+            <div id="emptyState" class="empty-state" hidden>
+              <div class="empty-state-inner empty-state-has-workspace">
+                <img src="/logo.svg" width="52" height="52" alt="" />
+                <h1>Markdown Editor</h1>
+                <p>A fast, distraction-free markdown editor that runs entirely in your browser — no server, no account, nothing leaves your machine.</p>
+                <div class="empty-state-actions">
+                  <button type="button" id="emptyNewDocBtn" class="primary-btn">
+                    <svg class="icon"><use href="#icon-file-plus"></use></svg> New document
+                  </button>
+                  <button type="button" id="emptyOpenLocalBtn" class="secondary-btn">
+                    <svg class="icon"><use href="#icon-upload"></use></svg> Open from device
+                  </button>
+                  <button type="button" id="emptyOpenGistBtn" class="secondary-btn">
+                    <svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Gist
+                  </button>
+                </div>
+              </div>
+              <div class="empty-state-inner empty-state-no-workspace">
+                <img src="/logo.svg" width="52" height="52" alt="" />
+                <h1>No workspace yet</h1>
+                <p>Create a workspace to start adding documents.</p>
+                <div class="empty-state-actions">
+                  <button type="button" id="emptyNewWorkspaceBtn" class="primary-btn">
+                    <svg class="icon"><use href="#icon-plus"></use></svg> New workspace
+                  </button>
+                  <button type="button" id="emptyOpenRepoBtn" class="secondary-btn">
+                    <svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Repo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </main>
 
-    <!-- Comments Panel — Svelte component, mounted in main.ts; see
+          <!-- Comments Panel — Svelte component, mounted in main.ts; see
          client/src/components/CommentsPanel.svelte. A #content-row grid
          item (not a fixed-position overlay) so opening it pushes #main's
          content left/narrower instead of floating on top of it. -->
-    <div id="comments-panel-mount"></div>
+          <div id="comments-panel-mount"></div>
+        </div>
+      </div>
+
+      <footer id="statusbar">
+        <span id="wordCount">0 words</span>
+        <span id="charCount">0 characters</span>
+        <span class="spacer"></span>
+        <span id="keybindingMode" class="keybinding-mode-indicator" hidden></span>
+        <span id="cursorPos">Ln 1, Col 1</span>
+        <a
+          href="https://github.com/Jerit3787/markdown-editor"
+          target="_blank"
+          rel="noopener"
+          class="statusbar-link"
+          title="View source on GitHub"
+          aria-label="View source on GitHub"
+          ><svg class="icon"><use href="#icon-github"></use></svg
+        ></a>
+      </footer>
     </div>
-  </div>
 
-  <footer id="statusbar">
-    <span id="wordCount">0 words</span>
-    <span id="charCount">0 characters</span>
-    <span class="spacer"></span>
-    <span id="keybindingMode" class="keybinding-mode-indicator" hidden></span>
-    <span id="cursorPos">Ln 1, Col 1</span>
-    <a href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener" class="statusbar-link" title="View source on GitHub" aria-label="View source on GitHub"><svg class="icon"><use href="#icon-github"></use></svg></a>
-  </footer>
-</div>
-
-<!-- Focus Mode's only exit path is Escape, which mobile has no key
+    <!-- Focus Mode's only exit path is Escape, which mobile has no key
      for — #topbar (housing the View menu's toggle) is itself hidden by
      body.focus-mode, leaving mobile users with no way back out at all.
      Always in the DOM; shown only via CSS (body.focus-mode + the
      mobile media query in style.css), matching every other mobile-only
      element's pattern in this app. -->
-<button id="focusModeExitBtn" class="focus-mode-exit-btn" type="button" aria-label="Exit Focus Mode" title="Exit Focus Mode">
-  <svg class="icon"><use href="#icon-x"></use></svg>
-</button>
+    <button id="focusModeExitBtn" class="focus-mode-exit-btn" type="button" aria-label="Exit Focus Mode" title="Exit Focus Mode">
+      <svg class="icon"><use href="#icon-x"></use></svg>
+    </button>
 
-<!-- Share / collaborate — Svelte component, mounted in main.ts; see
+    <!-- Share / collaborate — Svelte component, mounted in main.ts; see
      client/src/components/Share.svelte -->
-<div id="share-mount"></div>
+    <div id="share-mount"></div>
 
-<!-- Diagram editor — Svelte component, mounted in main.ts; see
+    <!-- Diagram editor — Svelte component, mounted in main.ts; see
      client/src/components/DiagramEditor.svelte -->
-<div id="diagram-editor-mount"></div>
+    <div id="diagram-editor-mount"></div>
 
-<!-- What's new — Svelte component, mounted in main.ts; see
+    <!-- What's new — Svelte component, mounted in main.ts; see
      client/src/components/WhatsNew.svelte -->
-<div id="whats-new-mount"></div>
+    <div id="whats-new-mount"></div>
 
-<!-- Command Palette — Svelte component, mounted in main.ts; see
+    <!-- Command Palette — Svelte component, mounted in main.ts; see
      client/src/components/CommandPalette.svelte -->
-<div id="command-palette-mount"></div>
+    <div id="command-palette-mount"></div>
 
-<!-- Slash Commands — Svelte component, mounted in main.ts; see
+    <!-- Slash Commands — Svelte component, mounted in main.ts; see
      client/src/components/SlashMenu.svelte -->
-<div id="slash-menu-mount"></div>
+    <div id="slash-menu-mount"></div>
 
-<!-- Wikilink autocomplete — Svelte component, mounted in main.ts; see
+    <!-- Wikilink autocomplete — Svelte component, mounted in main.ts; see
      client/src/components/WikilinkMenu.svelte -->
-<div id="wikilink-menu-mount"></div>
+    <div id="wikilink-menu-mount"></div>
 
-<!-- Version History — Svelte component, mounted in main.ts; see
+    <!-- Version History — Svelte component, mounted in main.ts; see
      client/src/components/VersionHistory.svelte -->
-<div id="version-history-mount"></div>
+    <div id="version-history-mount"></div>
 
-<!-- Document Info panel — Svelte component, mounted in main.ts; see
+    <!-- Document Info panel — Svelte component, mounted in main.ts; see
      client/src/components/DocInfoPanel.svelte -->
-<div id="doc-info-panel-mount"></div>
+    <div id="doc-info-panel-mount"></div>
 
-<!-- Rename-collision modal — Svelte component, mounted in main.ts;
+    <!-- Rename-collision modal — Svelte component, mounted in main.ts;
      see client/src/components/RenameCollisionModal.svelte -->
-<div id="rename-collision-mount"></div>
+    <div id="rename-collision-mount"></div>
 
-<!-- Join-shared-workspace modal — Svelte component, mounted in main.ts;
+    <!-- Join-shared-workspace modal — Svelte component, mounted in main.ts;
      see client/src/components/JoinWorkspaceModal.svelte -->
-<div id="join-workspace-modal-mount"></div>
+    <div id="join-workspace-modal-mount"></div>
 
-<!-- Reusable confirm dialog, replacing window.confirm() — see
+    <!-- Reusable confirm dialog, replacing window.confirm() — see
      client/src/components/ConfirmDialog.svelte -->
-<div id="confirm-dialog-mount"></div>
+    <div id="confirm-dialog-mount"></div>
 
-<!-- Share-whole-workspace choice — Svelte component, mounted in main.ts;
+    <!-- Share-whole-workspace choice — Svelte component, mounted in main.ts;
      see client/src/components/ShareChoiceModal.svelte -->
-<div id="share-choice-modal-mount"></div>
+    <div id="share-choice-modal-mount"></div>
 
-<!-- Move document to workspace — Svelte component, mounted in main.ts;
+    <!-- Move document to workspace — Svelte component, mounted in main.ts;
      see client/src/components/MoveToWorkspaceModal.svelte -->
-<div id="move-to-workspace-modal-mount"></div>
+    <div id="move-to-workspace-modal-mount"></div>
 
-<!-- Settings — Svelte component, mounted in main.ts (first component of the
+    <!-- Settings — Svelte component, mounted in main.ts (first component of the
      phase-3 migration; see client/src/components/Settings.svelte) -->
-<div id="settings-mount"></div>
+    <div id="settings-mount"></div>
 
-<!-- Toast notifications — Svelte component, mounted in main.ts; see
+    <!-- Toast notifications — Svelte component, mounted in main.ts; see
      client/src/components/Toast.svelte -->
-<div id="toast-mount"></div>
+    <div id="toast-mount"></div>
 
-<!-- Generic GitHub sign-in gate, reused by Publish-to-Gist and Share —
+    <!-- Generic GitHub sign-in gate, reused by Publish-to-Gist and Share —
      Svelte component, mounted in main.ts; see
      client/src/components/GithubSignInModal.svelte -->
-<div id="github-signin-modal-mount"></div>
+    <div id="github-signin-modal-mount"></div>
 
-<!-- Insert link — Svelte component, mounted in main.ts; see
+    <!-- Insert link — Svelte component, mounted in main.ts; see
      client/src/components/LinkModal.svelte -->
-<div id="link-modal-mount"></div>
+    <div id="link-modal-mount"></div>
 
-<!-- Images manager — Svelte component, mounted in main.ts; see
+    <!-- Images manager — Svelte component, mounted in main.ts; see
      client/src/components/ImagesModal.svelte -->
-<div id="images-modal-mount"></div>
+    <div id="images-modal-mount"></div>
 
-<!-- Open from GitHub Gist -->
-<!-- Open from GitHub Gist — Svelte component, mounted in main.ts; see
+    <!-- Open from GitHub Gist -->
+    <!-- Open from GitHub Gist — Svelte component, mounted in main.ts; see
      client/src/components/OpenGistModal.svelte -->
-<div id="open-gist-modal-mount"></div>
+    <div id="open-gist-modal-mount"></div>
 
-<!-- Link Workspace to GitHub Repo — Svelte component, mounted in main.ts; see
+    <!-- Link Workspace to GitHub Repo — Svelte component, mounted in main.ts; see
      client/src/components/RepoLinkModal.svelte -->
-<div id="repo-link-modal-mount"></div>
+    <div id="repo-link-modal-mount"></div>
 
-<!-- Repo sync conflict/deletion resolution — Svelte component, mounted in
+    <!-- Repo sync conflict/deletion resolution — Svelte component, mounted in
      main.ts; see client/src/components/RepoConflictModal.svelte -->
-<div id="repo-conflict-modal-mount"></div>
+    <div id="repo-conflict-modal-mount"></div>
 
-<!-- Open GitHub Repo as Workspace — Svelte component, mounted in
+    <!-- Open GitHub Repo as Workspace — Svelte component, mounted in
      main.ts; see client/src/components/OpenRepoModal.svelte -->
-<div id="open-repo-modal-mount"></div>
+    <div id="open-repo-modal-mount"></div>
 
-<!-- Keyboard shortcuts — Svelte component, mounted in main.ts; see
+    <!-- Keyboard shortcuts — Svelte component, mounted in main.ts; see
      client/src/components/ShortcutsModal.svelte -->
-<div id="shortcuts-modal-mount"></div>
+    <div id="shortcuts-modal-mount"></div>
 
-<!-- About / Terms / Privacy / Licenses — Svelte components, mounted in
+    <!-- About / Terms / Privacy / Licenses — Svelte components, mounted in
      main.ts; see client/src/components/AboutModal.svelte,
      TermsModal.svelte, PrivacyModal.svelte, LicensesModal.svelte -->
-<div id="about-modal-mount"></div>
-<div id="terms-modal-mount"></div>
-<div id="privacy-modal-mount"></div>
-<div id="licenses-modal-mount"></div>
+    <div id="about-modal-mount"></div>
+    <div id="terms-modal-mount"></div>
+    <div id="privacy-modal-mount"></div>
+    <div id="licenses-modal-mount"></div>
 
-<script type="module" src="/src/main.ts"></script>
-</body>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>

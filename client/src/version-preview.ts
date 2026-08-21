@@ -18,12 +18,7 @@ import type { Doc } from "./types";
 // private to its closure, and this module needs to stay importable on its
 // own — same reasoning mermaid-preview.ts's own local copy already uses.
 function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 export async function renderVersionPreview(content: string, doc: Doc | undefined, container: HTMLElement): Promise<void> {
@@ -43,13 +38,37 @@ export async function renderVersionPreview(content: string, doc: Doc | undefined
       lang,
       !!escaped,
       (code, infostring, esc) => defaultCodeRenderer({ type: "code", raw: code, text: code, lang: infostring, escaped: esc }),
-      doc?.diagrams
+      doc?.diagrams,
     );
 
   const { text: extractedRaw, sources } = extractMathSpans(content);
   const html = marked.parse(extractedRaw, { gfm: true, breaks: false, renderer }) as string;
   const clean = DOMPurify.sanitize(html, {
-    ADD_TAGS: ["math", "semantics", "mrow", "mi", "mn", "mo", "msup", "msub", "msubsup", "msqrt", "mroot", "mfrac", "mtable", "mtr", "mtd", "mspace", "mtext", "mstyle", "mover", "munder", "munderover", "mpadded", "annotation"],
+    ADD_TAGS: [
+      "math",
+      "semantics",
+      "mrow",
+      "mi",
+      "mn",
+      "mo",
+      "msup",
+      "msub",
+      "msubsup",
+      "msqrt",
+      "mroot",
+      "mfrac",
+      "mtable",
+      "mtr",
+      "mtd",
+      "mspace",
+      "mtext",
+      "mstyle",
+      "mover",
+      "munder",
+      "munderover",
+      "mpadded",
+      "annotation",
+    ],
     ADD_ATTR: ["target", "mathvariant", "encoding", "xmlns"],
   });
   container.innerHTML = clean;

@@ -40,7 +40,11 @@ test.describe("formatting commands via the toolbar", () => {
   });
 
   test("heading 1/2/3", async ({ page }) => {
-    for (const [title, prefix] of [["Heading 1", "# "], ["Heading 2", "## "], ["Heading 3", "### "]] as const) {
+    for (const [title, prefix] of [
+      ["Heading 1", "# "],
+      ["Heading 2", "## "],
+      ["Heading 3", "### "],
+    ] as const) {
       await setContentAndSelectAll(page, "hello");
       await page.click(`button[title="${title}"]`);
       await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe(`${prefix}hello`);
@@ -78,9 +82,7 @@ test.describe("formatting commands via the toolbar", () => {
   test("table and horizontal rule", async ({ page }) => {
     await clearContent(page);
     await page.click('button[title="Table"]');
-    await expect
-      .poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString()))
-      .toContain("| Column 1 | Column 2 | Column 3 |");
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toContain("| Column 1 | Column 2 | Column 3 |");
 
     await clearContent(page);
     await page.click('button[title="Horizontal rule"]');

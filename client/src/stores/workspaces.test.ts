@@ -63,7 +63,7 @@ describe("workspaces store — first-run seeding", () => {
       JSON.stringify([
         { id: "a", name: "A", createdAt: 1 },
         { id: "b", name: "B", createdAt: 2 },
-      ])
+      ]),
     );
     localStorage.setItem("mde:activeWorkspace", "b");
     const { activeWorkspaceIdStore } = await import("./workspaces");
@@ -275,7 +275,7 @@ describe("workspaces store — updatedAt", () => {
       JSON.stringify([
         { id: "ws-a", name: "A", createdAt: 1, updatedAt: 1 },
         { id: "ws-b", name: "B from another tab", createdAt: 2, updatedAt: 2 },
-      ])
+      ]),
     );
 
     // This tab, unaware of ws-b, renames ws-a and saves.

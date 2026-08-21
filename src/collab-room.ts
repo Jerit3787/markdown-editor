@@ -145,12 +145,8 @@ export class CollabRoom {
     this.awareness.setLocalState(null);
 
     this.doc.on("update", (update: Uint8Array, origin: unknown) => this.handleDocUpdate(update, origin));
-    this.awareness.on(
-      "update",
-      (
-        { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
-        origin: unknown
-      ) => this.handleAwarenessUpdate(added, updated, removed, origin)
+    this.awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
+      this.handleAwarenessUpdate(added, updated, removed, origin),
     );
 
     this.state.blockConcurrencyWhile(async () => {
@@ -326,9 +322,7 @@ export class CollabRoom {
     // old authorize()), so that's the role that preserves their existing
     // access exactly.
     const rawInvited = Array.isArray(stored.invited) ? stored.invited : [];
-    const invited: InvitedPerson[] = rawInvited.map((entry) =>
-      typeof entry === "string" ? { username: entry, role: "editor" } : (entry as InvitedPerson)
-    );
+    const invited: InvitedPerson[] = rawInvited.map((entry) => (typeof entry === "string" ? { username: entry, role: "editor" } : (entry as InvitedPerson)));
     return { ...DEFAULT_ACCESS, ...stored, invited } as AccessRecord;
   }
 
@@ -441,7 +435,7 @@ export class CollabRoom {
     };
     const workspaceRoomId = this.env.WORKSPACE_ROOM.idFromName(workspaceId);
     const res = await this.env.WORKSPACE_ROOM.get(workspaceRoomId).fetch(
-      new Request("https://internal/internal/seed", { method: "POST", body: JSON.stringify(seedBody) })
+      new Request("https://internal/internal/seed", { method: "POST", body: JSON.stringify(seedBody) }),
     );
     if (!res.ok) return new Response("Migration failed.", { status: 500 });
 
@@ -464,10 +458,7 @@ export class CollabRoom {
     if (states.size > 0) {
       const awarenessEncoder = encoding.createEncoder();
       encoding.writeVarUint(awarenessEncoder, MESSAGE_AWARENESS);
-      encoding.writeVarUint8Array(
-        awarenessEncoder,
-        awarenessProtocol.encodeAwarenessUpdate(this.awareness, Array.from(states.keys()))
-      );
+      encoding.writeVarUint8Array(awarenessEncoder, awarenessProtocol.encodeAwarenessUpdate(this.awareness, Array.from(states.keys())));
       ws.send(encoding.toUint8Array(awarenessEncoder));
     }
 

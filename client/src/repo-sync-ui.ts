@@ -77,7 +77,7 @@ window.MDE.pullFromRepoAction = async () => {
     // planPull *can* detect through the modal; tightening this to real
     // dirty-tracking is a follow-up, not a blocker.
     const { plan, applyResolved } = await pullFromRepo(active.workspaceId, active.repoLink, new Set(), (message) =>
-      updateProgressToast(progressToastId, message)
+      updateProgressToast(progressToastId, message),
     );
     if (plan.conflicts.length > 0 || plan.deletions.length > 0) {
       dismissToast(progressToastId);

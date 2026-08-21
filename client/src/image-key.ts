@@ -13,7 +13,11 @@ export function imageKey(filename: string, images: Record<string, string>): stri
   // are completely safe in a link destination and don't need
   // stripping (a macOS screenshot's "5.22.26 PM" time portion relies
   // on them staying intact to still look like a filename).
-  const base = (match?.[1] || "image").trim().replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-_.]+/g, "") || "image";
+  const base =
+    (match?.[1] || "image")
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9-_.]+/g, "") || "image";
   const ext = match?.[2] || ".png";
   let key = `${base}${ext}`;
   let n = 2;

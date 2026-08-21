@@ -2,24 +2,42 @@ import { linkModalOpen, linkModalPrefillText } from "./stores/linkModal";
 
 export function runCmd(cmd: string) {
   switch (cmd) {
-    case "bold": return wrapSelection("**", "**", "bold text");
-    case "italic": return wrapSelection("_", "_", "italic text");
-    case "strike": return wrapSelection("~~", "~~", "strikethrough");
-    case "h1": return prefixLine("# ");
-    case "h2": return prefixLine("## ");
-    case "h3": return prefixLine("### ");
-    case "quote": return prefixLine("> ");
-    case "code": return wrapSelection("`", "`", "code");
-    case "codeblock": return wrapSelection("```\n", "\n```", "code");
-    case "ul": return prefixLine("- ");
-    case "ol": return prefixLine("1. ");
-    case "task": return prefixLine("- [ ] ");
-    case "link": return insertLink();
-    case "image": return insertImage();
-    case "table": return insertTable();
-    case "hr": return insertBlock("\n---\n");
-    case "math": return insertMathSnippet();
-    case "footnote": return insertFootnoteSnippet();
+    case "bold":
+      return wrapSelection("**", "**", "bold text");
+    case "italic":
+      return wrapSelection("_", "_", "italic text");
+    case "strike":
+      return wrapSelection("~~", "~~", "strikethrough");
+    case "h1":
+      return prefixLine("# ");
+    case "h2":
+      return prefixLine("## ");
+    case "h3":
+      return prefixLine("### ");
+    case "quote":
+      return prefixLine("> ");
+    case "code":
+      return wrapSelection("`", "`", "code");
+    case "codeblock":
+      return wrapSelection("```\n", "\n```", "code");
+    case "ul":
+      return prefixLine("- ");
+    case "ol":
+      return prefixLine("1. ");
+    case "task":
+      return prefixLine("- [ ] ");
+    case "link":
+      return insertLink();
+    case "image":
+      return insertImage();
+    case "table":
+      return insertTable();
+    case "hr":
+      return insertBlock("\n---\n");
+    case "math":
+      return insertMathSnippet();
+    case "footnote":
+      return insertFootnoteSnippet();
   }
 }
 
@@ -76,9 +94,7 @@ export function insertImage() {
 }
 
 export function insertTable() {
-  insertBlock(
-    "\n| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n| Cell | Cell | Cell |\n"
-  );
+  insertBlock("\n| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n| Cell | Cell | Cell |\n");
 }
 
 export function insertBlock(block: string) {
@@ -109,9 +125,7 @@ export function insertMathSnippet() {
 export function insertFootnoteSnippet() {
   const view = window.MDE.getEditor();
   const text = view.state.doc.toString();
-  const existingLabels = [...text.matchAll(/\[\^(\d+)\]/g)]
-    .map((m) => parseInt(m[1], 10))
-    .filter((n) => !Number.isNaN(n));
+  const existingLabels = [...text.matchAll(/\[\^(\d+)\]/g)].map((m) => parseInt(m[1], 10)).filter((n) => !Number.isNaN(n));
   const nextLabel = existingLabels.length > 0 ? Math.max(...existingLabels) + 1 : 1;
   const pos = view.state.selection.main.head;
   const ref = `[^${nextLabel}]`;

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./tests/e2e",
   fullyParallel: true,
   // Zero retries locally (a real failure should fail fast); up to 2
   // attempts in CI before a test counts as failed, absorbing one-off
@@ -42,14 +42,14 @@ export default defineConfig({
   projects: [
     {
       name: "local",
-      testDir: "./e2e/local",
+      testDir: "./tests/e2e/local",
       use: { baseURL: "http://localhost:5275" },
     },
     {
       name: "collab",
-      testDir: "./e2e/collab",
+      testDir: "./tests/e2e/collab",
       use: { baseURL: "http://localhost:8787" },
-      // wrangler dev is started separately by scripts/e2e-collab.sh
+      // wrangler dev is started separately by tests/scripts/e2e-collab.sh
       // (Task 11), after applying the dev-login patch — outside
       // Playwright's own webServer lifecycle entirely.
     },

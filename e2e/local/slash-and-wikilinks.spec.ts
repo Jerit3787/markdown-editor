@@ -63,8 +63,6 @@ test.describe("wikilink autocomplete", () => {
     await page.waitForTimeout(50);
     const before = await page.evaluate(() => JSON.parse(localStorage.getItem("mde:docs") || "[]").length);
     await page.click("#preview .wikilink-missing");
-    await expect
-      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mde:docs") || "[]").length))
-      .toBe(before + 1);
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mde:docs") || "[]").length)).toBe(before + 1);
   });
 });

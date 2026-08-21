@@ -115,9 +115,7 @@ export async function handleLogout(request: Request, env: Env): Promise<Response
 // window vanishing with no explanation.
 function popupHtml(ok: boolean, message: string | null): string {
   const payload = JSON.stringify({ type: "mde-github-auth", ok, message: message || null });
-  const body = ok
-    ? "Signed in — this window will close automatically."
-    : `Sign-in failed: ${escapeHtml(message || "unknown error")}`;
+  const body = ok ? "Signed in — this window will close automatically." : `Sign-in failed: ${escapeHtml(message || "unknown error")}`;
   const closeDelay = ok ? 0 : 2500;
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>GitHub sign-in</title></head><body style="font:14px system-ui;padding:24px;color:${ok ? "#333" : "#c0392b"}">${body}<script>
     if (window.opener) window.opener.postMessage(${payload}, window.location.origin);
@@ -152,7 +150,11 @@ export async function handleMe(request: Request, env: Env): Promise<Response> {
       return Response.json({ connected: false, scopes: [] }, { headers });
     }
     const scopeHeader = userRes.headers.get("X-OAuth-Scopes");
-    if (scopeHeader) scopes = scopeHeader.split(",").map((s) => s.trim()).filter(Boolean);
+    if (scopeHeader)
+      scopes = scopeHeader
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
   } catch (err) {
     // Couldn't reach GitHub to verify — fall through and trust the
     // local session rather than signing the user out over a network blip.

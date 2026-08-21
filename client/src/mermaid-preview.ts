@@ -2,12 +2,7 @@
 // to its own closure, and this module needs to stay importable/testable on
 // its own without pulling in app.ts.
 function escapeForHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 export function mermaidThemeFor(dataTheme: string | null): "default" | "dark" {
@@ -91,10 +86,7 @@ export async function renderMermaidDiagrams(
     // doc, purely to reproduce the exact SVG already on screen. Skip that
     // when nothing this function's output could depend on (source, theme)
     // has actually changed since the last successful render.
-    if (
-      block.classList.contains("mermaid-rendered") &&
-      block.getAttribute("data-mermaid-theme") === theme
-    ) {
+    if (block.classList.contains("mermaid-rendered") && block.getAttribute("data-mermaid-theme") === theme) {
       continue;
     }
 

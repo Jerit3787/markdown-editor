@@ -168,10 +168,8 @@ export class WorkspaceRoom {
       persistScheduled: false,
     };
     doc.on("update", (update: Uint8Array, origin: unknown) => this.handleDocUpdate(docId, docRoom, update, origin));
-    awareness.on(
-      "update",
-      ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
-        this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin)
+    awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
+      this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin),
     );
     this.docs.set(docId, docRoom);
     if (!this.docIds.includes(docId)) {
@@ -227,9 +225,7 @@ export class WorkspaceRoom {
     const stored = await this.state.storage.get<Record<string, unknown>>("access");
     if (!stored) return { ...DEFAULT_ACCESS };
     const rawInvited = Array.isArray(stored.invited) ? stored.invited : [];
-    const invited: InvitedPerson[] = rawInvited.map((entry) =>
-      typeof entry === "string" ? { username: entry, role: "editor" } : (entry as InvitedPerson)
-    );
+    const invited: InvitedPerson[] = rawInvited.map((entry) => (typeof entry === "string" ? { username: entry, role: "editor" } : (entry as InvitedPerson)));
     return { ...DEFAULT_ACCESS, ...stored, invited } as AccessRecord;
   }
 
@@ -626,7 +622,16 @@ export class WorkspaceRoom {
     await this.state.storage.put(docStorageKey(docId, "comments"), docRoom.commentThreads);
   }
 
-  createThread(docId: string, docRoom: DocRoom, from: number, to: number, quote: string, author: string, body: string, now: number = Date.now()): CommentThread {
+  createThread(
+    docId: string,
+    docRoom: DocRoom,
+    from: number,
+    to: number,
+    quote: string,
+    author: string,
+    body: string,
+    now: number = Date.now(),
+  ): CommentThread {
     const thread: CommentThread = {
       id: uid(),
       from,
@@ -684,7 +689,13 @@ export class WorkspaceRoom {
       } catch (err) {
         return new Response("Invalid JSON.", { status: 400 });
       }
-      if (typeof body.from !== "number" || typeof body.to !== "number" || typeof body.quote !== "string" || typeof body.body !== "string" || !body.body.trim()) {
+      if (
+        typeof body.from !== "number" ||
+        typeof body.to !== "number" ||
+        typeof body.quote !== "string" ||
+        typeof body.body !== "string" ||
+        !body.body.trim()
+      ) {
         return new Response("Invalid comment.", { status: 400 });
       }
       const thread = this.createThread(docId, docRoom, body.from, body.to, body.quote, auth.username || "Anonymous", body.body);

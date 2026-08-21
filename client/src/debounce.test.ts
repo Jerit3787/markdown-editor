@@ -69,7 +69,10 @@ describe("debounceWithFlush", () => {
   it("flush awaits an already in-flight run instead of starting a second one", async () => {
     let resolveFn: (v: string) => void;
     const fn = vi.fn(
-      () => new Promise<string>((resolve) => { resolveFn = resolve; }),
+      () =>
+        new Promise<string>((resolve) => {
+          resolveFn = resolve;
+        }),
     );
     const d = debounceWithFlush(fn, 400);
     d.trigger();

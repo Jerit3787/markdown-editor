@@ -50,7 +50,7 @@ describe("docs store — workspace integration", () => {
       JSON.stringify([
         { id: "legacy", name: "Legacy", content: "", updatedAt: 1, createdAt: 1 },
         { id: "tagged", name: "Tagged", content: "", updatedAt: 1, createdAt: 1, workspaceId: "some-other-ws" },
-      ])
+      ]),
     );
     const { docsStore } = await import("./docs");
     const { workspacesStore } = await import("./workspaces");
@@ -209,7 +209,7 @@ describe("docs store — workspace integration", () => {
       JSON.stringify([
         { id: "ws-a", name: "A", createdAt: 1 },
         { id: "ws-b", name: "B", createdAt: 2 },
-      ])
+      ]),
     );
     localStorage.setItem("mde:activeWorkspace", "ws-a");
     // No mde:active stored — matches the finding's repro (setActiveId(null)
@@ -220,7 +220,7 @@ describe("docs store — workspace integration", () => {
         // Newest / array-order-first, but belongs to the OTHER workspace.
         { id: "b-doc", name: "B Doc", content: "", updatedAt: 2, createdAt: 2, workspaceId: "ws-b" },
         { id: "a-doc", name: "A Doc", content: "", updatedAt: 1, createdAt: 1, workspaceId: "ws-a" },
-      ])
+      ]),
     );
     const { activeIdStore } = await import("./docs");
     expect(get(activeIdStore)).toBe("a-doc");
@@ -235,22 +235,16 @@ describe("docs store — workspace integration", () => {
       JSON.stringify([
         { id: "newer", name: "Newer", createdAt: 200 },
         { id: "older", name: "Older", createdAt: 100 },
-      ])
+      ]),
     );
     localStorage.setItem("mde:activeWorkspace", "newer");
-    localStorage.setItem(
-      "mde:docs",
-      JSON.stringify([{ id: "legacy", name: "Legacy", content: "", updatedAt: 1, createdAt: 1 }])
-    );
+    localStorage.setItem("mde:docs", JSON.stringify([{ id: "legacy", name: "Legacy", content: "", updatedAt: 1, createdAt: 1 }]));
     const { docsStore } = await import("./docs");
     expect(get(docsStore).find((d) => d.id === "legacy")?.workspaceId).toBe("older");
   });
 
   it("persists a workspaceId backfill to localStorage immediately, not only in memory", async () => {
-    localStorage.setItem(
-      "mde:docs",
-      JSON.stringify([{ id: "legacy", name: "Legacy", content: "", updatedAt: 1, createdAt: 1 }])
-    );
+    localStorage.setItem("mde:docs", JSON.stringify([{ id: "legacy", name: "Legacy", content: "", updatedAt: 1, createdAt: 1 }]));
     await import("./docs");
     const { workspacesStore } = await import("./workspaces");
     const defaultWorkspaceId = get(workspacesStore)[0].id;
@@ -259,10 +253,7 @@ describe("docs store — workspace integration", () => {
   });
 
   it("does not rewrite mde:docs when no document needed a workspaceId backfill", async () => {
-    localStorage.setItem(
-      "mde:docs",
-      JSON.stringify([{ id: "tagged", name: "Tagged", content: "", updatedAt: 1, createdAt: 1, workspaceId: "some-other-ws" }])
-    );
+    localStorage.setItem("mde:docs", JSON.stringify([{ id: "tagged", name: "Tagged", content: "", updatedAt: 1, createdAt: 1, workspaceId: "some-other-ws" }]));
     await import("./docs");
     // Storage should be untouched byte-for-byte (no backfill needed, so no
     // persistDocs() call) — re-parsing and comparing the one field we care
@@ -272,10 +263,7 @@ describe("docs store — workspace integration", () => {
   });
 
   it("persistDocs merges with what another tab already saved instead of overwriting it", async () => {
-    localStorage.setItem(
-      "mde:docs",
-      JSON.stringify([{ id: "doc-a", name: "A", content: "original", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }])
-    );
+    localStorage.setItem("mde:docs", JSON.stringify([{ id: "doc-a", name: "A", content: "original", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }]));
     const { docsStore, persistDocs } = await import("./docs");
 
     // Simulate another tab having since created doc-b and saved it.
@@ -284,7 +272,7 @@ describe("docs store — workspace integration", () => {
       JSON.stringify([
         { id: "doc-a", name: "A", content: "original", updatedAt: 1, createdAt: 1, workspaceId: "ws1" },
         { id: "doc-b", name: "B", content: "from another tab", updatedAt: 2, createdAt: 2, workspaceId: "ws1" },
-      ])
+      ]),
     );
 
     // This tab, unaware of doc-b, edits doc-a and saves.
@@ -299,16 +287,13 @@ describe("docs store — workspace integration", () => {
   });
 
   it("persistDocs keeps another tab's newer edit to a document this tab hasn't touched", async () => {
-    localStorage.setItem(
-      "mde:docs",
-      JSON.stringify([{ id: "doc-a", name: "A", content: "v1", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }])
-    );
+    localStorage.setItem("mde:docs", JSON.stringify([{ id: "doc-a", name: "A", content: "v1", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }]));
     const { docsStore, persistDocs } = await import("./docs");
 
     // Another tab edited doc-a (newer updatedAt) after this tab loaded its own stale copy.
     localStorage.setItem(
       "mde:docs",
-      JSON.stringify([{ id: "doc-a", name: "A", content: "v2 from another tab", updatedAt: 5, createdAt: 1, workspaceId: "ws1" }])
+      JSON.stringify([{ id: "doc-a", name: "A", content: "v2 from another tab", updatedAt: 5, createdAt: 1, workspaceId: "ws1" }]),
     );
 
     persistDocs();
@@ -319,10 +304,7 @@ describe("docs store — workspace integration", () => {
   });
 
   it("removeDocById's own save doesn't resurrect the doc from the pre-deletion snapshot still in localStorage", async () => {
-    localStorage.setItem(
-      "mde:docs",
-      JSON.stringify([{ id: "doc-a", name: "A", content: "gone soon", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }])
-    );
+    localStorage.setItem("mde:docs", JSON.stringify([{ id: "doc-a", name: "A", content: "gone soon", updatedAt: 1, createdAt: 1, workspaceId: "ws1" }]));
     const { docsStore, removeDocById } = await import("./docs");
 
     removeDocById("doc-a");

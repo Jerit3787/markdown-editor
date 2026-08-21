@@ -108,7 +108,7 @@ export async function getVersionImages(docId: string, versionId: string): Promis
 export async function restoreLocalVersion(
   docId: string,
   versionId: string,
-  now: number = Date.now()
+  now: number = Date.now(),
 ): Promise<{ content: string; images: Record<string, string> | undefined } | undefined> {
   const content = await getVersionContent(docId, versionId);
   if (content === undefined) return undefined;
@@ -171,7 +171,7 @@ export async function listSharedVersions(workspaceId: string, docId: string): Pr
 export async function getSharedVersionSnapshot(
   workspaceId: string,
   docId: string,
-  versionId: string
+  versionId: string,
 ): Promise<{ content: string; images: Record<string, string> | undefined } | undefined> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions/${encodeURIComponent(versionId)}`);
@@ -189,7 +189,10 @@ export async function getSharedVersionSnapshot(
 // edit. The caller only needs to know whether the request succeeded.
 export async function restoreSharedVersion(workspaceId: string, docId: string, versionId: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions/${encodeURIComponent(versionId)}/restore`, { method: "POST" });
+    const res = await fetch(
+      `/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/versions/${encodeURIComponent(versionId)}/restore`,
+      { method: "POST" },
+    );
     return res.ok;
   } catch (err) {
     return false;

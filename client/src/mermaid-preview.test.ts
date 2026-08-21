@@ -20,7 +20,7 @@ describe("mermaidThemeFor", () => {
 });
 
 describe("mermaidCodeRenderer", () => {
-  it("wraps a mermaid fence in a <pre class=\"mermaid\"> placeholder", () => {
+  it('wraps a mermaid fence in a <pre class="mermaid"> placeholder', () => {
     const defaultRender = vi.fn().mockReturnValue("<pre><code>unused</code></pre>");
     const html = mermaidCodeRenderer("graph TD; A-->B;", "mermaid", false, defaultRender);
     expect(html).toBe('<pre class="mermaid">graph TD; A--&gt;B;</pre>');
@@ -129,13 +129,9 @@ describe("renderMermaidDiagrams", () => {
 
   it("renders each diagram independently — one failing doesn't affect the others", async () => {
     const container = document.createElement("div");
-    container.innerHTML =
-      '<pre class="mermaid">bad one</pre><pre class="mermaid">graph TD; A--&gt;B;</pre>';
+    container.innerHTML = '<pre class="mermaid">bad one</pre><pre class="mermaid">graph TD; A--&gt;B;</pre>';
     const mermaid = fakeMermaid({
-      render: vi
-        .fn()
-        .mockRejectedValueOnce(new Error("boom"))
-        .mockResolvedValueOnce({ svg: "<svg>ok</svg>" }),
+      render: vi.fn().mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce({ svg: "<svg>ok</svg>" }),
     });
     const loadMermaid = vi.fn().mockResolvedValue({ default: mermaid });
 
@@ -149,8 +145,7 @@ describe("renderMermaidDiagrams", () => {
 
   it("uses a distinct id per diagram, even across multiple elements", async () => {
     const container = document.createElement("div");
-    container.innerHTML =
-      '<pre class="mermaid">graph TD; A--&gt;B;</pre><pre class="mermaid">graph TD; C--&gt;D;</pre>';
+    container.innerHTML = '<pre class="mermaid">graph TD; A--&gt;B;</pre><pre class="mermaid">graph TD; C--&gt;D;</pre>';
     const mermaid = fakeMermaid();
     const loadMermaid = vi.fn().mockResolvedValue({ default: mermaid });
 

@@ -1,15 +1,6 @@
 export { CollabRoom } from "./collab-room.js";
 export { WorkspaceRoom } from "./workspace-room.js";
-import {
-  handleLogin,
-  handleCallback,
-  handleLogout,
-  handleMe,
-  handleGistCreate,
-  handleGistUpdate,
-  handleGistGet,
-  handleGistList,
-} from "./github-auth.js";
+import { handleLogin, handleCallback, handleLogout, handleMe, handleGistCreate, handleGistUpdate, handleGistGet, handleGistList } from "./github-auth.js";
 import { handleGistImageUpload } from "./gist-images.js";
 import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
 import type { Env } from "./env";

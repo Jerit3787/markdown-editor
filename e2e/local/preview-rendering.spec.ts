@@ -61,7 +61,5 @@ test("theme toggle re-renders mermaid diagrams", async ({ page }) => {
   await page.click("#settingsBtn");
   await page.click('button:has-text("Dark")');
   await page.keyboard.press("Escape");
-  await expect
-    .poll(() => page.evaluate((prev) => document.querySelector("#preview svg") !== prev, svgBefore))
-    .toBe(true);
+  await expect.poll(() => page.evaluate((prev) => document.querySelector("#preview svg") !== prev, svgBefore)).toBe(true);
 });

@@ -10,7 +10,7 @@
   --accent: #2563eb;
   --accent-dim: #eaf0fe;
   --danger: #dc2626;
-  --shadow: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   --radius: 8px;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -25,15 +25,19 @@
   --text-dim: #9aa0a6;
   --accent: #4d8dff;
   --accent-dim: #1b2a44;
-  --shadow: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 /* Several rules below (.dropdown-menu button, .share-row, .presence-bar)
    set an explicit `display`, which otherwise wins over the browser's
    default `[hidden] { display: none }` UA rule and defeats el.hidden. */
-[hidden] { display: none !important; }
+[hidden] {
+  display: none !important;
+}
 
 /* Form controls don't inherit the page's font-family from a browser's
    UA stylesheet by default — every button/input/select/textarea in the
@@ -43,9 +47,15 @@
    the rest of the page's text. One generic rule instead of patching
    every element that happens to get noticed — same reasoning as the
    mobile 16px input font-size rule elsewhere in this file. */
-button, input, select, textarea { font-family: inherit; }
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
 
-html, body {
+html,
+body {
   height: 100%;
   margin: 0;
   font-family: var(--sans);
@@ -90,7 +100,9 @@ body.focus-mode #statusbar {
    own toggle) is itself hidden while Focus Mode is on above. Hidden by
    default; only shown by the mobile media query below, and only while
    Focus Mode is actually active. */
-.focus-mode-exit-btn { display: none; }
+.focus-mode-exit-btn {
+  display: none;
+}
 
 /* Top bar: row 1 (brand/title/status/Share/Settings), row 2 (File/Edit/View/Help) */
 /* Google Docs-style header: logo and the action-icon cluster each span
@@ -112,15 +124,32 @@ body.focus-mode #statusbar {
   flex-shrink: 0;
 }
 
-.topbar-row { display: flex; align-items: center; gap: 8px; padding: 4px 14px; }
-#topbarRow1 { grid-area: title; padding: 6px 0 0 0; gap: 4px; }
-#menuBar { grid-area: menubar; gap: 2px; padding: 0 0 4px 0; }
+.topbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px;
+}
+#topbarRow1 {
+  grid-area: title;
+  padding: 6px 0 0 0;
+  gap: 4px;
+}
+#menuBar {
+  grid-area: menubar;
+  gap: 2px;
+  padding: 0 0 4px 0;
+}
 
 /* Comments/history/share/settings read as one grouped cluster (matching
    the mockup's single "comment history share etc." cell) — no gap
    between them, unlike .topbar-row's wider 8px gap used to separate
    the row's distinct sections from each other. */
-.topbar-actions { display: flex; align-items: center; gap: 4px; }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 
 #topbarActionsCol {
   grid-area: actions;
@@ -133,10 +162,26 @@ body.focus-mode #statusbar {
    column — plain .icon-btn/.share-pill elsewhere in the app stay their
    normal size, this is scoped to just this column. Colors stay this
    app's own accent tokens, not a differently-colored one-off. */
-#topbarActionsCol .icon-btn { width: 40px; height: 40px; }
-#topbarActionsCol .icon-btn .icon { width: 22px; height: 22px; }
-#topbarActionsCol .share-pill { height: 40px; padding: 0 24px; font-size: 14px; border-radius: 20px; background: var(--accent-dim); color: var(--accent); }
-#topbarActionsCol .share-pill .icon { width: 18px; height: 18px; }
+#topbarActionsCol .icon-btn {
+  width: 40px;
+  height: 40px;
+}
+#topbarActionsCol .icon-btn .icon {
+  width: 22px;
+  height: 22px;
+}
+#topbarActionsCol .share-pill {
+  height: 40px;
+  padding: 0 24px;
+  font-size: 14px;
+  border-radius: 20px;
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+#topbarActionsCol .share-pill .icon {
+  width: 18px;
+  height: 18px;
+}
 
 .share-btn-group {
   display: inline-flex;
@@ -149,12 +194,25 @@ body.focus-mode #statusbar {
   border-radius: 20px;
 }
 
-.desktop-only { display: none !important; }
+.desktop-only {
+  display: none !important;
+}
 @media (min-width: 781px) {
-  .desktop-only { display: inline-flex !important; }
-  #topbarActionsCol .share-pill-main { border-radius: 20px 0 0 20px; padding: 0 16px 0 24px; }
-  #topbarActionsCol .share-pill-dropdown { border-radius: 0 20px 20px 0; padding: 0 12px; border-left: 1px solid rgba(0, 0, 0, 0.1); }
-  [data-theme="dark"] #topbarActionsCol .share-pill-dropdown { border-left-color: rgba(255, 255, 255, 0.1); }
+  .desktop-only {
+    display: inline-flex !important;
+  }
+  #topbarActionsCol .share-pill-main {
+    border-radius: 20px 0 0 20px;
+    padding: 0 16px 0 24px;
+  }
+  #topbarActionsCol .share-pill-dropdown {
+    border-radius: 0 20px 20px 0;
+    padding: 0 12px;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  [data-theme="dark"] #topbarActionsCol .share-pill-dropdown {
+    border-left-color: rgba(255, 255, 255, 0.1);
+  }
 }
 
 .share-pill {
@@ -171,9 +229,21 @@ body.focus-mode #statusbar {
   cursor: pointer;
   flex-shrink: 0;
 }
-.share-pill:hover, .share-pill.active { background: var(--accent); color: #fff; }
-.share-pill .icon { width: 15px; height: 15px; }
-.share-pill:disabled { opacity: 0.4; cursor: not-allowed; background: var(--accent-dim); color: var(--accent); }
+.share-pill:hover,
+.share-pill.active {
+  background: var(--accent);
+  color: #fff;
+}
+.share-pill .icon {
+  width: 15px;
+  height: 15px;
+}
+.share-pill:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 
 .menubar-btn {
   background: transparent;
@@ -184,19 +254,29 @@ body.focus-mode #statusbar {
   border-radius: 5px;
   cursor: pointer;
 }
-.menubar-btn:hover, .menubar-btn.active { background: var(--border); }
+.menubar-btn:hover,
+.menubar-btn.active {
+  background: var(--border);
+}
 
 /* overflow:visible here (overriding the base .dropdown-menu clip/scroll,
    which .menu-submenu-panel's own flyouts need to escape via left:100%)
    is safe: submenus now keep this menu's own content short enough that
    it never needed the scroll safety net to begin with. */
-.dropdown-menu.menubar-menu { min-width: 250px; max-height: none; overflow: visible; }
+.dropdown-menu.menubar-menu {
+  min-width: 250px;
+  max-height: none;
+  overflow: visible;
+}
 
 /* File/Edit/View/Help sit near the left edge — anchor their menus to the
    trigger's left edge (extending rightward) instead of the default
    right-anchor (which is correct for Share/Settings near the right edge,
    but would push these menus off-screen to the left). */
-#menuBar .dropdown-menu { left: 0; right: auto; }
+#menuBar .dropdown-menu {
+  left: 0;
+  right: auto;
+}
 
 /* :not(...) leaves any .secondary-btn menu items with their own real
    button styling instead of the flattened menu-row look, same reasoning
@@ -217,7 +297,10 @@ body.focus-mode #statusbar {
   box-sizing: border-box;
 }
 #menuBar .dropdown-menu button:not(.secondary-btn):hover,
-#menuBar .dropdown-menu a.menu-link-item:hover { background: var(--accent-dim); color: var(--accent); }
+#menuBar .dropdown-menu a.menu-link-item:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 #menuBar .dropdown-menu button:not(.secondary-btn):disabled,
 #menuBar .dropdown-menu button:not(.secondary-btn):disabled:hover {
   opacity: 0.5;
@@ -229,12 +312,25 @@ body.focus-mode #statusbar {
 /* The gist-open row (input + button) isn't a menu-item button — .share-row
    already handles its layout/input styling generically; this just adds
    the horizontal inset to line it up with the sibling menu-item buttons. */
-#menuBar .share-row { padding: 0 14px 8px; margin-bottom: 0; }
+#menuBar .share-row {
+  padding: 0 14px 8px;
+  margin-bottom: 0;
+}
 
 /* Flyout submenus (File > Open / Open Recent / Export) */
-.menu-submenu { position: relative; }
-.menu-chevron { margin-left: auto; width: 12px; height: 12px; opacity: 0.55; }
-.menu-submenu-trigger.active { background: var(--accent-dim); color: var(--accent); }
+.menu-submenu {
+  position: relative;
+}
+.menu-chevron {
+  margin-left: auto;
+  width: 12px;
+  height: 12px;
+  opacity: 0.55;
+}
+.menu-submenu-trigger.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 
 .menu-submenu-panel {
   display: none;
@@ -252,7 +348,9 @@ body.focus-mode #statusbar {
   overflow-y: auto;
   z-index: 60;
 }
-.menu-submenu.open .menu-submenu-panel { display: block; }
+.menu-submenu.open .menu-submenu-panel {
+  display: block;
+}
 
 .menubar-menu kbd {
   margin-left: auto;
@@ -265,11 +363,24 @@ body.focus-mode #statusbar {
   flex-shrink: 0;
 }
 
-.menu-glyph-btn b, .menu-glyph-btn i { width: 14px; text-align: center; flex-shrink: 0; }
+.menu-glyph-btn b,
+.menu-glyph-btn i {
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
 
-.menu-check { visibility: hidden; color: var(--accent); }
-.menu-view-btn.active { background: var(--accent-dim); color: var(--accent); }
-.menu-view-btn.active .menu-check { visibility: visible; }
+.menu-check {
+  visibility: hidden;
+  color: var(--accent);
+}
+.menu-view-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.menu-view-btn.active .menu-check {
+  visibility: visible;
+}
 
 .menu-recent-item {
   display: flex;
@@ -285,13 +396,40 @@ body.focus-mode #statusbar {
   cursor: pointer;
   text-align: left;
 }
-.menu-recent-item:hover { background: var(--accent-dim); color: var(--accent); }
-.menu-recent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-recent-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
-.menu-recent-empty { font-size: 12.5px; color: var(--text-dim); padding: 6px 14px; }
+.menu-recent-item:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.menu-recent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-recent-time {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.menu-recent-empty {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  padding: 6px 14px;
+}
 
-#brand { grid-area: brand; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 12px; }
-#brand img { display: block; flex-shrink: 0; width: 40px; height: 40px; }
+#brand {
+  grid-area: brand;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 12px;
+}
+#brand img {
+  display: block;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
 
 #docTitle {
   border: 1px solid transparent;
@@ -317,7 +455,8 @@ body.focus-mode #statusbar {
   box-sizing: border-box;
 }
 
-#docTitle:hover, #docTitle:focus {
+#docTitle:hover,
+#docTitle:focus {
   border-color: var(--border);
   background: var(--bg);
   outline: none;
@@ -328,7 +467,10 @@ body.focus-mode #statusbar {
   opacity: 1;
   cursor: default;
 }
-#docTitle:disabled:hover { border-color: transparent; background: transparent; }
+#docTitle:disabled:hover {
+  border-color: transparent;
+  background: transparent;
+}
 
 /* Invisible twin of #docTitle used purely to measure text width — must
    match its font/padding exactly (border included, since content-box
@@ -350,19 +492,45 @@ body.focus-mode #statusbar {
 /* #saveStatusBtn sits near the left of the topbar — the default
    right-anchored .dropdown-menu (correct for Share/Settings near the right
    edge) would overflow off the left of the viewport here. */
-.save-status-popup { left: 0; right: auto; }
-
-#saveStatusBtn { width: 28px; height: 28px; margin-left: 2px; }
-#saveStatusBtn .icon { width: 16px; height: 16px; color: var(--text-dim); }
-#saveStatusBtn.saving .icon { color: var(--accent); animation: save-status-pulse 1.2s ease-in-out infinite; }
-@keyframes save-status-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+.save-status-popup {
+  left: 0;
+  right: auto;
 }
 
-.save-status-popup { min-width: 240px; padding: 12px 14px; }
-.save-status-popup .menu-section-label { padding: 0 0 4px; }
-.save-status-popup p { margin: 0 0 8px; }
+#saveStatusBtn {
+  width: 28px;
+  height: 28px;
+  margin-left: 2px;
+}
+#saveStatusBtn .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-dim);
+}
+#saveStatusBtn.saving .icon {
+  color: var(--accent);
+  animation: save-status-pulse 1.2s ease-in-out infinite;
+}
+@keyframes save-status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.save-status-popup {
+  min-width: 240px;
+  padding: 12px 14px;
+}
+.save-status-popup .menu-section-label {
+  padding: 0 0 4px;
+}
+.save-status-popup p {
+  margin: 0 0 8px;
+}
 .save-status-popup .menu-link-item {
   display: flex;
   align-items: center;
@@ -375,9 +543,14 @@ body.focus-mode #statusbar {
   text-decoration: none;
   border-top: 1px solid var(--border);
 }
-.save-status-popup .menu-link-item:hover { background: var(--accent-dim); color: var(--accent); }
+.save-status-popup .menu-link-item:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 
-.spacer { flex: 1; }
+.spacer {
+  flex: 1;
+}
 
 .icon {
   width: 1em;
@@ -391,8 +564,15 @@ body.focus-mode #statusbar {
   flex-shrink: 0;
 }
 
-.icon-btn .icon { width: 18px; height: 18px; vertical-align: middle; }
-#toolbar .icon { width: 15px; height: 15px; }
+.icon-btn .icon {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+}
+#toolbar .icon {
+  width: 15px;
+  height: 15px;
+}
 
 .icon-btn {
   border: none;
@@ -408,9 +588,18 @@ body.focus-mode #statusbar {
   justify-content: center;
 }
 
-.icon-btn:hover { background: var(--border); }
-.icon-btn.active { background: var(--accent-dim); color: var(--accent); }
-.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; background: transparent; }
+.icon-btn:hover {
+  background: var(--border);
+}
+.icon-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: transparent;
+}
 
 .primary-btn {
   background: var(--accent);
@@ -423,11 +612,20 @@ body.focus-mode #statusbar {
   cursor: pointer;
 }
 
-.primary-btn:hover { filter: brightness(1.08); }
-.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.primary-btn:disabled:hover { filter: none; }
+.primary-btn:hover {
+  filter: brightness(1.08);
+}
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.primary-btn:disabled:hover {
+  filter: none;
+}
 
-.dropdown { position: relative; }
+.dropdown {
+  position: relative;
+}
 
 .dropdown-menu {
   display: none;
@@ -445,7 +643,9 @@ body.focus-mode #statusbar {
   z-index: 50;
 }
 
-.dropdown-menu.open { display: block; }
+.dropdown-menu.open {
+  display: block;
+}
 
 .dropdown-divider {
   height: 1px;
@@ -492,7 +692,10 @@ body.focus-mode #statusbar {
   gap: 8px;
 }
 
-.dropdown-menu button:not(.primary-btn):not(.secondary-btn):hover { background: var(--accent-dim); color: var(--accent); }
+.dropdown-menu button:not(.primary-btn):not(.secondary-btn):hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 .dropdown-menu button:not(.primary-btn):not(.secondary-btn):disabled,
 .dropdown-menu button:not(.primary-btn):not(.secondary-btn):disabled:hover {
   opacity: 0.5;
@@ -502,7 +705,10 @@ body.focus-mode #statusbar {
 }
 
 /* Collaboration: presence bar, share menu, remote cursors */
-.presence-bar { display: flex; align-items: center; }
+.presence-bar {
+  display: flex;
+  align-items: center;
+}
 
 .presence-avatar {
   width: 26px;
@@ -518,7 +724,9 @@ body.focus-mode #statusbar {
   margin-left: -8px;
 }
 
-.presence-avatar:first-child { margin-left: 0; }
+.presence-avatar:first-child {
+  margin-left: 0;
+}
 
 .doclist-presence {
   display: inline-flex;
@@ -539,10 +747,17 @@ body.focus-mode #statusbar {
   margin-bottom: 10px;
 }
 
-.share-name-row { margin-bottom: 0; }
-.share-name-row label { font-size: 12.5px; color: var(--text-dim); flex-shrink: 0; }
+.share-name-row {
+  margin-bottom: 0;
+}
+.share-name-row label {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
 
-.share-row input[type="text"], .share-row input[type="password"] {
+.share-row input[type="text"],
+.share-row input[type="password"] {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border);
@@ -557,7 +772,11 @@ body.focus-mode #statusbar {
    action buttons (Start collaborating, Sign in with GitHub), but this
    must NOT reach the Cancel/Insert/Close pairs nested one level deeper
    inside every modal's .modal-actions row. */
-.modal-box > .primary-btn, .modal-box > .secondary-btn { width: 100%; margin-bottom: 4px; }
+.modal-box > .primary-btn,
+.modal-box > .secondary-btn {
+  width: 100%;
+  margin-bottom: 4px;
+}
 
 .custom-css-input {
   width: 100%;
@@ -574,7 +793,11 @@ body.focus-mode #statusbar {
 /* ...except a button sitting inline in a flex .share-row (e.g. the "Copy"
    and "Connect" buttons next to their input) — width: 100% there would
    claim the whole row as its flex-basis and crush its sibling input. */
-.share-row .secondary-btn { width: auto; flex-shrink: 0; margin-bottom: 0; }
+.share-row .secondary-btn {
+  width: auto;
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
 
 .settings-row {
   display: flex;
@@ -591,7 +814,10 @@ body.focus-mode #statusbar {
   cursor: pointer;
   margin-bottom: 4px;
 }
-.settings-row:hover { border-color: var(--accent); color: var(--accent); }
+.settings-row:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 /* Generic two-(or-more)-way segmented control — Settings' Light/Dark
    picker and the sidebar's Documents/Outline switch both use it. */
@@ -621,8 +847,13 @@ body.focus-mode #statusbar {
   letter-spacing: normal;
   cursor: pointer;
 }
-.tab-switch-btn:hover { color: var(--text); }
-.tab-switch-btn.active { background: var(--bg); color: var(--accent); }
+.tab-switch-btn:hover {
+  color: var(--text);
+}
+.tab-switch-btn.active {
+  background: var(--bg);
+  color: var(--accent);
+}
 
 .menu-link {
   display: flex;
@@ -633,10 +864,19 @@ body.focus-mode #statusbar {
   text-decoration: none;
   margin: 0 0 10px;
 }
-.menu-link:hover { text-decoration: underline; }
-.menu-link .icon { width: 0.9em; height: 0.9em; }
+.menu-link:hover {
+  text-decoration: underline;
+}
+.menu-link .icon {
+  width: 0.9em;
+  height: 0.9em;
+}
 
-.menu-divider { height: 1px; background: var(--border); margin: 6px 0; }
+.menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
 
 .menu-section-label {
   font-size: 10.5px;
@@ -675,12 +915,16 @@ body.focus-mode #statusbar {
   justify-content: center;
   padding: 20px;
 }
-.modal-backdrop[hidden] { display: none; }
+.modal-backdrop[hidden] {
+  display: none;
+}
 /* ConfirmDialog can be triggered from inside an already-open modal
    (e.g. Images manager's delete button) — every modal shares the same
    base z-index above, so which one paints on top would otherwise be
    decided by DOM/mount order rather than which opened more recently. */
-.modal-backdrop.elevated { z-index: 330; }
+.modal-backdrop.elevated {
+  z-index: 330;
+}
 
 .modal-box {
   background: var(--bg);
@@ -692,7 +936,9 @@ body.focus-mode #statusbar {
   max-height: 85vh;
   overflow-y: auto;
 }
-.modal-box-wide { max-width: 560px; }
+.modal-box-wide {
+  max-width: 560px;
+}
 
 /* What's New carousel (client/src/components/WhatsNew.svelte) — passes
    Modal's maxWidth prop directly (680px) instead of a dedicated class,
@@ -736,7 +982,10 @@ body.focus-mode #statusbar {
   flex-shrink: 0;
   background: var(--bg-alt);
 }
-.whats-new-text { flex: 1; min-width: 0; }
+.whats-new-text {
+  flex: 1;
+  min-width: 0;
+}
 .whats-new-nav {
   display: flex;
   align-items: center;
@@ -744,8 +993,15 @@ body.focus-mode #statusbar {
   gap: 12px;
   flex: 1;
 }
-.whats-new-nav .secondary-btn, .whats-new-nav .primary-btn { width: auto; margin-bottom: 0; }
-.whats-new-counter { font-size: 12px; color: var(--text-dim); }
+.whats-new-nav .secondary-btn,
+.whats-new-nav .primary-btn {
+  width: auto;
+  margin-bottom: 0;
+}
+.whats-new-counter {
+  font-size: 12px;
+  color: var(--text-dim);
+}
 
 .modal-box h2 {
   margin: 0 0 12px;
@@ -754,10 +1010,23 @@ body.focus-mode #statusbar {
   align-items: center;
   gap: 8px;
 }
-.modal-box h2 .icon { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
+.modal-box h2 .icon {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
 
-.modal-box p { margin: 0 0 12px; color: var(--text-dim); font-size: 13.5px; line-height: 1.5; }
-.modal-hint { font-size: 12.5px; color: var(--text-dim); }
+.modal-box p {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.modal-hint {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
 
 .modal-box-v2 {
   background: var(--bg);
@@ -770,7 +1039,9 @@ body.focus-mode #statusbar {
   flex-direction: column;
   overflow: hidden;
 }
-.modal-box-v2.modal-box-wide { max-width: 560px; }
+.modal-box-v2.modal-box-wide {
+  max-width: 560px;
+}
 
 .modal-header {
   display: flex;
@@ -780,8 +1051,21 @@ body.focus-mode #statusbar {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.modal-header h2 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-.modal-header h2 .icon { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
+.modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.modal-header h2 .icon {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
 
 .modal-close-btn {
   flex-shrink: 0;
@@ -796,8 +1080,14 @@ body.focus-mode #statusbar {
   border-radius: 6px;
   cursor: pointer;
 }
-.modal-close-btn:hover { background: var(--border); color: var(--text); }
-.modal-close-btn .icon { width: 16px; height: 16px; }
+.modal-close-btn:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.modal-close-btn .icon {
+  width: 16px;
+  height: 16px;
+}
 
 .modal-tabs {
   display: flex;
@@ -816,10 +1106,22 @@ body.focus-mode #statusbar {
   font-weight: 600;
   cursor: pointer;
 }
-.modal-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+.modal-tabs button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
 
-.modal-body { flex: 1; overflow-y: auto; padding: 16px 24px 24px; }
-.modal-body p { margin: 0 0 12px; color: var(--text-dim); font-size: 13.5px; line-height: 1.5; }
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+}
+.modal-body p {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
 
 .modal-footer {
   flex-shrink: 0;
@@ -830,17 +1132,50 @@ body.focus-mode #statusbar {
   justify-content: flex-end;
   gap: 8px;
 }
-.modal-footer .primary-btn, .modal-footer .secondary-btn { width: auto; margin-bottom: 0; }
-.modal-footer .spacer { flex: 1; }
-.primary-btn.danger { background: var(--danger); }
-.primary-btn.danger:hover { filter: brightness(1.1); }
+.modal-footer .primary-btn,
+.modal-footer .secondary-btn {
+  width: auto;
+  margin-bottom: 0;
+}
+.modal-footer .spacer {
+  flex: 1;
+}
+.primary-btn.danger {
+  background: var(--danger);
+}
+.primary-btn.danger:hover {
+  filter: brightness(1.1);
+}
 
-.shortcuts-list { display: flex; flex-direction: column; gap: 4px; margin: 14px 0; }
-.shortcuts-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px; color: var(--text); }
-.shortcuts-row kbd { font-size: 11.5px; color: var(--text-dim); background: var(--bg-alt); padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border); }
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 14px 0;
+}
+.shortcuts-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.shortcuts-row kbd {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  background: var(--bg-alt);
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
 
 /* Command palette (Ctrl/Cmd+Shift+P) */
-.command-palette-backdrop { align-items: flex-start; padding-top: 10vh; }
+.command-palette-backdrop {
+  align-items: flex-start;
+  padding-top: 10vh;
+}
 
 .command-palette {
   background: var(--bg);
@@ -861,7 +1196,12 @@ body.focus-mode #statusbar {
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
 }
-.command-palette-input-row .icon { width: 16px; height: 16px; color: var(--text-dim); flex-shrink: 0; }
+.command-palette-input-row .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
 
 .command-palette-input {
   flex: 1;
@@ -872,7 +1212,10 @@ body.focus-mode #statusbar {
   color: var(--text);
 }
 
-.command-palette-results { overflow-y: auto; padding: 8px; }
+.command-palette-results {
+  overflow-y: auto;
+  padding: 8px;
+}
 
 .command-palette-row {
   width: 100%;
@@ -884,7 +1227,10 @@ body.focus-mode #statusbar {
   cursor: pointer;
   font-family: inherit;
 }
-.command-palette-row.active { background: var(--accent-dim); color: var(--accent); }
+.command-palette-row.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 
 /* Slash commands (typing "/" at the start of an empty line) */
 .slash-menu {
@@ -910,7 +1256,10 @@ body.focus-mode #statusbar {
   cursor: pointer;
   font-family: inherit;
 }
-.slash-menu-row.active { background: var(--accent-dim); color: var(--accent); }
+.slash-menu-row.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 
 /* Version History overlay (client/src/components/VersionHistory.svelte) —
    same structural pattern as .diagram-editor-overlay: a full-screen fixed
@@ -931,8 +1280,16 @@ body.focus-mode #statusbar {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.version-history-header h2 { margin: 0; font-size: 16px; font-weight: 600; flex: 1; }
-.version-history-header .secondary-btn { width: auto; margin-bottom: 0; }
+.version-history-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+}
+.version-history-header .secondary-btn {
+  width: auto;
+  margin-bottom: 0;
+}
 .version-history-body {
   flex: 1;
   display: grid;
@@ -957,15 +1314,30 @@ body.focus-mode #statusbar {
   cursor: pointer;
   font-family: inherit;
 }
-.version-history-row.active { background: var(--accent-dim); color: var(--accent); }
-.version-history-row-label { display: flex; align-items: center; gap: 6px; }
-.version-history-current { font-size: 11px; color: var(--text-dim); }
+.version-history-row.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.version-history-row-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.version-history-current {
+  font-size: 11px;
+  color: var(--text-dim);
+}
 .version-history-preview-wrap {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-.version-history-view-toggle { display: flex; gap: 4px; padding: 12px 20px 0; flex-shrink: 0; }
+.version-history-view-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px 0;
+  flex-shrink: 0;
+}
 .version-history-view-toggle button {
   border: none;
   background: var(--bg-alt);
@@ -976,7 +1348,10 @@ body.focus-mode #statusbar {
   color: var(--text-dim);
   font-family: inherit;
 }
-.version-history-view-toggle button.active { background: var(--accent-dim); color: var(--accent); }
+.version-history-view-toggle button.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 .version-history-preview {
   flex: 1;
   overflow: auto;
@@ -989,14 +1364,20 @@ body.focus-mode #statusbar {
   display: flex;
   justify-content: flex-end;
 }
-.version-history-actions .primary-btn { width: auto; margin-bottom: 0; }
+.version-history-actions .primary-btn {
+  width: auto;
+  margin-bottom: 0;
+}
 
 /* Comments Panel (client/src/components/CommentsPanel.svelte) */
 .comment-draft-anchor {
   position: fixed;
   z-index: 260;
 }
-.comment-add-btn { width: auto; margin-bottom: 0; }
+.comment-add-btn {
+  width: auto;
+  margin-bottom: 0;
+}
 .comment-draft-box {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -1021,7 +1402,10 @@ body.focus-mode #statusbar {
   gap: 6px;
   margin-top: 6px;
 }
-.comment-draft-actions button { width: auto; margin-bottom: 0; }
+.comment-draft-actions button {
+  width: auto;
+  margin-bottom: 0;
+}
 
 .comments-panel {
   /* A real grid item in #content-row (see index.html), in its own
@@ -1056,8 +1440,16 @@ body.focus-mode #statusbar {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.comments-panel-header h2 { margin: 0; font-size: 15px; font-weight: 600; flex: 1; }
-.comments-panel-header .secondary-btn { width: auto; margin-bottom: 0; }
+.comments-panel-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+}
+.comments-panel-header .secondary-btn {
+  width: auto;
+  margin-bottom: 0;
+}
 .comments-panel-list {
   flex: 1;
   overflow-y: auto;
@@ -1070,7 +1462,9 @@ body.focus-mode #statusbar {
   padding: 10px;
   margin-bottom: 10px;
 }
-.comment-entry.orphaned { opacity: 0.6; }
+.comment-entry.orphaned {
+  opacity: 0.6;
+}
 .comment-entry-quote {
   display: block;
   width: 100%;
@@ -1083,17 +1477,37 @@ body.focus-mode #statusbar {
   cursor: pointer;
   padding: 0 0 6px;
 }
-.comment-orphaned-label { font-style: normal; font-size: 11px; }
+.comment-orphaned-label {
+  font-style: normal;
+  font-size: 11px;
+}
 
 /* Scoped under #preview, matching (not just relying on coincidental
    color overlap with) #preview a's specificity — otherwise that
    generic rule's `color` wins over a plain .wikilink-missing class
    selector and the "missing" dimming silently never shows. */
-#preview .wikilink { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); cursor: pointer; }
-#preview .wikilink:hover { border-bottom-style: solid; }
-#preview .wikilink-missing { color: var(--text-dim); border-bottom-color: var(--text-dim); }
-.comment-body { margin: 0 0 6px; font-size: 13px; }
-.comment-reply-row { display: flex; gap: 6px; margin-bottom: 6px; }
+#preview .wikilink {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+  cursor: pointer;
+}
+#preview .wikilink:hover {
+  border-bottom-style: solid;
+}
+#preview .wikilink-missing {
+  color: var(--text-dim);
+  border-bottom-color: var(--text-dim);
+}
+.comment-body {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.comment-reply-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
 .comment-reply-row input {
   flex: 1;
   font-size: 13px;
@@ -1101,7 +1515,11 @@ body.focus-mode #statusbar {
   border-radius: 6px;
   padding: 4px 6px;
 }
-.comment-reply-row button, .comment-entry > button.secondary-btn { width: auto; margin-bottom: 0; }
+.comment-reply-row button,
+.comment-entry > button.secondary-btn {
+  width: auto;
+  margin-bottom: 0;
+}
 .comment-delete-btn {
   position: absolute;
   top: 8px;
@@ -1114,10 +1532,25 @@ body.focus-mode #statusbar {
 }
 
 /* About modal (Help > About & Privacy) */
-.about-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-.about-brand .modal-hint { margin: 0; }
-.about-title { font-size: 16px; font-weight: 700; margin: 0 0 2px; }
-.about-version { font-size: 12.5px; font-weight: 500; color: var(--text-dim); }
+.about-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.about-brand .modal-hint {
+  margin: 0;
+}
+.about-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 2px;
+}
+.about-version {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
 .about-links {
   display: flex;
   flex-direction: column;
@@ -1141,8 +1574,13 @@ body.focus-mode #statusbar {
   text-decoration: none;
   box-sizing: border-box;
 }
-.about-links .menu-link-item:last-child { border-bottom: none; }
-.about-links .menu-link-item:hover { background: var(--accent-dim); color: var(--accent); }
+.about-links .menu-link-item:last-child {
+  border-bottom: none;
+}
+.about-links .menu-link-item:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 
 /* "What is this?" toggle in a modal's own header — pushed to the
    header's right edge (the h2 is already a flex row) so it reads as a
@@ -1153,7 +1591,11 @@ body.focus-mode #statusbar {
    .toggletip (see Toggletip.svelte) so the hint itself shows as a
    small popover anchored to the button instead of pushing an inline
    paragraph into the modal body. */
-.toggletip { position: relative; margin-left: auto; flex-shrink: 0; }
+.toggletip {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+}
 .hint-toggle-btn {
   border: none;
   background: transparent;
@@ -1165,8 +1607,14 @@ body.focus-mode #statusbar {
   padding: 4px 6px;
   border-radius: 4px;
 }
-.hint-toggle-btn:hover, .hint-toggle-btn.active { background: var(--accent-dim); text-decoration: underline; }
-.hint-text { margin: -4px 0 12px; }
+.hint-toggle-btn:hover,
+.hint-toggle-btn.active {
+  background: var(--accent-dim);
+  text-decoration: underline;
+}
+.hint-text {
+  margin: -4px 0 12px;
+}
 
 .toggletip-bubble {
   position: absolute;
@@ -1198,30 +1646,107 @@ body.focus-mode #statusbar {
   transform: rotate(45deg);
 }
 
-.doc-info-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
-.doc-info-row:last-of-type { border-bottom: none; }
-.doc-info-primary { font-size: 14.5px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
-.doc-info-secondary { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
-.doc-info-backlinks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
-.doc-info-backlink-row { text-align: left; border: none; background: var(--bg-alt); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-family: inherit; font-size: 13px; }
-.doc-info-backlink-row:hover { background: var(--border); }
+.doc-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.doc-info-row:last-of-type {
+  border-bottom: none;
+}
+.doc-info-primary {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.doc-info-secondary {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.doc-info-backlinks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.doc-info-backlink-row {
+  text-align: left;
+  border: none;
+  background: var(--bg-alt);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+.doc-info-backlink-row:hover {
+  background: var(--border);
+}
 
-.doc-info-link { text-decoration: none; }
-.doc-info-link:hover, .doc-info-link:focus-visible { color: var(--accent); text-decoration: underline; }
+.doc-info-link {
+  text-decoration: none;
+}
+.doc-info-link:hover,
+.doc-info-link:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
 
-.diff-view { font-family: var(--mono); font-size: 12.5px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-.diff-view-row { display: grid; grid-template-columns: auto 1fr auto 1fr; }
-.diff-view-gutter { padding: 2px 8px; text-align: right; color: var(--text-dim); user-select: none; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
-.diff-view-cell { padding: 2px 8px; white-space: pre-wrap; word-break: break-word; border-bottom: 1px solid var(--border); }
-.diff-view-cell:nth-child(2) { border-right: 1px solid var(--border); }
+.diff-view {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.diff-view-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+}
+.diff-view-gutter {
+  padding: 2px 8px;
+  text-align: right;
+  color: var(--text-dim);
+  user-select: none;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.diff-view-cell {
+  padding: 2px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-bottom: 1px solid var(--border);
+}
+.diff-view-cell:nth-child(2) {
+  border-right: 1px solid var(--border);
+}
 .diff-view-row:last-child .diff-view-gutter,
-.diff-view-row:last-child .diff-view-cell { border-bottom: none; }
-.diff-view-cell.diff-removed { background: rgba(220, 38, 38, 0.12); }
-.diff-view-cell.diff-added { background: rgba(34, 197, 94, 0.14); }
-.diff-view-cell.diff-removed .diff-segment-changed { background: rgba(220, 38, 38, 0.32); }
-.diff-view-cell.diff-added .diff-segment-changed { background: rgba(34, 197, 94, 0.34); }
+.diff-view-row:last-child .diff-view-cell {
+  border-bottom: none;
+}
+.diff-view-cell.diff-removed {
+  background: rgba(220, 38, 38, 0.12);
+}
+.diff-view-cell.diff-added {
+  background: rgba(34, 197, 94, 0.14);
+}
+.diff-view-cell.diff-removed .diff-segment-changed {
+  background: rgba(220, 38, 38, 0.32);
+}
+.diff-view-cell.diff-added .diff-segment-changed {
+  background: rgba(34, 197, 94, 0.34);
+}
 
-.diff-view-mode-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
+.diff-view-mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
 .diff-view-mode-toggle button {
   border: none;
   background: var(--bg-alt);
@@ -1232,15 +1757,44 @@ body.focus-mode #statusbar {
   color: var(--text-dim);
   font-family: inherit;
 }
-.diff-view-mode-toggle button.active { background: var(--accent-dim); color: var(--accent); }
-.diff-view-unified .diff-view-row { grid-template-columns: auto auto 1fr; }
+.diff-view-mode-toggle button.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.diff-view-unified .diff-view-row {
+  grid-template-columns: auto auto 1fr;
+}
 
-.diff-image-thumb { max-height: 120px; max-width: 100%; object-fit: contain; display: block; }
-.diff-image-loading { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: diff-image-spin 0.6s linear infinite; }
-@keyframes diff-image-spin { to { transform: rotate(360deg); } }
+.diff-image-thumb {
+  max-height: 120px;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+.diff-image-loading {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: diff-image-spin 0.6s linear infinite;
+}
+@keyframes diff-image-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
-.modal-field { display: block; margin-bottom: 12px; }
-.modal-field span { display: block; font-size: 12.5px; color: var(--text-dim); margin-bottom: 4px; }
+.modal-field {
+  display: block;
+  margin-bottom: 12px;
+}
+.modal-field span {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
 .modal-field input {
   width: 100%;
   border: 1px solid var(--border);
@@ -1265,23 +1819,92 @@ select:not(.share-access-select):not(.share-role-select) {
   font-size: 13.5px;
 }
 
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
 
-.images-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; max-height: 50vh; overflow-y: auto; }
-.image-item { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
-.image-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; background: var(--bg-alt); flex-shrink: 0; }
-.image-item .image-meta { flex: 1; min-width: 0; }
-.image-item .image-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.image-item .image-size { font-size: 11.5px; color: var(--text-dim); }
-.image-item .icon-btn { flex-shrink: 0; }
-.image-item.unused { opacity: 0.6; }
-.image-unused-label { font-weight: normal; font-size: 11px; color: var(--text-dim); }
+.images-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.image-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.image-item img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--bg-alt);
+  flex-shrink: 0;
+}
+.image-item .image-meta {
+  flex: 1;
+  min-width: 0;
+}
+.image-item .image-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.image-item .image-size {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.image-item .icon-btn {
+  flex-shrink: 0;
+}
+.image-item.unused {
+  opacity: 0.6;
+}
+.image-unused-label {
+  font-weight: normal;
+  font-size: 11px;
+  color: var(--text-dim);
+}
 
-.gist-item { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
-.gist-item .gist-meta { flex: 1; min-width: 0; }
-.gist-item .gist-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gist-item .gist-date { font-size: 11.5px; color: var(--text-dim); }
-.gist-item .secondary-btn { flex-shrink: 0; width: auto; margin-bottom: 0; }
+.gist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.gist-item .gist-meta {
+  flex: 1;
+  min-width: 0;
+}
+.gist-item .gist-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gist-item .gist-date {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.gist-item .secondary-btn {
+  flex-shrink: 0;
+  width: auto;
+  margin-bottom: 0;
+}
 
 .secondary-btn {
   background: var(--bg-alt);
@@ -1294,11 +1917,23 @@ select:not(.share-access-select):not(.share-role-select) {
   cursor: pointer;
 }
 
-.secondary-btn:hover { background: var(--border); }
-.secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.secondary-btn:disabled:hover { background: var(--bg-alt); }
-.secondary-btn.danger-btn { color: var(--danger); border-color: var(--danger); }
-.secondary-btn.danger-btn:hover { background: rgba(220, 38, 38, 0.12); }
+.secondary-btn:hover {
+  background: var(--border);
+}
+.secondary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.secondary-btn:disabled:hover {
+  background: var(--bg-alt);
+}
+.secondary-btn.danger-btn {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.secondary-btn.danger-btn:hover {
+  background: rgba(220, 38, 38, 0.12);
+}
 
 .status-dot {
   width: 8px;
@@ -1308,9 +1943,16 @@ select:not(.share-access-select):not(.share-role-select) {
   flex-shrink: 0;
 }
 
-.status-dot.status-connected, .status-dot.status-shared { background: #12b886; }
-.status-dot.status-reconnecting { background: #f59f00; }
-.status-dot.status-idle { background: var(--text-dim); }
+.status-dot.status-connected,
+.status-dot.status-shared {
+  background: #12b886;
+}
+.status-dot.status-reconnecting {
+  background: #f59f00;
+}
+.status-dot.status-idle {
+  background: var(--text-dim);
+}
 
 .share-add-people-input {
   width: 100%;
@@ -1323,10 +1965,22 @@ select:not(.share-access-select):not(.share-role-select) {
   margin: 8px 0 16px;
   box-sizing: border-box;
 }
-.share-add-people-input:focus { outline: none; border-color: var(--accent); }
-.share-add-people-input:disabled { color: var(--text-dim); cursor: not-allowed; background: var(--bg-alt); }
+.share-add-people-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.share-add-people-input:disabled {
+  color: var(--text-dim);
+  cursor: not-allowed;
+  background: var(--bg-alt);
+}
 
-.share-access-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0 16px; }
+.share-access-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0 16px;
+}
 .share-access-icon {
   width: 36px;
   height: 36px;
@@ -1337,12 +1991,28 @@ select:not(.share-access-select):not(.share-role-select) {
   justify-content: center;
   flex-shrink: 0;
 }
-.share-access-icon .icon { width: 18px; height: 18px; color: var(--text-dim); }
-.share-access-row.active .share-access-icon { background: var(--accent-dim); }
-.share-access-row.active .share-access-icon .icon { color: var(--accent); }
-.share-access-text { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; flex: 1; min-width: 0; }
+.share-access-icon .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-dim);
+}
+.share-access-row.active .share-access-icon {
+  background: var(--accent-dim);
+}
+.share-access-row.active .share-access-icon .icon {
+  color: var(--accent);
+}
+.share-access-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+  flex: 1;
+  min-width: 0;
+}
 
-.share-access-select, .share-role-select {
+.share-access-select,
+.share-role-select {
   border: none;
   background: transparent;
   color: var(--text);
@@ -1381,11 +2051,41 @@ select:not(.share-access-select):not(.share-role-select) {
   flex-shrink: 0;
 }
 
-.share-people-list { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 4px; max-height: 160px; overflow-y: auto; }
-.share-person { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
-.share-person .presence-avatar { margin-left: 0; flex-shrink: 0; width: 36px; height: 36px; font-size: 15px; }
-.share-person-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.share-person-role { font-size: 12px; font-weight: 600; color: var(--text-dim); flex-shrink: 0; }
+.share-people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.share-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.share-person .presence-avatar {
+  margin-left: 0;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+}
+.share-person-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.share-person-role {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
 
 .share-person-remove {
   flex-shrink: 0;
@@ -1401,10 +2101,18 @@ select:not(.share-access-select):not(.share-role-select) {
   cursor: pointer;
   padding: 0;
 }
-.share-person-remove .icon { width: 14px; height: 14px; }
-.share-person-remove:hover { background: var(--bg-alt); color: var(--text); }
+.share-person-remove .icon {
+  width: 14px;
+  height: 14px;
+}
+.share-person-remove:hover {
+  background: var(--bg-alt);
+  color: var(--text);
+}
 
-.modal-actions-share { align-items: center; }
+.modal-actions-share {
+  align-items: center;
+}
 
 /* Remote cursor/selection rendering (.cm-ySelection, .cm-ySelectionCaret,
    etc.) comes from y-codemirror.next's own yRemoteSelectionsTheme
@@ -1508,14 +2216,18 @@ select:not(.share-access-select):not(.share-role-select) {
   transition: margin-left 0.15s ease;
 }
 
-#sidebar.collapsed { margin-left: -231px; }
+#sidebar.collapsed {
+  margin-left: -231px;
+}
 
 /* #sidebarToggleIn is a normal flex child inside #sidebarHeader (see
    #sidebarHeaderLeft below) — no positioning needed, it slides off-screen
    with the rest of #sidebar automatically. #sidebarToggleOut lives inline
    as the first item in #toolbar instead, shown only while the sidebar is
    collapsed (see app.ts's toggleSidebar/initSidebar). */
-#sidebarToggleOut { flex-shrink: 0; }
+#sidebarToggleOut {
+  flex-shrink: 0;
+}
 
 #sidebarHeader {
   display: flex;
@@ -1529,11 +2241,26 @@ select:not(.share-access-select):not(.share-role-select) {
   color: var(--text-dim);
 }
 
-#sidebarHeaderLeft { display: flex; align-items: center; gap: 6px; min-width: 0; }
-#sidebarHeaderLeft #sidebarToggleIn { flex-shrink: 0; }
-#sidebarHeaderLeft span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sidebarHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+#sidebarHeaderLeft #sidebarToggleIn {
+  flex-shrink: 0;
+}
+#sidebarHeaderLeft span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-.workspace-switcher { position: relative; min-width: 0; flex: 1; }
+.workspace-switcher {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
 .workspace-switcher-trigger {
   display: flex;
   align-items: center;
@@ -1548,8 +2275,16 @@ select:not(.share-access-select):not(.share-role-select) {
   cursor: pointer;
   padding: 2px 0;
 }
-.workspace-switcher-trigger .workspace-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.workspace-switcher-trigger .icon { width: 12px; height: 12px; flex-shrink: 0; }
+.workspace-switcher-trigger .workspace-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-switcher-trigger .icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
 
 .workspace-switcher-popover {
   position: absolute;
@@ -1566,9 +2301,21 @@ select:not(.share-access-select):not(.share-role-select) {
   letter-spacing: normal;
   font-weight: 400;
 }
-.workspace-list { list-style: none; margin: 0; padding: 6px; max-height: 260px; overflow-y: auto; }
-.workspace-list li { border-radius: 6px; }
-.workspace-list li.active .workspace-row { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+.workspace-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.workspace-list li {
+  border-radius: 6px;
+}
+.workspace-list li.active .workspace-row {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
 .workspace-row {
   display: flex;
   align-items: center;
@@ -1579,10 +2326,22 @@ select:not(.share-access-select):not(.share-role-select) {
   font-size: 13.5px;
   color: var(--text);
 }
-.workspace-row:hover { background: var(--border); }
-.workspace-row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.workspace-row .icon-btn { flex-shrink: 0; opacity: 0.55; }
-.workspace-row:hover .icon-btn { opacity: 1; }
+.workspace-row:hover {
+  background: var(--border);
+}
+.workspace-row-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-row .icon-btn {
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+.workspace-row:hover .icon-btn {
+  opacity: 1;
+}
 .workspace-rename-input {
   width: 100%;
   margin: 2px 0;
@@ -1607,20 +2366,33 @@ select:not(.share-access-select):not(.share-role-select) {
   font-size: 13.5px;
   cursor: pointer;
 }
-.workspace-new-btn:hover { background: var(--accent-dim); color: var(--accent); }
-.workspace-new-btn .icon { width: 15px; height: 15px; }
+.workspace-new-btn:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.workspace-new-btn .icon {
+  width: 15px;
+  height: 15px;
+}
 
 /* DocList.svelte mounts its own <ul id="docList"> (flex:1 itself, see
    below) inside this wrapper — the wrapper is the actual flex child of
    #sidebar now, so it needs the flex-stretch + min-height:0 that #docList
    used to carry directly for its own scrolling to work. */
-#doclist-mount { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#doclist-mount {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 /* Wraps MenuBar.svelte's rendered <nav id="menuBar"> — display:contents
    makes the wrapper itself generate no box, so #topbar's column flex
    layout sees that <nav> as a direct child, identical to before it was
    Svelte-mounted. */
-#menubar-mount { display: contents; }
+#menubar-mount {
+  display: contents;
+}
 
 /* Wraps Toolbar.svelte's <div id="toolbar">, Editor.svelte's
    <div id="editorWrap">, and Preview.svelte's <div id="preview"> — all
@@ -1631,7 +2403,11 @@ select:not(.share-access-select):not(.share-role-select) {
    area collapses, and sync-scroll's preview.scrollTop writes become
    silent no-ops (confirmed live — this was Phase C's own migration bug,
    not a pre-existing issue with #preview itself). */
-#toolbar-mount, #editor-mount, #preview-mount { display: contents; }
+#toolbar-mount,
+#editor-mount,
+#preview-mount {
+  display: contents;
+}
 
 /* Wraps CommentsPanel.svelte's <div class="comments-panel"> — needs to
    sit as a direct child of #content-row for its own grid-area:comments
@@ -1640,7 +2416,9 @@ select:not(.share-access-select):not(.share-role-select) {
    #menubar-mount above. Without this, the panel renders wherever plain
    block flow puts an unstyled wrapper div instead of the grid's
    comments column. */
-#comments-panel-mount { display: contents; }
+#comments-panel-mount {
+  display: contents;
+}
 
 .outline-list {
   list-style: none;
@@ -1658,8 +2436,15 @@ select:not(.share-access-select):not(.share-role-select) {
   flex: 1;
 }
 
-#docList li { border-radius: 6px; margin-bottom: 2px; }
-#docList li.active > .doc-row { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+#docList li {
+  border-radius: 6px;
+  margin-bottom: 2px;
+}
+#docList li.active > .doc-row {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
 
 .doc-row {
   display: flex;
@@ -1671,7 +2456,9 @@ select:not(.share-access-select):not(.share-role-select) {
   font-size: 13.5px;
   color: var(--text);
 }
-.doc-row:hover { background: var(--border); }
+.doc-row:hover {
+  background: var(--border);
+}
 
 .doc-row-link {
   display: flex;
@@ -1685,7 +2472,12 @@ select:not(.share-access-select):not(.share-role-select) {
 
 /* Reserves the same width whether or not a given doc has headings (and
    therefore an outline toggle), so every row's icon/name stay aligned. */
-.doc-outline-toggle, .doc-outline-toggle-spacer { width: 20px; height: 20px; flex-shrink: 0; }
+.doc-outline-toggle,
+.doc-outline-toggle-spacer {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
 .doc-outline-toggle {
   display: flex;
   align-items: center;
@@ -1697,11 +2489,24 @@ select:not(.share-access-select):not(.share-role-select) {
   border-radius: 4px;
   padding: 0;
 }
-.doc-outline-toggle:hover { background: var(--bg); }
-.doc-outline-toggle .icon { width: 13px; height: 13px; transition: transform 0.12s ease; }
-.doc-outline-toggle.expanded .icon { transform: rotate(90deg); }
+.doc-outline-toggle:hover {
+  background: var(--bg);
+}
+.doc-outline-toggle .icon {
+  width: 13px;
+  height: 13px;
+  transition: transform 0.12s ease;
+}
+.doc-outline-toggle.expanded .icon {
+  transform: rotate(90deg);
+}
 
-.doc-row .doc-icon { flex-shrink: 0; width: 14px; height: 14px; opacity: 0.55; }
+.doc-row .doc-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  opacity: 0.55;
+}
 
 .doc-row .doc-name {
   flex: 1;
@@ -1721,9 +2526,19 @@ select:not(.share-access-select):not(.share-role-select) {
   border-radius: 4px;
   display: flex;
 }
-.doc-row:hover .doc-menu-btn, .doc-menu-btn.active { opacity: 1; }
-.doc-menu-btn:hover, .doc-menu-btn.active { background: var(--bg); color: var(--text); }
-.doc-menu-btn .icon { width: 14px; height: 14px; }
+.doc-row:hover .doc-menu-btn,
+.doc-menu-btn.active {
+  opacity: 1;
+}
+.doc-menu-btn:hover,
+.doc-menu-btn.active {
+  background: var(--bg);
+  color: var(--text);
+}
+.doc-menu-btn .icon {
+  width: 14px;
+  height: 14px;
+}
 
 /* position:fixed (coordinates computed in DocList.svelte from the trigger
    button's own bounding rect) rather than the .dropdown-menu pattern's
@@ -1752,10 +2567,22 @@ select:not(.share-access-select):not(.share-role-select) {
   font-size: 13.5px;
   cursor: pointer;
 }
-.doc-menu-popover button:hover { background: var(--accent-dim); color: var(--accent); }
-.doc-menu-popover button.danger { color: var(--danger); }
-.doc-menu-popover button.danger:hover { background: rgba(220,38,38,0.12); color: var(--danger); }
-.doc-menu-popover .icon { width: 15px; height: 15px; flex-shrink: 0; }
+.doc-menu-popover button:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.doc-menu-popover button.danger {
+  color: var(--danger);
+}
+.doc-menu-popover button.danger:hover {
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--danger);
+}
+.doc-menu-popover .icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
 
 .doc-menu-submenu-label {
   padding: 8px 14px 4px;
@@ -1784,16 +2611,29 @@ select:not(.share-access-select):not(.share-role-select) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.outline-item:hover { background: var(--border); color: var(--text); }
-.outline-item[data-level="2"] { padding-left: 46px; }
-.outline-item[data-level="3"] { padding-left: 58px; }
-.outline-item[data-level="4"], .outline-item[data-level="5"], .outline-item[data-level="6"] { padding-left: 70px; }
+.outline-item:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.outline-item[data-level="2"] {
+  padding-left: 46px;
+}
+.outline-item[data-level="3"] {
+  padding-left: 58px;
+}
+.outline-item[data-level="4"],
+.outline-item[data-level="5"],
+.outline-item[data-level="6"] {
+  padding-left: 70px;
+}
 
 /* Hidden by default (desktop) — activeTab (DocList.svelte) never
    changes on desktop since there's no visible way to trigger it there,
    so the {#if activeTab === "documents"} branch always wins regardless
    of this rule. Shown only inside the mobile media query below. */
-.doclist-tabs { display: none; }
+.doclist-tabs {
+  display: none;
+}
 
 .doclist-headings-tab-label {
   padding: 8px 14px 4px;
@@ -1819,27 +2659,76 @@ select:not(.share-access-select):not(.share-role-select) {
   overflow: hidden;
 }
 
-#editorPane { flex: 1; }
-#previewPane { flex: 1; border-left: 1px solid var(--border); }
+#editorPane {
+  flex: 1;
+}
+#previewPane {
+  flex: 1;
+  border-left: 1px solid var(--border);
+}
 
-.empty-state { flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; }
-.empty-state-inner { text-align: center; max-width: 380px; padding: 24px; display: none; }
-.empty-state:not(.no-workspace) .empty-state-has-workspace { display: block; }
-.empty-state.no-workspace .empty-state-no-workspace { display: block; }
-.empty-state-inner img { opacity: 0.9; margin-bottom: 18px; }
-.empty-state-inner h1 { font-size: 21px; margin: 0 0 8px; color: var(--text); }
-.empty-state-inner p { color: var(--text-dim); font-size: 13.5px; line-height: 1.5; margin: 0 0 26px; }
-.empty-state-actions { display: flex; flex-direction: column; gap: 8px; }
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+.empty-state-inner {
+  text-align: center;
+  max-width: 380px;
+  padding: 24px;
+  display: none;
+}
+.empty-state:not(.no-workspace) .empty-state-has-workspace {
+  display: block;
+}
+.empty-state.no-workspace .empty-state-no-workspace {
+  display: block;
+}
+.empty-state-inner img {
+  opacity: 0.9;
+  margin-bottom: 18px;
+}
+.empty-state-inner h1 {
+  font-size: 21px;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+.empty-state-inner p {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0 0 26px;
+}
+.empty-state-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-#body.mode-editor #previewPane, #body.mode-editor #divider { display: none; }
-#body.mode-preview #editorPane, #body.mode-preview #divider { display: none; }
-#body.mode-editor #editorPane { flex: 1; }
-#body.mode-preview #previewPane { flex: 1; border-left: none; }
+#body.mode-editor #previewPane,
+#body.mode-editor #divider {
+  display: none;
+}
+#body.mode-preview #editorPane,
+#body.mode-preview #divider {
+  display: none;
+}
+#body.mode-editor #editorPane {
+  flex: 1;
+}
+#body.mode-preview #previewPane {
+  flex: 1;
+  border-left: none;
+}
 
 /* The formatting buttons act on the editor — nothing for them to do
    with no editor visible. The view-selector (a grid sibling, not inside
    .toolbar-buttons) stays visible so there's always a way back. */
-#body.mode-preview #toolbar .toolbar-buttons { display: none; }
+#body.mode-preview #toolbar .toolbar-buttons {
+  display: none;
+}
 
 #divider {
   width: 1px;
@@ -1871,7 +2760,9 @@ select:not(.share-access-select):not(.share-role-select) {
 /* Google Docs-style "more tools" overflow — see Toolbar.svelte's
    recalcOverflow(). A flex row, not a vertical list, so buttons read the
    same wrapped-grid way in the dropdown as they do inline. */
-.toolbar-overflow { flex-shrink: 0; }
+.toolbar-overflow {
+  flex-shrink: 0;
+}
 .toolbar-overflow-menu {
   /* display stays with the base .dropdown-menu/.dropdown-menu.open
      pair (none / block) — only overridden to flex once .open is also
@@ -1885,7 +2776,9 @@ select:not(.share-access-select):not(.share-role-select) {
   left: auto;
   right: 0;
 }
-.toolbar-overflow-menu.open { display: flex; }
+.toolbar-overflow-menu.open {
+  display: flex;
+}
 .toolbar-overflow-menu button:not(.primary-btn):not(.secondary-btn) {
   display: flex;
   align-items: center;
@@ -1897,7 +2790,9 @@ select:not(.share-access-select):not(.share-role-select) {
   font-size: 12.5px;
   text-align: center;
 }
-.toolbar-overflow-menu .sep { display: none; }
+.toolbar-overflow-menu .sep {
+  display: none;
+}
 
 /* A separate flex item alongside #toolbar in #topbar-row, sized by its
    own content (not stretched — #toolbar's flex: 1 absorbs the rest of
@@ -1913,9 +2808,22 @@ select:not(.share-access-select):not(.share-role-select) {
   border-bottom: 1px solid var(--border);
   background: var(--bg-alt);
 }
-.view-selector button { border: none; background: transparent; color: var(--text); padding: 5px 9px; border-radius: 5px; cursor: pointer; display: flex; }
-.view-selector button:hover { background: var(--border); }
-.view-selector button.active { background: var(--accent-dim); color: var(--accent); }
+.view-selector button {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 5px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+}
+.view-selector button:hover {
+  background: var(--border);
+}
+.view-selector button.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 
 .toolbar-buttons button {
   border: none;
@@ -1928,7 +2836,9 @@ select:not(.share-access-select):not(.share-role-select) {
   min-width: 30px;
 }
 
-.toolbar-buttons button:hover { background: var(--border); }
+.toolbar-buttons button:hover {
+  background: var(--border);
+}
 
 /* #sidebarToggleOut and the "⋮" overflow toggle both reuse the app-wide
    .icon-btn class (for its active-state color, shared with every other
@@ -1955,8 +2865,14 @@ select:not(.share-access-select):not(.share-role-select) {
    element (.cm-editor) is sized via its theme() extension instead of
    here — this just needs to give that element something with a real
    height to fill in the first place. */
-#editorWrap { flex: 1; min-height: 0; overflow: hidden; }
-#editorWrap .cm-host { height: 100%; }
+#editorWrap {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+#editorWrap .cm-host {
+  height: 100%;
+}
 
 #preview {
   position: relative;
@@ -1971,9 +2887,21 @@ select:not(.share-access-select):not(.share-role-select) {
   overflow-wrap: break-word;
 }
 
-#preview h1, #preview h2, #preview h3 { line-height: 1.3; }
-#preview h1 { font-size: 1.9em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
-#preview h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
+#preview h1,
+#preview h2,
+#preview h3 {
+  line-height: 1.3;
+}
+#preview h1 {
+  font-size: 1.9em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25em;
+}
+#preview h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.2em;
+}
 #preview code {
   font-family: var(--mono);
   background: var(--bg-alt);
@@ -1981,14 +2909,18 @@ select:not(.share-access-select):not(.share-role-select) {
   border-radius: 4px;
   font-size: 0.88em;
 }
-#preview pre, .diagram-editor-preview pre {
+#preview pre,
+.diagram-editor-preview pre {
   background: var(--bg-alt);
   padding: 14px 16px;
   border-radius: 8px;
   overflow-x: auto;
   border: 1px solid var(--border);
 }
-#preview pre code { background: none; padding: 0; }
+#preview pre code {
+  background: none;
+  padding: 0;
+}
 #preview blockquote {
   border-left: 3px solid var(--accent);
   margin: 0;
@@ -1997,17 +2929,38 @@ select:not(.share-access-select):not(.share-role-select) {
   background: var(--bg-alt);
   border-radius: 0 6px 6px 0;
 }
-#preview table { border-collapse: collapse; width: 100%; }
-#preview th, #preview td { border: 1px solid var(--border); padding: 6px 10px; }
-#preview th { background: var(--bg-alt); }
-#preview img { max-width: 100%; border-radius: 6px; }
-#preview a { color: var(--accent); }
+#preview table {
+  border-collapse: collapse;
+  width: 100%;
+}
+#preview th,
+#preview td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+}
+#preview th {
+  background: var(--bg-alt);
+}
+#preview img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+#preview a {
+  color: var(--accent);
+}
 /* GFM task-list items (marked's checkbox <li>s carry no distinguishing
    class in this version — bare <li><input type="checkbox">...) still
    get the browser's default bullet marker alongside the checkbox
    without this, showing both a dot and a checkbox. */
-#preview li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.2em; }
-#preview hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+#preview li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.2em;
+}
+#preview hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
 
 .sr-only {
   position: absolute;
@@ -2026,14 +2979,21 @@ select:not(.share-access-select):not(.share-role-select) {
   font-size: 0.9em;
   color: var(--text-dim);
 }
-#preview .footnotes ol { padding-left: 20px; }
-#preview [data-footnote-ref], #preview [data-footnote-backref] {
+#preview .footnotes ol {
+  padding-left: 20px;
+}
+#preview [data-footnote-ref],
+#preview [data-footnote-backref] {
   color: var(--accent);
   text-decoration: none;
 }
-#preview [data-footnote-ref]:hover, #preview [data-footnote-backref]:hover { text-decoration: underline; }
+#preview [data-footnote-ref]:hover,
+#preview [data-footnote-backref]:hover {
+  text-decoration: underline;
+}
 
-#preview pre.mermaid.mermaid-rendered, .diagram-editor-preview pre.mermaid.mermaid-rendered {
+#preview pre.mermaid.mermaid-rendered,
+.diagram-editor-preview pre.mermaid.mermaid-rendered {
   background: none;
   border: none;
   padding: 0;
@@ -2041,19 +3001,29 @@ select:not(.share-access-select):not(.share-role-select) {
   justify-content: center;
   overflow-x: auto;
 }
-#preview pre.mermaid.mermaid-rendered svg, .diagram-editor-preview pre.mermaid.mermaid-rendered svg { max-width: 100%; }
-#preview pre.mermaid.mermaid-error, .diagram-editor-preview pre.mermaid.mermaid-error { white-space: normal; }
-#preview .mermaid-error-message, .diagram-editor-preview .mermaid-error-message {
+#preview pre.mermaid.mermaid-rendered svg,
+.diagram-editor-preview pre.mermaid.mermaid-rendered svg {
+  max-width: 100%;
+}
+#preview pre.mermaid.mermaid-error,
+.diagram-editor-preview pre.mermaid.mermaid-error {
+  white-space: normal;
+}
+#preview .mermaid-error-message,
+.diagram-editor-preview .mermaid-error-message {
   color: var(--danger);
   font-weight: 600;
   margin: 0 0 8px;
 }
-#preview .mermaid-error-source, .diagram-editor-preview .mermaid-error-source {
+#preview .mermaid-error-source,
+.diagram-editor-preview .mermaid-error-source {
   display: block;
   white-space: pre-wrap;
   font-family: var(--mono);
 }
-#preview pre.mermaid { position: relative; }
+#preview pre.mermaid {
+  position: relative;
+}
 #preview .mermaid-edit-btn {
   position: absolute;
   top: 8px;
@@ -2070,7 +3040,9 @@ select:not(.share-access-select):not(.share-role-select) {
   color: var(--text);
 }
 #preview pre.mermaid:hover .mermaid-edit-btn,
-#preview .mermaid-edit-btn:focus-visible { opacity: 1; }
+#preview .mermaid-edit-btn:focus-visible {
+  opacity: 1;
+}
 
 /* Diagram editor */
 .diagram-editor-overlay {
@@ -2089,9 +3061,17 @@ select:not(.share-access-select):not(.share-role-select) {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.diagram-editor-header h2 { margin: 0; font-size: 16px; font-weight: 600; flex: 1; }
+.diagram-editor-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+}
 .diagram-editor-header .secondary-btn,
-.diagram-editor-header .primary-btn { width: auto; margin-bottom: 0; }
+.diagram-editor-header .primary-btn {
+  width: auto;
+  margin-bottom: 0;
+}
 .diagram-editor-body {
   flex: 1;
   display: grid;
@@ -2102,17 +3082,25 @@ select:not(.share-access-select):not(.share-role-select) {
   overflow: auto;
   border-right: 1px solid var(--border);
 }
-.diagram-editor-code-host .cm-editor { height: 100%; font-family: var(--mono); }
+.diagram-editor-code-host .cm-editor {
+  height: 100%;
+  font-family: var(--mono);
+}
 /* KaTeX renders in a hardcoded near-black by default — inherit the
    app's own text color in both themes instead, same as every other
    preview element. */
-.katex { color: var(--text); }
+.katex {
+  color: var(--text);
+}
 /* .diagram-editor-preview-wrap is now the direct grid child — it
    stretches to fill its grid cell automatically (CSS Grid's default
    align-items: stretch). .diagram-editor-preview, nested one level
    deeper as a plain block child rather than the grid child itself, does
    NOT automatically inherit that stretched height, hence height: 100%. */
-.diagram-editor-preview-wrap { position: relative; overflow: hidden; }
+.diagram-editor-preview-wrap {
+  position: relative;
+  overflow: hidden;
+}
 .diagram-editor-preview {
   overflow: hidden;
   height: 100%;
@@ -2132,16 +3120,27 @@ select:not(.share-access-select):not(.share-role-select) {
   color: var(--text);
   cursor: pointer;
 }
-.diagram-preview-reset:hover { background: var(--border); }
-.diagram-editor-body.with-reference { grid-template-columns: 1fr 1fr 320px; }
+.diagram-preview-reset:hover {
+  background: var(--border);
+}
+.diagram-editor-body.with-reference {
+  grid-template-columns: 1fr 1fr 320px;
+}
 .diagram-editor-reference {
   overflow: auto;
   padding: 16px;
   border-left: 1px solid var(--border);
   font-size: 12.5px;
 }
-.diagram-editor-reference h3 { font-size: 12px; text-transform: uppercase; color: var(--text-dim); margin: 16px 0 6px; }
-.diagram-editor-reference h3:first-child { margin-top: 0; }
+.diagram-editor-reference h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 16px 0 6px;
+}
+.diagram-editor-reference h3:first-child {
+  margin-top: 0;
+}
 .diagram-editor-reference pre {
   background: var(--bg-alt);
   border: 1px solid var(--border);
@@ -2181,7 +3180,10 @@ select:not(.share-access-select):not(.share-role-select) {
   font-size: 13px;
   font-weight: 600;
 }
-.diagram-template-card:hover { border-color: var(--accent); color: var(--accent); }
+.diagram-template-card:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .diagram-template-or {
   display: flex;
   flex-direction: column;
@@ -2204,15 +3206,29 @@ select:not(.share-access-select):not(.share-role-select) {
   flex-shrink: 0;
 }
 
-.statusbar-link { display: flex; color: var(--text-dim); }
-.statusbar-link .icon { width: 13px; height: 13px; }
-.statusbar-link:hover { color: var(--accent); }
+.statusbar-link {
+  display: flex;
+  color: var(--text-dim);
+}
+.statusbar-link .icon {
+  width: 13px;
+  height: 13px;
+}
+.statusbar-link:hover {
+  color: var(--accent);
+}
 
-.keybinding-mode-indicator { font-weight: 600; color: var(--accent); letter-spacing: 0.03em; }
+.keybinding-mode-indicator {
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+}
 
 /* Comments Panel */
 .comments-panel {
-  transition: transform 0.15s ease, margin-right 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    margin-right 0.15s ease;
 }
 
 .comments-panel.collapsed {
@@ -2250,7 +3266,10 @@ select:not(.share-access-select):not(.share-role-select) {
     box-shadow: var(--shadow);
     color: var(--text);
   }
-  .focus-mode-exit-btn .icon { width: 18px; height: 18px; }
+  .focus-mode-exit-btn .icon {
+    width: 18px;
+    height: 18px;
+  }
 
   /* A flyout extending further right would overflow a phone screen —
      flow it inline (pushes the rest of the menu down) instead. The
@@ -2259,15 +3278,29 @@ select:not(.share-access-select):not(.share-role-select) {
      rather than a highlighted row sitting above a disconnected white
      panel; the trigger's own .active accent-dim tint (see base rule)
      still shows through on top of it. */
-  .menu-submenu.open { background: var(--bg-alt); border-radius: 6px; }
-  .menu-submenu-panel { position: static; margin: 0 0 4px 16px; box-shadow: none; border: none; background: transparent; border-radius: 0; }
+  .menu-submenu.open {
+    background: var(--bg-alt);
+    border-radius: 6px;
+  }
+  .menu-submenu-panel {
+    position: static;
+    margin: 0 0 4px 16px;
+    box-shadow: none;
+    border: none;
+    background: transparent;
+    border-radius: 0;
+  }
 
   /* Desktop's chevron points right, toward where the flyout appears.
      On mobile the panel instead expands inline below the trigger, so
      rotate the same icon to point down (collapsed) / up (open) —
      standard accordion affordance — rather than swapping icons. */
-  .menu-chevron { transform: rotate(90deg); }
-  .menu-submenu-trigger.active .menu-chevron { transform: rotate(-90deg); }
+  .menu-chevron {
+    transform: rotate(90deg);
+  }
+  .menu-submenu-trigger.active .menu-chevron {
+    transform: rotate(-90deg);
+  }
 
   /* Anchored to #body (its own positioning context, already sized to
      exclude the topbar/footer by the flex layout) instead of a hardcoded
@@ -2288,7 +3321,10 @@ select:not(.share-access-select):not(.share-role-select) {
     pointer-events: none;
     transition: opacity 0.15s ease;
   }
-  #sidebarBackdrop.visible { opacity: 1; pointer-events: auto; }
+  #sidebarBackdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
 
   /* Flush to the screen's left/right/bottom edges, only the top corners
      rounded — matches the native iOS bottom-sheet look (e.g. Google
@@ -2320,7 +3356,10 @@ select:not(.share-access-select):not(.share-role-select) {
     box-shadow: var(--shadow);
     transition: transform 0.15s ease;
   }
-  #sidebar.collapsed { transform: translateY(100%); margin-left: 0; }
+  #sidebar.collapsed {
+    transform: translateY(100%);
+    margin-left: 0;
+  }
 
   .doclist-tabs {
     display: flex;
@@ -2339,13 +3378,20 @@ select:not(.share-access-select):not(.share-role-select) {
     border-radius: 6px;
     cursor: pointer;
   }
-  .doclist-tabs button.active { background: var(--accent-dim); color: var(--accent); }
+  .doclist-tabs button.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
 
   /* The per-row expand is replaced by the Headings tab on mobile —
      desktop keeps it untouched (this rule only applies inside this
      mobile media query, same pattern as every other mobile-only
      override in this file). */
-  .doc-outline-toggle, .doc-outline-toggle-spacer, #docList .doc-outline { display: none; }
+  .doc-outline-toggle,
+  .doc-outline-toggle-spacer,
+  #docList .doc-outline {
+    display: none;
+  }
 
   /* Always rendered (see CommentsPanel.svelte — no longer inside the
      {#if $commentsPanelOpen} block) at opacity:0/pointer-events:none by
@@ -2361,8 +3407,10 @@ select:not(.share-access-select):not(.share-role-select) {
     pointer-events: none;
     transition: opacity 0.15s ease;
   }
-  .mobile-sheet-backdrop.visible { opacity: 1; pointer-events: auto; }
-
+  .mobile-sheet-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
 
   /* Flush to the screen's left/right/bottom edges, only the top corners
      rounded (not the desktop 320px side panel either — that rule
@@ -2381,17 +3429,29 @@ select:not(.share-access-select):not(.share-role-select) {
     z-index: 40;
     box-shadow: var(--shadow);
     border-left: none;
-    transition: transform 0.15s ease, opacity 0.15s ease, visibility 0s 0s;
+    transition:
+      transform 0.15s ease,
+      opacity 0.15s ease,
+      visibility 0s 0s;
   }
   .comments-panel.collapsed {
     transform: translateY(100%);
     margin-right: 0;
   }
 
-  #body.mode-split #main { flex-direction: column; }
-  #body.mode-split #previewPane { border-left: none; border-top: 1px solid var(--border); }
-  #body.mode-split #divider { display: none; }
-  #docTitle { max-width: 120px; }
+  #body.mode-split #main {
+    flex-direction: column;
+  }
+  #body.mode-split #previewPane {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  #body.mode-split #divider {
+    display: none;
+  }
+  #docTitle {
+    max-width: 120px;
+  }
 
   /* #sidebar and .comments-panel are position: fixed on mobile, so
      #content-row has nothing left to actually lay out besides #main —
@@ -2421,16 +3481,26 @@ select:not(.share-access-select):not(.share-role-select) {
      well under 16px). Not fought via a maximum-scale/user-scalable
      viewport override instead, since that disables pinch-zoom for
      everyone — a real accessibility regression. */
-  input, textarea, select { font-size: 16px; }
-  .cm-content { font-size: 16px; }
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  .cm-content {
+    font-size: 16px;
+  }
 
   /* Mobile-friendly padding to avoid wasting horizontal space. Scoped to
      the main editor's own mount point, not a bare .cm-content selector —
      DiagramEditor.svelte's separate CodeMirror instance lives outside
      #editor-mount and must not inherit this. */
-  #editor-mount .cm-content { padding: 24px 16px 4px 16px !important; }
+  #editor-mount .cm-content {
+    padding: 24px 16px 4px 16px !important;
+  }
   #preview {
-  position: relative; padding: 24px 16px !important; }
+    position: relative;
+    padding: 24px 16px !important;
+  }
 
   /* Plain wrap, not scroll: overflow-x:auto here would also clip the
      File/Edit/View/Help dropdowns vertically, since they're absolutely
@@ -2438,7 +3508,12 @@ select:not(.share-access-select):not(.share-role-select) {
      overflowing descendants on BOTH axes, not just the one you set).
      Wrapping can't clip anything, and in practice nothing needs to wrap
      down to real phone widths anyway (verified at 390px). */
-  .topbar-row { flex-wrap: wrap; row-gap: 4px; padding-left: 10px; padding-right: 10px; }
+  .topbar-row {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
 
   /* The desktop grid (logo/actions as tall flanking columns) doesn't
      fit a phone width — fall back to a wrapping flex row instead:
@@ -2446,35 +3521,91 @@ select:not(.share-access-select):not(.share-role-select) {
      line (wrapping as needed), and the menu bar is forced onto its
      own full-width line below via flex-basis. */
   #topbar {
-  z-index: 300; display: flex; flex-wrap: wrap; align-items: center; padding: 6px 10px; }
-  #brand { order: 1; border-right: none; padding: 0 8px 0 0; }
-  #brand img { width: 22px; height: 22px; }
-  #topbarRow1 { order: 2; flex: 1; padding: 0; min-width: 0; }
-  #topbarActionsCol { order: 3; border-left: none; padding: 0; gap: 8px; }
-  #menuBar { order: 4; flex-basis: 100%; padding: 4px 0 0; }
+    z-index: 300;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 6px 10px;
+  }
+  #brand {
+    order: 1;
+    border-right: none;
+    padding: 0 8px 0 0;
+  }
+  #brand img {
+    width: 22px;
+    height: 22px;
+  }
+  #topbarRow1 {
+    order: 2;
+    flex: 1;
+    padding: 0;
+    min-width: 0;
+  }
+  #topbarActionsCol {
+    order: 3;
+    border-left: none;
+    padding: 0;
+    gap: 8px;
+  }
+  #menuBar {
+    order: 4;
+    flex-basis: 100%;
+    padding: 4px 0 0;
+  }
 
-  .share-pill, .menubar-btn, #topbarActionsCol .icon-btn { flex-shrink: 0; }
-  #menuBar .icon-btn { width: 40px; height: 40px; flex-shrink: 0; }
+  .share-pill,
+  .menubar-btn,
+  #topbarActionsCol .icon-btn {
+    flex-shrink: 0;
+  }
+  #menuBar .icon-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
 
   /* Comfortable touch targets (~44px is the platform-recommended minimum). */
-  .icon-btn { width: 40px; height: 40px; font-size: 17px; }
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
+  }
 
   /* The desktop action-column sizing above (bigger icon glyphs, a wider
      Share pill) is deliberately scaled up to match the logo's presence
      in that tall column — none of that applies on a phone-width topbar,
      which just wants the same small, icon-only controls every other
      mobile topbar button already uses. */
-  #topbarActionsCol .icon-btn .icon { width: 18px; height: 18px; }
-  #topbarActionsCol .share-pill { height: auto; padding: 8px; border-radius: 50%; }
-  #topbarActionsCol .share-pill .icon { width: 17px; height: 17px; }
-  .share-pill-label { display: none; }
+  #topbarActionsCol .icon-btn .icon {
+    width: 18px;
+    height: 18px;
+  }
+  #topbarActionsCol .share-pill {
+    height: auto;
+    padding: 8px;
+    border-radius: 50%;
+  }
+  #topbarActionsCol .share-pill .icon {
+    width: 17px;
+    height: 17px;
+  }
+  .share-pill-label {
+    display: none;
+  }
 
   /* The formatting toolbar's overflow-into-"⋮" (see Toolbar.svelte's
      recalcOverflow()) already handles narrow widths generically — no
      mobile-specific scroll/wrap override needed here anymore, just
      bigger touch targets for whichever buttons stay visible. */
-  #toolbar button { flex-shrink: 0; min-width: 36px; padding: 7px 10px; }
-  #toolbar .sep { flex-shrink: 0; }
+  #toolbar button {
+    flex-shrink: 0;
+    min-width: 36px;
+    padding: 7px 10px;
+  }
+  #toolbar .sep {
+    flex-shrink: 0;
+  }
 
   /* What's New: full-screen instead of a floating centered box (there's
      not enough width on a phone to float one usefully), and the
@@ -2491,7 +3622,11 @@ select:not(.share-access-select):not(.share-role-select) {
     max-height: none;
     border-radius: 0;
   }
-  .modal-box-v2:has(.whats-new-slide) .whats-new-slide { flex-direction: column; flex: 1; align-items: center; }
+  .modal-box-v2:has(.whats-new-slide) .whats-new-slide {
+    flex-direction: column;
+    flex: 1;
+    align-items: center;
+  }
   /* Full-bleed edge-to-edge, breaking out of .modal-body's 24px side
      padding with a matching negative margin — a floating inset image
      read as an accidental gap on a full-screen mobile sheet, flush to
@@ -2507,7 +3642,9 @@ select:not(.share-access-select):not(.share-role-select) {
     border-radius: 0;
     border: none;
   }
-  .modal-backdrop:has(.whats-new-slide) { padding: 0; }
+  .modal-backdrop:has(.whats-new-slide) {
+    padding: 0;
+  }
 
   /* Version History: the desktop two-column layout (a fixed 260px list
      column beside a flexible preview) had no mobile override at all —
@@ -2558,10 +3695,16 @@ select:not(.share-access-select):not(.share-role-select) {
   pointer-events: auto;
   animation: toast-slide-up 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
-.toast-success { border-left-color: #12b886; }
-.toast-error { border-left-color: var(--danger); }
+.toast-success {
+  border-left-color: #12b886;
+}
+.toast-error {
+  border-left-color: var(--danger);
+}
 
-.toast-message { flex: 1; }
+.toast-message {
+  flex: 1;
+}
 
 .toast-close {
   flex-shrink: 0;
@@ -2573,16 +3716,30 @@ select:not(.share-access-select):not(.share-role-select) {
   border-radius: 4px;
   display: flex;
 }
-.toast-close:hover { background: var(--bg-alt); color: var(--text); }
-.toast-close .icon { width: 13px; height: 13px; }
+.toast-close:hover {
+  background: var(--bg-alt);
+  color: var(--text);
+}
+.toast-close .icon {
+  width: 13px;
+  height: 13px;
+}
 
 @keyframes toast-slide-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toast { animation: none; }
+  .toast {
+    animation: none;
+  }
 }
 
 /* Settings Layout */
@@ -2650,38 +3807,74 @@ select:not(.share-access-select):not(.share-role-select) {
 }
 
 /* Micro-interactions: Button Feedback */
-.icon-btn, .share-pill, .primary-btn, .secondary-btn, .danger-btn {
-  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+.icon-btn,
+.share-pill,
+.primary-btn,
+.secondary-btn,
+.danger-btn {
+  transition:
+    transform 0.1s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
 }
 
-.icon-btn:active, .share-pill:active, .primary-btn:active, .secondary-btn:active, .danger-btn:active {
+.icon-btn:active,
+.share-pill:active,
+.primary-btn:active,
+.secondary-btn:active,
+.danger-btn:active {
   transform: scale(0.96);
 }
 
 /* Micro-interactions: Popup Transitions */
 @keyframes popup-in {
-  from { transform: scale(0.96); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-.modal-backdrop, .version-history-overlay, .diagram-editor-overlay {
+.modal-backdrop,
+.version-history-overlay,
+.diagram-editor-overlay {
   animation: fade-in 0.15s ease-out forwards;
 }
 
-.modal-content, .modal-box, .modal-box-v2, .dropdown-menu.open, .slash-menu, .command-palette, .doc-menu-popover, .menu-submenu.open .menu-submenu-panel {
+.modal-content,
+.modal-box,
+.modal-box-v2,
+.dropdown-menu.open,
+.slash-menu,
+.command-palette,
+.doc-menu-popover,
+.menu-submenu.open .menu-submenu-panel {
   animation: popup-in 0.15s ease-out forwards;
 }
 
 /* Micro-interactions: Global Animations */
 
 /* Hover Transitions */
-.workspace-row, .doc-row, .menu-item {
-  transition: background 0.15s ease, color 0.15s ease;
+.workspace-row,
+.doc-row,
+.menu-item {
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 /* min-width: 781px (desktop only) — mobile's own #sidebar rule (see the
@@ -2699,28 +3892,51 @@ select:not(.share-access-select):not(.share-role-select) {
 }
 
 /* Button Feedback */
-.icon-btn, .share-pill, .primary-btn, .secondary-btn, .danger-btn {
-  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+.icon-btn,
+.share-pill,
+.primary-btn,
+.secondary-btn,
+.danger-btn {
+  transition:
+    transform 0.1s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
 }
 
-.icon-btn:active, .share-pill:active, .primary-btn:active, .secondary-btn:active, .danger-btn:active {
+.icon-btn:active,
+.share-pill:active,
+.primary-btn:active,
+.secondary-btn:active,
+.danger-btn:active {
   transform: scale(0.96);
 }
 
 /* Input Focus Transitions */
-input, textarea, select {
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+input,
+textarea,
+select {
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 /* Theme Switching */
 body {
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 /* Skeleton Loader Shimmer */
 @keyframes shimmer {
-  0% { background-position: -1000px 0; }
-  100% { background-position: 1000px 0; }
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
 }
 
 .skeleton {

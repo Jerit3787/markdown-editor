@@ -231,9 +231,27 @@ import katexCss from "katex/dist/katex.min.css?raw";
   function buildEditorExtensions(): Extension[] {
     return [
       keymap.of([
-        { key: "Mod-b", run: () => { window.MDE.runCmd?.("bold"); return true; } },
-        { key: "Mod-i", run: () => { window.MDE.runCmd?.("italic"); return true; } },
-        { key: "Mod-k", run: () => { window.MDE.runCmd?.("link"); return true; } },
+        {
+          key: "Mod-b",
+          run: () => {
+            window.MDE.runCmd?.("bold");
+            return true;
+          },
+        },
+        {
+          key: "Mod-i",
+          run: () => {
+            window.MDE.runCmd?.("italic");
+            return true;
+          },
+        },
+        {
+          key: "Mod-k",
+          run: () => {
+            window.MDE.runCmd?.("link");
+            return true;
+          },
+        },
       ]),
       // Tab/Shift-Tab indent-select-lines by default (indentWithTab
       // captures Tab entirely — it no longer moves focus out of the
@@ -260,14 +278,16 @@ import katexCss from "katex/dist/katex.min.css?raw";
     ];
   }
 
-
   // ---------- Edit menu clipboard commands ----------
   // The browser's native Ctrl/Cmd+X/C/V already work on the editor without
   // any of this — these three only exist to back the Edit-menu Cut/Copy/Paste
   // items, since a menu click has no native clipboard access of its own.
   async function menuClipboardCut() {
     const { from, to } = cm.state.selection.main;
-    if (from === to) { cm.focus(); return; }
+    if (from === to) {
+      cm.focus();
+      return;
+    }
     const sel = cm.state.sliceDoc(from, to);
     try {
       await navigator.clipboard.writeText(sel);
@@ -281,7 +301,10 @@ import katexCss from "katex/dist/katex.min.css?raw";
 
   async function menuClipboardCopy() {
     const { from, to } = cm.state.selection.main;
-    if (from === to) { cm.focus(); return; }
+    if (from === to) {
+      cm.focus();
+      return;
+    }
     const sel = cm.state.sliceDoc(from, to);
     try {
       await navigator.clipboard.writeText(sel);
@@ -899,8 +922,6 @@ import katexCss from "katex/dist/katex.min.css?raw";
     });
   }
 
-
-
   function openGithubSignInPopup() {
     const width = 600;
     const height = 700;
@@ -969,9 +990,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
     // broken escape could affect is the exporting user opening their own
     // file — but it costs nothing to guard correctly.
     const rawCustomCss = localStorage.getItem("mde:customExportCss") || "";
-    const customCssBlock = rawCustomCss
-      ? `<style>${rawCustomCss.replace(/<\/style/gi, "<\\/style")}</style>`
-      : "";
+    const customCssBlock = rawCustomCss ? `<style>${rawCustomCss.replace(/<\/style/gi, "<\\/style")}</style>` : "";
     return `<!DOCTYPE html>
 <html lang="en">
 <head>

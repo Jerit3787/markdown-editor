@@ -176,8 +176,7 @@ export class MemoryFS {
     const target = this.normalize(path);
     await this.mkdir(this.parent(target), { recursive: true });
 
-    const bytes =
-      typeof data === "string" ? this.encoder.encode(data) : data instanceof Uint8Array ? data : new Uint8Array(data);
+    const bytes = typeof data === "string" ? this.encoder.encode(data) : data instanceof Uint8Array ? data : new Uint8Array(data);
 
     this.entries.set(target, {
       kind: "file",

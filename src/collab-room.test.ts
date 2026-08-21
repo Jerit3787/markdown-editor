@@ -69,7 +69,10 @@ describe("normalizeInvited", () => {
   });
 
   it("trims whitespace and skips empty usernames", () => {
-    const result = normalizeInvited([{ username: "  bob  ", role: "editor" }, { username: "   ", role: "editor" }]);
+    const result = normalizeInvited([
+      { username: "  bob  ", role: "editor" },
+      { username: "   ", role: "editor" },
+    ]);
     expect(result).toEqual([{ username: "bob", role: "editor" }]);
   });
 
@@ -588,9 +591,7 @@ describe("CollabRoom.handleAccessRequest", () => {
 
   it("PUT without a session is rejected", async () => {
     const room = new CollabRoom(fakeState(), fakeEnv);
-    const res = await room.handleAccessRequest(
-      new Request("https://example.com/room1/access", { method: "PUT", body: "{}" })
-    );
+    const res = await room.handleAccessRequest(new Request("https://example.com/room1/access", { method: "PUT", body: "{}" }));
     expect(res.status).toBe(401);
   });
 
@@ -618,7 +619,10 @@ describe("CollabRoom.handleAccessRequest", () => {
     await putAccess(room, "alice", {
       generalAccess: "restricted",
       role: "viewer",
-      invited: [{ username: "bob", role: "editor" }, { username: "bob", role: "viewer" }],
+      invited: [
+        { username: "bob", role: "editor" },
+        { username: "bob", role: "viewer" },
+      ],
     });
     const access = await room.getAccess();
     expect(access.invited).toEqual([{ username: "bob", role: "editor" }]);
@@ -632,7 +636,7 @@ describe("CollabRoom.handleAccessRequest", () => {
         method: "PUT",
         headers: { Cookie: `mde_gh_session=${cookie}` },
         body: "not json",
-      })
+      }),
     );
     expect(res.status).toBe(400);
   });

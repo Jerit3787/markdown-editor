@@ -15,10 +15,7 @@ export function diagramKey(diagrams: Record<string, string>): string {
 // into a real, portable ```mermaid block for export/publish. A ref key is
 // always a single line (see diagramKey), so the fence's content is
 // captured as one line, not multiline source.
-export function resolveDiagramRefs(
-  text: string,
-  diagrams: Record<string, string> | undefined,
-): string {
+export function resolveDiagramRefs(text: string, diagrams: Record<string, string> | undefined): string {
   if (!diagrams) return text;
   return text.replace(/```mermaid[ \t]*\n([^\n]*)\n```/g, (match, ref) => {
     const source = diagrams[ref];

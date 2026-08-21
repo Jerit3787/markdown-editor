@@ -5,10 +5,25 @@
 // computeNewTreeEntries follows server-side.
 import type { Doc, Workspace, Note } from "./types";
 import type { Snapshot } from "./history";
-import { docsInWorkspace, upsertDocFromRepo, removeDocsByRepoPaths, setDocRepoLinkById, ensureActiveDocInWorkspace, clearRepoSyncMetadata } from "./stores/docs";
+import {
+  docsInWorkspace,
+  upsertDocFromRepo,
+  removeDocsByRepoPaths,
+  setDocRepoLinkById,
+  ensureActiveDocInWorkspace,
+  clearRepoSyncMetadata,
+} from "./stores/docs";
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
-import { workspacesStore, createWorkspace, setWorkspaceRepoLink, switchWorkspace, renameWorkspace, setWorkspaceLastSynced, clearPendingRepoDeletions } from "./stores/workspaces";
+import {
+  workspacesStore,
+  createWorkspace,
+  setWorkspaceRepoLink,
+  switchWorkspace,
+  renameWorkspace,
+  setWorkspaceLastSynced,
+  clearPendingRepoDeletions,
+} from "./stores/workspaces";
 import { resolveDiagramRefs } from "./diagram-refs";
 import { repoSyncBusyLabel } from "./stores/repoSync";
 import { showProgressToast, updateProgressToast, finishProgressToast, showToast } from "./stores/toast";
@@ -71,7 +86,7 @@ export function rewriteImagesForPush(
   content: string,
   docSlug: string,
   images: Record<string, string> | undefined,
-  diagrams: Record<string, string> | undefined
+  diagrams: Record<string, string> | undefined,
 ): { content: string; assets: ImageAsset[] } {
   // A mermaid diagram's fence body is just a short reference key (see
   // diagram-refs.ts) — resolve it back to real source BEFORE the image
@@ -178,7 +193,7 @@ export async function pullFromRepo(
   workspaceId: string,
   repoLink: { owner: string; repo: string; branch: string },
   dirtyDocIds: Set<string>,
-  onProgress?: (message: string) => void
+  onProgress?: (message: string) => void,
 ): Promise<{ plan: PullPlan; applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void> }> {
   const treeRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/tree?branch=${encodeURIComponent(repoLink.branch)}`);
   if (!treeRes.ok) throw new Error(`Couldn't read the repo tree: HTTP ${treeRes.status}`);
@@ -222,7 +237,10 @@ export async function pullFromRepo(
 
   for (const create of plan.creates) await fetchAndApply(create.repoPath, create.sha);
   for (const update of plan.updates) await fetchAndApply(update.repoPath, update.sha);
-  removeDocsByRepoPaths(workspaceId, plan.deletions.map((d) => d.repoPath));
+  removeDocsByRepoPaths(
+    workspaceId,
+    plan.deletions.map((d) => d.repoPath),
+  );
   setWorkspaceLastSynced(workspaceId, Date.now());
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
@@ -298,7 +316,7 @@ export async function planPush(
   mdEntries: TreeEntry[],
   sameWorkspace: boolean,
   pendingRepoDeletions: string[] = [],
-  localHistory: Map<string, { snapshots: Snapshot[]; notes: Note[] }> = new Map()
+  localHistory: Map<string, { snapshots: Snapshot[]; notes: Note[] }> = new Map(),
 ): Promise<PushPlan> {
   const plan: PushPlan = { changes: [], historyChanges: [], deletions: [], conflicts: [] };
   const treeShaByPath = new Map(mdEntries.filter((e) => e.type === "blob").map((e) => [e.path, e.sha]));
@@ -447,7 +465,7 @@ function dataUrlToBase64(dataUrl: string): string {
 export async function pushToRepo(
   workspaceId: string,
   repoLink: { owner: string; repo: string; branch: string },
-  onProgress?: (message: string) => void
+  onProgress?: (message: string) => void,
 ): Promise<{ plan: PushPlan; applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void> }> {
   const treeRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/tree?branch=${encodeURIComponent(repoLink.branch)}`);
   if (!treeRes.ok) throw new Error(`Couldn't read the repo tree: HTTP ${treeRes.status}`);
@@ -536,11 +554,7 @@ export async function pushToRepo(
 // own comment for what "matches" means. Used by pushToRepo to decide
 // (via planPush) whether a name-matched-but-content-differing doc should
 // push directly or raise a conflict.
-async function checkWorkspaceMarker(
-  repoLink: { owner: string; repo: string; branch: string },
-  entries: TreeEntry[],
-  workspaceId: string
-): Promise<boolean> {
+async function checkWorkspaceMarker(repoLink: { owner: string; repo: string; branch: string }, entries: TreeEntry[], workspaceId: string): Promise<boolean> {
   const markerEntry = entries.find((e) => e.type === "blob" && e.path === WORKSPACE_MARKER_PATH);
   if (!markerEntry) return false;
   const blobRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/blob/${markerEntry.sha}`);
@@ -609,10 +623,7 @@ export type LinkAndSyncResult =
 // "conflicts found, open the resolution modal instead," and finishing
 // this toast with a premature success message would be misleading in
 // the second case.
-export async function linkWorkspaceAndSync(
-  workspaceId: string,
-  repoLink: { owner: string; repo: string; branch: string }
-): Promise<LinkAndSyncResult> {
+export async function linkWorkspaceAndSync(workspaceId: string, repoLink: { owner: string; repo: string; branch: string }): Promise<LinkAndSyncResult> {
   // Only a workspace still carrying its generic creation-time default
   // gets renamed — the same literal both workspace-creation entry points
   // (WorkspaceSwitcher.svelte's startCreate, the empty state's "New
@@ -622,7 +633,11 @@ export async function linkWorkspaceAndSync(
   // so this only ever fires for linking an *existing* workspace.
   const workspace = get(workspacesStore).find((w) => w.id === workspaceId);
   if (workspace && workspace.name === "New workspace") {
-    const taken = new Set(get(workspacesStore).filter((w) => w.id !== workspaceId).map((w) => w.name));
+    const taken = new Set(
+      get(workspacesStore)
+        .filter((w) => w.id !== workspaceId)
+        .map((w) => w.name),
+    );
     renameWorkspace(workspaceId, nextAvailableName(repoLink.repo, taken));
   }
   setWorkspaceRepoLink(workspaceId, repoLink);

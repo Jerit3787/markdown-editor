@@ -18,7 +18,7 @@ describe("handleMe", () => {
   it("reports granted scopes from GitHub's X-OAuth-Scopes header", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ login: "alice" }), { status: 200, headers: { "X-OAuth-Scopes": "repo, gist" } }))
+      vi.fn(async () => new Response(JSON.stringify({ login: "alice" }), { status: 200, headers: { "X-OAuth-Scopes": "repo, gist" } })),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/auth/github/me", { headers: { Cookie: cookie } });
@@ -29,7 +29,10 @@ describe("handleMe", () => {
   });
 
   it("reports an empty scopes array when the header is missing", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ login: "alice" }), { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ login: "alice" }), { status: 200 })),
+    );
     const cookie = await sessionCookieHeader("tok", "alice");
     const req = new Request("https://example.com/api/auth/github/me", { headers: { Cookie: cookie } });
     const res = await handleMe(req, fakeEnv);

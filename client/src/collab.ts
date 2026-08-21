@@ -418,7 +418,11 @@ function teardownWorkspace(): void {
   if (workspaceRoom.ws) {
     workspaceRoom.ws.onclose = null;
     workspaceRoom.ws.onerror = null;
-    try { workspaceRoom.ws.close(); } catch (e) { /* already closed */ }
+    try {
+      workspaceRoom.ws.close();
+    } catch (e) {
+      /* already closed */
+    }
   }
   workspaceRoom.docs.clear();
   workspaceRoom.workspaceId = null;
@@ -648,7 +652,11 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
     const finish = (result: RemoteDocPreview | null) => {
       if (settled) return;
       settled = true;
-      try { ws.close(); } catch (e) { /* already closed */ }
+      try {
+        ws.close();
+      } catch (e) {
+        /* already closed */
+      }
       resolve(result);
     };
     ws.onopen = () => {
@@ -690,7 +698,7 @@ export { handleDocChanged, workspaceRoom };
 
 function setupShareUI() {
   document.getElementById("shareBtn").addEventListener("click", openShareModal);
-  
+
   const dropdownBtn = document.getElementById("shareDropdownBtn");
   const dropdownMenu = document.getElementById("shareDropdownMenu");
   const copyBtn = document.getElementById("shareCopyLinkBtn");
@@ -698,19 +706,19 @@ function setupShareUI() {
   dropdownBtn?.addEventListener("click", async (e) => {
     e.stopPropagation();
     const isOpen = dropdownMenu.classList.contains("open");
-    
+
     // Close other dropdowns if we had a central registry, but here we just toggle this one
     if (!isOpen) {
       dropdownMenu.classList.add("open");
       dropdownBtn.setAttribute("aria-expanded", "true");
-      
+
       const doc = getActiveDoc();
       if (doc) {
         // Fetch access to display correct label in dropdown
         currentAccess = await fetchAccess(doc.id);
         const titleEl = document.getElementById("shareAccessTitle");
         const descEl = document.getElementById("shareAccessDesc");
-        
+
         if (currentAccess.generalAccess === "anyone") {
           if (currentAccess.requireAccount) {
             titleEl.textContent = "Anyone with an account";
@@ -853,7 +861,13 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
     return false;
   }
   currentAccess = access;
-  workspacesStore.update((all) => all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: wantAnyone || access.invited.length > 0 || w.shared, remoteId: w.remoteId || doc.workspaceId, updatedAt: Date.now() } : w)));
+  workspacesStore.update((all) =>
+    all.map((w) =>
+      w.id === doc.workspaceId
+        ? { ...w, shared: wantAnyone || access.invited.length > 0 || w.shared, remoteId: w.remoteId || doc.workspaceId, updatedAt: Date.now() }
+        : w,
+    ),
+  );
   persistWorkspaces();
   if ((wantAnyone || access.invited.length > 0) && !workspaceRoom.workspaceId) {
     await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
@@ -914,7 +928,9 @@ export async function addPerson(rawUsername: string) {
   });
   if (access) {
     currentAccess = access;
-    workspacesStore.update((all) => all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: true, remoteId: w.remoteId || doc.workspaceId, updatedAt: Date.now() } : w)));
+    workspacesStore.update((all) =>
+      all.map((w) => (w.id === doc.workspaceId ? { ...w, shared: true, remoteId: w.remoteId || doc.workspaceId, updatedAt: Date.now() } : w)),
+    );
     persistWorkspaces();
     // Restricted access never otherwise triggers joinWorkspace (only
     // switching to "anyone" does, see setAccessMode) — without this, an

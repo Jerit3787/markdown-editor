@@ -12,8 +12,7 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
   {
     version: "1.10.0",
     title: "Command Palette",
-    description:
-      "Press Ctrl/Cmd+Shift+P (or use Help > Command Palette) to search and run any command, or jump straight to any open document by name.",
+    description: "Press Ctrl/Cmd+Shift+P (or use Help > Command Palette) to search and run any command, or jump straight to any open document by name.",
     screenshot: "/whats-new/command-palette.png",
   },
   {
@@ -48,7 +47,7 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     version: "1.20.0",
     title: "Workspaces",
     description:
-      "Documents now live inside a named workspace — switch, create, rename, or delete one from the new switcher in the sidebar. Existing documents move onto a default \"My Workspace\" automatically, and you can move a document to a different workspace from its \"⋮\" menu.",
+      'Documents now live inside a named workspace — switch, create, rename, or delete one from the new switcher in the sidebar. Existing documents move onto a default "My Workspace" automatically, and you can move a document to a different workspace from its "⋮" menu.',
     screenshot: "/whats-new/workspaces.png",
   },
   {

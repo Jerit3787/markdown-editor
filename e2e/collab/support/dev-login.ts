@@ -10,7 +10,7 @@ const BASE = "http://localhost:8787";
 // time, before a stub could land.
 export async function signInAsDevUser(page: Page, username: string): Promise<void> {
   await page.route("**/api/auth/github/me", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ connected: true, username }) })
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ connected: true, username }) }),
   );
   await page.goto(`${BASE}/api/dev/login?username=${username}`);
 }

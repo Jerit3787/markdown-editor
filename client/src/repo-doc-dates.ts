@@ -26,7 +26,7 @@ async function fetchCommitsPage(
   branch: string,
   path: string,
   page: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<{ commits: CommitApiEntry[]; linkHeader: string | null }> {
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
   const res = await fetch(`/api/repo/${owner}/${repo}/commits?branch=${encodeURIComponent(branch)}&page=${page}&path=${encodedPath}`, { signal });
@@ -42,13 +42,7 @@ async function fetchCommitsPage(
 // rel="last" entry rather than walking every page. Returns undefined (never
 // throws) on any failure — no commits yet, a failed request, or an aborted
 // one — so callers can fall back to local timestamps unconditionally.
-export async function fetchRepoDocDates(
-  owner: string,
-  repo: string,
-  branch: string,
-  path: string,
-  signal?: AbortSignal
-): Promise<RepoDocDates | undefined> {
+export async function fetchRepoDocDates(owner: string, repo: string, branch: string, path: string, signal?: AbortSignal): Promise<RepoDocDates | undefined> {
   try {
     const first = await fetchCommitsPage(owner, repo, branch, path, 1, signal);
     if (first.commits.length === 0) return undefined;

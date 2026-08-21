@@ -22,9 +22,7 @@ interface LicenseEntry {
 // already be stale).
 function collectLicenses(): LicenseEntry[] {
   return Object.keys(pkg.dependencies ?? {}).map((name) => {
-    const depPkg = JSON.parse(
-      readFileSync(new URL(`../node_modules/${name}/package.json`, import.meta.url), "utf-8"),
-    );
+    const depPkg = JSON.parse(readFileSync(new URL(`../node_modules/${name}/package.json`, import.meta.url), "utf-8"));
     const repoUrl = typeof depPkg.repository === "string" ? depPkg.repository : depPkg.repository?.url;
     const url = depPkg.homepage ?? repoUrl?.replace(/^git\+/, "").replace(/\.git$/, "");
     return { name, version: depPkg.version, license: depPkg.license ?? "Unknown", url };

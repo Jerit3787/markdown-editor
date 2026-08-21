@@ -28,7 +28,12 @@ function base64ToBytes(b64: string): Uint8Array {
 // that (a slash would be read as a path separator by the tree-writing
 // code below, silently nesting the file instead of naming it literally).
 function sanitizeFilename(name: string): string {
-  return name.replace(/[\\/]+/g, "_").replace(/[^\w.-]/g, "_").slice(0, 200) || "image";
+  return (
+    name
+      .replace(/[\\/]+/g, "_")
+      .replace(/[^\w.-]/g, "_")
+      .slice(0, 200) || "image"
+  );
 }
 
 export async function handleGistImageUpload(request: Request, env: Env, gistId: string): Promise<Response> {
@@ -64,13 +69,7 @@ export async function handleGistImageUpload(request: Request, env: Env, gistId: 
   }
 }
 
-async function pushImageToGist(
-  gistId: string,
-  filename: string,
-  bytes: Uint8Array,
-  username: string,
-  token: string
-): Promise<string> {
+async function pushImageToGist(gistId: string, filename: string, bytes: Uint8Array, username: string, token: string): Promise<string> {
   const remoteUrl = `https://gist.github.com/${gistId}.git`;
   const dir = "/repo";
   const fs = new MemoryFS();

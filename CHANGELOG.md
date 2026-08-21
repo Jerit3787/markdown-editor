@@ -566,7 +566,7 @@ All notable changes to this project are documented here. Format follows
 - If a linked Gist was deleted outside the app, it stayed showing as
   linked indefinitely with no way to clear it.
 - Tab now indents in the editor instead of doing nothing.
-- The cursor landed *before* an inserted heading/list/quote marker
+- The cursor landed _before_ an inserted heading/list/quote marker
   instead of after it when applied to an empty line.
 - Checkbox list items showed a bullet dot next to the checkbox.
 - The document title field's minimum width left a visible gap before

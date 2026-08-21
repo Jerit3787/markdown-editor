@@ -38,7 +38,7 @@ describe("fetchAndMergeRepoHistory", () => {
     };
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ content: btoa(JSON.stringify(remote)), encoding: "base64" }), { status: 200 }))
+      vi.fn(async () => new Response(JSON.stringify({ content: btoa(JSON.stringify(remote)), encoding: "base64" }), { status: 200 })),
     );
     await fetchAndMergeRepoHistory(doc);
     expect((await getHistory("doc-merge-success")).map((s) => s.id)).toEqual(["remote-snap"]);
@@ -50,7 +50,10 @@ describe("fetchAndMergeRepoHistory", () => {
 
   it("does nothing (no throw) on a 404 — no companion file pushed yet", async () => {
     const doc = linkedDoc("doc-404");
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("not found", { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("not found", { status: 404 })),
+    );
     await expect(fetchAndMergeRepoHistory(doc)).resolves.toBeUndefined();
     expect(await getHistory("doc-404")).toEqual([]);
   });

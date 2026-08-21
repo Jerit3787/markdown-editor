@@ -50,25 +50,30 @@ const content = readFileSync(FILE, "utf8");
       // a selection dispatch already triggers it via update.selectionSet,
       // this just waits a tick for the scroll to land.
       return new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          const preview = document.getElementById("preview");
-          // Find the tagged preview block whose line range brackets `ln`
-          // (0-indexed data-line vs 1-indexed `ln` from doc.line()).
-          const blocks = Array.from(preview.querySelectorAll("[data-line]"))
-            .map((el) => ({ el, line: Number(el.getAttribute("data-line")) }))
-            .sort((a, b) => a.line - b.line);
-          let match = null;
-          for (const b of blocks) { if (b.line <= ln - 1) match = b; else break; }
-          const preRect = preview.getBoundingClientRect();
-          const elRect = match ? match.el.getBoundingClientRect() : null;
-          const visible = elRect ? (elRect.bottom > preRect.top && elRect.top < preRect.bottom) : false;
-          return resolve({
-            previewScrollTop: preview.scrollTop,
-            matchedBlockLine: match ? match.line : null,
-            matchedBlockVisible: visible,
-            matchedBlockTopRelativeToViewport: elRect ? Math.round(elRect.top - preRect.top) : null,
-          });
-        }));
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            const preview = document.getElementById("preview");
+            // Find the tagged preview block whose line range brackets `ln`
+            // (0-indexed data-line vs 1-indexed `ln` from doc.line()).
+            const blocks = Array.from(preview.querySelectorAll("[data-line]"))
+              .map((el) => ({ el, line: Number(el.getAttribute("data-line")) }))
+              .sort((a, b) => a.line - b.line);
+            let match = null;
+            for (const b of blocks) {
+              if (b.line <= ln - 1) match = b;
+              else break;
+            }
+            const preRect = preview.getBoundingClientRect();
+            const elRect = match ? match.el.getBoundingClientRect() : null;
+            const visible = elRect ? elRect.bottom > preRect.top && elRect.top < preRect.bottom : false;
+            return resolve({
+              previewScrollTop: preview.scrollTop,
+              matchedBlockLine: match ? match.line : null,
+              matchedBlockVisible: visible,
+              matchedBlockTopRelativeToViewport: elRect ? Math.round(elRect.top - preRect.top) : null,
+            });
+          }),
+        );
       });
     }, line);
     console.log(`line ${line}/${totalLines}:`, JSON.stringify(result));

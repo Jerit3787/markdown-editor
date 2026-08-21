@@ -24,7 +24,7 @@ describe("fetchRepoDocDates", () => {
         calls.push(url);
         // Newest first, matching GitHub's actual ordering.
         return commitsResponse(["2026-08-10T00:00:00Z", "2026-08-05T00:00:00Z", "2026-01-01T00:00:00Z"]);
-      })
+      }),
     );
     const result = await fetchRepoDocDates("alice", "notes", "main", "Notes.md");
     expect(result).toEqual({
@@ -43,14 +43,14 @@ describe("fetchRepoDocDates", () => {
         if (url.includes("page=1")) {
           return commitsResponse(
             ["2026-08-10T00:00:00Z", "2026-08-05T00:00:00Z"],
-            '<https://api.github.com/repositories/1/commits?page=2>; rel="next", <https://api.github.com/repositories/1/commits?page=3>; rel="last"'
+            '<https://api.github.com/repositories/1/commits?page=2>; rel="next", <https://api.github.com/repositories/1/commits?page=3>; rel="last"',
           );
         }
         if (url.includes("page=3")) {
           return commitsResponse(["2026-02-01T00:00:00Z", "2026-01-01T00:00:00Z"]);
         }
         throw new Error(`unexpected fetch: ${url}`);
-      })
+      }),
     );
     const result = await fetchRepoDocDates("alice", "notes", "main", "Notes.md");
     expect(result).toEqual({
@@ -62,13 +62,19 @@ describe("fetchRepoDocDates", () => {
   });
 
   it("returns undefined when the file has no commits yet", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => commitsResponse([])));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => commitsResponse([])),
+    );
     const result = await fetchRepoDocDates("alice", "notes", "main", "Notes.md");
     expect(result).toBeUndefined();
   });
 
   it("returns undefined when the request fails", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("Server Error", { status: 500 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("Server Error", { status: 500 })),
+    );
     const result = await fetchRepoDocDates("alice", "notes", "main", "Notes.md");
     expect(result).toBeUndefined();
   });
@@ -78,7 +84,7 @@ describe("fetchRepoDocDates", () => {
       "fetch",
       vi.fn(async () => {
         throw new DOMException("The operation was aborted", "AbortError");
-      })
+      }),
     );
     const result = await fetchRepoDocDates("alice", "notes", "main", "Notes.md");
     expect(result).toBeUndefined();
@@ -91,7 +97,7 @@ describe("fetchRepoDocDates", () => {
       vi.fn(async (url: string) => {
         requestedUrl = url;
         return commitsResponse(["2026-08-10T00:00:00Z"]);
-      })
+      }),
     );
     await fetchRepoDocDates("alice", "notes", "main", "docs/my notes.md");
     expect(requestedUrl).toBe("/api/repo/alice/notes/commits?branch=main&page=1&path=docs/my%20notes.md");

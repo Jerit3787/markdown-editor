@@ -12,6 +12,8 @@
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && svelte-check --tsconfig client/tsconfig.json --tsgo-experimental-api",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test:e2e:local": "playwright test --project=local",
     "test:e2e:collab": "bash scripts/e2e-collab.sh",
     "test:e2e": "npm run test:e2e:local && npm run test:e2e:collab"
@@ -25,6 +27,7 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
     "playwright": "^1.62.1",
+    "prettier": "^3.9.6",
     "svelte": "^5.56.8",
     "svelte-check": "^4.7.6",
     "typescript": "^6.0.3",

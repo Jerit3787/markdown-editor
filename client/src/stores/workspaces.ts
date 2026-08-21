@@ -139,7 +139,7 @@ export function queueRepoDeletion(workspaceId: string, repoPath: string): void {
       const existing = w.pendingRepoDeletions || [];
       if (existing.includes(repoPath)) return w;
       return { ...w, pendingRepoDeletions: [...existing, repoPath], updatedAt: Date.now() };
-    })
+    }),
   );
   persistWorkspaces();
 }
@@ -150,7 +150,9 @@ export function clearPendingRepoDeletions(workspaceId: string, sentPaths: string
   if (sentPaths.length === 0) return;
   const sent = new Set(sentPaths);
   workspacesStore.update((all) =>
-    all.map((w) => (w.id === workspaceId ? { ...w, pendingRepoDeletions: (w.pendingRepoDeletions || []).filter((p) => !sent.has(p)), updatedAt: Date.now() } : w))
+    all.map((w) =>
+      w.id === workspaceId ? { ...w, pendingRepoDeletions: (w.pendingRepoDeletions || []).filter((p) => !sent.has(p)), updatedAt: Date.now() } : w,
+    ),
   );
   persistWorkspaces();
 }

@@ -1,0 +1,233 @@
+#menuBar {
+  grid-area: menubar;
+  gap: 2px;
+  padding: 0 0 4px 0;
+
+  /* File/Edit/View/Help sit near the left edge — anchor their menus to the
+     trigger's left edge (extending rightward) instead of the default
+     right-anchor (which is correct for Share/Settings near the right edge,
+     but would push these menus off-screen to the left). */
+  .dropdown-menu {
+    left: 0;
+    right: auto;
+  }
+
+  /* The gist-open row (input + button) isn't a menu-item button — .share-row
+     already handles its layout/input styling generically; this just adds
+     the horizontal inset to line it up with the sibling menu-item buttons. */
+  .share-row {
+    padding: 0 14px 8px;
+    margin-bottom: 0;
+  }
+}
+.menubar-btn {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.menubar-btn:hover,
+.menubar-btn.active {
+  background: var(--border);
+}
+/* Flyout submenus (File > Open / Open Recent / Export) */
+.menu-submenu {
+  position: relative;
+}
+.menu-chevron {
+  margin-left: auto;
+  width: 12px;
+  height: 12px;
+  opacity: 0.55;
+}
+.menu-submenu-trigger.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.menu-submenu-panel {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -8px;
+  margin-left: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 230px;
+  max-height: 60vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  z-index: 60;
+}
+.menu-submenu.open .menu-submenu-panel {
+  display: block;
+}
+.menubar-menu kbd {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  background: var(--bg-alt);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.menu-glyph-btn b,
+.menu-glyph-btn i {
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.menu-check {
+  visibility: hidden;
+  color: var(--accent);
+}
+.menu-view-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.menu-view-btn.active .menu-check {
+  visibility: visible;
+}
+.menu-recent-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.menu-recent-item:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.menu-recent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-recent-time {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.menu-recent-empty {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  padding: 6px 14px;
+}
+.menu-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--accent);
+  text-decoration: none;
+  margin: 0 0 10px;
+
+  .icon {
+    width: 0.9em;
+    height: 0.9em;
+  }
+}
+.menu-link:hover {
+  text-decoration: underline;
+}
+.menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+.menu-section-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding: 2px 14px 6px;
+}
+/* Applied alongside .menu-section-label (not instead of it) on the
+   repo-last-synced row — overrides the bold/uppercase/letter-spacing
+   from the base rule above so it reads as a quiet timestamp, not a
+   second section header. */
+.menu-section-sublabel {
+  margin-top: -4px;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 0.75;
+}
+/* Wraps MenuBar.svelte's rendered <nav id="menuBar"> — display:contents
+   makes the wrapper itself generate no box, so #topbar's column flex
+   layout sees that <nav> as a direct child, identical to before it was
+   Svelte-mounted. */
+#menubar-mount {
+  display: contents;
+}
+.keybinding-mode-indicator {
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+}
+@media (max-width: 780px) {
+  /* A flyout extending further right would overflow a phone screen —
+     flow it inline (pushes the rest of the menu down) instead. The
+     trigger + its panel share one background box (set on .menu-submenu
+     itself) so the expanded section reads as a single continuous block
+     rather than a highlighted row sitting above a disconnected white
+     panel; the trigger's own .active accent-dim tint (see base rule)
+     still shows through on top of it. */
+  .menu-submenu.open {
+    background: var(--bg-alt);
+    border-radius: 6px;
+  }
+}
+@media (max-width: 780px) {
+  .menu-submenu-panel {
+    position: static;
+    margin: 0 0 4px 16px;
+    box-shadow: none;
+    border: none;
+    background: transparent;
+    border-radius: 0;
+  }
+}
+@media (max-width: 780px) {
+  /* Desktop's chevron points right, toward where the flyout appears.
+     On mobile the panel instead expands inline below the trigger, so
+     rotate the same icon to point down (collapsed) / up (open) —
+     standard accordion affordance — rather than swapping icons. */
+  .menu-chevron {
+    transform: rotate(90deg);
+  }
+}
+@media (max-width: 780px) {
+  .menu-submenu-trigger.active .menu-chevron {
+    transform: rotate(-90deg);
+  }
+}
+@media (max-width: 780px) {
+  #menuBar {
+    order: 4;
+    flex-basis: 100%;
+    padding: 4px 0 0;
+  }
+}
+@media (max-width: 780px) {
+  #menuBar .icon-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+}

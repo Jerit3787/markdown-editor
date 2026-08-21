@@ -1,0 +1,415 @@
+#docTitle {
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 18px;
+  font-weight: 400;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--text);
+  line-height: 22px;
+  /* Small enough to stay clickable for a very short name, not big
+  enough to leave a visible gap before the save-status icon when
+  resizeDocTitle() has already sized the field to fit the actual
+  text (see app.ts) — 80px previously left a large empty gap after
+  any short title. */
+  min-width: 24px;
+  max-width: 260px;
+  /* Actual width is set in JS (see app.js resizeDocTitle) by measuring
+  #docTitleMirror — min/max-width above still clamp it either way.
+  border-box so the width JS sets (mirror.offsetWidth, which already
+  includes padding+border) lines up directly with this element's own
+  offsetWidth instead of needing padding/border math on both sides. */
+  box-sizing: border-box;
+}
+#docTitle:hover,
+#docTitle:focus {
+  border-color: var(--border);
+  background: var(--bg);
+  outline: none;
+}
+#docTitle:disabled {
+  color: var(--text);
+  opacity: 1;
+  cursor: default;
+}
+#docTitle:disabled:hover {
+  border-color: transparent;
+  background: transparent;
+}
+/* Invisible twin of #docTitle used purely to measure text width — must
+   match its font/padding exactly (border included, since content-box
+   sizing makes width JS sets apply to content only, but the mirror is
+   measured including padding via its own box). */
+#docTitleMirror {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+  top: -9999px;
+  left: -9999px;
+  font-size: 18px;
+  font-weight: 400;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+}
+.doclist-presence {
+  display: inline-flex;
+  margin-left: 6px;
+}
+#sidebar {
+  grid-area: sidebar;
+  width: 230px;
+  flex-shrink: 0;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.15s ease;
+}
+#sidebar.collapsed {
+  margin-left: -231px;
+}
+/* #sidebarToggleIn is a normal flex child inside #sidebarHeader (see
+   #sidebarHeaderLeft below) — no positioning needed, it slides off-screen
+   with the rest of #sidebar automatically. #sidebarToggleOut lives inline
+   as the first item in #toolbar instead, shown only while the sidebar is
+   collapsed (see app.ts's toggleSidebar/initSidebar). */
+#sidebarToggleOut {
+  flex-shrink: 0;
+}
+#sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+#sidebarHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+
+  #sidebarToggleIn {
+    flex-shrink: 0;
+  }
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+/* DocList.svelte mounts its own <ul id="docList"> (flex:1 itself, see
+   below) inside this wrapper — the wrapper is the actual flex child of
+   #sidebar now, so it needs the flex-stretch + min-height:0 that #docList
+   used to carry directly for its own scrolling to work. */
+#doclist-mount {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#docList {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px;
+  overflow-y: auto;
+  flex: 1;
+
+  li {
+    border-radius: 6px;
+    margin-bottom: 2px;
+  }
+
+  li.active > .doc-row {
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-weight: 600;
+  }
+}
+.doc-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 6px 7px 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--text);
+
+  .doc-icon {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    opacity: 0.55;
+  }
+
+  .doc-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+.doc-row:hover {
+  background: var(--border);
+}
+.doc-row-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+/* Reserves the same width whether or not a given doc has headings (and
+   therefore an outline toggle), so every row's icon/name stay aligned. */
+.doc-outline-toggle,
+.doc-outline-toggle-spacer {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.doc-outline-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+
+  .icon {
+    width: 13px;
+    height: 13px;
+    transition: transform 0.12s ease;
+  }
+}
+.doc-outline-toggle:hover {
+  background: var(--bg);
+}
+.doc-outline-toggle.expanded .icon {
+  transform: rotate(90deg);
+}
+.doc-menu-btn {
+  flex-shrink: 0;
+  opacity: 0.55;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 4px;
+  display: flex;
+
+  .icon {
+    width: 14px;
+    height: 14px;
+  }
+}
+.doc-row:hover .doc-menu-btn,
+.doc-menu-btn.active {
+  opacity: 1;
+}
+.doc-menu-btn:hover,
+.doc-menu-btn.active {
+  background: var(--bg);
+  color: var(--text);
+}
+/* position:fixed (coordinates computed in DocList.svelte from the trigger
+   button's own bounding rect) rather than the .dropdown-menu pattern's
+   position:absolute — #docList scrolls (overflow-y:auto), which would
+   clip an absolutely-positioned popover for any row near the bottom of a
+   long list. Fixed positioning escapes that entirely. */
+.doc-menu-popover {
+  position: fixed;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 170px;
+  z-index: 70;
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    padding: 9px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 13.5px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  button.danger {
+    color: var(--danger);
+  }
+
+  button.danger:hover {
+    background: rgba(220, 38, 38, 0.12);
+    color: var(--danger);
+  }
+
+  .icon {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+}
+.doc-menu-submenu-label {
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+.doc-outline {
+  list-style: none;
+  margin: 0 0 2px;
+  padding: 0;
+}
+/* Hidden by default (desktop) — activeTab (DocList.svelte) never
+   changes on desktop since there's no visible way to trigger it there,
+   so the {#if activeTab === "documents"} branch always wins regardless
+   of this rule. Shown only inside the mobile media query below. */
+.doclist-tabs {
+  display: none;
+}
+.doclist-headings-tab-label {
+  padding: 8px 14px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+@media (max-width: 780px) {
+  /* Anchored to #body (its own positioning context, already sized to
+     exclude the topbar/footer by the flex layout) instead of a hardcoded
+     pixel offset from the viewport, which would break if the topbar's
+     height ever changes.
+     Always rendered at opacity:0/pointer-events:none rather than
+     display:none (app.ts used to toggle the `hidden` attribute) — a
+     display:none element can't be transitioned, which made this backdrop
+     snap in/out instantly while #sidebar's slide and the #topbar/#toolbar
+     dim overlay both faded smoothly over the same 0.15s. app.ts now
+     toggles a .visible class instead. */
+  #sidebarBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 39;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+}
+@media (max-width: 780px) {
+  #sidebarBackdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (max-width: 780px) {
+  /* Flush to the screen's left/right/bottom edges, only the top corners
+     rounded — matches the native iOS bottom-sheet look (e.g. Google
+     Docs' own "Document tabs" sheet) exactly, not a floating card with
+     margin on every side. transform (not the desktop margin-left
+     slide) drives open/closed here, so explicitly zero out the base
+     #sidebar.collapsed rule's margin-left too, or it'd shift the sheet
+     sideways while it's translating down. */
+  /* No transform in the resting (open) state, deliberately — a
+     `transform` on this element, even a no-op translateY(0), creates a
+     new containing block for any `position: fixed` descendant (like
+     DocList.svelte's .doc-menu-popover), silently repositioning it
+     relative to #sidebar's own box instead of the real viewport and
+     breaking its window.innerHeight-relative boundary math entirely.
+     `transition: transform` still animates smoothly from this implicit
+     "none" starting point once .collapsed sets a real transform below
+     — no need for an explicit resting-state value to make that work. */
+  #sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: auto;
+    bottom: 0;
+    top: auto;
+    height: 50vh;
+    border-radius: 16px 16px 0 0;
+    border-right: none;
+    z-index: 40;
+    box-shadow: var(--shadow);
+    transition: transform 0.15s ease;
+  }
+}
+@media (max-width: 780px) {
+  #sidebar.collapsed {
+    transform: translateY(100%);
+    margin-left: 0;
+  }
+}
+@media (max-width: 780px) {
+  .doclist-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 14px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+}
+@media (max-width: 780px) {
+  .doclist-tabs button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+}
+@media (max-width: 780px) {
+  .doclist-tabs button.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+}
+@media (max-width: 780px) {
+  /* The per-row expand is replaced by the Headings tab on mobile —
+     desktop keeps it untouched (this rule only applies inside this
+     mobile media query, same pattern as every other mobile-only
+     override in this file). */
+  .doc-outline-toggle,
+  .doc-outline-toggle-spacer,
+  #docList .doc-outline {
+    display: none;
+  }
+}
+@media (max-width: 780px) {
+  #docTitle {
+    max-width: 120px;
+  }
+}
+@media (min-width: 781px) {
+  #sidebar {
+    transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

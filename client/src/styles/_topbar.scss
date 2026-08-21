@@ -1,0 +1,284 @@
+body.focus-mode #topbar,
+body.focus-mode #sidebar,
+body.focus-mode #toolbar-mount,
+body.focus-mode #statusbar {
+  display: none;
+}
+/* Top bar: row 1 (brand/title/status/Share/Settings), row 2 (File/Edit/View/Help) */
+
+/* Google Docs-style header: logo and the action-icon cluster each span
+   both rows as tall flanking columns, with the document title (row 1)
+   and File/Edit/View/Help (row 2) stacked in the middle column between
+   them — matching the mockup's rowspan=2 logo/actions cells exactly,
+   rather than approximating it with padding on a stacked-flex layout. */
+#topbar {
+  z-index: 300;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "brand title   actions"
+    "brand menubar actions";
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+
+  &-row {
+    display: flex;
+    align-items: stretch;
+  }
+}
+.topbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px;
+}
+#topbarRow1 {
+  grid-area: title;
+  padding: 6px 0 0 0;
+  gap: 4px;
+}
+/* Comments/history/share/settings read as one grouped cluster (matching
+   the mockup's single "comment history share etc." cell) — no gap
+   between them, unlike .topbar-row's wider 8px gap used to separate
+   the row's distinct sections from each other. */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+#topbarActionsCol {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+
+  /* Sized up to match the logo's bigger presence in this same tall
+     column — plain .icon-btn/.share-pill elsewhere in the app stay their
+     normal size, this is scoped to just this column. Colors stay this
+     app's own accent tokens, not a differently-colored one-off. */
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .share-pill {
+    height: 40px;
+    padding: 0 24px;
+    font-size: 14px;
+    border-radius: 20px;
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  .share-pill .icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .share-btn-group {
+    height: 40px;
+    border-radius: 20px;
+  }
+}
+@media (min-width: 781px) {
+  #topbarActionsCol .share-pill-main {
+    border-radius: 20px 0 0 20px;
+    padding: 0 16px 0 24px;
+  }
+}
+@media (min-width: 781px) {
+  #topbarActionsCol .share-pill-dropdown {
+    border-radius: 0 20px 20px 0;
+    padding: 0 12px;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+  }
+}
+#brand {
+  grid-area: brand;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 12px;
+
+  img {
+    display: block;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+  }
+}
+/* The formatting buttons act on the editor — nothing for them to do
+   with no editor visible. The view-selector (a grid sibling, not inside
+   .toolbar-buttons) stays visible so there's always a way back. */
+#body.mode-preview #toolbar .toolbar-buttons {
+  display: none;
+}
+#toolbar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+  min-width: 0;
+
+  .icon {
+    width: 15px;
+    height: 15px;
+  }
+}
+.toolbar-buttons {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  align-items: center;
+  gap: 2px;
+
+  button {
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 12.5px;
+    padding: 5px 9px;
+    border-radius: 5px;
+    cursor: pointer;
+    min-width: 30px;
+  }
+
+  button:hover {
+    background: var(--border);
+  }
+}
+/* Google Docs-style "more tools" overflow — see Toolbar.svelte's
+   recalcOverflow(). A flex row, not a vertical list, so buttons read the
+   same wrapped-grid way in the dropdown as they do inline. */
+.toolbar-overflow {
+  flex-shrink: 0;
+}
+.toolbar-overflow-menu {
+  /* display stays with the base .dropdown-menu/.dropdown-menu.open
+  pair (none / block) — only overridden to flex once .open is also
+  present, otherwise this rule's higher specificity (two classes vs
+  .dropdown-menu's one) would keep it visible even closed. */
+  flex-wrap: wrap;
+  align-content: flex-start;
+  width: 216px;
+  padding: 4px;
+  gap: 2px;
+  left: auto;
+  right: 0;
+
+  .sep {
+    display: none;
+  }
+}
+.toolbar-overflow-menu.open {
+  display: flex;
+}
+/* #sidebarToggleOut and the "⋮" overflow toggle both reuse the app-wide
+   .icon-btn class (for its active-state color, shared with every other
+   icon toggle button), but that class is a fixed 32x32 box — visibly
+   bigger, and differently spaced against a neighboring .sep, than every
+   other toolbar button here, which size to their padding instead.
+   Override just the box model to match their actual neighbors. */
+.toolbar-buttons #sidebarToggleOut,
+.toolbar-overflow .icon-btn {
+  width: auto;
+  height: auto;
+  padding: 5px 9px;
+  border-radius: 5px;
+}
+@media (max-width: 780px) {
+  /* Plain wrap, not scroll: overflow-x:auto here would also clip the
+     File/Edit/View/Help dropdowns vertically, since they're absolutely
+     positioned descendants of this same row (a scrolling ancestor clips
+     overflowing descendants on BOTH axes, not just the one you set).
+     Wrapping can't clip anything, and in practice nothing needs to wrap
+     down to real phone widths anyway (verified at 390px). */
+  .topbar-row {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+@media (max-width: 780px) {
+  /* The desktop grid (logo/actions as tall flanking columns) doesn't
+     fit a phone width — fall back to a wrapping flex row instead:
+     brand, title content, and the actions cluster share the first
+     line (wrapping as needed), and the menu bar is forced onto its
+     own full-width line below via flex-basis. */
+  #topbar {
+    z-index: 300;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 6px 10px;
+  }
+}
+@media (max-width: 780px) {
+  #brand {
+    order: 1;
+    border-right: none;
+    padding: 0 8px 0 0;
+  }
+}
+@media (max-width: 780px) {
+  #brand img {
+    width: 22px;
+    height: 22px;
+  }
+}
+@media (max-width: 780px) {
+  #topbarRow1 {
+    order: 2;
+    flex: 1;
+    padding: 0;
+    min-width: 0;
+  }
+}
+@media (max-width: 780px) {
+  #topbarActionsCol {
+    order: 3;
+    border-left: none;
+    padding: 0;
+    gap: 8px;
+  }
+}
+@media (max-width: 780px) {
+  #topbarActionsCol .share-pill {
+    height: auto;
+    padding: 8px;
+    border-radius: 50%;
+  }
+}
+@media (max-width: 780px) {
+  #topbarActionsCol .share-pill .icon {
+    width: 17px;
+    height: 17px;
+  }
+}
+@media (max-width: 780px) {
+  /* The formatting toolbar's overflow-into-"⋮" (see Toolbar.svelte's
+     recalcOverflow()) already handles narrow widths generically — no
+     mobile-specific scroll/wrap override needed here anymore, just
+     bigger touch targets for whichever buttons stay visible. */
+  #toolbar button {
+    flex-shrink: 0;
+    min-width: 36px;
+    padding: 7px 10px;
+  }
+}
+@media (max-width: 780px) {
+  #toolbar .sep {
+    flex-shrink: 0;
+  }
+}

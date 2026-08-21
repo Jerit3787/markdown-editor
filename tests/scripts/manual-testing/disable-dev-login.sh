@@ -3,10 +3,10 @@
 # any git add/commit that touches src/worker.ts, and always before
 # wrapping up a local-testing session.
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../.."
 
 if grep -q "DEV_LOGIN_PATH" src/worker.ts 2>/dev/null; then
-  git apply -R scripts/manual-testing/dev-login.patch
+  git apply -R tests/scripts/manual-testing/dev-login.patch
   echo "Removed dev-login route from src/worker.ts."
 else
   echo "src/worker.ts has no dev-login route applied — nothing to do."

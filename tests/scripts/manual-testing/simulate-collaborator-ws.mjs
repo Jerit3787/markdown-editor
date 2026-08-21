@@ -8,7 +8,7 @@
 // any client-side (browser) code — see two-user-live-sync.mjs for a
 // full two-real-browser test instead.
 //
-// Usage: node scripts/manual-testing/simulate-collaborator-ws.mjs <workspaceId> <docId> <sessionCookie>
+// Usage: node tests/scripts/manual-testing/simulate-collaborator-ws.mjs <workspaceId> <docId> <sessionCookie>
 // Get a sessionCookie via the local-only /api/dev/login route — see README.md.
 import WebSocket from "ws";
 import * as Y from "yjs";

@@ -8,7 +8,7 @@
 // check immediately. Sign in through the actual GitHub OAuth popup when
 // the script pauses for it.
 //
-// Usage: node scripts/manual-testing/repo-sync-e2e.mjs <owner>/<repo> [url]
+// Usage: node tests/scripts/manual-testing/repo-sync-e2e.mjs <owner>/<repo> [url]
 import { chromium } from "playwright";
 
 const [ownerRepo, url = "http://localhost:8787"] = process.argv.slice(2);

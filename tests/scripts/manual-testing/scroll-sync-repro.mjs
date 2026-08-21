@@ -5,7 +5,7 @@
 // the document checks how far the preview's actual content is from
 // where followCursorInPreview() put it.
 //
-// Usage: node scripts/manual-testing/scroll-sync-repro.mjs [url] [file]
+// Usage: node tests/scripts/manual-testing/scroll-sync-repro.mjs [url] [file]
 import { chromium } from "playwright";
 import { readFileSync } from "fs";
 

@@ -15,7 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:e2e:local": "playwright test --project=local",
-    "test:e2e:collab": "bash scripts/e2e-collab.sh",
+    "test:e2e:collab": "bash tests/scripts/e2e-collab.sh",
     "test:e2e": "npm run test:e2e:local && npm run test:e2e:collab"
   },
   "devDependencies": {

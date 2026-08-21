@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
-bash scripts/manual-testing/enable-dev-login.sh
-trap 'bash scripts/manual-testing/disable-dev-login.sh' EXIT
+bash tests/scripts/manual-testing/enable-dev-login.sh
+trap 'bash tests/scripts/manual-testing/disable-dev-login.sh' EXIT
 
 npm run build
 npx wrangler dev --local-upstream localhost:8787 &
@@ -20,7 +20,7 @@ WRANGLER_PID=$!
 cleanup() {
   kill "$WRANGLER_PID" 2>/dev/null || true
   lsof -ti:8787 2>/dev/null | xargs -r kill -9 2>/dev/null || true
-  bash scripts/manual-testing/disable-dev-login.sh
+  bash tests/scripts/manual-testing/disable-dev-login.sh
 }
 trap cleanup EXIT
 

@@ -9,7 +9,7 @@ import "./collab";
 import "./gist";
 import "./repo-sync-ui";
 import "./formatting-commands";
-import "./style.css";
+import "./style.scss";
 
 import { mount } from "svelte";
 import Settings from "./components/Settings.svelte";

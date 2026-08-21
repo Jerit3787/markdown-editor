@@ -1,0 +1,113 @@
+:root {
+  --bg: #ffffff;
+  --bg-alt: #f6f7f9;
+  --bg-sidebar: #fafbfc;
+  --border: #e2e5e9;
+  --text: #1f2328;
+  --text-dim: #6b7280;
+  --accent: #2563eb;
+  --accent-dim: #eaf0fe;
+  --danger: #dc2626;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --radius: 8px;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+[data-theme="dark"] {
+  --bg: #1e1f22;
+  --bg-alt: #26282b;
+  --bg-sidebar: #202124;
+  --border: #35373a;
+  --text: #e6e6e6;
+  --text-dim: #9aa0a6;
+  --accent: #4d8dff;
+  --accent-dim: #1b2a44;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Several rules below (.dropdown-menu button, .share-row, .presence-bar)
+   set an explicit `display`, which otherwise wins over the browser's
+   default `[hidden] { display: none }` UA rule and defeats el.hidden. */
+[hidden] {
+  display: none !important;
+}
+
+/* Form controls don't inherit the page's font-family from a browser's
+   UA stylesheet by default — every button/input/select/textarea in the
+   app (the topbar's title field, every icon button, the menu bar, the
+   Share pill, etc.) was silently falling back to the platform's default
+   form-control font instead of --sans, a real visible mismatch against
+   the rest of the page's text. One generic rule instead of patching
+   every element that happens to get noticed — same reasoning as the
+   mobile 16px input font-size rule elsewhere in this file. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  /* iOS Safari's default double-tap-anywhere-to-zoom gesture doesn't
+     account for this being an app with its own scrollable panes and
+     fixed chrome — the resulting zoomed-in state left the layout
+     visibly broken rather than just annoying. "manipulation" disables
+     double-tap-zoom (and the old 300ms tap delay) specifically,
+     without disabling pinch-to-zoom too — that stays available, since
+     turning it off entirely is a real accessibility regression for
+     anyone who relies on it. */
+  touch-action: manipulation;
+}
+
+@media (min-width: 781px) {
+  [data-theme="dark"] #topbarActionsCol .share-pill-dropdown {
+    border-left-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+@media (max-width: 780px) {
+  /* iOS Safari auto-zooms the whole page in when a focused input's
+     computed font-size is under 16px, and never zooms back out on
+     blur. Catches every text field in the app generically — comment
+     drafts/replies, modal fields (link URL, image alt text, gist
+     search), the command palette's search box, and any future one —
+     rather than bumping each one individually and missing whichever
+     wasn't remembered (as happened here: the editor and title field
+     were fixed first, but every plain <input>/<textarea> in the app
+     was still relying on the browser's own default form-control size,
+     well under 16px). Not fought via a maximum-scale/user-scalable
+     viewport override instead, since that disables pinch-zoom for
+     everyone — a real accessibility regression. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Input Focus Transitions */
+input,
+textarea,
+select {
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+/* Theme Switching */
+body {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}

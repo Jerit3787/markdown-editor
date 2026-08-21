@@ -1,0 +1,352 @@
+/* Desktop can always exit Focus Mode via Escape — this button is for
+   mobile, which has no such key, and whose #topbar (the View menu's
+   own toggle) is itself hidden while Focus Mode is on above. Hidden by
+   default; only shown by the mobile media query below, and only while
+   Focus Mode is actually active. */
+.focus-mode-exit-btn {
+  display: none;
+}
+/* Wraps Toolbar.svelte's <div id="toolbar">, Editor.svelte's
+   <div id="editorWrap">, and Preview.svelte's <div id="preview"> — all
+   three need to sit as direct flex children of #editorPane/#previewPane
+   (.pane's flex layout) for their own flex:1/overflow-y:auto rules to
+   apply, same reasoning as #menubar-mount above. Without this,
+   #preview's flex:1 is meaningless one level too deep, its scrollable
+   area collapses, and sync-scroll's preview.scrollTop writes become
+   silent no-ops (confirmed live — this was Phase C's own migration bug,
+   not a pre-existing issue with #preview itself). */
+#toolbar-mount,
+#editor-mount,
+#preview-mount {
+  display: contents;
+}
+.outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+.outline-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 34px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.outline-item:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.outline-item[data-level="2"] {
+  padding-left: 46px;
+}
+.outline-item[data-level="3"] {
+  padding-left: 58px;
+}
+.outline-item[data-level="4"],
+.outline-item[data-level="5"],
+.outline-item[data-level="6"] {
+  padding-left: 70px;
+}
+#editorPane {
+  flex: 1;
+}
+#previewPane {
+  flex: 1;
+  border-left: 1px solid var(--border);
+}
+/* A separate flex item alongside #toolbar in #topbar-row, sized by its
+   own content (not stretched — #toolbar's flex: 1 absorbs the rest of
+   the row) — needs its own copy of #toolbar's row styling
+   (background/border/padding) to read as a continuation of the same
+   visual row. */
+.view-selector {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+
+  button {
+    border: none;
+    background: transparent;
+    color: var(--text);
+    padding: 5px 9px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+  }
+
+  button:hover {
+    background: var(--border);
+  }
+
+  button.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+}
+/* .cm-host wraps the CodeMirror 6 EditorView (inserted next to the now-
+   hidden #editor textarea by app.ts's initEditor). The view's own root
+   element (.cm-editor) is sized via its theme() extension instead of
+   here — this just needs to give that element something with a real
+   height to fill in the first place. */
+#editorWrap {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+
+  .cm-host {
+    height: 100%;
+  }
+}
+#preview {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  /* Equal top/bottom (was 28px top, leaving the first line sitting
+  closer to the topbar than the editor pane's own toolbar-buffered
+  top ever does) — matches the horizontal padding too. */
+  padding: 40px;
+  line-height: 1.7;
+  font-size: 15.5px;
+  overflow-wrap: break-word;
+
+  /* Scoped under #preview, matching (not just relying on coincidental
+     color overlap with) #preview a's specificity — otherwise that
+     generic rule's `color` wins over a plain .wikilink-missing class
+     selector and the "missing" dimming silently never shows. */
+  .wikilink {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--accent);
+    cursor: pointer;
+  }
+
+  .wikilink:hover {
+    border-bottom-style: solid;
+  }
+
+  .wikilink-missing {
+    color: var(--text-dim);
+    border-bottom-color: var(--text-dim);
+  }
+
+  h1 {
+    font-size: 1.9em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.25em;
+  }
+
+  h2 {
+    font-size: 1.5em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.2em;
+  }
+
+  code {
+    font-family: var(--mono);
+    background: var(--bg-alt);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+  }
+
+  blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 0;
+    padding: 2px 16px;
+    color: var(--text-dim);
+    background: var(--bg-alt);
+    border-radius: 0 6px 6px 0;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th {
+    background: var(--bg-alt);
+  }
+
+  img {
+    max-width: 100%;
+    border-radius: 6px;
+  }
+
+  a {
+    color: var(--accent);
+  }
+
+  /* GFM task-list items (marked's checkbox <li>s carry no distinguishing
+     class in this version — bare <li><input type="checkbox">...) still
+     get the browser's default bullet marker alongside the checkbox
+     without this, showing both a dot and a checkbox. */
+  li:has(> input[type="checkbox"]) {
+    list-style: none;
+    margin-left: -1.2em;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+  }
+
+  .footnotes {
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 0.9em;
+    color: var(--text-dim);
+  }
+
+  .footnotes ol {
+    padding-left: 20px;
+  }
+
+  pre.mermaid {
+    position: relative;
+  }
+
+  .mermaid-edit-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text);
+  }
+}
+#preview h1,
+#preview h2,
+#preview h3 {
+  line-height: 1.3;
+}
+#preview pre,
+.diagram-editor-preview pre {
+  background: var(--bg-alt);
+  padding: 14px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+}
+#preview th,
+#preview td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+}
+#preview [data-footnote-ref],
+#preview [data-footnote-backref] {
+  color: var(--accent);
+  text-decoration: none;
+}
+#preview [data-footnote-ref]:hover,
+#preview [data-footnote-backref]:hover {
+  text-decoration: underline;
+}
+#preview pre.mermaid.mermaid-rendered,
+.diagram-editor-preview pre.mermaid.mermaid-rendered {
+  background: none;
+  border: none;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+#preview pre.mermaid.mermaid-rendered svg,
+.diagram-editor-preview pre.mermaid.mermaid-rendered svg {
+  max-width: 100%;
+}
+#preview pre.mermaid.mermaid-error,
+.diagram-editor-preview pre.mermaid.mermaid-error {
+  white-space: normal;
+}
+#preview .mermaid-error-message,
+.diagram-editor-preview .mermaid-error-message {
+  color: var(--danger);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+#preview .mermaid-error-source,
+.diagram-editor-preview .mermaid-error-source {
+  display: block;
+  white-space: pre-wrap;
+  font-family: var(--mono);
+}
+#preview pre.mermaid:hover .mermaid-edit-btn,
+#preview .mermaid-edit-btn:focus-visible {
+  opacity: 1;
+}
+/* KaTeX renders in a hardcoded near-black by default — inherit the
+   app's own text color in both themes instead, same as every other
+   preview element. */
+.katex {
+  color: var(--text);
+}
+@media (max-width: 780px) {
+  body.focus-mode .focus-mode-exit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 50;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg);
+    box-shadow: var(--shadow);
+    color: var(--text);
+  }
+}
+@media (max-width: 780px) {
+  .focus-mode-exit-btn .icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+@media (max-width: 780px) {
+  .cm-content {
+    font-size: 16px;
+  }
+}
+@media (max-width: 780px) {
+  /* Mobile-friendly padding to avoid wasting horizontal space. Scoped to
+     the main editor's own mount point, not a bare .cm-content selector —
+     DiagramEditor.svelte's separate CodeMirror instance lives outside
+     #editor-mount and must not inherit this. */
+  #editor-mount .cm-content {
+    padding: 24px 16px 4px 16px !important;
+  }
+}
+@media (max-width: 780px) {
+  #preview {
+    position: relative;
+    padding: 24px 16px !important;
+  }
+}

@@ -1,0 +1,93 @@
+/* #saveStatusBtn sits near the left of the topbar — the default
+   right-anchored .dropdown-menu (correct for Share/Settings near the right
+   edge) would overflow off the left of the viewport here. */
+.save-status-popup {
+  left: 0;
+  right: auto;
+}
+#saveStatusBtn {
+  width: 28px;
+  height: 28px;
+  margin-left: 2px;
+
+  .icon {
+    width: 16px;
+    height: 16px;
+    color: var(--text-dim);
+  }
+}
+#saveStatusBtn.saving .icon {
+  color: var(--accent);
+  animation: save-status-pulse 1.2s ease-in-out infinite;
+}
+.save-status-popup {
+  min-width: 240px;
+  padding: 12px 14px;
+
+  .menu-section-label {
+    padding: 0 0 4px;
+  }
+
+  p {
+    margin: 0 0 8px;
+  }
+
+  .menu-link-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px -14px -12px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .menu-link-item:hover {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex-shrink: 0;
+}
+.status-dot.status-connected,
+.status-dot.status-shared {
+  background: #12b886;
+}
+.status-dot.status-reconnecting {
+  background: #f59f00;
+}
+.status-dot.status-idle {
+  background: var(--text-dim);
+}
+/* Status bar */
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 5px 14px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  background: var(--bg-alt);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.statusbar-link {
+  display: flex;
+  color: var(--text-dim);
+
+  .icon {
+    width: 13px;
+    height: 13px;
+  }
+}
+.statusbar-link:hover {
+  color: var(--accent);
+}

@@ -1,0 +1,178 @@
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  /* 100vh on mobile Safari/Chrome is sized for the largest possible
+     viewport (browser chrome hidden), not what's actually visible —
+     the difference is exactly the address bar's height, which is why
+     the bottom pane in the stacked mobile layout could end up
+     unreachable no matter how you scrolled it. 100dvh tracks the real
+     visible viewport as browser chrome shows/hides; kept as a second
+     declaration (not a replacement) so a browser that doesn't
+     understand dvh silently keeps the vh fallback above. */
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Remote cursor/selection rendering (.cm-ySelection, .cm-ySelectionCaret,
+   etc.) comes from y-codemirror.next's own yRemoteSelectionsTheme
+   extension now, included alongside yCollab in app.ts — no separate CSS
+   needed here. .cm-image-uploading is defined in app.ts's editorTheme
+   (a CodeMirror-scoped theme extension), not globally, since it only
+   ever applies inside the editor. */
+
+/* Body layout — a grid, not a flex row, so the toolbar row above can
+   span the sidenav+editor+preview columns as one block while the view
+   selector shares a column with the comment sidenav below it (matching
+   the original mockup's rowspan/colspan table exactly: the toolbar's
+   3-column span and the view selector's column both need to track
+   #sidebar's and .comments-panel's actual widths, which only a shared
+   grid track (not two independently-sized flex rows) keeps in sync). */
+/* Registering this makes it an animatable <length> instead of an opaque
+   token — without this, changing it (as CommentsPanel.svelte's $effect
+   does, on every open/close) jumps grid-template-columns straight to the
+   new value with no interpolation, no matter what transition is set on
+   the rule that references it. With it, #content-row's transition below
+   smoothly interpolates the whole grid reflow in sync with
+   .comments-panel's own slide, instead of #main snapping to its new
+   width in a single frame. */
+/* Two independent layouts stacked vertically — #topbar-row (the
+   formatting toolbar + view selector) and #content-row (sidebar/editor-
+   preview/comments) — rather than one grid spanning both. A single grid
+   was tried first: #topbar-row and #content-row would be two rows of
+   the same grid, sharing grid-template-columns between them. That forced
+   a choice that has no good answer — either the shared column has a
+   floor wide enough for .view-selector's buttons (so they never get
+   squashed), which then also reserves that same width as permanently
+   empty space under it, for #content-row's entire height, any time
+   comments is collapsed (most of the time) — or no floor, which fixes
+   the dead space but leaves .view-selector with nowhere to lay out its
+   buttons at 0px. Splitting into two unrelated layouts means each can
+   size its own columns independently: #content-row's third column can
+   go to genuine 0px with nothing else depending on it, and
+   .view-selector (in #topbar-row, a plain flex row) sizes itself by its
+   own content, never touching that column at all. */
+#body {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#content-row {
+  display: grid;
+  /* "comments" is auto-sized, exactly like "sidebar" — sized by
+     .comments-panel's own box (320px, minus whatever margin-right it
+     currently has). Two things this needed, both on .comments-panel
+     itself, to actually behave like #sidebar's column:
+
+     1. overflow: hidden — an auto track's minimum floors at its item's
+        min-content width unless overflow isn't visible, so without
+        this the "Comments" heading's text would keep the track from
+        ever fully reaching 0.
+     2. margin-right, not grid-template-columns, drives the resize —
+        a CSS custom property here (0px at rest, animated by
+        CommentsPanel.svelte to 320px on open) was tried first, along
+        with @property to register it as an interpolable <length> so
+        grid-template-columns could transition smoothly. Instead of
+        animating, Chrome simply never applied the value at all — a
+        real browser limitation, not a mistake in that approach.
+        margin-right sidesteps it entirely: it's a plain property with
+        no custom-property/registration involved, and shrinking it is
+        a completely standard, well-supported auto-track-sizing input
+        — the same mechanism #sidebar's margin-left already relies on.
+        See .comments-panel.collapsed for why margin-right alone isn't
+        quite enough on this trailing edge the way margin-left is on
+        #sidebar's leading one. */
+  grid-template-columns: auto 1fr auto;
+  /* Explicit 1fr, not the auto/content-sized default a grid falls back
+     to without this — otherwise the single row sizes itself to its
+     tallest item's natural content height instead of filling
+     #content-row's own (flex-stretched) height, leaving blank space
+     below #main whenever its content is shorter than #sidebar or
+     .comments-panel. minmax(0, 1fr), not bare 1fr, so a tall sidebar or
+     comments list doesn't stretch the row (and #main along with it)
+     taller than the viewport — items scroll internally instead. */
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "sidebar main comments";
+  flex: 1;
+  min-height: 0;
+}
+
+/* Main editor/preview */
+#main {
+  grid-area: main;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#body.mode-editor #previewPane,
+#body.mode-editor #divider {
+  display: none;
+}
+
+#body.mode-preview #editorPane,
+#body.mode-preview #divider {
+  display: none;
+}
+
+#body.mode-editor #editorPane {
+  flex: 1;
+}
+
+#body.mode-preview #previewPane {
+  flex: 1;
+  border-left: none;
+}
+
+#divider {
+  width: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+@media (max-width: 780px) {
+  #body.mode-split #main {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 780px) {
+  #body.mode-split #previewPane {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 780px) {
+  #body.mode-split #divider {
+    display: none;
+  }
+}
+
+@media (max-width: 780px) {
+  /* #sidebar and .comments-panel are position: fixed on mobile, so
+     #content-row has nothing left to actually lay out besides #main —
+     collapse to a single column. Stays a grid rather than switching to
+     display: block: block children don't stretch to fill their
+     parent's height the way grid items do, and #main needs that (it'd
+     otherwise size to its own content height and leave blank space
+     below on a short document, the same bug this whole file's history
+     is about). grid-template-rows isn't redeclared here, so it still
+     inherits minmax(0, 1fr) from the base rule above, which is what
+     actually provides that stretch. #topbar-row needs no override:
+     it's a plain flex row on every screen size, unrelated to this. */
+  #content-row {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main";
+  }
+}

@@ -1,0 +1,209 @@
+/* Comments Panel (client/src/components/CommentsPanel.svelte) */
+.comment-draft-anchor {
+  position: fixed;
+  z-index: 260;
+}
+.comment-add-btn {
+  width: auto;
+  margin-bottom: 0;
+}
+.comment-draft-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 8px;
+  width: 240px;
+
+  textarea {
+    width: 100%;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+}
+.comment-draft-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+
+  button {
+    width: auto;
+    margin-bottom: 0;
+  }
+}
+.comments-panel {
+  /* A real grid item in #content-row (see index.html), in its own
+  "comments" grid column (see #content-row's grid-template-areas) —
+  not a fixed-position overlay floating on top of the content like a
+  modal. The column is auto-sized rather than fixed-320px, so it
+  only actually holds that width while the panel is open or
+  collapsing — see #content-row's grid-template-columns comment for
+  the full mechanism.
+
+  overflow: hidden matters beyond clipping: an auto-sized grid track
+  normally floors at its item's min-content width (here, mostly the
+  "Comments" heading's text) rather than shrinking all the way to 0
+  — CSS Grid only drops that floor to a flat 0 when the item's
+  overflow isn't visible. Without this, the track (and the dead
+  space behind it) would never fully disappear even at rest. */
+  grid-area: comments;
+  width: 320px;
+  flex-shrink: 0;
+  overflow: hidden;
+  margin-right: 0;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.comments-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+
+  h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    flex: 1;
+  }
+
+  .secondary-btn {
+    width: auto;
+    margin-bottom: 0;
+  }
+}
+.comments-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+.comment-entry {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.comment-entry.orphaned {
+  opacity: 0.6;
+}
+.comment-entry-quote {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-style: italic;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 0 6px;
+}
+.comment-orphaned-label {
+  font-style: normal;
+  font-size: 11px;
+}
+.comment-body {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.comment-reply-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+
+  input {
+    flex: 1;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 6px;
+  }
+}
+.comment-reply-row button,
+.comment-entry > button.secondary-btn {
+  width: auto;
+  margin-bottom: 0;
+}
+.comment-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-dim);
+  padding: 2px;
+}
+/* Wraps CommentsPanel.svelte's <div class="comments-panel"> — needs to
+   sit as a direct child of #content-row for its own grid-area:comments
+   (see #content-row's grid-template-areas) to actually place it in the
+   comments column instead of being ignored, same reasoning as
+   #menubar-mount above. Without this, the panel renders wherever plain
+   block flow puts an unstyled wrapper div instead of the grid's
+   comments column. */
+#comments-panel-mount {
+  display: contents;
+}
+/* Comments Panel */
+.comments-panel {
+  transition:
+    transform 0.15s ease,
+    margin-right 0.15s ease;
+}
+.comments-panel.collapsed {
+  /* Two properties doing two separate jobs, animated together. transform
+  doesn't participate in grid layout at all — it's what actually
+  slides the panel out of view, same as always. margin-right, on its
+  own, does NOT reposition a grid item's box (it only shrinks the
+  trailing space reserved after it) — but that's exactly what's
+  needed for the OTHER job: shrinking #content-row's auto-sized
+  third column so #main reclaims the space, the same mechanism
+  #sidebar's margin-left already uses on the opposite edge. Neither
+  property can do both jobs alone here (unlike #sidebar, which only
+  needs one, because shrinking space on the *leading* edge and
+  repositioning the box are the same motion — on this trailing edge
+  they aren't), so both run in parallel over the same duration. */
+  transform: translateX(100%);
+  margin-right: -320px;
+}
+@media (max-width: 780px) {
+  /* Flush to the screen's left/right/bottom edges, only the top corners
+     rounded (not the desktop 320px side panel either — that rule
+     otherwise squeezes the editor down to almost nothing on a phone) —
+     matches #sidebar's native bottom-sheet look. Like #sidebar, it uses
+     transform to animate sliding up from the bottom, overriding the
+     desktop margin-right slide. */
+  .comments-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: 50vh;
+    border-radius: 16px 16px 0 0;
+    z-index: 40;
+    box-shadow: var(--shadow);
+    border-left: none;
+    transition:
+      transform 0.15s ease,
+      opacity 0.15s ease,
+      visibility 0s 0s;
+  }
+}
+@media (max-width: 780px) {
+  .comments-panel.collapsed {
+    transform: translateY(100%);
+    margin-right: 0;
+  }
+}

@@ -1,0 +1,17 @@
+@use "./styles/variables";
+@use "./styles/layout";
+@use "./styles/topbar";
+@use "./styles/sidebar";
+@use "./styles/editor-preview";
+@use "./styles/statusbar";
+@use "./styles/menu";
+@use "./styles/command-palette";
+@use "./styles/modals";
+@use "./styles/comments";
+@use "./styles/share-workspace";
+@use "./styles/diagram-editor";
+@use "./styles/diff-view";
+@use "./styles/slash-wikilink";
+@use "./styles/utilities";
+
+@import "katex/dist/katex.min.css";

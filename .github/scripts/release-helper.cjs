@@ -2,9 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function extractChangelog(content, tagName) {
   const version = tagName.replace(/^v/, '');
-  const escapedVersion = version.replace(/\./g, '\\.');
+  const escapedVersion = escapeRegExp(version);
   // Match heading like ## [1.14.0] or ## [1.14.0] - 2026-08-13
   const regex = new RegExp(`##\\s*\\[?${escapedVersion}\\]?[^\n]*\n([\\s\\S]*?)(?=\n##\\s*\\[|\\s*$)`, 'i');
   const match = content.match(regex);

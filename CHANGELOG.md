@@ -10,6 +10,14 @@ All notable changes to this project are documented here. Format follows
 
 - **Search and replace.** Ctrl/Cmd+F opens a find bar over the current document with a live match count and case-sensitive/whole-word/regex toggles; Ctrl/Cmd+H expands it with a Replace row (Replace and Replace All). Operates on the currently-open document only.
 
+## [1.28.1] - 2026-08-27
+
+### Fixed
+
+- **Mobile bottom sheets (Comments, sidebar) left the top bar undimmed and still clickable underneath the backdrop.** The backdrop's `z-index` sat below the top bar's, so its buttons and dropdowns stayed visually undimmed and interactive while a sheet was supposedly blocking the rest of the page.
+- **The sidebar/hamburger toggle button was a different, smaller size than every other toolbar button on mobile.** A CSS specificity mismatch let the desktop-sized rule win over the mobile touch-target rule for that one button.
+- **The mobile Share button rendered as an oval instead of a circle.** With the two-button desktop pill collapsed to a single icon on mobile, the button group's leftover fixed height stretched the button taller than it was wide, so its round corners no longer formed a true circle.
+
 ## [1.28.0] - 2026-08-27
 
 ### Added

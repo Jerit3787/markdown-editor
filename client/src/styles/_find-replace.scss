@@ -1,0 +1,89 @@
+/* Find & Replace bar (Ctrl/Cmd+F / Ctrl/Cmd+H) — docked to the top of
+   the editor pane (#editorWrap is position: relative, see
+   _editor-preview.scss), not a Modal-style centered dialog: a
+   persistent tool you interact with while still seeing/editing the
+   document, same layering idea as .slash-menu/.wikilink-menu. Match
+   highlighting itself reuses @codemirror/search's own
+   cm-searchMatch/cm-searchMatch-selected classes (see client/src/search.ts)
+   — no new CSS needed for that part. */
+.find-replace-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+}
+
+.find-row,
+.replace-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.find-replace-bar input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.find-replace-bar input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.find-replace-bar input[type="text"].invalid {
+  border-color: var(--danger);
+}
+
+.find-replace-bar .match-count {
+  min-width: 60px;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.find-replace-bar button {
+  border: none;
+  background: none;
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.find-replace-bar button:hover:not(:disabled) {
+  background: var(--bg-alt);
+  color: var(--text);
+}
+
+.find-replace-bar button.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.find-replace-bar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.find-replace-bar .replace-row button {
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+}

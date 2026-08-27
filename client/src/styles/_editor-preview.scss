@@ -101,6 +101,7 @@
    here — this just needs to give that element something with a real
    height to fill in the first place. */
 #editorWrap {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;

@@ -13,6 +13,9 @@
   import { commentDraft } from "../stores/commentDraft";
   import { slashMenu } from "../stores/slashMenu";
   import { wikilinkMenu } from "../stores/wikilinkMenu";
+  import { buildSearchExtension } from "../search";
+  import { openFindBar } from "../stores/findReplace";
+  import FindReplaceBar from "./FindReplaceBar.svelte";
 
   let hostEl: HTMLDivElement | undefined = $state();
   // $state (not a plain let): the two $effects below guard their real work
@@ -464,6 +467,23 @@
     },
   ]);
 
+  const findReplaceKeymap = keymap.of([
+    {
+      key: "Mod-f",
+      run: () => {
+        openFindBar("find");
+        return true;
+      },
+    },
+    {
+      key: "Mod-h",
+      run: () => {
+        openFindBar("replace");
+        return true;
+      },
+    },
+  ]);
+
   // Reactive replacements for the old imperative setKeybindings()/
   // toggleFocusMode() dispatch calls — re-runs whenever the store value
   // changes, whether that's Settings.svelte's runtime switch or the
@@ -509,6 +529,8 @@
       commentMarkerField,
       commentDraftSyncListener,
       menuEscapeKeymap,
+      findReplaceKeymap,
+      buildSearchExtension(),
       slashTriggerField,
       slashMenuSyncListener,
       wikilinkTriggerField,
@@ -563,5 +585,6 @@
 </script>
 
 <div id="editorWrap">
+  <FindReplaceBar />
   <div bind:this={hostEl} class="cm-host"></div>
 </div>

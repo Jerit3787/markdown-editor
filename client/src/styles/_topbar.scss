@@ -259,6 +259,18 @@ body.focus-mode #statusbar {
     padding: 8px;
     border-radius: 50%;
   }
+  /* .share-btn-group's own height: 40px (set unconditionally above,
+     for the desktop two-button pill) is never relaxed here, and it has
+     no align-items of its own (defaults to stretch) — with
+     #shareDropdownBtn hidden on mobile (.desktop-only), #shareBtn is
+     the group's only flex item, so it gets stretched to the group's
+     fixed 40px height while its own width stays padding+icon-sized
+     (~33px). border-radius: 50% on a non-square box renders an oval,
+     not a circle. Matching height: auto here lets the group collapse
+     to #shareBtn's real (square) box instead. */
+  #topbarActionsCol .share-btn-group {
+    height: auto;
+  }
 }
 @media (max-width: 780px) {
   #topbarActionsCol .share-pill .icon {
@@ -273,6 +285,22 @@ body.focus-mode #statusbar {
      bigger touch targets for whichever buttons stay visible. */
   #toolbar button {
     flex-shrink: 0;
+    min-width: 36px;
+    padding: 7px 10px;
+  }
+  /* #toolbar button (1 id, 0 classes) loses this specificity fight
+     against .toolbar-buttons #sidebarToggleOut (1 id, 1 class) above —
+     an id beats any number of classes only when the class count is
+     otherwise equal, and here the extra class tips it the other way —
+     so the hamburger/sidebar-toggle button was staying at its compact
+     desktop size while every other toolbar button (including the "⋮"
+     overflow button, matched only by .toolbar-overflow .icon-btn with
+     no id at all) got the bigger mobile touch target. Repeating the
+     exact desktop selector here, later in the cascade, restores it at
+     matching specificity. */
+  .toolbar-buttons #sidebarToggleOut {
+    width: auto;
+    height: auto;
     min-width: 36px;
     padding: 7px 10px;
   }

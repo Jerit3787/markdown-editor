@@ -315,7 +315,12 @@
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 39;
+    /* Must clear #topbar's z-index: 300 — otherwise the topbar's own
+    buttons/dropdowns stay visibly undimmed and clickable through the
+    backdrop while the sidebar sheet is supposedly blocking interaction
+    with the rest of the page (same reasoning as .modal-backdrop's own
+    z-index: 320 in _modals.scss). */
+    z-index: 320;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.15s ease;

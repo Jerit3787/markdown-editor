@@ -62,7 +62,7 @@ its own, same process as every feature shipped this session.
       disable commenting on it.
 - [ ] Add an "insert existing image" picker/autocomplete (browse
       already-uploaded images instead of only inserting new ones).
-- [ ] Search & replace.
+- [x] Search & replace. (Shipped v1.29.0.)
 - [ ] More toolbar shortcuts — undo, a quick-access entry point for
       the Command Palette, similar quality-of-life additions Google
       Docs' toolbar has.

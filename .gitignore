@@ -11,3 +11,5 @@ recovered_images/
 test-results/
 playwright-report/
 blob-report/
+__screenshots__/
+.vitest-attachments/

@@ -7,6 +7,8 @@
     ["Bold", "Ctrl/Cmd+B"],
     ["Italic", "Ctrl/Cmd+I"],
     ["Insert link", "Ctrl/Cmd+K"],
+    ["Find", "Ctrl/Cmd+F"],
+    ["Find and replace", "Ctrl/Cmd+H"],
     ["Undo", "Ctrl/Cmd+Z"],
     ["Redo", "Ctrl/Cmd+Shift+Z"],
     ["Continue list on new line", "Enter"],

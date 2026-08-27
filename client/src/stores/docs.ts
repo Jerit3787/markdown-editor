@@ -178,23 +178,30 @@ function sameImages(a: Record<string, string> | undefined, b: Record<string, str
   return aEntries.every(([key, value]) => bMap[key] === value);
 }
 
-// Writes a shared workspace's background (non-active) document content
-// back into docsStore. Called by collab.ts for every document in a
-// shared workspace that isn't the one currently open — the active
-// document's content already flows through activeDocContent ->
-// saveActiveDocContent instead, so this only ever runs for documents the
-// user isn't looking at right now. Mirrors saveActiveDocContent's "don't
-// bump updatedAt unless something actually changed" rule: a collaborator
-// really editing a document is a real modification and should bump it
-// the same way a local edit would, but reconnecting/resyncing identical
-// content must not.
-export function syncRemoteDocContent(id: string, content: string, images: Record<string, string> | undefined): boolean {
+// Writes a shared workspace's background (non-active) document content —
+// and, since v1.24.0, its name — back into docsStore. Called by
+// collab.ts for every document in a shared workspace that isn't the one
+// currently open — the active document's content already flows through
+// activeDocContent -> saveActiveDocContent instead (and its name through
+// the MDEBridge.setDocName path collab.ts uses directly, see app.ts), so
+// this only ever runs for documents the user isn't looking at right now.
+// Mirrors saveActiveDocContent's "don't bump updatedAt unless something
+// actually changed" rule: a collaborator really editing a document is a
+// real modification and should bump it the same way a local edit would,
+// but reconnecting/resyncing identical content must not.
+export function syncRemoteDocContent(id: string, content: string, images: Record<string, string> | undefined, name?: string): boolean {
   const doc = findDocById(id);
   if (!doc) return false;
   const contentChanged = content !== doc.content;
   const imagesChanged = !sameImages(images, doc.images);
-  if (!contentChanged && !imagesChanged) return false;
-  updateDoc(id, { content, images, updatedAt: Date.now() });
+  // Re-applies the same global-uniqueness rule createDoc/importRemoteDocs
+  // use rather than trusting the incoming name as-is — a remote rename
+  // that happens to collide with an unrelated local document must not
+  // silently break wikilink resolution's exact-match assumption.
+  const finalName = name !== undefined ? ensureUniqueName(name || "Untitled", get(docsStore), id) : undefined;
+  const nameChanged = finalName !== undefined && finalName !== doc.name;
+  if (!contentChanged && !imagesChanged && !nameChanged) return false;
+  updateDoc(id, { content, images, ...(nameChanged ? { name: finalName } : {}), updatedAt: Date.now() });
   return true;
 }
 

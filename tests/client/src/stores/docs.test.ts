@@ -499,6 +499,41 @@ describe("docs store — workspace integration", () => {
     expect(syncRemoteDocContent("does-not-exist", "content", undefined)).toBe(false);
   });
 
+  it("syncRemoteDocContent writes a collaborator's rename and bumps updatedAt when the name differs", async () => {
+    const { createDoc, syncRemoteDocContent, findDocById } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "a", content: "same" });
+    const before = findDocById(doc.id)!.updatedAt;
+    const wrote = syncRemoteDocContent(doc.id, "same", undefined, "renamed by collaborator");
+    expect(wrote).toBe(true);
+    const after = findDocById(doc.id)!;
+    expect(after.name).toBe("renamed by collaborator");
+    expect(after.updatedAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it("syncRemoteDocContent is a no-op when only an unchanged name is passed", async () => {
+    const { createDoc, syncRemoteDocContent, findDocById } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "a", content: "same" });
+    const before = findDocById(doc.id)!.updatedAt;
+    const wrote = syncRemoteDocContent(doc.id, "same", undefined, "a");
+    expect(wrote).toBe(false);
+    expect(findDocById(doc.id)!.updatedAt).toBe(before);
+  });
+
+  it("syncRemoteDocContent silently suffixes a collaborator's rename that collides with another local document's name", async () => {
+    const { createDoc, syncRemoteDocContent, findDocById } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = createWorkspace("Notes");
+    createDoc({ workspaceId: ws.id, name: "Taken" });
+    const doc = createDoc({ workspaceId: ws.id, name: "a", content: "same" });
+    const wrote = syncRemoteDocContent(doc.id, "same", undefined, "Taken");
+    expect(wrote).toBe(true);
+    expect(findDocById(doc.id)!.name).toBe("Taken-2");
+  });
+
   it("replaceDocImages fully replaces a doc's image map, not merges into it", async () => {
     const { docsStore, replaceDocImages } = await import("../../../../client/src/stores/docs");
     const { createWorkspace } = await import("../../../../client/src/stores/workspaces");

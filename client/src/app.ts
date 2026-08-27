@@ -9,6 +9,7 @@ import { formatRelativeTime } from "./relative-time";
 import {
   activeIdStore,
   activeDocContent,
+  docsStore,
   getActiveDoc,
   createDoc,
   switchDoc as storeSwitchDoc,
@@ -17,7 +18,9 @@ import {
   setDocImage,
   refreshDocNoteAnchors,
   findCollidingDoc,
+  persistDocs,
 } from "./stores/docs";
+import { ensureUniqueName } from "./doc-naming";
 import { workspacesStore, createWorkspace } from "./stores/workspaces";
 import { initRouter, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
 import { showToast } from "./stores/toast";
@@ -592,6 +595,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
       scheduleSave();
       resizeDocTitle();
       updatePageTitle(name);
+      window.MDE.onDocRenamed?.(doc.id, name);
     });
     // "Untitled" is the real stored name for a never-renamed doc, not just
     // a placeholder — but making the user delete it by hand before typing
@@ -1121,6 +1125,23 @@ ${bodyHtml}
       window.MDE.updatePreview?.();
     },
     onImageAdded: null,
+    // Called by collab.ts when a collaborator renames a shared document
+    // (its Y.Doc "meta" map changed remotely). Re-applies the same
+    // global-uniqueness rule createDoc/importRemoteDocs use rather than
+    // trusting the incoming name as-is — a remote rename that happens to
+    // collide with an unrelated local document must not silently break
+    // wikilink resolution's exact-match assumption.
+    setDocName(id, name) {
+      const finalName = ensureUniqueName(name || "Untitled", get(docsStore), id);
+      renameDoc(id, finalName);
+      persistDocs();
+      if (getActiveDoc()?.id === id) {
+        (document.getElementById("docTitle") as HTMLInputElement).value = finalName;
+        resizeDocTitle();
+        updatePageTitle(finalName);
+      }
+    },
+    onDocRenamed: null,
     toggleDropdown,
     closeAllDropdowns,
     requireGithubSignIn(hint) {

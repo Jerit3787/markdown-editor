@@ -1009,9 +1009,12 @@ test("Ctrl/Cmd+H opens with the replace row, and Replace All replaces every matc
   await page.keyboard.type("the cat sat on the cat mat");
   await page.keyboard.press("ControlOrMeta+H");
 
-  await expect(page.getByLabel("Replace")).toBeVisible();
+  // exact: true — Playwright's getByLabel also does substring/case-
+  // insensitive matching by default, which would otherwise also match
+  // "Toggle replace"'s label.
+  await expect(page.getByLabel("Replace", { exact: true })).toBeVisible();
   await page.getByLabel("Find").fill("cat");
-  await page.getByLabel("Replace").fill("dog");
+  await page.getByLabel("Replace", { exact: true }).fill("dog");
   await page.getByRole("button", { name: "Replace All" }).click();
 
   await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("the dog sat on the dog mat");

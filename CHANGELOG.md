@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.28.0] - 2026-08-27
+
+### Added
+
+- **Shared document names now sync to every collaborator.** Renaming a shared document previously only changed the title on your own browser — everyone else kept seeing the old name until they happened to reload. The name now travels over the same live connection as the document's content and images (and is gated the same way: only an editor's rename reaches collaborators), so a rename shows up for everyone immediately, including on a fresh join.
+
 ## [1.27.2] - 2026-08-19
 
 ### Fixed

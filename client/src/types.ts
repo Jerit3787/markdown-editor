@@ -158,6 +158,14 @@ export interface MDEBridge {
   getResolvedContent(): string;
   setDocImage(key: string, dataUrl: string): void;
   onImageAdded: ((key: string, dataUrl: string) => void) | null;
+  // Same shape as setDocImage/onImageAdded, for the document's name: a
+  // collaborator renaming a shared document (collab.ts's metaMap) calls
+  // setDocName to update the docTitle input/page title/store for
+  // whichever doc that is; the local user renaming via the docTitle
+  // input calls onDocRenamed so collab.ts can push that name to the
+  // shared workspace's Y.Doc if the document is currently shared.
+  setDocName(id: string, name: string): void;
+  onDocRenamed: ((id: string, name: string) => void) | null;
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
   requireGithubSignIn(hint?: string): void;

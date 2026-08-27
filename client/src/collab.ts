@@ -50,6 +50,14 @@ interface DocBinding {
   ydoc: Y.Doc;
   ytext: Y.Text;
   imagesMap: Y.Map<string>;
+  // The document's name — a third top-level type on the same Y.Doc as
+  // ytext/imagesMap, keyed "name". Content sync got this for free the
+  // moment it started riding the same MESSAGE_SYNC/Y.Doc-update wire
+  // format imagesMap already used; the name is just another field on
+  // it, gated editor-only by the exact same write-check the server
+  // already applies to every Y.Doc update (workspace-room.ts's
+  // handleMessage), same as content edits.
+  metaMap: Y.Map<string>;
   awareness: awarenessProtocol.Awareness;
   undoManager: Y.UndoManager | null;
   ydocUpdateHandler: (update: Uint8Array, origin: unknown) => void;
@@ -98,7 +106,8 @@ function flushDirtyBackgroundDocs(): void {
     const content = binding.ytext.toString();
     const imageEntries = Array.from(binding.imagesMap.entries());
     const images = imageEntries.length > 0 ? Object.fromEntries(imageEntries) : undefined;
-    if (syncRemoteDocContent(docId, content, images)) changed = true;
+    const name = binding.metaMap.get("name");
+    if (syncRemoteDocContent(docId, content, images, name)) changed = true;
   }
   dirtyBackgroundDocs.clear();
   if (changed) persistDocs();
@@ -121,6 +130,19 @@ function init() {
   window.MDE.onImageAdded = (key, dataUrl) => {
     const binding = workspaceRoom.activeDocId ? workspaceRoom.docs.get(workspaceRoom.activeDocId) : undefined;
     if (binding) binding.ydoc.transact(() => binding.imagesMap.set(key, dataUrl), "local");
+  };
+  // A rename always happens through the docTitle input, which is always
+  // the active document (DocList.svelte's row "Rename" action switches
+  // to the target doc first before focusing it) — but this looks the
+  // binding up by id rather than assuming activeDocId regardless, same
+  // as onImageAdded's own binding lookup above. Editor-only gated
+  // implicitly: a non-editor's write never reaches any collaborator
+  // anyway (the server drops it, see workspace-room.ts's handleMessage
+  // isWrite check), it just optimistically renders locally for the
+  // person doing the (rejected) rename until the next resync.
+  window.MDE.onDocRenamed = (docId, name) => {
+    const binding = workspaceRoom.docs.get(docId);
+    if (binding) binding.ydoc.transact(() => binding.metaMap.set("name", name || "Untitled"), "local");
   };
 
   setupShareUI();
@@ -319,9 +341,10 @@ function seedDocBindingFromEditor(docId: string): void {
   const content = view.state.doc.toString();
   if (content) binding.ydoc.transact(() => binding.ytext.insert(0, content), "local");
   const doc = getActiveDoc();
-  if (doc && doc.id === docId && doc.images) {
+  if (doc && doc.id === docId) {
     binding.ydoc.transact(() => {
-      Object.entries(doc.images!).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
+      binding.metaMap.set("name", doc.name || "Untitled");
+      if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
     }, "local");
   }
 }
@@ -348,6 +371,17 @@ function createDocBinding(docId: string, role: string): DocBinding {
       markDirty(docId);
     }
   });
+  const metaMap = ydoc.getMap<string>("meta");
+  metaMap.observe((event, tr) => {
+    if (tr.origin === "local") return;
+    if (!event.changes.keys.has("name")) return;
+    if (workspaceRoom.activeDocId === docId) {
+      const name = metaMap.get("name");
+      if (name !== undefined) window.MDE.setDocName(docId, name);
+    } else {
+      markDirty(docId);
+    }
+  });
   const awareness = new awarenessProtocol.Awareness(ydoc);
 
   const ydocUpdateHandler = (update: Uint8Array, origin: unknown) => {
@@ -360,7 +394,7 @@ function createDocBinding(docId: string, role: string): DocBinding {
   };
   ydoc.on("update", ydocUpdateHandler);
 
-  const binding: DocBinding = { ydoc, ytext, imagesMap, awareness, undoManager: null, ydocUpdateHandler, role };
+  const binding: DocBinding = { ydoc, ytext, imagesMap, metaMap, awareness, undoManager: null, ydocUpdateHandler, role };
   workspaceRoom.docs.set(docId, binding);
   return binding;
 }
@@ -674,7 +708,8 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
       if (gotDocId !== docId) return;
       syncProtocol.readSyncMessage(decoder, encoding.createEncoder(), scratchDoc, "server");
       const now = Date.now();
-      finish({ id: docId, name: "Shared document", content: scratchDoc.getText("content").toString(), updatedAt: now, createdAt: now });
+      const name = scratchDoc.getMap<string>("meta").get("name") || "Shared document";
+      finish({ id: docId, name, content: scratchDoc.getText("content").toString(), updatedAt: now, createdAt: now });
     };
     ws.onerror = () => finish(null);
     setTimeout(() => finish(null), 5000);

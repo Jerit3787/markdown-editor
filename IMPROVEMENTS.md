@@ -76,17 +76,15 @@ its own, same process as every feature shipped this session.
       etc.) and add a Markdown compatibility checker under the
       Document Info panel — flag syntax that's flavor-specific or
       won't render the same elsewhere.
-- [ ] **Shared document name sync.** Only document _content_ syncs
-      between collaborators today (via Yjs's `ytext`) — the document
-      name is purely local per-browser and never touches the collab
-      layer at all, so a rename by one party never reaches anyone
-      else. Reclassified here from an original "quick fix" report
-      (2026-08-13) once investigation showed it needs a new synced
-      field (a second Y-doc field alongside `ytext`, or a
-      CollabRoom-stored metadata field with its own sync path) plus a
-      real design decision: should renaming respect the same
-      viewer/reviewer/editor role gating comments already use, or
-      should any collaborator be able to rename?
+- [x] **Shared document name sync.** (Shipped v1.28.0.) The name now
+      lives in a `meta` Y.Map on the same per-document Y.Doc as
+      `ytext`/`imagesMap` — the same pattern imagesMap already
+      established, so it rides the existing sync/persistence wiring
+      with no new message type. Gated the same way content edits
+      already are (editor-only, enforced server-side); a
+      collaborator's rename reapplies the app's global-uniqueness
+      rule (silent `-2` suffix on collision) before it lands locally,
+      same as `importRemoteDocs`.
 
 ---
 

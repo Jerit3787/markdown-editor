@@ -10,9 +10,9 @@
 // no-op registration — none of the tests below trigger it.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
-import { decideShareTarget, decideJoinTarget, handleDocChanged, workspaceRoom } from "../../../client/src/collab";
-import { docsStore } from "../../../client/src/stores/docs";
-import { workspacesStore } from "../../../client/src/stores/workspaces";
+import { decideShareTarget, decideJoinTarget, handleDocChanged, workspaceRoom, setAccessMode } from "../../../client/src/collab";
+import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
+import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import type { Doc, Workspace } from "../../../client/src/types";
 
 function fakeDoc(overrides: Partial<Doc>): Doc {
@@ -215,5 +215,77 @@ describe("join-generation race (rapid doc switching in a shared workspace)", () 
     expect(workspaceRoom.activeDocId).toBe("docB");
     expect(workspaceRoom.workspaceId).toBe("remote-1");
     expect(workspaceRoom.docs.size).toBe(2);
+  });
+});
+
+// Regression coverage for "shared document name sync" (IMPROVEMENTS.md
+// Phase 2): the document name now rides the same Y.Doc as its content, as
+// a third top-level type ("meta") alongside ytext/imagesMap — the exact
+// pattern imagesMap already established. These tests exercise both
+// directions: a local rename pushed into the shared doc, and a remote
+// rename applied back onto docsStore/the docTitle input.
+describe("shared document name sync", () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="shareDropdownBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { method?: string }) => {
+        if (url.includes("/access") && init?.method === "PUT") {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "hello" } } })),
+      githubUsername: "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      setDocName: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    // workspaceRoom is a module-level singleton shared across every test
+    // in this file — reset it in case an earlier describe block (e.g.
+    // "join-generation race" above) left it connected to its own
+    // workspace, which would otherwise make setAccessMode below see
+    // workspaceRoom.workspaceId already set and skip joining entirely.
+    handleDocChanged(undefined as unknown as Doc);
+
+    const ws = fakeWorkspace({ id: "ws1", name: "WS" });
+    workspacesStore.set([ws]);
+    activeWorkspaceIdStore.set("ws1");
+    docsStore.set([{ id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1" }]);
+    activeIdStore.set("doc1");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("seeds the shared doc's current name into its Y.Doc meta map when sharing for the first time", async () => {
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get("doc1");
+    expect(binding?.metaMap.get("name")).toBe("My Doc");
+  });
+
+  it("applies a remote rename on the active doc via MDE.setDocName", async () => {
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get("doc1")!;
+    binding.ydoc.transact(() => binding.metaMap.set("name", "Renamed By Collaborator"), "server");
+
+    expect(window.MDE.setDocName).toHaveBeenCalledWith("doc1", "Renamed By Collaborator");
   });
 });

@@ -339,8 +339,22 @@ import { userEvent } from "vitest/browser";
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { buildSearchExtension } from "../../../../client/src/search";
-import { findBarOpen, findBarMode, closeFindBar } from "../../../../client/src/stores/findReplace";
-import FindReplaceBar from "../../../../client/src/components/FindReplaceBar.svelte";
+
+// stores/findReplace.ts imports stores/view.ts, which reads/writes
+// document.getElementById("body") at module load time (it mirrors the
+// current view mode onto that element's className) — this app's own
+// index.html always has that element, but the plain tester page Vitest's
+// browser mode serves for component tests doesn't, so it has to be
+// seeded before either module ever loads (including transitively, via
+// FindReplaceBar.svelte's own static import of stores/findReplace).
+if (!document.getElementById("body")) {
+  const bodyMarker = document.createElement("div");
+  bodyMarker.id = "body";
+  document.body.appendChild(bodyMarker);
+}
+
+const { findBarOpen, findBarMode, closeFindBar } = await import("../../../../client/src/stores/findReplace");
+const { default: FindReplaceBar } = await import("../../../../client/src/components/FindReplaceBar.svelte");
 
 let view: EditorView;
 let host: HTMLDivElement;
@@ -368,7 +382,8 @@ test("typing a query shows a live match count", async () => {
   mountEditor("cat cat CAT dog");
   const screen = await render(FindReplaceBar);
   await screen.getByLabelText("Find").fill("cat");
-  await expect.element(screen.getByText("1 of 2")).toBeVisible();
+  // Case-insensitive by default: matches both "cat"s and "CAT".
+  await expect.element(screen.getByText("1 of 3")).toBeVisible();
 });
 
 test("the match case toggle narrows the count", async () => {
@@ -376,15 +391,16 @@ test("the match case toggle narrows the count", async () => {
   const screen = await render(FindReplaceBar);
   await screen.getByLabelText("Find").fill("cat");
   await screen.getByLabelText("Match case").click();
-  await expect.element(screen.getByText("1 of 1")).toBeVisible();
+  // Case-sensitive: only the two lowercase "cat"s match, not "CAT".
+  await expect.element(screen.getByText("1 of 2")).toBeVisible();
 });
 
 test("the replace row only appears in replace mode", async () => {
   mountEditor("cat cat");
   const screen = await render(FindReplaceBar);
-  await expect.element(screen.getByLabelText("Replace")).not.toBeInTheDocument();
+  await expect.element(screen.getByLabelText("Replace", { exact: true })).not.toBeInTheDocument();
   await screen.getByLabelText("Toggle replace").click();
-  await expect.element(screen.getByLabelText("Replace")).toBeVisible();
+  await expect.element(screen.getByLabelText("Replace", { exact: true })).toBeVisible();
 });
 
 test("Replace and Replace All are disabled on a read-only view", async () => {
@@ -392,7 +408,10 @@ test("Replace and Replace All are disabled on a read-only view", async () => {
   findBarMode.set("replace");
   const screen = await render(FindReplaceBar);
   await screen.getByLabelText("Find").fill("cat");
-  await expect.element(screen.getByRole("button", { name: "Replace" })).toBeDisabled();
+  // exact: true on "Replace" — without it, Testing Library's default
+  // substring/case-insensitive name matching also matches "Toggle
+  // replace" and "Replace All", raising a strict-mode violation.
+  await expect.element(screen.getByRole("button", { name: "Replace", exact: true })).toBeDisabled();
   await expect.element(screen.getByRole("button", { name: "Replace All" })).toBeDisabled();
 });
 
@@ -507,6 +526,7 @@ Create `client/src/components/FindReplaceBar.svelte`:
 </script>
 
 {#if $findBarOpen}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="find-replace-bar" role="search" onkeydown={onKeydown}>
     <div class="find-row">
       <input

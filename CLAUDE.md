@@ -64,3 +64,13 @@ A change that ships anything **user-facing** bumps the **minor** version (`1.X.0
 3. A new entry appended to `client/src/whats-new-entries.ts` (`WHATS_NEW_ENTRIES`, oldest-first) — `WhatsNew.svelte` warns in dev if the last entry's version doesn't match `__APP_VERSION__` (from `package.json` via Vite `define`), though a `screenshot` field pointing at a real asset is expected too
 
 A change that's **purely behind-the-scenes** (internal refactor, dependency bump, a bugfix with no visible behavior change beyond "the bug is gone") bumps only the **patch** version (`1.0.X`) and gets a `CHANGELOG.md` entry (`### Fixed`/`### Changed`) but **no** `whats-new-entries.ts` entry. Tags trigger `.github/workflows/release.yml`, which pulls that tag's `CHANGELOG.md` section verbatim into the GitHub Release notes (`.github/scripts/release-helper.cjs`) — an untagged version bump with no changelog section produces an empty release note.
+
+### Shipping a change: PR, merge, tag — then Cloudflare deploys itself
+
+Once a change (with its version/CHANGELOG/whats-new updates, per above) is ready:
+
+1. Push the branch and open a PR against `master` (`.github/workflows/test.yml` runs `npm test`, `npm run build`, `npm run typecheck`, `npm run format:check`, and the local Playwright e2e suite on every PR).
+2. Wait for CI to go green before merging — don't merge on red or unfinished checks.
+3. Merge the PR (this repo's history uses a real merge commit — GitHub's "Merge pull request #N from ..." — not squash/rebase).
+4. **Tag the resulting commit on `master`** with `vX.Y.Z` matching the version just shipped (e.g. `git tag v1.28.0 && git push origin v1.28.0`) — this is what triggers `release.yml` to cut the GitHub Release from that version's `CHANGELOG.md` section. It's easy to forget since nothing else about the merge does it automatically.
+5. **No separate deploy step.** Cloudflare is already wired to auto-deploy from this GitHub repo on pushes to `master` — merging the PR is the deploy. `npm run deploy` (`wrangler deploy`) exists for manual/local use only; don't run it as part of normal shipping.

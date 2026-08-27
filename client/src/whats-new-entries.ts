@@ -99,4 +99,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Version History and personal notes on a repo-linked document now travel with the repo instead of staying stuck on whichever device created them. Push bundles your local snapshots and notes into the commit; opening the doc anywhere else pulls them back in automatically.",
     screenshot: "/whats-new/portable-local-history.png",
   },
+  {
+    version: "1.28.0",
+    title: "Shared Document Names Sync",
+    description:
+      "Renaming a shared document now shows up for every collaborator immediately, instead of staying stuck on whichever browser made the change until it happened to reload. The name travels over the same live connection as the document's content and images.",
+    screenshot: "/whats-new/shared-document-name-sync.png",
+  },
 ];

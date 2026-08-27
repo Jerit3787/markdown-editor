@@ -11,6 +11,7 @@
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
+  import { openFindBar } from "../stores/findReplace";
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
   let editMenuBtn: HTMLButtonElement, editMenu: HTMLDivElement;
@@ -195,6 +196,9 @@
     <div bind:this={editMenu} id="editMenu" class="dropdown-menu menubar-menu">
       <button id="menuUndo" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.undo())}><svg class="icon"><use href="#icon-undo-2"></use></svg> Undo <kbd>Ctrl+Z</kbd></button>
       <button id="menuRedo" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.redo())}><svg class="icon"><use href="#icon-redo-2"></use></svg> Redo <kbd>Ctrl+Shift+Z</kbd></button>
+      <div class="menu-divider"></div>
+      <button id="menuFind" type="button" disabled={!hasActiveDoc} onclick={() => act(() => openFindBar("find"))}><svg class="icon"><use href="#icon-search"></use></svg> Find... <kbd>Ctrl+F</kbd></button>
+      <button id="menuFindReplace" type="button" disabled={!hasActiveDoc} onclick={() => act(() => openFindBar("replace"))}><svg class="icon"><use href="#icon-search"></use></svg> Find and Replace... <kbd>Ctrl+H</kbd></button>
       <div class="menu-divider"></div>
       <button id="menuCut" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.cutSelection())}><svg class="icon"><use href="#icon-scissors"></use></svg> Cut <kbd>Ctrl+X</kbd></button>
       <button id="menuCopy" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.copySelection())}><svg class="icon"><use href="#icon-copy"></use></svg> Copy <kbd>Ctrl+C</kbd></button>

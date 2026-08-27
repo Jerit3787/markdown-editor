@@ -10,9 +10,10 @@ npm run build              # vite build (client) -> client/dist
 npm run dev                 # wrangler dev, serves client/dist + the Worker (auth/collab/gist/repo APIs) — does NOT rebuild the client
 npm run dev:client          # plain Vite dev server, client-only, no Worker/collab/auth/Gist endpoints
 
-npm test                    # vitest run — whole suite
+npm test                    # vitest run — whole suite (both projects below)
 npx vitest run tests/client/src/collab.test.ts          # single file
 npx vitest run -t "seeds the shared doc's current name"  # single test by name
+npx vitest run --project=components                      # just the Svelte component tests
 
 npm run typecheck            # tsc --noEmit (root/server, strict) && svelte-check --tsconfig client/tsconfig.json (client)
 npm run format               # prettier --write .
@@ -26,6 +27,8 @@ npm run test:e2e             # both, sequentially
 `npm run dev` serves whatever is currently built into `client/dist` — re-run `npm run build` (or run `vite build --config client/vite.config.ts --watch` in a second terminal) after client-side changes before testing against the Worker. GitHub sign-in / Gist / repo-sync need a real OAuth App (`GITHUB_CLIENT_SECRET`/`SESSION_SECRET` in a git-ignored `.dev.vars`, see CONTRIBUTING.md) — everything else (local editing, multi-doc, export, sharing between two tabs on one machine) works without one.
 
 There are **two separate `tsconfig.json`s**, checked separately: the root one (`src/**`, `tests/src/**`) is full strict mode; `client/tsconfig.json` (`client/src/**`, `tests/client/src/**`) has `strictNullChecks`/`noImplicitAny` off — deliberately, see that file's own comment (a DOM-heavy vanilla-JS core mid-migration into Svelte components; don't "fix" this by re-enabling strictness repo-wide).
+
+`vitest.config.ts` defines **two Vitest projects**, both run by a plain `npm test`: `unit` is the original Node/jsdom suite; `components` mounts real `.svelte` files with `vitest-browser-svelte` in an actual headless Chromium (via `@vitest/browser-playwright`), not jsdom — Svelte 5's compiled output needs a real browser to run faithfully. Component test files go under `tests/client/src/components/*.test.ts` specifically (that's what routes them to the `components` project instead of `unit`). A failed component test auto-saves a screenshot to `tests/client/src/components/__screenshots__/` (gitignored) — check it first when one fails.
 
 ## Architecture
 

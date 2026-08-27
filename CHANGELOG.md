@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.29.0] - 2026-08-27
+
+### Added
+
+- **Search and replace.** Ctrl/Cmd+F opens a find bar over the current document with a live match count and case-sensitive/whole-word/regex toggles; Ctrl/Cmd+H expands it with a Replace row (Replace and Replace All). Operates on the currently-open document only.
+
 ## [1.28.1] - 2026-08-27
 
 ### Fixed

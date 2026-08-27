@@ -106,4 +106,10 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Renaming a shared document now shows up for every collaborator immediately, instead of staying stuck on whichever browser made the change until it happened to reload. The name travels over the same live connection as the document's content and images.",
     screenshot: "/whats-new/shared-document-name-sync.png",
   },
+  {
+    version: "1.29.0",
+    title: "Search and Replace",
+    description: "Ctrl/Cmd+F opens a find bar with a live match count and case/whole-word/regex toggles. Ctrl/Cmd+H expands it into Replace and Replace All.",
+    screenshot: "/whats-new/search-and-replace.png",
+  },
 ];

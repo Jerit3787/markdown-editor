@@ -64,6 +64,71 @@ test("a comment can be added on a mobile viewport with the Comments sheet closed
   await expect(page.locator(".cm-comment-marker")).toBeVisible();
 });
 
+test("selecting new text while the comment-draft box is open collapses it back to the Add comment button", async ({ page }) => {
+  // Regression: creatingDraft (the flag that expands the draft box) used
+  // to persist across selection changes — Editor.svelte's
+  // commentDraftSyncListener fires a fresh commentDraft value on every
+  // selection change, but the panel never reset creatingDraft in
+  // response, so re-selecting different text while the box was still
+  // open just re-anchored the already-expanded box instead of collapsing
+  // it back to the plain button for the new selection.
+  await page.click("#editor-mount .cm-content");
+  await page.keyboard.type("hello world");
+  await page.keyboard.press("Home");
+  await page.keyboard.down("Shift");
+  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
+  await page.keyboard.up("Shift");
+  await page.click('button:has-text("Add comment")');
+  await expect(page.locator(".comment-draft-box")).toBeVisible();
+
+  // Select "world" instead, without cancelling or submitting the draft.
+  // Clicking "Add comment" moved focus to that button, so the editor
+  // needs focus back before keyboard selection commands reach it.
+  await page.click("#editor-mount .cm-content");
+  await page.keyboard.press("End");
+  await page.keyboard.down("Shift");
+  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowLeft");
+  await page.keyboard.up("Shift");
+
+  await expect(page.locator(".comment-draft-box")).not.toBeVisible();
+  await expect(page.locator('button:has-text("Add comment")')).toBeVisible();
+});
+
+test("the comment-draft popup stays within the viewport when the selection is near the right edge on a narrow screen", async ({ page }) => {
+  // Regression: .comment-draft-anchor positioned itself with the
+  // selection's raw screen-x coordinate and no clamping against the
+  // viewport width, so a selection near the right edge pushed the
+  // (fixed 240px-wide) popup partly off-screen.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.click("#editor-mount .cm-content");
+  await page.keyboard.type("word ".repeat(40));
+
+  await page.evaluate(() => {
+    const view = window.MDE.getEditor();
+    // The rightmost position on the first wrapped visual line (the last
+    // position whose coordsAtPos().top still matches the first line's,
+    // right before it jumps to the next line) — its screen coordinate
+    // sits close to the visible right edge.
+    let bestPos = 0;
+    let firstTop: number | undefined;
+    for (let pos = 0; pos <= view.state.doc.length; pos++) {
+      const rect = view.coordsAtPos(pos);
+      if (!rect) continue;
+      if (firstTop === undefined) firstTop = rect.top;
+      else if (rect.top !== firstTop) break;
+      bestPos = pos;
+    }
+    view.dispatch({ selection: { anchor: 0, head: bestPos } });
+  });
+
+  const anchor = page.locator(".comment-draft-anchor");
+  await expect(anchor).toBeVisible();
+  const box = await anchor.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+});
+
 test("deleting a comment via the panel removes its highlight", async ({ page }) => {
   await seedComment(page);
   await page.click("#commentsBtn");

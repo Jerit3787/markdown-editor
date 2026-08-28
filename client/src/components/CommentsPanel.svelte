@@ -18,6 +18,9 @@
   let draftBody = $state("");
   let creatingDraft = $state(false);
   let replyBodies = $state<Record<string, string>>({});
+  let draftAnchorEl = $state<HTMLDivElement | undefined>();
+  let draftAnchorLeft = $state(0);
+  let draftAnchorTop = $state(0);
 
   function currentDocContext() {
     const doc = getActiveDoc();
@@ -166,6 +169,45 @@
     badge.textContent = count > 99 ? "99+" : String(count);
   });
 
+  // Resets the draft box back to the collapsed "Add comment" button
+  // whenever the underlying selection changes to a different range —
+  // Editor.svelte's commentDraftSyncListener fires a fresh commentDraft
+  // value on every selection change (including while the box is still
+  // open), but without this, creatingDraft only ever went back to false
+  // on Cancel/Escape/submit, so re-selecting different text left the
+  // already-expanded box just re-anchored at the new location instead
+  // of collapsing for the new selection.
+  let lastDraftKey = $state<string | null>(null);
+  $effect(() => {
+    const key = $commentDraft.visible ? `${$commentDraft.from}:${$commentDraft.to}` : null;
+    if (key !== lastDraftKey) {
+      lastDraftKey = key;
+      creatingDraft = false;
+      draftBody = "";
+    }
+  });
+
+  // Clamps the draft anchor's position against the viewport instead of
+  // using the selection's raw screen coordinate outright — coords.left
+  // can sit close enough to the right/bottom edge that the popup (up to
+  // 240px wide once expanded into the textarea box) would otherwise
+  // render partly off-screen on a narrow phone viewport. Re-measures
+  // draftAnchorEl's own rendered size (rather than a hardcoded width)
+  // since it differs between the collapsed button and expanded box —
+  // same measure-after-render approach Toolbar.svelte uses for its own
+  // overflow calculation.
+  $effect(() => {
+    const coords = $commentDraft.coords;
+    creatingDraft; // re-measure when the anchor's content (and thus size) changes
+    if (!coords) return;
+    const margin = 8;
+    draftAnchorTop = coords.bottom + 4;
+    draftAnchorLeft = coords.left;
+    if (!draftAnchorEl) return;
+    draftAnchorLeft = Math.max(margin, Math.min(coords.left, window.innerWidth - draftAnchorEl.offsetWidth - margin));
+    draftAnchorTop = Math.max(margin, Math.min(draftAnchorTop, window.innerHeight - draftAnchorEl.offsetHeight - margin));
+  });
+
   onMount(() => {
     // On mobile, opening comments should close the sidenav bottom
     // sheet first — both are 75vh sheets and would otherwise stack.
@@ -205,7 +247,7 @@
      already only depends on $commentDraft, not this store, and opens
      the panel itself once a comment is actually added. -->
 {#if $commentDraft.visible && $commentDraft.coords}
-  <div class="comment-draft-anchor" style="left: {$commentDraft.coords.left}px; top: {$commentDraft.coords.bottom + 4}px;">
+  <div class="comment-draft-anchor" bind:this={draftAnchorEl} style="left: {draftAnchorLeft}px; top: {draftAnchorTop}px;">
     {#if !creatingDraft}
       <button type="button" class="secondary-btn comment-add-btn" onclick={() => (creatingDraft = true)}>Add comment</button>
     {:else}

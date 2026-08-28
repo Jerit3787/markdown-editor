@@ -4,12 +4,18 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
-## [1.35.1] - 2026-08-28
+## [1.35.2] - 2026-08-28
 
 ### Fixed
 
 - **There was no way to add a comment from a mobile device.** The floating "Add comment" button only ever rendered while the Comments panel was open, but on mobile the panel is a bottom sheet whose backdrop blocks touch on the whole editor while open — so selecting text (required to comment) was only possible with the panel closed, and the button that appears once you have a selection only showed with the panel open. The button no longer requires the panel to already be open.
 - **The page still zoomed in on focusing the editor on mobile**, despite an existing mobile CSS rule meant to prevent it. `EditorView.theme()` sets `.cm-content`'s font-size directly, compiled against a CodeMirror-generated unique class that always out-specifies a plain page-CSS rule targeting the bare `.cm-content` selector — so that rule silently never took effect. The mobile-width override now lives inside the theme itself instead, where it can actually win.
+
+## [1.35.1] - 2026-08-28
+
+### Changed
+
+- The Markdown compatibility checker's category labels now use a small "(i)" hint icon (same click-to-reveal interaction as other hints in the app) instead of inline parenthetical explanation text.
 
 ## [1.35.0] - 2026-08-28
 

@@ -255,6 +255,30 @@
   margin-left: auto;
   flex-shrink: 0;
 
+  // For an inline use next to a short label (not a Modal header's
+  // right-aligned quickAction slot, this component's original use) —
+  // no auto-margin push, and the bubble opens below-left instead of
+  // below-right so it doesn't run off a narrow container's edge.
+  &.toggletip-inline {
+    margin-left: 0;
+    display: inline-flex;
+
+    .toggletip-bubble {
+      left: 0;
+      right: auto;
+      // Reset the uppercase/bold/letter-spacing this app's one caller
+      // (DocInfoPanel's compat-category label) applies to itself and
+      // would otherwise inherit down into the hint's own body text.
+      text-transform: none;
+      font-weight: normal;
+      letter-spacing: normal;
+    }
+    .toggletip-bubble::before {
+      left: 12px;
+      right: auto;
+    }
+  }
+
   &-bubble {
     position: absolute;
     top: 100%;

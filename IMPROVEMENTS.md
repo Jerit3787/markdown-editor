@@ -58,8 +58,11 @@ its own, same process as every feature shipped this session.
 
 - [x] Unresolved-comment count badge on the Comments topbar icon and
       File menu entry. (Shipped v1.30.0.)
-- [ ] Gist management menu — permanently set a Gist public, enable/
-      disable commenting on it.
+- [x] Gist management menu. (Shipped v1.34.0 as a one-time
+      public/secret choice at first publish — GitHub's API doesn't
+      support changing an existing gist's visibility or toggling
+      comments at all, so neither of those two original asks was
+      buildable; see the design spec's feasibility finding.)
 - [x] Add an "insert existing image" picker/autocomplete (browse
       already-uploaded images instead of only inserting new ones).
       (Shipped v1.32.0.)

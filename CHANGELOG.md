@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.34.0] - 2026-08-28
+
+### Added
+
+- **Choose a Gist's visibility when first publishing it.** Publishing a document to Gist for the first time now asks Secret (default, matches previous behavior) or Public before creating it — GitHub's API only accepts this choice at creation time and never lets it be changed afterward, so later "Update Gist" actions on the same document are unaffected and show no prompt.
+
 ## [1.33.0] - 2026-08-28
 
 ### Added

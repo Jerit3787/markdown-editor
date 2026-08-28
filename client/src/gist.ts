@@ -16,6 +16,7 @@ import { gistBusyLabel } from "./stores/gist";
 import { openGistModalOpen } from "./stores/openGistModal";
 import { getActiveDoc, setActiveDocGistId, clearActiveDocGist } from "./stores/docs";
 import { workspacesStore } from "./stores/workspaces";
+import { chooseGistVisibility } from "./stores/gistVisibilityDialog";
 import { get } from "svelte/store";
 
 let connectedUsername: string | null = null;
@@ -78,6 +79,13 @@ async function publish() {
   }
   const doc = getActiveDoc();
   if (!doc) return;
+
+  let isPublic = false;
+  if (!doc.gistId) {
+    const visibility = await chooseGistVisibility();
+    if (visibility === null) return; // canceled — no gist created
+    isPublic = visibility === "public";
+  }
   // getResolvedContent() inlines images as base64 data URIs — that's the
   // only thing the plain REST API can store (files[name].content is a JSON
   // string), and it's what actually gets published as the gist's text. If
@@ -128,7 +136,7 @@ async function publish() {
       const res = await fetch("/api/gist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: doc.name || "Untitled", public: false, files: { [filename]: { content } } }),
+        body: JSON.stringify({ description: doc.name || "Untitled", public: isPublic, files: { [filename]: { content } } }),
       });
       if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();

@@ -43,3 +43,31 @@ test("the printed page shows the document title as a heading, hidden on screen",
   await expect(page.locator("#printDocTitle")).toBeVisible();
   await expect(page.locator("#printDocTitle")).toHaveText("E2E Test Doc");
 });
+
+async function stubWindowPrint(page: import("@playwright/test").Page) {
+  await page.evaluate(() => {
+    (window as unknown as { __printCalls: number }).__printCalls = 0;
+    window.print = () => {
+      (window as unknown as { __printCalls: number }).__printCalls++;
+    };
+  });
+}
+
+async function printCallCount(page: import("@playwright/test").Page) {
+  return page.evaluate(() => (window as unknown as { __printCalls: number }).__printCalls);
+}
+
+test("File menu Print action calls window.print()", async ({ page }) => {
+  await stubWindowPrint(page);
+  await page.click("#fileMenuBtn");
+  await page.click('button:has-text("Print")');
+  await expect.poll(() => printCallCount(page)).toBe(1);
+});
+
+test("Command Palette Print entry calls window.print()", async ({ page }) => {
+  await stubWindowPrint(page);
+  await page.keyboard.press("ControlOrMeta+Shift+P");
+  await page.fill('input[placeholder*="Search" i]', "Print");
+  await page.locator(".command-palette-row").filter({ hasText: "Print" }).click();
+  await expect.poll(() => printCallCount(page)).toBe(1);
+});

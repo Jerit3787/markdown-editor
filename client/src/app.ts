@@ -980,6 +980,14 @@ import katexCss from "katex/dist/katex.min.css?raw";
     }
   }
 
+  async function printDocument() {
+    // Same reasoning as exportAs()'s txt/html/pdf branches — an in-flight
+    // mermaid/math render triggered by a very recent edit shouldn't still
+    // be showing its placeholder when the print dialog opens.
+    await window.MDE.flushPreviewRenders?.();
+    window.print();
+  }
+
   function buildStandaloneHtml(title: string, bodyHtml: string) {
     // Only paid for documents that actually rendered math — katex.min.css
     // is ~24KB, not worth adding to every export when most won't use it.
@@ -1172,6 +1180,7 @@ ${bodyHtml}
       document.getElementById("importInput").click();
     },
     exportAs,
+    printDocument,
     toggleSidebar,
     collapseSidebarForMobile,
     openImagesManager() {

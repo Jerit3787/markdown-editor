@@ -170,6 +170,11 @@
       </div>
 
       <div class="menu-divider"></div>
+      <button type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.printDocument())}>
+        <svg class="icon"><use href="#icon-printer"></use></svg> Print
+      </button>
+
+      <div class="menu-divider"></div>
       <button id="menuComments" type="button" disabled={!hasActiveDoc} onclick={() => act(() => commentsPanelOpen.set(true))}>
         <svg class="icon"><use href="#icon-message-square"></use></svg> Comments
         {#if $unresolvedCommentCount > 0}

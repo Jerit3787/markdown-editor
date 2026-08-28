@@ -96,6 +96,7 @@
     { id: "export-html", label: "Export as HTML", category: "Export", run: () => window.MDE.exportAs("html"), requires: "doc" },
     { id: "export-pdf", label: "Export as PDF", category: "Export", run: () => window.MDE.exportAs("pdf"), requires: "doc" },
     { id: "export-txt", label: "Export as Plain text", category: "Export", run: () => window.MDE.exportAs("txt"), requires: "doc" },
+    { id: "print", label: "Print", category: "Export", run: () => window.MDE.printDocument(), requires: "doc" },
     // View
     { id: "view-editor", label: "Switch to Editor view", category: "View", run: () => setView("editor") },
     { id: "view-split", label: "Switch to Split view", category: "View", run: () => setView("split") },

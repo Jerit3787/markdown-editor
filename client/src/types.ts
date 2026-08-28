@@ -228,6 +228,7 @@ export interface MDEBridge {
   newDoc(): void;
   openLocalFile(): void;
   exportAs(format: string): Promise<void>;
+  printDocument(): Promise<void>;
   toggleSidebar(): void;
   collapseSidebarForMobile(): void;
   openImagesManager(): void;

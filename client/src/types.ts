@@ -1,5 +1,6 @@
 import type { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
+import type { MetadataPair } from "./mmd-metadata";
 
 export interface InvitedPerson {
   username: string;
@@ -126,6 +127,10 @@ export interface Doc {
   // for a document that has never been shared (see comments.ts's own
   // comment for why shared documents' threads live server-side instead).
   notes?: Note[];
+  // MultiMarkdown-style document metadata (Title/Author/etc.) — freeform
+  // Key: Value pairs, edited via Document Info, not present in the live editor
+  // body (see mmd-metadata.ts). Order preserved for round-tripping on export.
+  metadata?: MetadataPair[];
 }
 
 // The cross-module contract app.ts publishes on window.MDE — collab.ts and

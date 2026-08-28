@@ -13,6 +13,7 @@ import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
 import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace, queueRepoDeletion } from "./workspaces";
 import { mergeById } from "../merge-records";
+import { parseMetadataBlock, type MetadataPair } from "../mmd-metadata";
 
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
@@ -189,7 +190,7 @@ function sameImages(a: Record<string, string> | undefined, b: Record<string, str
 // actually changed" rule: a collaborator really editing a document is a
 // real modification and should bump it the same way a local edit would,
 // but reconnecting/resyncing identical content must not.
-export function syncRemoteDocContent(id: string, content: string, images: Record<string, string> | undefined, name?: string): boolean {
+export function syncRemoteDocContent(id: string, content: string, images: Record<string, string> | undefined, name?: string, metadata?: MetadataPair[]): boolean {
   const doc = findDocById(id);
   if (!doc) return false;
   const contentChanged = content !== doc.content;
@@ -200,8 +201,9 @@ export function syncRemoteDocContent(id: string, content: string, images: Record
   // silently break wikilink resolution's exact-match assumption.
   const finalName = name !== undefined ? ensureUniqueName(name || "Untitled", get(docsStore), id) : undefined;
   const nameChanged = finalName !== undefined && finalName !== doc.name;
-  if (!contentChanged && !imagesChanged && !nameChanged) return false;
-  updateDoc(id, { content, images, ...(nameChanged ? { name: finalName } : {}), updatedAt: Date.now() });
+  const metadataChanged = metadata !== undefined && JSON.stringify(metadata) !== JSON.stringify(doc.metadata ?? []);
+  if (!contentChanged && !imagesChanged && !nameChanged && !metadataChanged) return false;
+  updateDoc(id, { content, images, ...(nameChanged ? { name: finalName } : {}), ...(metadataChanged ? { metadata } : {}), updatedAt: Date.now() });
   return true;
 }
 
@@ -237,7 +239,12 @@ export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string 
   // never match, orphaning the doc invisibly.
   let workspaceId = get(activeWorkspaceIdStore) ?? get(workspacesStore)[0]?.id;
   if (!workspaceId) workspaceId = createWorkspace("My Workspace").id;
-  const doc: Doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now(), createdAt: Date.now(), workspaceId }, partial);
+  let resolvedPartial = partial;
+  if (partial?.content && !partial.metadata) {
+    const { metadata, body } = parseMetadataBlock(partial.content);
+    if (metadata.length > 0) resolvedPartial = { ...partial, content: body, metadata };
+  }
+  const doc: Doc = Object.assign({ id: uid(), name: "Untitled", content: "", updatedAt: Date.now(), createdAt: Date.now(), workspaceId }, resolvedPartial);
   doc.name = ensureUniqueName(doc.name, get(docsStore));
   docsStore.update((docs) => [doc, ...docs]);
   setActiveId(doc.id);
@@ -354,6 +361,13 @@ export function duplicateDoc(id: string): Doc | undefined {
 // picks it up along with content, same as before this doc-state move.
 export function renameDoc(id: string, name: string) {
   updateDoc(id, { name: name || "Untitled" });
+}
+
+export function setActiveDocMetadata(metadata: MetadataPair[]) {
+  const doc = getActiveDoc();
+  if (!doc) return;
+  updateDoc(doc.id, { metadata });
+  persistDocs();
 }
 
 // The doc's own id doubles as its collab room id (see collab.ts) — this

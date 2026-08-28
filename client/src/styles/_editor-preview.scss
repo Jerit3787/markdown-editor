@@ -95,6 +95,20 @@
     color: var(--accent);
   }
 }
+@media (max-width: 780px) {
+  /* .view-selector is architecturally a separate flex row from #toolbar
+  (see Toolbar.svelte's own comment — it's a grid sibling, not nested
+  inside #toolbar), so #toolbar button's mobile touch-target bump
+  (_topbar.scss) never reaches it by selector — its buttons stayed at
+  their smaller desktop size on mobile while every #toolbar button grew.
+  Repeats the same bump here so both rows read as one continuous
+  toolbar at matching sizes, like they do on desktop. */
+  .view-selector button {
+    padding: 7px 10px;
+    min-width: 36px;
+    justify-content: center;
+  }
+}
 /* .cm-host wraps the CodeMirror 6 EditorView (inserted next to the now-
    hidden #editor textarea by app.ts's initEditor). The view's own root
    element (.cm-editor) is sized via its theme() extension instead of

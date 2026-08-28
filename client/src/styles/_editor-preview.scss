@@ -94,6 +94,23 @@
     background: var(--accent-dim);
     color: var(--accent);
   }
+
+  /* Unlike #toolbar's own .icon rule (_topbar.scss), .view-selector never
+  set an explicit icon size — the shared .icon { width/height: 1em } rule
+  (_utilities.scss) fell back to whatever font-size a plain <button> gets
+  from the browser's UA stylesheet (13.3333px in Chromium) rather than a
+  deliberate value, making these icons ~1.7px shorter than #toolbar's
+  (15px). Both rows share one flex parent with align-items: stretch
+  (#topbar-row), so the shorter of the two rarely mattered — until
+  #toolbar's own buttons are hidden (Preview-only view mode), at which
+  point .view-selector's slightly-shorter natural height took over as
+  the row's height, visibly shrinking the whole toolbar row by a couple
+  pixels when switching view modes. Matching #toolbar's explicit 15px
+  fixes both the mismatch and the mode-dependent row-height shift. */
+  .icon {
+    width: 15px;
+    height: 15px;
+  }
 }
 @media (max-width: 780px) {
   /* .view-selector is architecturally a separate flex row from #toolbar

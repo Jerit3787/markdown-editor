@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.29.2] - 2026-08-28
+
+### Fixed
+
+- **The mobile toolbar row's height visibly shifted by a few pixels when switching between Editor, Split, and Preview view modes.** `.view-selector` (the editor/preview toggle icons) never set an explicit icon size, unlike `#toolbar`'s own icons — its icons fell back to the browser's default `<button>` font-size instead of a deliberate value, making them a couple pixels shorter. Since both rows share one flex parent that stretches to the taller side, hiding `#toolbar`'s buttons in Preview-only mode let `.view-selector`'s slightly-shorter natural height take over, shrinking the whole row. Matching `#toolbar`'s explicit icon size fixes both the mismatch and the mode-dependent shift.
+
 ## [1.29.1] - 2026-08-28
 
 ### Fixed

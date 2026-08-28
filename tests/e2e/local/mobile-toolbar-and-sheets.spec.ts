@@ -109,3 +109,15 @@ test("mobile toolbar row height stays stable across view modes", async ({ page }
     `toolbar row height shifted from ${splitHeight}px (split) to ${previewOnlyHeight}px (preview-only)`,
   ).toBeLessThanOrEqual(1);
 });
+
+test("the editor's font-size is at least 16px on mobile, to avoid iOS Safari's zoom-on-focus", async ({ page }) => {
+  // Regression: EditorView.theme() (editor-theme.ts) sets .cm-content's
+  // font-size directly, compiled against a CodeMirror-generated unique
+  // class — a plain page-CSS media-query rule targeting bare .cm-content
+  // (previously in _editor-preview.scss) can never out-specify that,
+  // so the intended mobile override silently never took effect and the
+  // page kept auto-zooming on focus. The real fix nests the mobile
+  // override inside editorTheme's own theme() call instead.
+  const fontSize = await page.locator("#editor-mount .cm-content").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(fontSize).toBeGreaterThanOrEqual(16);
+});

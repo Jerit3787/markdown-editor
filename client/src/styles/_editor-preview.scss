@@ -363,15 +363,14 @@
   }
 }
 @media (max-width: 780px) {
-  .cm-content {
-    font-size: 16px;
-  }
-}
-@media (max-width: 780px) {
   /* Mobile-friendly padding to avoid wasting horizontal space. Scoped to
      the main editor's own mount point, not a bare .cm-content selector —
      DiagramEditor.svelte's separate CodeMirror instance lives outside
-     #editor-mount and must not inherit this. */
+     #editor-mount and must not inherit this. The font-size half of this
+     used to live here too, but a page-CSS rule targeting .cm-content can
+     never actually win against EditorView.theme()'s own generated CSS
+     (see editor-theme.ts's own @media block, which fixes this for
+     real) — kept as dead code here for a while before being noticed. */
   #editor-mount .cm-content {
     padding: 24px 16px 4px 16px !important;
   }

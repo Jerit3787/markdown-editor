@@ -17,6 +17,18 @@ export const editorTheme = EditorView.theme({
   // includes this theme, so a global rule would have (and previously
   // did) leak 40px of padding into that unrelated, much smaller editor.
   ".cm-content": { fontFamily: "var(--mono)", fontSize: "14.5px", lineHeight: "1.6", padding: "40px 40px 4px 40px", caretColor: "var(--text)" },
+  // Below 16px, iOS Safari auto-zooms the whole page on focus — a plain
+  // page-CSS media-query rule for this (previously in
+  // _editor-preview.scss) can never actually win: EditorView.theme()
+  // compiles every selector here (including ones nested inside an
+  // "@media" key, per style-mod's own StyleModule.render()) against a
+  // CodeMirror-generated unique class, which always out-specifies a bare
+  // ".cm-content" in ordinary page CSS regardless of media query. This
+  // nested block gets that same unique-class treatment, so it correctly
+  // overrides the base rule above once the query is active.
+  "@media (max-width: 780px)": {
+    ".cm-content": { fontSize: "16px" },
+  },
   ".cm-scroller": { overflow: "auto", fontFamily: "var(--mono)" },
   "&.cm-focused": { outline: "none" },
   ".cm-cursor": { borderLeftColor: "var(--text)" },

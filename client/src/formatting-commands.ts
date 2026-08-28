@@ -1,4 +1,5 @@
 import { linkModalOpen, linkModalPrefillText } from "./stores/linkModal";
+import { imagesModalOpen } from "./stores/imagesModal";
 
 export function runCmd(cmd: string) {
   switch (cmd) {
@@ -90,7 +91,7 @@ export function insertLinkIntoEditor(text: string, url: string) {
 }
 
 export function insertImage() {
-  document.getElementById("imageFileInput").click();
+  imagesModalOpen.set(true);
 }
 
 export function insertTable() {

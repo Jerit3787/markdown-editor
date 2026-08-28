@@ -309,6 +309,9 @@
     transform: rotate(360deg);
   }
 }
+.images-modal-upload-row {
+  margin-bottom: 10px;
+}
 .images-list {
   display: flex;
   flex-direction: column;
@@ -332,6 +335,7 @@
     border-radius: 6px;
     background: var(--bg-alt);
     flex-shrink: 0;
+    cursor: pointer;
   }
 
   .image-meta {

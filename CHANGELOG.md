@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.29.3] - 2026-08-28
+
+### Changed
+
+- Internal: added Playwright regression coverage for the mobile bottom-sheet dimming (v1.28.1/v1.29.1) and toolbar/view-selector button-size (v1.28.1/v1.29.2) fixes, asserting on actual click-target and bounding-box behavior so a future refactor of the underlying z-index/sizing values can't silently reintroduce any of them. No user-facing change.
+
 ## [1.29.2] - 2026-08-28
 
 ### Fixed

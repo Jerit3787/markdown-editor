@@ -180,7 +180,17 @@ body.focus-mode #statusbar {
     display: none;
   }
 }
-.toolbar-overflow-menu.open {
+/* .dropdown-menu.open (_utilities.scss) also sets display: block at the
+   SAME specificity (two classes) — .dropdown-menu.open wins on source
+   order alone (_utilities.scss loads after this file in style.scss),
+   silently overriding this rule's display: flex. Confirmed live: every
+   overflowed button rendered as a full-width block row (one per line)
+   instead of wrapping into the intended compact grid. Including
+   .dropdown-menu here (the element's actual other class, per
+   Toolbar.svelte's markup) makes this three classes — deterministically
+   higher specificity than .dropdown-menu.open's two, regardless of
+   either file's import order. */
+.dropdown-menu.toolbar-overflow-menu.open {
   display: flex;
 }
 /* #sidebarToggleOut and the "⋮" overflow toggle both reuse the app-wide

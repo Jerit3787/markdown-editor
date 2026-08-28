@@ -147,4 +147,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Publishing a document to Gist for the first time now lets you choose Public or Secret before it's created — GitHub only accepts this choice at creation, so it can't be changed later, and updating an already-published document skips the prompt.",
     screenshot: "/whats-new/gist-visibility.png",
   },
+  {
+    version: "1.35.0",
+    title: "Markdown Compatibility Checker",
+    description:
+      "Document Info now has a Compatibility row that flags constructs which won't render the same elsewhere — wikilinks and image/diagram references that are app-only, plus GFM/math extensions that work here and on GitHub but aren't guaranteed everywhere. Click any flagged item to jump right to it.",
+    screenshot: "/whats-new/markdown-compatibility-checker.png",
+  },
 ];

@@ -75,10 +75,11 @@ its own, same process as every feature shipped this session.
 - [ ] Split the Format and Insert menu concerns apart (currently
       combined).
 - [ ] MultiMarkdown syntax support.
-- [ ] Support all flavors of Markdown (CommonMark, GFM, MultiMarkdown,
-      etc.) and add a Markdown compatibility checker under the
-      Document Info panel — flag syntax that's flavor-specific or
-      won't render the same elsewhere.
+- [x] Markdown compatibility checker. (Shipped v1.35.0 as a
+      Document Info panel row flagging app-only and flavor-specific
+      syntax. "Support all flavors of Markdown" was descoped — it's a
+      separate, much larger effort that overlaps the still-open
+      MultiMarkdown syntax support item below.)
 - [x] **Shared document name sync.** (Shipped v1.28.0.) The name now
       lives in a `meta` Y.Map on the same per-document Y.Doc as
       `ytext`/`imagesMap` — the same pattern imagesMap already

@@ -6,14 +6,25 @@
   import { workspacesStore } from "../stores/workspaces";
   import { findBacklinks } from "../wikilinks";
   import { fetchRepoDocDates, type RepoDocDates } from "../repo-doc-dates";
+  import { scanMarkdownCompatibility, type CompatIssue } from "../markdown-compat";
 
-  const doc = $derived($activeIdStore ? getActiveDoc() : undefined);
+  const COMPAT_CATEGORIES = ["app-only", "flavor-specific"] as const;
+
+  // $docsStore.find(...) read directly (not just getActiveDoc(), which
+  // unwraps docsStore via the non-reactive get() internally) so this
+  // recomputes when the active doc's own fields change in place — e.g.
+  // a new image/diagram added — not only when $activeIdStore switches
+  // to a different document. Same fix ImagesModal.svelte already
+  // applies to this exact trap.
+  const doc = $derived($activeIdStore ? $docsStore.find((d) => d.id === $activeIdStore) || getActiveDoc() : undefined);
   const backlinks = $derived(doc ? findBacklinks(doc.name, $docsStore, doc.id) : []);
   const wordCount = $derived.by(() => {
     const text = $activeDocContent.trim();
     return text.length ? text.split(/\s+/).length : 0;
   });
   const charCount = $derived($activeDocContent.length);
+  const compatIssues = $derived.by(() => (doc ? scanMarkdownCompatibility($activeDocContent, doc.images, doc.diagrams) : []));
+  let compatExpanded = $state(false);
 
   let repoDates = $state<RepoDocDates | undefined>(undefined);
 
@@ -49,6 +60,13 @@
     close();
   }
 
+  function jumpToIssue(issue: CompatIssue) {
+    const cm = window.MDE.getEditor();
+    cm.dispatch({ selection: { anchor: issue.from, head: issue.to }, scrollIntoView: true });
+    cm.focus();
+    close();
+  }
+
   // formatRelativeTime (the window.MDE bridge method) is deliberately
   // compact ("Today") for where it's used elsewhere (the Open Recent
   // submenu) — this panel is the one place precise enough to want the
@@ -80,6 +98,27 @@
       <span class="doc-info-primary">Length</span>
       <span class="doc-info-secondary">{wordCount} word{wordCount === 1 ? "" : "s"}, {charCount} character{charCount === 1 ? "" : "s"}</span>
     </div>
+    <div class="doc-info-row">
+      <span class="doc-info-primary">Compatibility</span>
+      <button type="button" class="doc-info-secondary doc-info-link" onclick={() => (compatExpanded = !compatExpanded)}>
+        {compatIssues.length === 0 ? "No issues" : `${compatIssues.length} issue${compatIssues.length === 1 ? "" : "s"}`}
+      </button>
+    </div>
+    {#if compatExpanded && compatIssues.length > 0}
+      <div class="doc-info-compat-list">
+        {#each COMPAT_CATEGORIES as category}
+          {@const categoryIssues = compatIssues.filter((i) => i.category === category)}
+          {#if categoryIssues.length > 0}
+            <div class="doc-info-compat-category">
+              {category === "app-only" ? "App-only (won't render elsewhere at all)" : "Flavor-specific (works here and on GitHub, not guaranteed elsewhere)"}
+            </div>
+            {#each categoryIssues as issue}
+              <button type="button" class="doc-info-backlink-row" onclick={() => jumpToIssue(issue)}>{issue.label}</button>
+            {/each}
+          {/if}
+        {/each}
+      </div>
+    {/if}
     {#if doc.repoPath || doc.gistId}
       <div class="menu-section-label">Synced to</div>
       {#if doc.repoPath}

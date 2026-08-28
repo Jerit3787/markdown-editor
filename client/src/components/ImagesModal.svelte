@@ -41,6 +41,14 @@
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 
+  function insertExisting(key: string) {
+    const view = window.MDE.getEditor();
+    const alt = key.replace(/\.[^.]+$/, "") || "image";
+    view.dispatch({ changes: { from: view.state.selection.main.head, insert: `![${alt}](${key})` } });
+    view.focus();
+    close();
+  }
+
   async function removeImage(key: string) {
     if (!(await confirmAction(`Delete "${key}"?`, "Any reference to it in the text will show as a broken image."))) return;
     deleteDocImage(key);
@@ -71,7 +79,17 @@
       <div class="images-list">
         {#each images as img (img.key)}
           <div class="image-item" class:unused={!img.used}>
-            <img src={img.dataUrl} alt="" />
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+            <img
+              src={img.dataUrl}
+              alt=""
+              role="button"
+              tabindex="0"
+              class="image-item-thumb"
+              title="Click to insert"
+              onclick={() => insertExisting(img.key)}
+            />
             <div class="image-meta">
               <div class="image-name">{img.key}{#if !img.used} <span class="image-unused-label">(not used in this document)</span>{/if}</div>
               <div class="image-size">{formatBytes(img.dataUrl.length)}</div>

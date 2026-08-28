@@ -78,3 +78,19 @@ test("mobile share button renders as a circle, not an oval", async ({ page }) =>
   const box = (await shareBtn.boundingBox())!;
   expect(Math.abs(box.width - box.height), `expected a square box, got ${box.width}x${box.height}`).toBeLessThanOrEqual(1);
 });
+
+test("mobile toolbar row height stays stable across view modes", async ({ page }) => {
+  const topbarRow = page.locator("#topbar-row");
+
+  const splitHeight = (await topbarRow.boundingBox())!.height;
+
+  // Toggle the editor pane off -> preview-only, which hides #toolbar's
+  // formatting buttons (but not .view-selector's).
+  await page.locator(".view-selector button").nth(0).click();
+  const previewOnlyHeight = (await topbarRow.boundingBox())!.height;
+
+  expect(
+    Math.abs(splitHeight - previewOnlyHeight),
+    `toolbar row height shifted from ${splitHeight}px (split) to ${previewOnlyHeight}px (preview-only)`,
+  ).toBeLessThanOrEqual(1);
+});

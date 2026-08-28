@@ -171,6 +171,8 @@ export interface MDEBridge {
   // shared workspace's Y.Doc if the document is currently shared.
   setDocName(id: string, name: string): void;
   onDocRenamed: ((id: string, name: string) => void) | null;
+  setDocMetadata(id: string, metadata: MetadataPair[]): void;
+  onDocMetadataChanged: ((id: string, metadata: MetadataPair[]) => void) | null;
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
   requireGithubSignIn(hint?: string): void;

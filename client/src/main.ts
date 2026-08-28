@@ -32,6 +32,7 @@ import JoinWorkspaceModal from "./components/JoinWorkspaceModal.svelte";
 import WikilinkMenu from "./components/WikilinkMenu.svelte";
 import DocInfoPanel from "./components/DocInfoPanel.svelte";
 import ConfirmDialog from "./components/ConfirmDialog.svelte";
+import GistVisibilityDialog from "./components/GistVisibilityDialog.svelte";
 import ShareChoiceModal from "./components/ShareChoiceModal.svelte";
 import MoveToWorkspaceModal from "./components/MoveToWorkspaceModal.svelte";
 import GithubSignInModal from "./components/GithubSignInModal.svelte";
@@ -64,6 +65,7 @@ mount(RenameCollisionModal, { target: document.getElementById("rename-collision-
 mount(JoinWorkspaceModal, { target: document.getElementById("join-workspace-modal-mount")! });
 mount(DocInfoPanel, { target: document.getElementById("doc-info-panel-mount")! });
 mount(ConfirmDialog, { target: document.getElementById("confirm-dialog-mount")! });
+mount(GistVisibilityDialog, { target: document.getElementById("gist-visibility-dialog-mount")! });
 mount(ShareChoiceModal, { target: document.getElementById("share-choice-modal-mount")! });
 mount(MoveToWorkspaceModal, { target: document.getElementById("move-to-workspace-modal-mount")! });
 mount(GithubSignInModal, { target: document.getElementById("github-signin-modal-mount")! });

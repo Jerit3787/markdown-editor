@@ -140,4 +140,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "A new Print action in the File menu and Command Palette opens the browser's native print dialog with a dedicated print layout — chrome-free, titled with the document name, and paginated cleanly across pages.",
     screenshot: "/whats-new/print-support.png",
   },
+  {
+    version: "1.34.0",
+    title: "Choose Gist Visibility",
+    description:
+      "Publishing a document to Gist for the first time now lets you choose Public or Secret before it's created — GitHub only accepts this choice at creation, so it can't be changed later, and updating an already-published document skips the prompt.",
+    screenshot: "/whats-new/gist-visibility.png",
+  },
 ];

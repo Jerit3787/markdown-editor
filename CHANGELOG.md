@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.30.1] - 2026-08-28
+
+### Fixed
+
+- **The toolbar's "more formatting options" (⋮) overflow menu stacked every button one per line** instead of wrapping them into a compact grid. `.toolbar-overflow-menu.open`'s `display: flex` and the generic `.dropdown-menu.open`'s `display: block` (both two classes) tied in specificity, so whichever loaded later in the compiled stylesheet won — which happened to be the generic block-list rule, silently defeating the overflow menu's intended wrapped-grid layout.
+
 ## [1.30.0] - 2026-08-28
 
 ### Added

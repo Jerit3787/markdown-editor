@@ -79,6 +79,21 @@ test("mobile share button renders as a circle, not an oval", async ({ page }) =>
   expect(Math.abs(box.width - box.height), `expected a square box, got ${box.width}x${box.height}`).toBeLessThanOrEqual(1);
 });
 
+test("mobile toolbar overflow menu wraps buttons into a grid instead of stacking one per line", async ({ page }) => {
+  const overflowBtn = page.locator(".toolbar-overflow > button.icon-btn");
+  await overflowBtn.click();
+
+  const menuButtons = page.locator(".toolbar-overflow-menu button");
+  await expect(menuButtons.first()).toBeVisible();
+  const firstBox = (await menuButtons.nth(0).boundingBox())!;
+  const secondBox = (await menuButtons.nth(1).boundingBox())!;
+
+  expect(
+    Math.abs(firstBox.y - secondBox.y),
+    `the first two overflowed buttons should sit on the same row (y=${firstBox.y} vs y=${secondBox.y}), not stack one per line`,
+  ).toBeLessThanOrEqual(2);
+});
+
 test("mobile toolbar row height stays stable across view modes", async ({ page }) => {
   const topbarRow = page.locator("#topbar-row");
 

@@ -7,7 +7,7 @@
   import { focusMode } from "../stores/focusMode";
   import { whatsNewOpen } from "../stores/whatsNew";
   import { versionHistoryOpen } from "../stores/versionHistory";
-  import { commentsPanelOpen } from "../stores/commentsPanel";
+  import { commentsPanelOpen, unresolvedCommentCount } from "../stores/commentsPanel";
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
@@ -172,6 +172,9 @@
       <div class="menu-divider"></div>
       <button id="menuComments" type="button" disabled={!hasActiveDoc} onclick={() => act(() => commentsPanelOpen.set(true))}>
         <svg class="icon"><use href="#icon-message-square"></use></svg> Comments
+        {#if $unresolvedCommentCount > 0}
+          <span class="menu-badge">{$unresolvedCommentCount > 99 ? "99+" : $unresolvedCommentCount}</span>
+        {/if}
       </button>
 
       <div class="menu-divider"></div>

@@ -4,23 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
-## [1.29.3] - 2026-08-28
-
-### Changed
-
-- Internal: added Playwright regression coverage for the mobile bottom-sheet dimming (v1.28.1/v1.29.1) and toolbar/view-selector button-size (v1.28.1/v1.29.2) fixes, asserting on actual click-target and bounding-box behavior so a future refactor of the underlying z-index/sizing values can't silently reintroduce any of them. No user-facing change.
-
-## [1.29.2] - 2026-08-28
-
-### Fixed
-
-- **The mobile view-mode selector buttons (top-right of the toolbar) were noticeably smaller than every other toolbar button.** The mobile touch-target sizing rule targets `#toolbar button` specifically, but the view-selector is architecturally a separate flex row sitting outside `#toolbar` — so it never picked up the bump and stayed at its desktop size.
-
 ## [1.29.1] - 2026-08-28
 
 ### Fixed
 
 - **The mobile Comments and sidebar bottom sheets rendered dimmed themselves**, not just the page behind them — a regression from v1.28.1's top bar dimming fix. That fix raised the backdrop above the top bar, but the backdrop and the sheet are sibling elements (unlike the desktop modal pattern it was modeled on, where the modal content is a child of its backdrop and always paints above it regardless of z-index), so the backdrop ended up painting over the sheet too. The sheets now render above their own backdrop again.
+- **The mobile view-mode selector buttons (top-right of the toolbar) were noticeably smaller than every other toolbar button.** The mobile touch-target sizing rule targets `#toolbar button` specifically, but the view-selector is architecturally a separate flex row sitting outside `#toolbar` — so it never picked up the bump and stayed at its desktop size.
+
+### Changed
+
+- Internal: added Playwright regression coverage for both fixes above, plus v1.28.1's original top bar dimming and mobile button-sizing/share-button-shape fixes, asserting on actual click-target and bounding-box behavior so a future refactor of the underlying z-index/sizing values can't silently reintroduce any of them. No user-facing change.
 
 ## [1.29.0] - 2026-08-27
 

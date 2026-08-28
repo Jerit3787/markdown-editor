@@ -1,7 +1,7 @@
 import { test, expect } from "./support/fixtures";
 
 // Regression coverage for a run of mobile-only CSS bugs found via manual
-// testing on production (v1.28.0 -> v1.29.2): a bottom sheet's backdrop
+// testing on production (v1.28.0 -> v1.29.1): a bottom sheet's backdrop
 // not actually blocking the page behind it, that same fix later painting
 // over the sheet's own content, and two toolbar-adjacent button groups
 // silently missing the shared mobile touch-target size bump. Asserting on

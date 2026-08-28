@@ -66,7 +66,7 @@ its own, same process as every feature shipped this session.
 - [x] Search & replace. (Shipped v1.29.0.)
 - [x] More toolbar shortcuts — undo, a quick-access entry point for
       the Command Palette. (Shipped v1.31.0.)
-- [ ] Printing support.
+- [x] Printing support. (Shipped v1.33.0.)
 - [x] Replace an existing image's file in place (keep the same
       reference/position, swap the underlying image). (Shipped v1.32.0.)
 - [ ] Split the Format and Insert menu concerns apart (currently

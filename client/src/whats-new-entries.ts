@@ -133,4 +133,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "The Insert image toolbar button now opens a picker of every image already in the document — click one to insert it, or upload a new one from the same place. Each image also gets a Replace action to swap its underlying file in place, everywhere it's referenced.",
     screenshot: "/whats-new/insert-existing-and-replace-image.png",
   },
+  {
+    version: "1.33.0",
+    title: "Printing Support",
+    description:
+      "A new Print action in the File menu and Command Palette opens the browser's native print dialog with a dedicated print layout — chrome-free, titled with the document name, and paginated cleanly across pages.",
+    screenshot: "/whats-new/print-support.png",
+  },
 ];

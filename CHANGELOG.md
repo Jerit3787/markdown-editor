@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.33.0] - 2026-08-28
+
+### Added
+
+- **Printing support.** A new Print action (File menu, next to Export, and the Command Palette) opens the browser's native print dialog. A dedicated print stylesheet hides all app chrome — sidebar, toolbar, editor pane, comments panel, status bar — so only the rendered document prints, titled with the document's name, with sensible page-break behavior around headings, images, code blocks, and tables. Works identically via the browser's own Ctrl/Cmd+P shortcut, since the print stylesheet applies regardless of how printing was triggered.
+
 ## [1.32.0] - 2026-08-28
 
 ### Added

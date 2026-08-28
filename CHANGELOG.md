@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.35.1] - 2026-08-28
+
+### Changed
+
+- The Markdown compatibility checker's category labels now use a small "(i)" hint icon (same click-to-reveal interaction as other hints in the app) instead of inline parenthetical explanation text.
+
 ## [1.35.0] - 2026-08-28
 
 ### Added

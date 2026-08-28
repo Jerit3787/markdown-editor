@@ -50,3 +50,17 @@ test("clicking a thumbnail in the Images modal inserts a reference and closes th
   await expect(page.getByText("Images in this document")).not.toBeVisible();
   await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("![pixel](pixel.png)![pixel](pixel.png)");
 });
+
+test("Upload new image button inside the modal inserts a new image and closes the modal", async ({ page }) => {
+  await page.click('button[title="Image"]');
+  await expect(page.getByText("Images in this document")).toBeVisible();
+
+  await page.locator("#imagesUploadInput").setInputFiles({
+    name: "pixel.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(PIXEL_PNG_BASE64, "base64"),
+  });
+
+  await expect(page.getByText("Images in this document")).not.toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toMatch(/!\[pixel\]\(pixel\.png\)/);
+});

@@ -49,6 +49,16 @@
     close();
   }
 
+  let uploadInputEl: HTMLInputElement | undefined = $state();
+
+  function onUploadChange(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    (e.target as HTMLInputElement).value = "";
+    if (!file) return;
+    close();
+    window.MDE.insertImageWithUpload?.(file);
+  }
+
   async function removeImage(key: string) {
     if (!(await confirmAction(`Delete "${key}"?`, "Any reference to it in the text will show as a broken image."))) return;
     deleteDocImage(key);
@@ -69,6 +79,12 @@
     {#snippet quickAction()}
       <Toggletip>Images are stored inside this document, not uploaded anywhere, unless you publish it to a Gist.</Toggletip>
     {/snippet}
+    <div class="images-modal-upload-row">
+      <button type="button" class="secondary-btn" onclick={() => uploadInputEl?.click()}>
+        <svg class="icon"><use href="#icon-upload"></use></svg> Upload new image
+      </button>
+      <input id="imagesUploadInput" type="file" accept="image/*" hidden bind:this={uploadInputEl} onchange={onUploadChange} />
+    </div>
     {#if images.length === 0}
       <div class="empty-state">
         <svg class="empty-state-icon"><use href="#icon-images"></use></svg>

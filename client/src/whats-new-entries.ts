@@ -154,4 +154,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Document Info now has a Compatibility row that flags constructs which won't render the same elsewhere — wikilinks and image/diagram references that are app-only, plus GFM/math extensions that work here and on GitHub but aren't guaranteed everywhere. Click any flagged item to jump right to it.",
     screenshot: "/whats-new/markdown-compatibility-checker.png",
   },
+  {
+    version: "1.36.0",
+    title: "MultiMarkdown Syntax Support",
+    description:
+      "Definition lists and superscript/subscript now render correctly, and a new Metadata section in Document Info lets you add Title/Author/etc. fields that round-trip as real MultiMarkdown text on export, Gist publish, and repo push.",
+    screenshot: "/whats-new/multimarkdown-syntax-support.png",
+  },
 ];

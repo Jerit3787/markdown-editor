@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.36.0] - 2026-08-28
+
+### Added
+
+- **MultiMarkdown syntax support: definition lists, superscript/subscript, and document metadata.** `Term` / `:   Definition` now renders as a real definition list; `2^10^` and `H~2~O` render as superscript/subscript. A new Metadata section in Document Info lets you add freeform `Key: Value` fields to a document — they round-trip as a real MultiMarkdown metadata block on `.md` export, Gist publish, and repo push, and are parsed back out automatically when opening a file that already has one. The Markdown Compatibility Checker now flags definition lists, superscript, and subscript as flavor-specific.
+
 ## [1.35.3] - 2026-08-28
 
 ### Fixed

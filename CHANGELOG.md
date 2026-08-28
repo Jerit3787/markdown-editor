@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.35.0] - 2026-08-28
+
+### Added
+
+- **Markdown compatibility checker.** The Document Info panel now has a "Compatibility" row that flags markdown constructs which won't render the same elsewhere — wikilinks, image/diagram references (app-only, won't render at all outside this editor), and GFM/KaTeX extensions like tables, strikethrough, task lists, math, and footnotes (flavor-specific, fine here and on GitHub, not guaranteed on a stricter renderer). Click any flagged item to jump straight to it in the editor.
+
 ## [1.34.0] - 2026-08-28
 
 ### Added

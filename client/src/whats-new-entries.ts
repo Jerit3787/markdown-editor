@@ -126,4 +126,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Undo and Redo now sit at the start of the toolbar (always visible, never hidden in the overflow menu), and a Command Palette quick-access icon sits at the end — previously only reachable via keyboard shortcut or a menu.",
     screenshot: "/whats-new/toolbar-undo-redo-command-palette.png",
   },
+  {
+    version: "1.32.0",
+    title: "Insert Existing Image & Replace",
+    description:
+      "The Insert image toolbar button now opens a picker of every image already in the document — click one to insert it, or upload a new one from the same place. Each image also gets a Replace action to swap its underlying file in place, everywhere it's referenced.",
+    screenshot: "/whats-new/insert-existing-and-replace-image.png",
+  },
 ];

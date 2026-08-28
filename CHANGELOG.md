@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.32.0] - 2026-08-28
+
+### Added
+
+- **Insert an existing image, or replace one in place.** The toolbar's Insert image button now opens the Images modal — click any thumbnail to insert a reference to it, or use the new "Upload new image" button for the original upload flow. Each image also gets a new Replace action: pick a new file and it overwrites that image everywhere it's referenced, without touching the document text or its position.
+
 ## [1.31.0] - 2026-08-28
 
 ### Added

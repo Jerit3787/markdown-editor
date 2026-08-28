@@ -60,14 +60,15 @@ its own, same process as every feature shipped this session.
       File menu entry. (Shipped v1.30.0.)
 - [ ] Gist management menu — permanently set a Gist public, enable/
       disable commenting on it.
-- [ ] Add an "insert existing image" picker/autocomplete (browse
+- [x] Add an "insert existing image" picker/autocomplete (browse
       already-uploaded images instead of only inserting new ones).
+      (Shipped v1.32.0.)
 - [x] Search & replace. (Shipped v1.29.0.)
 - [x] More toolbar shortcuts — undo, a quick-access entry point for
       the Command Palette. (Shipped v1.31.0.)
 - [ ] Printing support.
-- [ ] Replace an existing image's file in place (keep the same
-      reference/position, swap the underlying image).
+- [x] Replace an existing image's file in place (keep the same
+      reference/position, swap the underlying image). (Shipped v1.32.0.)
 - [ ] Split the Format and Insert menu concerns apart (currently
       combined).
 - [ ] MultiMarkdown syntax support.

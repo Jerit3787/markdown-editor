@@ -119,7 +119,7 @@
       <div class="empty-state">
         <svg class="empty-state-icon"><use href="#icon-images"></use></svg>
         <div class="empty-state-title">No images yet</div>
-        <div class="empty-state-desc">Paste, drop, or use the toolbar button to add one.</div>
+        <div class="empty-state-desc">Upload one above, or paste/drop it into the document.</div>
       </div>
     {:else}
       <div class="images-list">

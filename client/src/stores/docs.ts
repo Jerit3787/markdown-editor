@@ -190,7 +190,13 @@ function sameImages(a: Record<string, string> | undefined, b: Record<string, str
 // actually changed" rule: a collaborator really editing a document is a
 // real modification and should bump it the same way a local edit would,
 // but reconnecting/resyncing identical content must not.
-export function syncRemoteDocContent(id: string, content: string, images: Record<string, string> | undefined, name?: string, metadata?: MetadataPair[]): boolean {
+export function syncRemoteDocContent(
+  id: string,
+  content: string,
+  images: Record<string, string> | undefined,
+  name?: string,
+  metadata?: MetadataPair[],
+): boolean {
   const doc = findDocById(id);
   if (!doc) return false;
   const contentChanged = content !== doc.content;

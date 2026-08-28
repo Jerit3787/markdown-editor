@@ -78,8 +78,7 @@ test("Replace on a row overwrites the same key without changing the document tex
   await expect(page.getByText("Images in this document")).toBeVisible();
   await page.click('button[aria-label="Replace pixel.png"]');
 
-  const RED_PIXEL_PNG_BASE64 =
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  const RED_PIXEL_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
   await page.locator("#imagesReplaceInput").setInputFiles({
     name: "pixel.png",
     mimeType: "image/png",

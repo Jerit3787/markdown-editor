@@ -64,3 +64,67 @@ test("Upload new image button inside the modal inserts a new image and closes th
   await expect(page.getByText("Images in this document")).not.toBeVisible();
   await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toMatch(/!\[pixel\]\(pixel\.png\)/);
 });
+
+test("Replace on a row overwrites the same key without changing the document text", async ({ page }) => {
+  await page.evaluate(async (b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const file = new File([bytes], "pixel.png", { type: "image/png" });
+    await window.MDE.insertImageWithUpload!(file);
+  }, PIXEL_PNG_BASE64);
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toMatch(/!\[pixel\]\(pixel\.png\)/);
+  const originalText = await page.evaluate(() => window.MDE.getEditor().state.doc.toString());
+
+  await page.click('button[title="Image"]');
+  await expect(page.getByText("Images in this document")).toBeVisible();
+  await page.click('button[aria-label="Replace pixel.png"]');
+
+  const RED_PIXEL_PNG_BASE64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  await page.locator("#imagesReplaceInput").setInputFiles({
+    name: "pixel.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(RED_PIXEL_PNG_BASE64, "base64"),
+  });
+
+  await expect(page.getByText("Images in this document")).toBeVisible();
+
+  const finalText = await page.evaluate(() => window.MDE.getEditor().state.doc.toString());
+  expect(finalText).toBe(originalText);
+
+  const images = await page.evaluate(() => {
+    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+    return docs[0]?.images ?? {};
+  });
+  expect(images["pixel.png"]).not.toBe("data:image/png;base64," + PIXEL_PNG_BASE64);
+  expect(images["pixel.png"]).toMatch(/^data:image\/png;base64,/);
+});
+
+test("Replacing with an oversized file shows an error and leaves the original image untouched", async ({ page }) => {
+  await page.evaluate(async (b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const file = new File([bytes], "pixel.png", { type: "image/png" });
+    await window.MDE.insertImageWithUpload!(file);
+  }, PIXEL_PNG_BASE64);
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toMatch(/!\[pixel\]\(pixel\.png\)/);
+  const originalImages = await page.evaluate(() => {
+    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+    return docs[0]?.images ?? {};
+  });
+
+  await page.click('button[title="Image"]');
+  await expect(page.getByText("Images in this document")).toBeVisible();
+  await page.click('button[aria-label="Replace pixel.png"]');
+
+  await page.locator("#imagesReplaceInput").setInputFiles({
+    name: "big.png",
+    mimeType: "image/png",
+    buffer: Buffer.alloc(3 * 1024 * 1024),
+  });
+
+  await expect(page.getByText("Image too large (2MB max).")).toBeVisible();
+  const imagesAfter = await page.evaluate(() => {
+    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+    return docs[0]?.images ?? {};
+  });
+  expect(imagesAfter["pixel.png"]).toBe(originalImages["pixel.png"]);
+});

@@ -3,8 +3,11 @@
   import Modal from "./Modal.svelte";
   import Toggletip from "./Toggletip.svelte";
   import { imagesModalOpen } from "../stores/imagesModal";
-  import { docsStore, activeIdStore, deleteDocImage, getActiveDoc } from "../stores/docs";
+  import { docsStore, activeIdStore, deleteDocImage, setDocImage, getActiveDoc } from "../stores/docs";
   import { confirmAction } from "../stores/confirmDialog";
+  import { showToast } from "../stores/toast";
+
+  const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
   // Reads $docsStore/$activeIdStore directly (not getActiveDoc() for the
   // primary lookup, which unwraps both via the non-reactive get() —
@@ -65,6 +68,32 @@
     window.MDE.updatePreview();
   }
 
+  let replaceInputEl: HTMLInputElement | undefined = $state();
+  let replaceKey = $state<string | null>(null);
+
+  function startReplace(key: string) {
+    replaceKey = key;
+    replaceInputEl?.click();
+  }
+
+  function onReplaceChange(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    (e.target as HTMLInputElement).value = "";
+    const key = replaceKey;
+    replaceKey = null;
+    if (!file || !key) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      showToast("Image too large (2MB max).", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setDocImage(key, reader.result as string);
+      window.MDE.updatePreview();
+    };
+    reader.readAsDataURL(file);
+  }
+
   onMount(() => {
     const onKeydown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && $imagesModalOpen) close();
@@ -84,6 +113,7 @@
         <svg class="icon"><use href="#icon-upload"></use></svg> Upload new image
       </button>
       <input id="imagesUploadInput" type="file" accept="image/*" hidden bind:this={uploadInputEl} onchange={onUploadChange} />
+      <input id="imagesReplaceInput" type="file" accept="image/*" hidden bind:this={replaceInputEl} onchange={onReplaceChange} />
     </div>
     {#if images.length === 0}
       <div class="empty-state">
@@ -110,6 +140,9 @@
               <div class="image-name">{img.key}{#if !img.used} <span class="image-unused-label">(not used in this document)</span>{/if}</div>
               <div class="image-size">{formatBytes(img.dataUrl.length)}</div>
             </div>
+            <button class="icon-btn" title="Replace image" aria-label={`Replace ${img.key}`} onclick={() => startReplace(img.key)}>
+              <svg class="icon"><use href="#icon-replace"></use></svg>
+            </button>
             <button class="icon-btn" title="Delete image" aria-label={`Delete ${img.key}`} onclick={() => removeImage(img.key)}>
               <svg class="icon"><use href="#icon-trash-2"></use></svg>
             </button>

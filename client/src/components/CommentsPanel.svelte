@@ -195,7 +195,16 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="mobile-sheet-backdrop" class:visible={$commentsPanelOpen} onclick={close}></div>
 
-{#if $commentsPanelOpen && $commentDraft.visible && $commentDraft.coords}
+<!-- No longer gated on $commentsPanelOpen (dropped, not just relaxed for
+     mobile): on mobile the panel is a bottom sheet whose backdrop covers
+     and blocks touch on the whole editor while open (see
+     .mobile-sheet-backdrop.visible's pointer-events:auto), so requiring
+     the panel open to even show this button made selecting text to
+     comment on impossible there — you'd have to close the sheet to
+     select text, which immediately hid the button again. submitDraft()
+     already only depends on $commentDraft, not this store, and opens
+     the panel itself once a comment is actually added. -->
+{#if $commentDraft.visible && $commentDraft.coords}
   <div class="comment-draft-anchor" style="left: {$commentDraft.coords.left}px; top: {$commentDraft.coords.bottom + 4}px;">
     {#if !creatingDraft}
       <button type="button" class="secondary-btn comment-add-btn" onclick={() => (creatingDraft = true)}>Add comment</button>

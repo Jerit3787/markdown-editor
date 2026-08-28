@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.0] - 2026-08-28
+
+### Added
+
+- **Undo/Redo and Command Palette toolbar buttons.** Undo and Redo now sit at the start of the formatting toolbar (always visible, never collapsed into the "⋮" overflow menu), and a Command Palette quick-access icon sits at the end — all three were previously reachable only via keyboard shortcut or the Edit/Help menus.
+
 ## [1.30.1] - 2026-08-28
 
 ### Fixed

@@ -119,4 +119,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "The Comments topbar icon and File menu entry now show a live count of unresolved comment threads on a shared document, so outstanding feedback is visible before you even open the panel.",
     screenshot: "/whats-new/unresolved-comment-badge.png",
   },
+  {
+    version: "1.31.0",
+    title: "Toolbar Undo, Redo & Command Palette",
+    description:
+      "Undo and Redo now sit at the start of the toolbar (always visible, never hidden in the overflow menu), and a Command Palette quick-access icon sits at the end — previously only reachable via keyboard shortcut or a menu.",
+    screenshot: "/whats-new/toolbar-undo-redo-command-palette.png",
+  },
 ];

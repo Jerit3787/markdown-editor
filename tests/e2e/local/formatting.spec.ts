@@ -129,3 +129,24 @@ test.describe("Mod-key shortcuts", () => {
     await page.keyboard.press("Escape");
   });
 });
+
+test.describe("toolbar undo/redo and command palette quick-access", () => {
+  test("Undo and Redo toolbar buttons undo/redo the last edit", async ({ page }) => {
+    await page.click("#editor-mount .cm-content");
+    await page.keyboard.type("hello world");
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("hello world");
+
+    await page.click('button[title^="Undo"]');
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("");
+
+    await page.click('button[title^="Redo"]');
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("hello world");
+  });
+
+  test("Command Palette toolbar button opens the palette with its input focused", async ({ page }) => {
+    await expect(page.locator(".command-palette")).not.toBeVisible();
+    await page.click('button[title^="Command Palette"]');
+    await expect(page.locator(".command-palette")).toBeVisible();
+    await expect(page.locator(".command-palette-input")).toBeFocused();
+  });
+});

@@ -2,10 +2,21 @@
   import { onMount } from "svelte";
   import { diagramEditorOpen, diagramEditorRef } from "../stores/diagramEditor";
   import { viewMode, isEditorOn, isPreviewOn, toggleEditorPane, togglePreviewPane } from "../stores/view";
+  import { commandPaletteOpen } from "../stores/commandPalette";
   import { runCmd } from "../formatting-commands";
 
   function run(cmd: string) {
     runCmd(cmd);
+    window.MDE.getEditor().focus();
+  }
+
+  function undo() {
+    window.MDE.undo();
+    window.MDE.getEditor().focus();
+  }
+
+  function redo() {
+    window.MDE.redo();
     window.MDE.getEditor().focus();
   }
 
@@ -17,11 +28,12 @@
   let overflowBtn: HTMLButtonElement;
   let overflowMenuEl: HTMLDivElement;
 
-  // #sidebarToggleOut + its separator (the first two children) are
-  // structural navigation, not formatting commands — Google Docs' own
-  // overflow collapse never touches its equivalent (undo/redo, zoom)
-  // either, only the actual tool buttons after them.
-  const ALWAYS_VISIBLE_COUNT = 2;
+  // #sidebarToggleOut, its separator, Undo, Redo, and their own trailing
+  // separator (the first five children) are structural/always-available
+  // actions, not formatting commands — Google Docs' own overflow collapse
+  // never touches its equivalent (undo/redo, zoom) either, only the
+  // actual tool buttons after them.
+  const ALWAYS_VISIBLE_COUNT = 5;
 
   // Re-measures which buttons fit in the visible row and moves whichever
   // don't into the overflow dropdown (as real DOM-node moves, not clones
@@ -101,6 +113,9 @@
          or the active-state class, since sidebar state lives there. -->
     <button id="sidebarToggleOut" class="icon-btn" title="Toggle documents panel" aria-label="Toggle documents panel"><svg class="icon"><use href="#icon-menu"></use></svg></button>
     <span class="sep"></span>
+    <button type="button" title="Undo (Ctrl+Z)" onclick={undo}><svg class="icon"><use href="#icon-undo-2"></use></svg></button>
+    <button type="button" title="Redo (Ctrl+Shift+Z)" onclick={redo}><svg class="icon"><use href="#icon-redo-2"></use></svg></button>
+    <span class="sep"></span>
     <button type="button" title="Bold (Ctrl+B)" onclick={() => run("bold")}><b>B</b></button>
     <button type="button" title="Italic (Ctrl+I)" onclick={() => run("italic")}><i>I</i></button>
     <button type="button" title="Strikethrough" onclick={() => run("strike")}><svg class="icon"><use href="#icon-strikethrough"></use></svg></button>
@@ -129,6 +144,7 @@
          inventing a new icon sprite entry. -->
     <button type="button" title="Math" onclick={() => run("math")}>&Sigma;</button>
     <button type="button" title="Footnote" onclick={() => run("footnote")}>[^]</button>
+    <button type="button" title="Command Palette (Ctrl/Cmd+Shift+P)" onclick={() => commandPaletteOpen.set(true)}><svg class="icon"><use href="#icon-search"></use></svg></button>
   </div>
 
   <!-- Google Docs-style overflow: buttons that don't fit the row above

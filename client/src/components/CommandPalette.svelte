@@ -7,6 +7,7 @@
   import { focusMode } from "../stores/focusMode";
   import { diagramEditorOpen, diagramEditorRef } from "../stores/diagramEditor";
   import { workspacesStore } from "../stores/workspaces";
+  import { commandPaletteOpen } from "../stores/commandPalette";
   import { fuzzyScore } from "../fuzzy-match";
 
   interface PaletteCommand {
@@ -32,7 +33,6 @@
     run: () => void;
   }
 
-  let hidden = $state(true);
   let query = $state("");
   let selectedIndex = $state(0);
   let inputEl: HTMLInputElement | undefined = $state();
@@ -155,18 +155,24 @@
     return [...docEntries, ...commandEntries];
   });
 
-  function open() {
-    hidden = false;
-    query = "";
-    selectedIndex = 0;
-    // Wait for the input to actually render (it's inside {#if !hidden})
-    // before focusing it.
-    setTimeout(() => inputEl?.focus(), 0);
+  function close() {
+    commandPaletteOpen.set(false);
   }
 
-  function close() {
-    hidden = true;
-  }
+  // Resets and focuses on every open, however it was triggered — this
+  // component's own Ctrl/Cmd+Shift+P listener below, or an external
+  // caller (Toolbar.svelte's quick-access button) just setting the
+  // store directly. Centralizing here means callers only ever need to
+  // set the store, the same way commentsPanelOpen/versionHistoryOpen/etc.
+  // work elsewhere in this app.
+  $effect(() => {
+    if (!$commandPaletteOpen) return;
+    query = "";
+    selectedIndex = 0;
+    // Wait for the input to actually render (it's inside {#if $commandPaletteOpen})
+    // before focusing it.
+    setTimeout(() => inputEl?.focus(), 0);
+  });
 
   function backdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) close();
@@ -192,7 +198,7 @@
     const onGlobalKeydown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p") {
         e.preventDefault();
-        open();
+        commandPaletteOpen.set(true);
       }
     };
     document.addEventListener("keydown", onGlobalKeydown);
@@ -200,7 +206,7 @@
   });
 </script>
 
-{#if !hidden}
+{#if $commandPaletteOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-backdrop command-palette-backdrop" onclick={backdropClick}>

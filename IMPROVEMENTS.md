@@ -63,9 +63,8 @@ its own, same process as every feature shipped this session.
 - [ ] Add an "insert existing image" picker/autocomplete (browse
       already-uploaded images instead of only inserting new ones).
 - [x] Search & replace. (Shipped v1.29.0.)
-- [ ] More toolbar shortcuts — undo, a quick-access entry point for
-      the Command Palette, similar quality-of-life additions Google
-      Docs' toolbar has.
+- [x] More toolbar shortcuts — undo, a quick-access entry point for
+      the Command Palette. (Shipped v1.31.0.)
 - [ ] Printing support.
 - [ ] Replace an existing image's file in place (keep the same
       reference/position, swap the underlying image).

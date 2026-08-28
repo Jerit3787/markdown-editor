@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.29.1] - 2026-08-28
+
+### Fixed
+
+- **The mobile Comments and sidebar bottom sheets rendered dimmed themselves**, not just the page behind them — a regression from v1.28.1's top bar dimming fix. That fix raised the backdrop above the top bar, but the backdrop and the sheet are sibling elements (unlike the desktop modal pattern it was modeled on, where the modal content is a child of its backdrop and always paints above it regardless of z-index), so the backdrop ended up painting over the sheet too. The sheets now render above their own backdrop again.
+
 ## [1.29.0] - 2026-08-27
 
 ### Added

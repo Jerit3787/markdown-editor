@@ -192,7 +192,15 @@
     width: auto;
     height: 50vh;
     border-radius: 16px 16px 0 0;
-    z-index: 40;
+    /* Must clear .mobile-sheet-backdrop's own z-index: 320 — unlike the
+    desktop .modal-backdrop pattern that reasoning was copied from
+    (where the modal content is a CHILD of the backdrop and always
+    paints on top regardless of z-index), this backdrop and the sheet
+    are SIBLINGS in CommentsPanel.svelte's template, so they're
+    compared directly — at the old z-index: 40 the backdrop painted
+    over the sheet itself, dimming the comments panel along with the
+    rest of the page instead of just the page behind it. */
+    z-index: 325;
     box-shadow: var(--shadow);
     border-left: none;
     transition:

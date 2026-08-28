@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.35.3] - 2026-08-28
+
+### Fixed
+
+- **The comment-draft popup could render partly off-screen on a narrow phone viewport.** It positioned itself using the selection's raw screen coordinate with no clamping against the viewport edge, so a selection near the right (or bottom) edge pushed the popup — up to 240px wide once expanded — partly out of view.
+- **Selecting different text while the comment-draft box was still open no longer collapsed it back to the plain "Add comment" button.** The box's expanded/collapsed state didn't reset when the underlying selection changed, so re-selecting text elsewhere just re-anchored the already-expanded box at the new location instead of prompting fresh for the new selection.
+
 ## [1.35.2] - 2026-08-28
 
 ### Fixed

@@ -1,3 +1,40 @@
+/* Unresolved-comment count badges — #commentsBadge (plain HTML, inside
+   #commentsBtn in index.html, toggled by CommentsPanel.svelte's own
+   $effect) and .menu-badge (MenuBar.svelte's Comments entry). Both
+   reflect the active document's unresolved comment threads only — see
+   stores/commentsPanel.ts's unresolvedCommentCount. */
+#commentsBtn {
+  position: relative;
+}
+.comment-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.menu-badge {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  flex-shrink: 0;
+}
+
 /* Comments Panel (client/src/components/CommentsPanel.svelte) */
 .comment-draft-anchor {
   position: fixed;

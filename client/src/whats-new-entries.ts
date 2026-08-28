@@ -112,4 +112,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     description: "Ctrl/Cmd+F opens a find bar with a live match count and case/whole-word/regex toggles. Ctrl/Cmd+H expands it into Replace and Replace All.",
     screenshot: "/whats-new/search-and-replace.png",
   },
+  {
+    version: "1.30.0",
+    title: "Unresolved-Comment Badge",
+    description:
+      "The Comments topbar icon and File menu entry now show a live count of unresolved comment threads on a shared document, so outstanding feedback is visible before you even open the panel.",
+    screenshot: "/whats-new/unresolved-comment-badge.png",
+  },
 ];

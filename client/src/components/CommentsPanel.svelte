@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { get } from "svelte/store";
-  import { commentsPanelOpen } from "../stores/commentsPanel";
+  import { commentsPanelOpen, unresolvedCommentCount } from "../stores/commentsPanel";
   import { commentDraft } from "../stores/commentDraft";
   import { activeIdStore, getActiveDoc, addDocNote, deleteDocNote } from "../stores/docs";
   import { fetchAndMergeRepoHistory } from "../repo-history-sync";
   import { workspacesStore } from "../stores/workspaces";
-  import { listComments, createComment, replyToComment, resolveComment, deleteComment, type CommentThread } from "../comments";
+  import { listComments, createComment, replyToComment, resolveComment, deleteComment, countUnresolvedComments, type CommentThread } from "../comments";
   import { relocateAnchor } from "../anchor";
   import { showToast } from "../stores/toast";
   import type { Note } from "../types";
@@ -30,6 +30,7 @@
     const ctx = currentDocContext();
     if (!ctx) {
       entries = [];
+      unresolvedCommentCount.set(0);
       window.MDE.setCommentMarkers([]);
       return;
     }
@@ -37,10 +38,14 @@
     if (ctx.isShared) {
       const threads = await listComments(ctx.doc.workspaceId, ctx.doc.id);
       entries = threads.map((t) => ({ ...t, kind: "thread" as const }));
+      unresolvedCommentCount.set(countUnresolvedComments(threads));
     } else {
       await fetchAndMergeRepoHistory(ctx.doc);
       const freshDoc = getActiveDoc(); // re-read: fetchAndMergeRepoHistory may have just updated doc.notes
       entries = (freshDoc?.notes || []).map((n) => ({ ...n, kind: "note" as const }));
+      // Local (never-shared) documents use plain Notes, which have no
+      // resolved/unresolved concept — nothing to badge.
+      unresolvedCommentCount.set(0);
     }
     loading = false;
     const cm = window.MDE.getEditor();
@@ -149,6 +154,16 @@
   // is needed here any more.
   $effect(() => {
     document.getElementById("commentsBtn")?.classList.toggle("active", $commentsPanelOpen);
+  });
+
+  // #commentsBadge is plain HTML (index.html), not this component's own
+  // markup — same reasoning as #commentsBtn's own class toggle above.
+  $effect(() => {
+    const badge = document.getElementById("commentsBadge");
+    if (!badge) return;
+    const count = $unresolvedCommentCount;
+    badge.hidden = count === 0;
+    badge.textContent = count > 99 ? "99+" : String(count);
   });
 
   onMount(() => {

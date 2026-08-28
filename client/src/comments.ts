@@ -88,6 +88,10 @@ export async function resolveComment(workspaceId: string, docId: string, threadI
   }
 }
 
+export function countUnresolvedComments(threads: CommentThread[]): number {
+  return threads.filter((t) => !t.resolved).length;
+}
+
 export async function deleteComment(workspaceId: string, docId: string, threadId: string): Promise<boolean> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs/${encodeURIComponent(docId)}/comments/${encodeURIComponent(threadId)}`, {

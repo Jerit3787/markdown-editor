@@ -56,8 +56,8 @@ not a rendering bug; a Gist API filename-matching bug was why renaming
 Each additive and independent enough to brainstorm → plan → ship on
 its own, same process as every feature shipped this session.
 
-- [ ] Unresolved-comment count badge on the Comments topbar icon and
-      File menu entry.
+- [x] Unresolved-comment count badge on the Comments topbar icon and
+      File menu entry. (Shipped v1.30.0.)
 - [ ] Gist management menu — permanently set a Gist public, enable/
       disable commenting on it.
 - [ ] Add an "insert existing image" picker/autocomplete (browse

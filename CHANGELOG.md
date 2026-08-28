@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.30.0] - 2026-08-28
+
+### Added
+
+- **Unresolved-comment count badge.** The Comments topbar icon and File menu entry now show a live count of unresolved comment threads on a shared document, so you can tell there's outstanding feedback without opening the panel first. Reflects the currently open document only; local (never-shared) documents have no resolved/unresolved concept, so nothing shows for them.
+
 ## [1.29.2] - 2026-08-28
 
 ### Fixed

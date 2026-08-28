@@ -27,6 +27,7 @@
   marked.use(markedFootnote({ headingClass: "sr-only" }));
 
   let hostEl: HTMLDivElement | undefined = $state();
+  let activeDocTitle = $state("");
   let syncingScroll = false;
   let currentMathSources: Map<string, MathSource> = new Map();
 
@@ -34,6 +35,7 @@
     const view = window.MDE.getEditor();
     const raw = view.state.doc.toString();
     const doc = getActiveDoc();
+    activeDocTitle = doc?.name ?? "";
     const renderer = new marked.Renderer();
     // ![alt](refName) resolves against doc.images; anything not a known
     // ref (a real URL, or an old doc predating this feature that still has
@@ -389,6 +391,7 @@
   });
 </script>
 
+<h1 id="printDocTitle" class="print-only">{activeDocTitle}</h1>
 <div id="preview-mount">
   <div bind:this={hostEl} id="preview"></div>
 </div>

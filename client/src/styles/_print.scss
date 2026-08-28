@@ -1,0 +1,93 @@
+.print-only {
+  display: none;
+}
+
+@media print {
+  // Chrome: hidden everywhere, regardless of current view mode or
+  // screen size (mobile bottom-sheet variants of these same elements
+  // are covered by the same selectors — they're the same DOM nodes,
+  // just repositioned by mobile media queries on screen). #editorPane
+  // (not the deeper #editorWrap Editor.svelte renders inside it) is
+  // the actual flex child sized by #main's layout — hiding it here
+  // rather than its descendant lets #previewPane below claim the
+  // freed space cleanly. #divider is the drag handle between the two
+  // panes, meaningless once one side is gone.
+  #topbar,
+  #topbar-row,
+  #sidebar,
+  #sidebarBackdrop,
+  #editorPane,
+  #divider,
+  #comments-panel-mount,
+  #statusbar,
+  #diagram-editor-mount,
+  .mobile-sheet-backdrop {
+    display: none !important;
+  }
+
+  // The app's on-screen layout clips everything to one viewport's
+  // height (#app: height:100dvh + overflow:hidden; #body/#content-row/
+  // #main: flex/grid sizing meant for a fixed-height single screen) —
+  // every ancestor in this chain needs overflow:visible + height:auto
+  // so the browser's print pagination can actually see content past
+  // the first screen's worth instead of clipping it there.
+  html,
+  body,
+  #app,
+  #body,
+  #content-row,
+  #main {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  #printDocTitle {
+    margin: 0 0 16px 0;
+    font-size: 1.9em;
+    line-height: 1.3;
+  }
+
+  // #previewPane is the actual .pane element with its own
+  // flex:1/overflow:hidden/border-left — #preview-mount (display:
+  // contents) and #preview itself (flex:1/overflow-y:auto/padding:40px)
+  // both need the same reset one level deeper.
+  #previewPane,
+  #preview-mount,
+  #preview {
+    display: block !important;
+    flex: none !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border-left: none !important;
+    padding: 0 !important;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+
+  // Standard page-break hygiene: never split an image, code block, or
+  // table across two pages, and never leave a heading stranded alone
+  // at the bottom of a page with its content pushed to the next one.
+  #preview {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      break-after: avoid;
+    }
+
+    img,
+    pre,
+    table {
+      break-inside: avoid;
+    }
+  }
+}

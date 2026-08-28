@@ -24,3 +24,8 @@ test("an oversized image shows the inline error instead of uploading", async ({ 
   });
   await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toContain("big.png: image too large, 2MB max");
 });
+
+test("clicking the toolbar Insert image button opens the Images modal", async ({ page }) => {
+  await page.click('button[title="Image"]');
+  await expect(page.getByText("Images in this document")).toBeVisible();
+});

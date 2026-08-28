@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
+  import Toggletip from "./Toggletip.svelte";
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { activeIdStore, activeDocContent, getActiveDoc, docsStore, switchDoc } from "../stores/docs";
   import { workspacesStore } from "../stores/workspaces";
@@ -110,7 +111,10 @@
           {@const categoryIssues = compatIssues.filter((i) => i.category === category)}
           {#if categoryIssues.length > 0}
             <div class="doc-info-compat-category">
-              {category === "app-only" ? "App-only (won't render elsewhere at all)" : "Flavor-specific (works here and on GitHub, not guaranteed elsewhere)"}
+              {category === "app-only" ? "App-only" : "Flavor-specific"}
+              <Toggletip icon="icon-info" class="toggletip-inline">
+                {category === "app-only" ? "Won't render elsewhere at all." : "Works here and on GitHub, not guaranteed elsewhere."}
+              </Toggletip>
             </div>
             {#each categoryIssues as issue}
               <button type="button" class="doc-info-backlink-row" onclick={() => jumpToIssue(issue)}>{issue.label}</button>

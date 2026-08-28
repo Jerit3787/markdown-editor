@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.29.2] - 2026-08-28
+
+### Fixed
+
+- **The mobile view-mode selector buttons (top-right of the toolbar) were noticeably smaller than every other toolbar button.** The mobile touch-target sizing rule targets `#toolbar button` specifically, but the view-selector is architecturally a separate flex row sitting outside `#toolbar` — so it never picked up the bump and stayed at its desktop size.
+
 ## [1.29.1] - 2026-08-28
 
 ### Fixed

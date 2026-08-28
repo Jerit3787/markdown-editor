@@ -32,8 +32,11 @@ test("a seeded comment renders as a highlight and shows in the panel", async ({ 
   await expect(page.locator('text="a test comment"')).toBeVisible();
 });
 
-test("selecting text shows the comment-draft popup", async ({ page }) => {
-  await page.click("#commentsBtn"); // the draft popup only renders while the panel is open
+test("selecting text shows the comment-draft popup without opening the Comments panel first", async ({ page }) => {
+  // Regression: this used to require #commentsBtn clicked first (the
+  // draft popup was gated on the panel being open) — on mobile, where
+  // the panel is a bottom sheet whose backdrop blocks touch on the
+  // editor while open, that made adding a comment impossible there.
   await page.click("#editor-mount .cm-content");
   await page.keyboard.type("hello world");
   await page.keyboard.press("Home");
@@ -41,6 +44,24 @@ test("selecting text shows the comment-draft popup", async ({ page }) => {
   for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
   await page.keyboard.up("Shift");
   await expect(page.locator('button:has-text("Add comment")')).toBeVisible();
+});
+
+test("a comment can be added on a mobile viewport with the Comments sheet closed", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".comments-panel")).toHaveClass(/collapsed/);
+
+  await page.click("#editor-mount .cm-content");
+  await page.keyboard.type("hello world");
+  await page.keyboard.press("Home");
+  await page.keyboard.down("Shift");
+  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
+  await page.keyboard.up("Shift");
+
+  await page.click('button:has-text("Add comment")');
+  await page.fill("textarea", "a mobile comment");
+  await page.click(".comment-draft-box button.primary-btn");
+
+  await expect(page.locator(".cm-comment-marker")).toBeVisible();
 });
 
 test("deleting a comment via the panel removes its highlight", async ({ page }) => {

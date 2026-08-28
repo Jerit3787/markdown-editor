@@ -107,7 +107,9 @@ function flushDirtyBackgroundDocs(): void {
     const imageEntries = Array.from(binding.imagesMap.entries());
     const images = imageEntries.length > 0 ? Object.fromEntries(imageEntries) : undefined;
     const name = binding.metaMap.get("name");
-    if (syncRemoteDocContent(docId, content, images, name)) changed = true;
+    const metadataRaw = binding.metaMap.get("metadata");
+    const metadata = metadataRaw !== undefined ? JSON.parse(metadataRaw) : undefined;
+    if (syncRemoteDocContent(docId, content, images, name, metadata)) changed = true;
   }
   dirtyBackgroundDocs.clear();
   if (changed) persistDocs();
@@ -130,6 +132,10 @@ function init() {
   window.MDE.onImageAdded = (key, dataUrl) => {
     const binding = workspaceRoom.activeDocId ? workspaceRoom.docs.get(workspaceRoom.activeDocId) : undefined;
     if (binding) binding.ydoc.transact(() => binding.imagesMap.set(key, dataUrl), "local");
+  };
+  window.MDE.onDocMetadataChanged = (docId, metadata) => {
+    const binding = workspaceRoom.docs.get(docId);
+    if (binding) binding.ydoc.transact(() => binding.metaMap.set("metadata", JSON.stringify(metadata)), "local");
   };
   // A rename always happens through the docTitle input, which is always
   // the active document (DocList.svelte's row "Rename" action switches
@@ -344,6 +350,7 @@ function seedDocBindingFromEditor(docId: string): void {
   if (doc && doc.id === docId) {
     binding.ydoc.transact(() => {
       binding.metaMap.set("name", doc.name || "Untitled");
+      binding.metaMap.set("metadata", JSON.stringify(doc.metadata ?? []));
       if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
     }, "local");
   }
@@ -374,12 +381,21 @@ function createDocBinding(docId: string, role: string): DocBinding {
   const metaMap = ydoc.getMap<string>("meta");
   metaMap.observe((event, tr) => {
     if (tr.origin === "local") return;
-    if (!event.changes.keys.has("name")) return;
-    if (workspaceRoom.activeDocId === docId) {
-      const name = metaMap.get("name");
-      if (name !== undefined) window.MDE.setDocName(docId, name);
-    } else {
-      markDirty(docId);
+    if (event.changes.keys.has("name")) {
+      if (workspaceRoom.activeDocId === docId) {
+        const name = metaMap.get("name");
+        if (name !== undefined) window.MDE.setDocName(docId, name);
+      } else {
+        markDirty(docId);
+      }
+    }
+    if (event.changes.keys.has("metadata")) {
+      if (workspaceRoom.activeDocId === docId) {
+        const raw = metaMap.get("metadata");
+        if (raw !== undefined) window.MDE.setDocMetadata(docId, JSON.parse(raw));
+      } else {
+        markDirty(docId);
+      }
     }
   });
   const awareness = new awarenessProtocol.Awareness(ydoc);

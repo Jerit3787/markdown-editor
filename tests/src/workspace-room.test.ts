@@ -288,7 +288,7 @@ describe("WorkspaceRoom.handleAccessRequest", () => {
   });
 });
 
-const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
+const SNAPSHOT_INTERVAL_MS = 30 * 1000;
 
 describe("WorkspaceRoom version snapshots", () => {
   it("takes an initial snapshot on the first check", async () => {
@@ -350,6 +350,42 @@ describe("WorkspaceRoom version snapshots", () => {
     docRoom.doc.transact(() => docRoom.doc.getMap<string>("images").set("img-2", "data:image/png;base64,eHk="), "storage");
     const created = await room.forceSnapshot("docA", docRoom, "forced content", 2000);
     expect(created.images).toEqual({ "img-2": "data:image/png;base64,eHk=" });
+  });
+
+  it("caps snapshots at 300", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    for (let i = 0; i < 301; i++) {
+      docRoom.doc.transact(() => {
+        const text = docRoom.doc.getText("content");
+        text.delete(0, text.length);
+        text.insert(0, `v${i}`);
+      }, "storage");
+      await room.maybeSnapshot("docA", docRoom, 1000 + i * 35 * 1000);
+    }
+    expect(await room.getSnapshots("docA")).toHaveLength(300);
+  });
+
+  it("collapses a closed session to its final snapshot once a new session starts", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const docRoom = await room.loadDocRoom("docA");
+    const setContent = (text: string) =>
+      docRoom.doc.transact(() => {
+        const t = docRoom.doc.getText("content");
+        t.delete(0, t.length);
+        t.insert(0, text);
+      }, "storage");
+    setContent("v0");
+    await room.maybeSnapshot("docA", docRoom, 1000);
+    setContent("v1");
+    await room.maybeSnapshot("docA", docRoom, 1000 + 35 * 1000);
+    setContent("v2");
+    await room.maybeSnapshot("docA", docRoom, 1000 + 70 * 1000);
+    // A gap over 30 minutes closes the session "v0, v1, v2" belong to.
+    setContent("v3");
+    await room.maybeSnapshot("docA", docRoom, 1000 + 70 * 1000 + 31 * 60 * 1000);
+    const snapshots = await room.getSnapshots("docA");
+    expect(snapshots.map((s) => s.content)).toEqual(["v2", "v3"]);
   });
 });
 

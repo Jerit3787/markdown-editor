@@ -5,6 +5,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
 import { relocateAnchor } from "./anchor";
+import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
 import type { Env } from "./env";
 
 const MESSAGE_SYNC = 0;
@@ -516,17 +517,26 @@ export class WorkspaceRoom {
   }
 
   async maybeSnapshot(docId: string, docRoom: DocRoom, now: number = Date.now()): Promise<void> {
-    const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
+    const SNAPSHOT_INTERVAL_MS = 30 * 1000;
     if (docRoom.lastSnapshotAt !== undefined && now - docRoom.lastSnapshotAt < SNAPSHOT_INTERVAL_MS) return;
     const content = docRoom.doc.getText("content").toString();
-    const snapshots = await this.getSnapshots(docId);
+    let snapshots = await this.getSnapshots(docId);
     const last = snapshots[snapshots.length - 1];
     if (last && last.content === content) {
       docRoom.lastSnapshotAt = last.timestamp;
       return;
     }
+    if (last) {
+      const groups = groupSnapshotsIntoSessions(snapshots);
+      const lastGroup = groups[groups.length - 1]!;
+      if (now - lastGroup.endTimestamp > SESSION_GAP_MS && lastGroup.entries.length > 1) {
+        const idsToKeep = new Set(snapshots.map((s) => s.id));
+        for (const entry of lastGroup.entries.slice(0, -1)) idsToKeep.delete(entry.id);
+        snapshots = snapshots.filter((s) => idsToKeep.has(s.id));
+      }
+    }
     snapshots.push({ id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom) });
-    while (snapshots.length > 50) snapshots.shift();
+    while (snapshots.length > 300) snapshots.shift();
     await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);
     docRoom.lastSnapshotAt = now;
   }

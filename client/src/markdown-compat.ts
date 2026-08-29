@@ -1,6 +1,7 @@
 import { Marked } from "marked";
 import type { Token, Tokens } from "marked";
 import { DEFLIST_GROUP_RE, SUPERSCRIPT_RE } from "./mmd-inline-blocks";
+import { PANDOC_CITATION_RE, MULTIMARKDOWN_CITATION_RE } from "./mmd-citations";
 
 export type CompatCategory = "app-only" | "flavor-specific";
 
@@ -44,11 +45,20 @@ export function scanMarkdownCompatibility(
   }
 
   function scanTextToken(raw: string, start: number) {
-    for (const re of [WIKILINK_RE, FOOTNOTE_REF_RE, MATH_RE, SUPERSCRIPT_RE]) {
+    for (const re of [WIKILINK_RE, FOOTNOTE_REF_RE, MATH_RE, SUPERSCRIPT_RE, PANDOC_CITATION_RE, MULTIMARKDOWN_CITATION_RE]) {
       re.lastIndex = 0;
       let m: RegExpExecArray | null;
       while ((m = re.exec(raw))) {
-        const label = re === WIKILINK_RE ? "Wikilink" : re === FOOTNOTE_REF_RE ? "Footnote reference" : re === MATH_RE ? "Math" : "Superscript";
+        const label =
+          re === WIKILINK_RE
+            ? "Wikilink"
+            : re === FOOTNOTE_REF_RE
+              ? "Footnote reference"
+              : re === MATH_RE
+                ? "Math"
+                : re === SUPERSCRIPT_RE
+                  ? "Superscript"
+                  : "Citation";
         const category: CompatCategory = re === WIKILINK_RE ? "app-only" : "flavor-specific";
         issues.push({ category, label, from: start + m.index, to: start + m.index + m[0].length });
       }

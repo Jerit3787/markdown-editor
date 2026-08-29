@@ -21,6 +21,7 @@
   import { decodeBase64Text, slugFromRepoPath, type TreeEntry } from "../repo-sync";
   import { fetchAndMergeRepoHistory } from "../repo-history-sync";
   import DiffView from "./DiffView.svelte";
+  import { groupSnapshotsIntoSessions } from "../version-grouping";
 
   interface LocalEntry {
     kind: "local";
@@ -35,7 +36,15 @@
     author: string;
     html_url: string;
   }
-  type HistoryEntry = LocalEntry | CommitEntry;
+  interface SessionEntry {
+    kind: "session";
+    id: string;
+    timestamp: number;
+    startTimestamp: number;
+    endTimestamp: number;
+    entries: LocalEntry[];
+  }
+  type HistoryEntry = LocalEntry | CommitEntry | SessionEntry;
 
   function isDocShared(doc: ReturnType<typeof getActiveDoc>): boolean {
     return !!(doc && get(workspacesStore).find((w) => w.id === doc.workspaceId)?.shared);
@@ -55,6 +64,26 @@
   // currently has editor access, mirroring the server's own 403 gate so
   // the button isn't shown as available when it would just fail.
   let restoreAllowed = $state(true);
+  let expandedSessions = $state<Set<string>>(new Set());
+
+  function toggleSession(id: string) {
+    const next = new Set(expandedSessions);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    expandedSessions = next;
+  }
+
+  function formatSessionLabel(start: number, end: number, count: number): string {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const sameDay = startDate.toDateString() === endDate.toDateString();
+    const dateLabel = (d: Date) => (d.toDateString() === new Date().toDateString() ? "Today" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+    const timeLabel = (d: Date) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const range = sameDay
+      ? `${dateLabel(startDate)}, ${timeLabel(startDate)}–${timeLabel(endDate)}`
+      : `${dateLabel(startDate)}, ${timeLabel(startDate)} – ${dateLabel(endDate)}, ${timeLabel(endDate)}`;
+    return `${range} · ${count} edit${count === 1 ? "" : "s"}`;
+  }
 
   function close() {
     versionHistoryOpen.set(false);
@@ -192,12 +221,20 @@
     loading = true;
     if (!isShared) await fetchAndMergeRepoHistory(doc);
     const localList = isShared ? await listSharedVersions(doc.workspaceId, doc.id) : await listVersions(doc.id);
-    const localEntries: HistoryEntry[] = localList.map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }));
+    const localEntries: LocalEntry[] = localList.map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }));
+    const groupedLocalEntries: HistoryEntry[] = groupSnapshotsIntoSessions(localEntries).map((g) =>
+      g.entries.length > 1
+        ? { kind: "session" as const, id: g.entries[0]!.id, timestamp: g.endTimestamp, startTimestamp: g.startTimestamp, endTimestamp: g.endTimestamp, entries: g.entries }
+        : g.entries[0]!,
+    );
     const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);
-    versions = [...localEntries, ...commitEntries].sort((a, b) => b.timestamp - a.timestamp);
+    versions = [...groupedLocalEntries, ...commitEntries].sort((a, b) => b.timestamp - a.timestamp);
     loading = false;
-    if (versions.length > 0) await selectVersion(doc, isShared, versions[0]!);
-    else {
+    if (versions.length > 0) {
+      const first = versions[0]!;
+      const initial = first.kind === "session" ? first.entries[first.entries.length - 1]! : first;
+      await selectVersion(doc, isShared, initial);
+    } else {
       selectedId = null;
       selectedEntry = null;
     }
@@ -308,22 +345,47 @@
           </div>
         {:else}
           {#each versions as v, i (v.id)}
-            <button
-              type="button"
-              class="version-history-row"
-              class:active={v.id === selectedId}
-              onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), v)}
-            >
-              <span class="version-history-row-label">
-                {#if v.kind === "commit"}
-                  <svg class="icon"><use href="#icon-github"></use></svg>
-                  {v.message}
-                {:else}
-                  {formatTimestamp(v.timestamp)}
+            {#if v.kind === "session"}
+              <div class="version-history-session">
+                <button type="button" class="version-history-row version-history-session-header" onclick={() => toggleSession(v.id)}>
+                  <span class="version-history-row-label">
+                    <svg class="icon version-history-chevron" class:expanded={expandedSessions.has(v.id)}><use href="#icon-chevron-right"></use></svg>
+                    {formatSessionLabel(v.startTimestamp, v.endTimestamp, v.entries.length)}
+                  </span>
+                  {#if i === 0}<span class="version-history-current">(includes current)</span>{/if}
+                </button>
+                {#if expandedSessions.has(v.id)}
+                  {#each [...v.entries].reverse() as nested, ni (nested.id)}
+                    <button
+                      type="button"
+                      class="version-history-row version-history-nested-row"
+                      class:active={nested.id === selectedId}
+                      onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), nested)}
+                    >
+                      <span class="version-history-row-label">{formatTimestamp(nested.timestamp)}</span>
+                      {#if i === 0 && ni === 0}<span class="version-history-current">(current)</span>{/if}
+                    </button>
+                  {/each}
                 {/if}
-              </span>
-              {#if i === 0}<span class="version-history-current">(current)</span>{/if}
-            </button>
+              </div>
+            {:else}
+              <button
+                type="button"
+                class="version-history-row"
+                class:active={v.id === selectedId}
+                onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), v)}
+              >
+                <span class="version-history-row-label">
+                  {#if v.kind === "commit"}
+                    <svg class="icon"><use href="#icon-github"></use></svg>
+                    {v.message}
+                  {:else}
+                    {formatTimestamp(v.timestamp)}
+                  {/if}
+                </span>
+                {#if i === 0}<span class="version-history-current">(current)</span>{/if}
+              </button>
+            {/if}
           {/each}
         {/if}
       </div>

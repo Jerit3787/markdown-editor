@@ -595,6 +595,9 @@ test("a session with only one snapshot renders as a plain row, not a group", asy
   const screen = await render(VersionHistory);
   versionHistoryOpen.set(true);
 
+  // Wait for the async loadVersions() (triggered by the $effect above) to
+  // finish rendering before checking counts — .all() itself doesn't poll.
+  await expect.element(screen.getByText(/1970/)).toBeVisible();
   expect((await screen.getByText(/edits/).all())).toHaveLength(0);
   expect((await screen.getByText(/1970/).all()).length).toBe(1);
 });

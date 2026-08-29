@@ -98,6 +98,21 @@
   overflow: auto;
   padding: 20px;
 }
+.version-history-session-header {
+  font-weight: 600;
+}
+.version-history-chevron {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.15s;
+}
+.version-history-chevron.expanded {
+  transform: rotate(90deg);
+}
+.version-history-nested-row {
+  padding-left: 24px;
+  font-size: 12.5px;
+}
 .version-history-actions {
   flex-shrink: 0;
   padding: 12px 20px;

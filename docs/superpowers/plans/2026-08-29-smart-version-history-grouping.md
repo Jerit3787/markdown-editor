@@ -683,7 +683,14 @@ to:
 
 ```ts
     const localList = isShared ? await listSharedVersions(doc.workspaceId, doc.id) : await listVersions(doc.id);
-    const localEntries: LocalEntry[] = localList.map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }));
+    // listVersions/listSharedVersions both return newest-first, but
+    // groupSnapshotsIntoSessions requires oldest-first input (a negative
+    // gap against a descending list always satisfies "<= sessionGapMs",
+    // silently merging every entry into one group) — sort back to
+    // oldest-first before grouping.
+    const localEntries: LocalEntry[] = localList
+      .map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }))
+      .sort((a, b) => a.timestamp - b.timestamp);
     const groupedLocalEntries: HistoryEntry[] = groupSnapshotsIntoSessions(localEntries).map((g) =>
       g.entries.length > 1
         ? { kind: "session" as const, id: g.entries[0]!.id, timestamp: g.endTimestamp, startTimestamp: g.startTimestamp, endTimestamp: g.endTimestamp, entries: g.entries }
@@ -1153,7 +1160,7 @@ test("expanding a session and diffing two of its entries against each other work
   await page.click(".version-history-row-label:has-text('edits')");
   await page.click('button:has-text("Diff")');
   await page.selectOption("#versionCompareSelect", { index: 1 });
-  await expect(page.locator(".diff-view, .version-history-preview")).toBeVisible();
+  await expect(page.locator(".diff-view")).toBeVisible();
 });
 ```
 

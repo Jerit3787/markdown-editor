@@ -16,6 +16,7 @@ import {
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
 import { serializeMetadataBlock } from "./mmd-metadata";
+import type { BibEntry, CitationPrefs } from "./mmd-citations";
 import {
   workspacesStore,
   createWorkspace,
@@ -286,6 +287,13 @@ export function historyPathFor(repoPath: string): string {
   return `.mde/history/${slugFromRepoPath(repoPath)}.json`;
 }
 
+function serializeCitationsBlock(citations: { prefs: CitationPrefs; bibliography: BibEntry[] } | undefined, content: string): string {
+  if (!citations || citations.prefs.bibliographySource !== "structured" || citations.bibliography.length === 0) return content;
+  const marker = citations.prefs.markerStyle === "pandoc" ? "@" : "#";
+  const lines = citations.bibliography.map((entry) => `[${marker}${entry.key}]: ${entry.text}`).join("\n");
+  return `${content.replace(/\n+$/, "")}\n\n${lines}\n`;
+}
+
 // Git's own blob-object hash: sha1("blob " + byteLength + "\0" + content).
 // Used to detect "this doc's pushable content is byte-identical to what's
 // already at this path" — doc.repoSha matching the tree's current sha only
@@ -384,7 +392,7 @@ export async function planPush(
       }
     }
     const { content, assets } = rewriteImagesForPush(
-      serializeMetadataBlock(doc.metadata ?? [], doc.content),
+      serializeCitationsBlock(doc.citations, serializeMetadataBlock(doc.metadata ?? [], doc.content)),
       slugFromRepoPath(repoPath),
       doc.images,
       doc.diagrams,

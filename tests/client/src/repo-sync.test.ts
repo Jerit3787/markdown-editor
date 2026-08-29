@@ -227,6 +227,24 @@ describe("planPush", () => {
     expect(plan.changes[0]!.content).toBe("Title: Pushed Doc\n\n# Body\n");
   });
 
+  it("appends the document's structured citations as definition lines when pushing", async () => {
+    const citations = {
+      prefs: { markerStyle: "pandoc" as const, bibliographySource: "structured" as const, displayStyle: "numbered" as const },
+      bibliography: [{ key: "Smith2020", author: "Smith, J.", year: "2020", text: "Title. Publisher." }],
+    };
+    const docs = [fakeDoc({ id: "d1", name: "My Notes", repoPath: undefined, content: "# Body\n", citations })];
+    const plan = await planPush(docs, [], false);
+    expect(plan.changes).toHaveLength(1);
+    expect(plan.changes[0]!.content).toBe("# Body\n\n[@Smith2020]: Title. Publisher.\n");
+  });
+
+  it("does not append anything when citations are in text mode", async () => {
+    const citations = { prefs: { markerStyle: "pandoc" as const, bibliographySource: "text" as const, displayStyle: "numbered" as const }, bibliography: [] };
+    const docs = [fakeDoc({ id: "d1", name: "My Notes", repoPath: undefined, content: "# Body\n[@X]\n\n[@X]: Ref.\n", citations })];
+    const plan = await planPush(docs, [], false);
+    expect(plan.changes[0]!.content).toBe("# Body\n[@X]\n\n[@X]: Ref.\n");
+  });
+
   it("assigns a new repoPath to a doc that has never synced", async () => {
     const docs = [fakeDoc({ id: "d1", name: "My Notes", repoPath: undefined })];
     const plan = await planPush(docs, [], false);

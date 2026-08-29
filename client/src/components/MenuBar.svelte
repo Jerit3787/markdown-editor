@@ -15,6 +15,8 @@
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
   let editMenuBtn: HTMLButtonElement, editMenu: HTMLDivElement;
+  let formatMenuBtn: HTMLButtonElement, formatMenu: HTMLDivElement;
+  let insertMenuBtn: HTMLButtonElement, insertMenu: HTMLDivElement;
   let viewMenuBtn: HTMLButtonElement, viewMenu: HTMLDivElement;
   let helpMenuBtn: HTMLButtonElement, helpMenu: HTMLDivElement;
 
@@ -54,6 +56,8 @@
     const pairs = [
       { btn: fileMenuBtn, menu: fileMenu },
       { btn: editMenuBtn, menu: editMenu },
+      { btn: formatMenuBtn, menu: formatMenu },
+      { btn: insertMenuBtn, menu: insertMenu },
       { btn: viewMenuBtn, menu: viewMenu },
       { btn: helpMenuBtn, menu: helpMenu },
     ];
@@ -211,11 +215,21 @@
       <button id="menuCut" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.cutSelection())}><svg class="icon"><use href="#icon-scissors"></use></svg> Cut <kbd>Ctrl+X</kbd></button>
       <button id="menuCopy" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.copySelection())}><svg class="icon"><use href="#icon-copy"></use></svg> Copy <kbd>Ctrl+C</kbd></button>
       <button id="menuPaste" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.pasteClipboard())}><svg class="icon"><use href="#icon-clipboard"></use></svg> Paste <kbd>Ctrl+V</kbd></button>
-      <div class="menu-divider"></div>
+    </div>
+  </div>
+
+  <div class="dropdown">
+    <button bind:this={formatMenuBtn} id="formatMenuBtn" class="menubar-btn" type="button">Format</button>
+    <div bind:this={formatMenu} id="formatMenu" class="dropdown-menu menubar-menu">
       <button id="menuBold" type="button" class="menu-glyph-btn" disabled={!hasActiveDoc} onclick={() => act(() => formatCmd("bold"))}><b>B</b> Bold <kbd>Ctrl+B</kbd></button>
       <button id="menuItalic" type="button" class="menu-glyph-btn" disabled={!hasActiveDoc} onclick={() => act(() => formatCmd("italic"))}><i>I</i> Italic <kbd>Ctrl+I</kbd></button>
       <button id="menuStrike" type="button" disabled={!hasActiveDoc} onclick={() => act(() => formatCmd("strike"))}><svg class="icon"><use href="#icon-strikethrough"></use></svg> Strikethrough</button>
-      <div class="menu-divider"></div>
+    </div>
+  </div>
+
+  <div class="dropdown">
+    <button bind:this={insertMenuBtn} id="insertMenuBtn" class="menubar-btn" type="button">Insert</button>
+    <div bind:this={insertMenu} id="insertMenu" class="dropdown-menu menubar-menu">
       <button id="menuLink" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.runCmd("link"))}><svg class="icon"><use href="#icon-link"></use></svg> Insert Link... <kbd>Ctrl+K</kbd></button>
       <button id="menuImage" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.runCmd("image"))}><svg class="icon"><use href="#icon-image"></use></svg> Insert Image...</button>
       <button id="menuManageImages" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.openImagesManager())}><svg class="icon"><use href="#icon-images"></use></svg> Manage Images...</button>

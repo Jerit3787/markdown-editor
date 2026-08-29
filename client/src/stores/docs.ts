@@ -14,6 +14,7 @@ import { ensureUniqueName, nextAvailableName } from "../doc-naming";
 import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace, queueRepoDeletion } from "./workspaces";
 import { mergeById } from "../merge-records";
 import { parseMetadataBlock, type MetadataPair } from "../mmd-metadata";
+import type { BibEntry, CitationPrefs } from "../mmd-citations";
 
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
@@ -196,6 +197,7 @@ export function syncRemoteDocContent(
   images: Record<string, string> | undefined,
   name?: string,
   metadata?: MetadataPair[],
+  citations?: { prefs: CitationPrefs; bibliography: BibEntry[] },
 ): boolean {
   const doc = findDocById(id);
   if (!doc) return false;
@@ -208,8 +210,16 @@ export function syncRemoteDocContent(
   const finalName = name !== undefined ? ensureUniqueName(name || "Untitled", get(docsStore), id) : undefined;
   const nameChanged = finalName !== undefined && finalName !== doc.name;
   const metadataChanged = metadata !== undefined && JSON.stringify(metadata) !== JSON.stringify(doc.metadata ?? []);
-  if (!contentChanged && !imagesChanged && !nameChanged && !metadataChanged) return false;
-  updateDoc(id, { content, images, ...(nameChanged ? { name: finalName } : {}), ...(metadataChanged ? { metadata } : {}), updatedAt: Date.now() });
+  const citationsChanged = citations !== undefined && JSON.stringify(citations) !== JSON.stringify(doc.citations ?? {});
+  if (!contentChanged && !imagesChanged && !nameChanged && !metadataChanged && !citationsChanged) return false;
+  updateDoc(id, {
+    content,
+    images,
+    ...(nameChanged ? { name: finalName } : {}),
+    ...(metadataChanged ? { metadata } : {}),
+    ...(citationsChanged ? { citations } : {}),
+    updatedAt: Date.now(),
+  });
   return true;
 }
 
@@ -373,6 +383,13 @@ export function setActiveDocMetadata(metadata: MetadataPair[]) {
   const doc = getActiveDoc();
   if (!doc) return;
   updateDoc(doc.id, { metadata });
+  persistDocs();
+}
+
+export function setActiveDocCitations(citations: { prefs: CitationPrefs; bibliography: BibEntry[] }) {
+  const doc = getActiveDoc();
+  if (!doc) return;
+  updateDoc(doc.id, { citations });
   persistDocs();
 }
 

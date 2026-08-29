@@ -1,6 +1,7 @@
 import type { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import type { MetadataPair } from "./mmd-metadata";
+import type { BibEntry, CitationPrefs } from "./mmd-citations";
 
 export interface InvitedPerson {
   username: string;
@@ -131,6 +132,9 @@ export interface Doc {
   // Key: Value pairs, edited via Document Info, not present in the live editor
   // body (see mmd-metadata.ts). Order preserved for round-tripping on export.
   metadata?: MetadataPair[];
+  // Citation/bibliography config and entries — see mmd-citations.ts. One
+  // field (not two) since both parts always sync together as a unit.
+  citations?: { prefs: CitationPrefs; bibliography: BibEntry[] };
 }
 
 // The cross-module contract app.ts publishes on window.MDE — collab.ts and

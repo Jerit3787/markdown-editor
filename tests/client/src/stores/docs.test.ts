@@ -502,6 +502,19 @@ describe("docs store — workspace integration", () => {
     expect(findDocById(doc.id)?.metadata).toEqual([{ key: "Title", value: "Set via UI" }]);
   });
 
+  it("setActiveDocCitations updates and persists the active doc's citations", async () => {
+    const { createDoc, setActiveDocCitations, findDocById } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "Test" });
+    const citations = {
+      prefs: { markerStyle: "pandoc" as const, bibliographySource: "structured" as const, displayStyle: "numbered" as const },
+      bibliography: [{ key: "A", author: "Alpha", year: "2020", text: "Alpha (2020)." }],
+    };
+    setActiveDocCitations(citations);
+    expect(findDocById(doc.id)?.citations).toEqual(citations);
+  });
+
   it("syncRemoteDocContent writes new images and bumps updatedAt when images differ", async () => {
     const { createDoc, syncRemoteDocContent, findDocById } = await import("../../../../client/src/stores/docs");
     const { createWorkspace } = await import("../../../../client/src/stores/workspaces");

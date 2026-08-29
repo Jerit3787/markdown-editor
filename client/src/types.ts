@@ -177,6 +177,8 @@ export interface MDEBridge {
   onDocRenamed: ((id: string, name: string) => void) | null;
   setDocMetadata(id: string, metadata: MetadataPair[]): void;
   onDocMetadataChanged: ((id: string, metadata: MetadataPair[]) => void) | null;
+  setDocCitations(id: string, citations: { prefs: CitationPrefs; bibliography: BibEntry[] }): void;
+  onDocCitationsChanged: ((id: string, citations: { prefs: CitationPrefs; bibliography: BibEntry[] }) => void) | null;
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
   requireGithubSignIn(hint?: string): void;

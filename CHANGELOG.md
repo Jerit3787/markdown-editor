@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.39.0] - 2026-08-29
+
+### Added
+
+- **Smart version-history grouping.** History now captures every 30 seconds instead of every 5 minutes, and Version History groups continuous edits into collapsible sessions (e.g. "Today, 2:00–2:45 PM · 12 edits") instead of a flat list — a real gap of 30+ minutes starts a new session, and an older session's in-between snapshots collapse down to its final state once it closes, keeping storage bounded. The Diff view can now compare any two selected historical entries against each other, not just a version against the live document.
+
 ## [1.38.0] - 2026-08-29
 
 ### Added

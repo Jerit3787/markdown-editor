@@ -108,14 +108,13 @@ its own, same process as every feature shipped this session.
 Large enough that each deserves its own full design cycle; not
 sequenced relative to each other yet.
 
-- [ ] **Smart version-history grouping.** Replace (or augment) the
-      current time-window-based snapshotting with dynamic grouping
-      closer to Google Docs' behavior: continuous edits within a
-      session collapse into one entry, a real gap starts a new one,
-      and small in-between changes nest under the session they
-      belong to. Needs its own grouping algorithm design. Bundle in
-      diff display between versions (already tracked as a deferred
-      consideration from the original Version History feature).
+- [x] **Smart version-history grouping.** (Shipped v1.39.0.) 30-second
+      capture instead of 5-minute, with sessions computed purely from
+      timestamps (a 30-minute gap starts a new one) — a closed
+      session's intermediate snapshots collapse to its final state,
+      shown as collapsible rows in Version History. Diff view now
+      compares any two selected entries, not just a version against
+      the live document.
 - [ ] **Shared-document session separation.** A shared document is
       currently treated like any local document in the same window/
       session. Evaluate: either keep that, or make an opened shared

@@ -8,11 +8,13 @@
 // history; app.ts only calls the functions in this first half for
 // documents that have never been shared.
 
+import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
+
 const DB_NAME = "mde-history";
 const DB_VERSION = 1;
 const STORE_NAME = "docHistory";
-const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
-const MAX_SNAPSHOTS = 50;
+const SNAPSHOT_INTERVAL_MS = 30 * 1000;
+const MAX_SNAPSHOTS = 300;
 
 export interface Snapshot {
   id: string;
@@ -74,13 +76,26 @@ async function appendSnapshot(docId: string, content: string, now: number, image
 // a best-effort background record, not the document's source of truth.
 export async function maybeSnapshotVersion(docId: string, content: string, now: number = Date.now(), images?: Record<string, string>): Promise<void> {
   try {
-    const snapshots = await getHistory(docId);
+    let snapshots = await getHistory(docId);
     const last = snapshots[snapshots.length - 1];
     if (last) {
       if (now - last.timestamp < SNAPSHOT_INTERVAL_MS) return;
       if (last.content === content) return;
+      // The most recent session may have just closed (nothing captured
+      // in the last SESSION_GAP_MS) — if so, collapse it down to its
+      // final snapshot now, before this new one starts a fresh session.
+      // A still-open session (small gap) is left untouched.
+      const groups = groupSnapshotsIntoSessions(snapshots);
+      const lastGroup = groups[groups.length - 1]!;
+      if (now - lastGroup.endTimestamp > SESSION_GAP_MS && lastGroup.entries.length > 1) {
+        const idsToKeep = new Set(snapshots.map((s) => s.id));
+        for (const entry of lastGroup.entries.slice(0, -1)) idsToKeep.delete(entry.id);
+        snapshots = snapshots.filter((s) => idsToKeep.has(s.id));
+      }
     }
-    await appendSnapshot(docId, content, now, images);
+    snapshots.push({ id: uid(), timestamp: now, content, images });
+    while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
+    await putHistory(docId, snapshots);
   } catch (err) {
     // best-effort — see comment above
   }

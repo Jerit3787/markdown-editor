@@ -25,8 +25,28 @@ describe("local version history", () => {
 
   it("does not snapshot before the throttle window elapses", async () => {
     await maybeSnapshotVersion("doc-throttle-skip", "hello", 1_000);
-    await maybeSnapshotVersion("doc-throttle-skip", "hello world", 1_000 + 4 * 60 * 1000);
+    await maybeSnapshotVersion("doc-throttle-skip", "hello world", 1_000 + 20 * 1000);
     expect(await listVersions("doc-throttle-skip")).toHaveLength(1);
+  });
+
+  it("keeps every snapshot within a still-open session", async () => {
+    await maybeSnapshotVersion("doc-open-session", "v0", 1_000);
+    await maybeSnapshotVersion("doc-open-session", "v1", 1_000 + 35 * 1000);
+    await maybeSnapshotVersion("doc-open-session", "v2", 1_000 + 70 * 1000);
+    expect(await listVersions("doc-open-session")).toHaveLength(3);
+  });
+
+  it("collapses a closed session to its final snapshot once a new session starts", async () => {
+    await maybeSnapshotVersion("doc-closed-session", "v0", 1_000);
+    await maybeSnapshotVersion("doc-closed-session", "v1", 1_000 + 35 * 1000);
+    await maybeSnapshotVersion("doc-closed-session", "v2", 1_000 + 70 * 1000);
+    // A gap over 30 minutes closes the session "v0, v1, v2" belong to.
+    await maybeSnapshotVersion("doc-closed-session", "v3", 1_000 + 70 * 1000 + 31 * 60 * 1000);
+    const versions = await listVersions("doc-closed-session");
+    // listVersions reverses to newest-first.
+    expect(versions.map((v) => v.id).length).toBe(2);
+    expect(await getVersionContent("doc-closed-session", versions[1]!.id)).toBe("v2");
+    expect(await getVersionContent("doc-closed-session", versions[0]!.id)).toBe("v3");
   });
 
   it("snapshots again once the throttle window elapses and content changed", async () => {
@@ -42,12 +62,12 @@ describe("local version history", () => {
     expect(await listVersions("doc-unchanged")).toHaveLength(1);
   });
 
-  it("prunes the oldest snapshot past the 50 cap", async () => {
-    for (let i = 0; i < 51; i++) {
-      await maybeSnapshotVersion("doc-cap", `v${i}`, 1_000 + i * 6 * 60 * 1000);
+  it("prunes the oldest snapshot past the 300 cap", async () => {
+    for (let i = 0; i < 301; i++) {
+      await maybeSnapshotVersion("doc-cap", `v${i}`, 1_000 + i * 35 * 1000);
     }
     const versions = await listVersions("doc-cap");
-    expect(versions).toHaveLength(50);
+    expect(versions).toHaveLength(300);
   });
 
   it("lists newest first", async () => {
@@ -128,19 +148,19 @@ describe("mergeSnapshotsFromRepo", () => {
     expect(await listVersions("doc-merge-dupe")).toHaveLength(1);
   });
 
-  it("re-sorts by timestamp and re-caps at 50 after merging", async () => {
-    for (let i = 0; i < 40; i++) {
-      await maybeSnapshotVersion("doc-merge-cap", `v${i}`, 1_000 + i * 6 * 60 * 1000);
+  it("re-sorts by timestamp and re-caps at 300 after merging", async () => {
+    for (let i = 0; i < 280; i++) {
+      await maybeSnapshotVersion("doc-merge-cap", `v${i}`, 1_000 + i * 35 * 1000);
     }
-    const remote = Array.from({ length: 20 }, (_, i) => ({
+    const remote = Array.from({ length: 40 }, (_, i) => ({
       id: `remote-${i}`,
-      timestamp: 1_000 + (40 + i) * 6 * 60 * 1000,
+      timestamp: 1_000 + (280 + i) * 35 * 1000,
       content: `remote v${i}`,
     }));
     await mergeSnapshotsFromRepo("doc-merge-cap", remote);
     const versions = await listVersions("doc-merge-cap");
-    expect(versions).toHaveLength(50);
+    expect(versions).toHaveLength(300);
     // listVersions reverses to newest-first — the newest merged-in remote entry must survive the cap
-    expect(versions[0]!.id).toBe("remote-19");
+    expect(versions[0]!.id).toBe("remote-39");
   });
 });

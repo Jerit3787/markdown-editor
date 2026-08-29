@@ -55,6 +55,9 @@
   let selectedEntry = $state<HistoryEntry | null>(null);
   let selectedContent = $state<string | undefined>(undefined);
   let selectedImages = $state<Record<string, string> | undefined>(undefined);
+  let compareId = $state<string>("__live__");
+  let compareContent = $state<string | undefined>(undefined);
+  let compareImages = $state<Record<string, string> | undefined>(undefined);
   let viewMode = $state<"preview" | "diff">("preview");
   let previewEl: HTMLDivElement | undefined = $state();
   let loading = $state(false);
@@ -175,38 +178,67 @@
     }
   }
 
-  async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, entry: HistoryEntry) {
-    selectedId = entry.id;
-    selectedEntry = entry;
-    selectedContent = undefined;
-    selectedImages = undefined;
-    if (!doc) return;
+  async function loadEntryContent(
+    doc: ReturnType<typeof getActiveDoc>,
+    isShared: boolean,
+    entry: LocalEntry | CommitEntry,
+  ): Promise<{ content: string; images: Record<string, string> | undefined } | undefined> {
+    if (!doc) return undefined;
     if (entry.kind === "local") {
       if (isShared) {
         const result = await getSharedVersionSnapshot(doc.workspaceId, doc.id, entry.id);
         if (result === undefined) {
           showToast("Couldn't load this version's content", "error");
-          return;
+          return undefined;
         }
-        selectedContent = result.content;
-        selectedImages = result.images;
-      } else {
-        const content = await getVersionContent(doc.id, entry.id);
-        if (content === undefined) {
-          showToast("Couldn't load this version's content", "error");
-          return;
-        }
-        selectedContent = content;
-        selectedImages = await getVersionImages(doc.id, entry.id);
+        return result;
       }
-    } else {
-      const content = await fetchCommitContent(doc, entry.id);
+      const content = await getVersionContent(doc.id, entry.id);
       if (content === undefined) {
         showToast("Couldn't load this version's content", "error");
-        return;
+        return undefined;
       }
-      selectedContent = content;
-      selectedImages = await fetchCommitImages(doc, entry.id, content);
+      return { content, images: await getVersionImages(doc.id, entry.id) };
+    }
+    const content = await fetchCommitContent(doc, entry.id);
+    if (content === undefined) {
+      showToast("Couldn't load this version's content", "error");
+      return undefined;
+    }
+    return { content, images: await fetchCommitImages(doc, entry.id, content) };
+  }
+
+  async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, entry: LocalEntry | CommitEntry) {
+    selectedId = entry.id;
+    selectedEntry = entry;
+    selectedContent = undefined;
+    selectedImages = undefined;
+    const result = await loadEntryContent(doc, isShared, entry);
+    if (result) {
+      selectedContent = result.content;
+      selectedImages = result.images;
+    }
+  }
+
+  const flatEntries = $derived.by((): (LocalEntry | CommitEntry)[] => versions.flatMap((v) => (v.kind === "session" ? v.entries : [v])));
+
+  function compareLabel(entry: LocalEntry | CommitEntry): string {
+    return entry.kind === "commit" ? entry.message : formatTimestamp(entry.timestamp);
+  }
+
+  async function selectCompare(id: string) {
+    compareId = id;
+    compareContent = undefined;
+    compareImages = undefined;
+    if (id === "__live__") return;
+    const doc = getActiveDoc();
+    if (!doc) return;
+    const entry = flatEntries.find((e) => e.id === id);
+    if (!entry) return;
+    const result = await loadEntryContent(doc, isDocShared(doc), entry);
+    if (result) {
+      compareContent = result.content;
+      compareImages = result.images;
     }
   }
 
@@ -230,6 +262,9 @@
     const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);
     versions = [...groupedLocalEntries, ...commitEntries].sort((a, b) => b.timestamp - a.timestamp);
     loading = false;
+    compareId = "__live__";
+    compareContent = undefined;
+    compareImages = undefined;
     if (versions.length > 0) {
       const first = versions[0]!;
       const initial = first.kind === "session" ? first.entries[first.entries.length - 1]! : first;
@@ -395,6 +430,15 @@
           <button type="button" class:active={viewMode === "diff"} onclick={() => (viewMode = "diff")}>Diff</button>
         </div>
         {#if viewMode === "diff"}
+          <div class="version-history-compare-picker">
+            <label for="versionCompareSelect">Compare against</label>
+            <select id="versionCompareSelect" value={compareId} onchange={(e) => selectCompare((e.target as HTMLSelectElement).value)}>
+              <option value="__live__">Live document</option>
+              {#each flatEntries as entry (entry.id)}
+                <option value={entry.id}>{compareLabel(entry)}</option>
+              {/each}
+            </select>
+          </div>
           <div class="version-history-preview">
             {#if selectedContent === undefined}
               <div class="empty-state">
@@ -402,7 +446,12 @@
                 <div class="empty-state-title">Loading…</div>
               </div>
             {:else}
-              <DiffView before={selectedContent} after={$activeDocContent} beforeImages={selectedImages} afterImages={getActiveDoc()?.images} />
+              <DiffView
+                before={selectedContent}
+                after={compareId === "__live__" ? $activeDocContent : compareContent}
+                beforeImages={selectedImages}
+                afterImages={compareId === "__live__" ? getActiveDoc()?.images : compareImages}
+              />
             {/if}
           </div>
         {:else}

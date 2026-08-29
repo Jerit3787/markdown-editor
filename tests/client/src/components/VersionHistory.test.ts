@@ -64,3 +64,21 @@ test("a session with only one snapshot renders as a plain row, not a group", asy
   expect(await screen.getByText(/edits/).all()).toHaveLength(0);
   expect((await screen.getByText(/1970/).all()).length).toBe(1);
 });
+
+test("the compare picker defaults to Live document and lists every historical entry", async () => {
+  await maybeSnapshotVersion(DOC_ID, "v0", 1_000);
+  // A 40-minute gap exceeds the 30-minute session gap, so v0 and v1 land
+  // in two separate one-entry groups — both render as plain (ungrouped)
+  // entries, so the compare picker's option count is deterministic:
+  // "Live document" + v0 + v1 = 3.
+  await maybeSnapshotVersion(DOC_ID, "v1", 1_000 + 40 * 60 * 1000);
+
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await screen.getByRole("button", { name: "Diff" }).click();
+
+  const compareSelect = screen.getByLabelText("Compare against");
+  await expect.element(compareSelect).toHaveValue("__live__");
+  const options = await compareSelect.element().querySelectorAll("option");
+  expect(options.length).toBe(3);
+});

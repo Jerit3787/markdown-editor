@@ -388,7 +388,7 @@
         {:else}
           {#each versions as v, i (v.id)}
             {#if v.kind === "session"}
-              <div class="version-history-session">
+              <div class="version-history-session" class:open={expandedSessions.has(v.id)}>
                 <button type="button" class="version-history-row version-history-session-header" onclick={() => toggleSession(v.id)}>
                   <span class="version-history-row-label">
                     <svg class="icon version-history-chevron" class:expanded={expandedSessions.has(v.id)}><use href="#icon-chevron-right"></use></svg>

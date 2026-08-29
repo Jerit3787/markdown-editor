@@ -101,6 +101,14 @@
 .version-history-session-header {
   font-weight: 600;
 }
+/* Same treatment as .menu-submenu.open's mobile accordion (_menu.scss) —
+   a light grey tint over the trigger + its revealed rows so the expanded
+   section reads as one continuous block, not a highlighted row floating
+   above unrelated ones. */
+.version-history-session.open {
+  background: var(--bg-alt);
+  border-radius: 6px;
+}
 .version-history-chevron {
   width: 12px;
   height: 12px;

@@ -82,3 +82,29 @@ test("the compare picker defaults to Live document and lists every historical en
   const options = await compareSelect.element().querySelectorAll("option");
   expect(options.length).toBe(3);
 });
+
+test("restore is disabled only for the newest nested entry within a session", async () => {
+  await maybeSnapshotVersion(DOC_ID, "v0", 1_000);
+  await maybeSnapshotVersion(DOC_ID, "v1", 1_000 + 35 * 1000);
+  await maybeSnapshotVersion(DOC_ID, "v2", 1_000 + 70 * 1000);
+
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText(/3 edits/)).toBeVisible();
+  await screen.getByText(/3 edits/).click();
+
+  const nestedRows = await screen.getByText(/1970/).all();
+  expect(nestedRows.length).toBe(3);
+
+  // Newest nested entry (first in the reversed/newest-first display order)
+  // is the current version — Restore must be disabled for it.
+  await nestedRows[0]!.click();
+  await expect.element(screen.getByRole("button", { name: "Restore this version" })).toBeDisabled();
+
+  // An older nested entry in the same session is a real restore target —
+  // this previously stayed disabled too, because the session wrapper's own
+  // id (its OLDEST entry's id, used only for {#each} keying) was being
+  // compared against as if it meant "the current version."
+  await nestedRows[2]!.click();
+  await expect.element(screen.getByRole("button", { name: "Restore this version" })).not.toBeDisabled();
+});

@@ -222,6 +222,16 @@
 
   const flatEntries = $derived.by((): (LocalEntry | CommitEntry)[] => versions.flatMap((v) => (v.kind === "session" ? v.entries : [v])));
 
+  // The overall-newest entry's real id — versions[0]?.id can't be used
+  // directly for this once sessions exist, since a SessionEntry's own id
+  // is its oldest nested entry's id (just for {#each} keying), not the
+  // newest. Used to disable restoring the version that's already current.
+  const currentEntryId = $derived.by((): string | null => {
+    const first = versions[0];
+    if (!first) return null;
+    return first.kind === "session" ? first.entries[first.entries.length - 1]!.id : first.id;
+  });
+
   function compareLabel(entry: LocalEntry | CommitEntry): string {
     return entry.kind === "commit" ? entry.message : formatTimestamp(entry.timestamp);
   }
@@ -465,7 +475,7 @@
           <div class="version-history-preview" bind:this={previewEl}></div>
         {/if}
         <div class="version-history-actions">
-          <button type="button" class="primary-btn" disabled={!selectedId || restoring || !restoreAllowed || selectedId === versions[0]?.id} onclick={restore}>
+          <button type="button" class="primary-btn" disabled={!selectedId || restoring || !restoreAllowed || selectedId === currentEntryId} onclick={restore}>
             Restore this version
           </button>
         </div>

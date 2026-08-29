@@ -211,6 +211,34 @@ button.doc-info-link {
     color: var(--danger, #d33);
   }
 }
+.doc-info-citation-prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.doc-info-citation-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+
+  input {
+    flex: 1;
+    min-width: 0;
+  }
+}
+.citation-bibliography {
+  margin-top: 24px;
+  font-size: 0.9em;
+
+  h2 {
+    font-size: 1em;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-dim);
+  }
+}
 .diff-view {
   font-family: var(--mono);
   font-size: 12.5px;

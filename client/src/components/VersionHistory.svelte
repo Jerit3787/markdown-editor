@@ -21,6 +21,7 @@
   import { decodeBase64Text, slugFromRepoPath, type TreeEntry } from "../repo-sync";
   import { fetchAndMergeRepoHistory } from "../repo-history-sync";
   import DiffView from "./DiffView.svelte";
+  import { groupSnapshotsIntoSessions } from "../version-grouping";
 
   interface LocalEntry {
     kind: "local";
@@ -35,7 +36,15 @@
     author: string;
     html_url: string;
   }
-  type HistoryEntry = LocalEntry | CommitEntry;
+  interface SessionEntry {
+    kind: "session";
+    id: string;
+    timestamp: number;
+    startTimestamp: number;
+    endTimestamp: number;
+    entries: LocalEntry[];
+  }
+  type HistoryEntry = LocalEntry | CommitEntry | SessionEntry;
 
   function isDocShared(doc: ReturnType<typeof getActiveDoc>): boolean {
     return !!(doc && get(workspacesStore).find((w) => w.id === doc.workspaceId)?.shared);
@@ -46,6 +55,9 @@
   let selectedEntry = $state<HistoryEntry | null>(null);
   let selectedContent = $state<string | undefined>(undefined);
   let selectedImages = $state<Record<string, string> | undefined>(undefined);
+  let compareId = $state<string>("__live__");
+  let compareContent = $state<string | undefined>(undefined);
+  let compareImages = $state<Record<string, string> | undefined>(undefined);
   let viewMode = $state<"preview" | "diff">("preview");
   let previewEl: HTMLDivElement | undefined = $state();
   let loading = $state(false);
@@ -55,6 +67,26 @@
   // currently has editor access, mirroring the server's own 403 gate so
   // the button isn't shown as available when it would just fail.
   let restoreAllowed = $state(true);
+  let expandedSessions = $state<Set<string>>(new Set());
+
+  function toggleSession(id: string) {
+    const next = new Set(expandedSessions);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    expandedSessions = next;
+  }
+
+  function formatSessionLabel(start: number, end: number, count: number): string {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const sameDay = startDate.toDateString() === endDate.toDateString();
+    const dateLabel = (d: Date) => (d.toDateString() === new Date().toDateString() ? "Today" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+    const timeLabel = (d: Date) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const range = sameDay
+      ? `${dateLabel(startDate)}, ${timeLabel(startDate)}–${timeLabel(endDate)}`
+      : `${dateLabel(startDate)}, ${timeLabel(startDate)} – ${dateLabel(endDate)}, ${timeLabel(endDate)}`;
+    return `${range} · ${count} edit${count === 1 ? "" : "s"}`;
+  }
 
   function close() {
     versionHistoryOpen.set(false);
@@ -146,38 +178,77 @@
     }
   }
 
-  async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, entry: HistoryEntry) {
-    selectedId = entry.id;
-    selectedEntry = entry;
-    selectedContent = undefined;
-    selectedImages = undefined;
-    if (!doc) return;
+  async function loadEntryContent(
+    doc: ReturnType<typeof getActiveDoc>,
+    isShared: boolean,
+    entry: LocalEntry | CommitEntry,
+  ): Promise<{ content: string; images: Record<string, string> | undefined } | undefined> {
+    if (!doc) return undefined;
     if (entry.kind === "local") {
       if (isShared) {
         const result = await getSharedVersionSnapshot(doc.workspaceId, doc.id, entry.id);
         if (result === undefined) {
           showToast("Couldn't load this version's content", "error");
-          return;
+          return undefined;
         }
-        selectedContent = result.content;
-        selectedImages = result.images;
-      } else {
-        const content = await getVersionContent(doc.id, entry.id);
-        if (content === undefined) {
-          showToast("Couldn't load this version's content", "error");
-          return;
-        }
-        selectedContent = content;
-        selectedImages = await getVersionImages(doc.id, entry.id);
+        return result;
       }
-    } else {
-      const content = await fetchCommitContent(doc, entry.id);
+      const content = await getVersionContent(doc.id, entry.id);
       if (content === undefined) {
         showToast("Couldn't load this version's content", "error");
-        return;
+        return undefined;
       }
-      selectedContent = content;
-      selectedImages = await fetchCommitImages(doc, entry.id, content);
+      return { content, images: await getVersionImages(doc.id, entry.id) };
+    }
+    const content = await fetchCommitContent(doc, entry.id);
+    if (content === undefined) {
+      showToast("Couldn't load this version's content", "error");
+      return undefined;
+    }
+    return { content, images: await fetchCommitImages(doc, entry.id, content) };
+  }
+
+  async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, entry: LocalEntry | CommitEntry) {
+    selectedId = entry.id;
+    selectedEntry = entry;
+    selectedContent = undefined;
+    selectedImages = undefined;
+    const result = await loadEntryContent(doc, isShared, entry);
+    if (result) {
+      selectedContent = result.content;
+      selectedImages = result.images;
+    }
+  }
+
+  const flatEntries = $derived.by((): (LocalEntry | CommitEntry)[] => versions.flatMap((v) => (v.kind === "session" ? v.entries : [v])));
+
+  // The overall-newest entry's real id — versions[0]?.id can't be used
+  // directly for this once sessions exist, since a SessionEntry's own id
+  // is its oldest nested entry's id (just for {#each} keying), not the
+  // newest. Used to disable restoring the version that's already current.
+  const currentEntryId = $derived.by((): string | null => {
+    const first = versions[0];
+    if (!first) return null;
+    return first.kind === "session" ? first.entries[first.entries.length - 1]!.id : first.id;
+  });
+
+  function compareLabel(entry: LocalEntry | CommitEntry): string {
+    return entry.kind === "commit" ? entry.message : formatTimestamp(entry.timestamp);
+  }
+
+  async function selectCompare(id: string) {
+    compareId = id;
+    compareContent = undefined;
+    compareImages = undefined;
+    if (id === "__live__") return;
+    const doc = getActiveDoc();
+    if (!doc) return;
+    const entry = flatEntries.find((e) => e.id === id);
+    if (!entry) return;
+    const result = await loadEntryContent(doc, isDocShared(doc), entry);
+    if (result) {
+      compareContent = result.content;
+      compareImages = result.images;
     }
   }
 
@@ -192,12 +263,30 @@
     loading = true;
     if (!isShared) await fetchAndMergeRepoHistory(doc);
     const localList = isShared ? await listSharedVersions(doc.workspaceId, doc.id) : await listVersions(doc.id);
-    const localEntries: HistoryEntry[] = localList.map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }));
+    // listVersions/listSharedVersions both return newest-first, but
+    // groupSnapshotsIntoSessions requires oldest-first input (a negative
+    // gap against a descending list always satisfies "<= sessionGapMs",
+    // silently merging every entry into one group) — sort back to
+    // oldest-first before grouping.
+    const localEntries: LocalEntry[] = localList
+      .map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    const groupedLocalEntries: HistoryEntry[] = groupSnapshotsIntoSessions(localEntries).map((g) =>
+      g.entries.length > 1
+        ? { kind: "session" as const, id: g.entries[0]!.id, timestamp: g.endTimestamp, startTimestamp: g.startTimestamp, endTimestamp: g.endTimestamp, entries: g.entries }
+        : g.entries[0]!,
+    );
     const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);
-    versions = [...localEntries, ...commitEntries].sort((a, b) => b.timestamp - a.timestamp);
+    versions = [...groupedLocalEntries, ...commitEntries].sort((a, b) => b.timestamp - a.timestamp);
     loading = false;
-    if (versions.length > 0) await selectVersion(doc, isShared, versions[0]!);
-    else {
+    compareId = "__live__";
+    compareContent = undefined;
+    compareImages = undefined;
+    if (versions.length > 0) {
+      const first = versions[0]!;
+      const initial = first.kind === "session" ? first.entries[first.entries.length - 1]! : first;
+      await selectVersion(doc, isShared, initial);
+    } else {
       selectedId = null;
       selectedEntry = null;
     }
@@ -308,22 +397,47 @@
           </div>
         {:else}
           {#each versions as v, i (v.id)}
-            <button
-              type="button"
-              class="version-history-row"
-              class:active={v.id === selectedId}
-              onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), v)}
-            >
-              <span class="version-history-row-label">
-                {#if v.kind === "commit"}
-                  <svg class="icon"><use href="#icon-github"></use></svg>
-                  {v.message}
-                {:else}
-                  {formatTimestamp(v.timestamp)}
+            {#if v.kind === "session"}
+              <div class="version-history-session" class:open={expandedSessions.has(v.id)}>
+                <button type="button" class="version-history-row version-history-session-header" onclick={() => toggleSession(v.id)}>
+                  <span class="version-history-row-label">
+                    <svg class="icon version-history-chevron" class:expanded={expandedSessions.has(v.id)}><use href="#icon-chevron-right"></use></svg>
+                    {formatSessionLabel(v.startTimestamp, v.endTimestamp, v.entries.length)}
+                  </span>
+                  {#if i === 0}<span class="version-history-current">(includes current)</span>{/if}
+                </button>
+                {#if expandedSessions.has(v.id)}
+                  {#each [...v.entries].reverse() as nested, ni (nested.id)}
+                    <button
+                      type="button"
+                      class="version-history-row version-history-nested-row"
+                      class:active={nested.id === selectedId}
+                      onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), nested)}
+                    >
+                      <span class="version-history-row-label">{formatTimestamp(nested.timestamp)}</span>
+                      {#if i === 0 && ni === 0}<span class="version-history-current">(current)</span>{/if}
+                    </button>
+                  {/each}
                 {/if}
-              </span>
-              {#if i === 0}<span class="version-history-current">(current)</span>{/if}
-            </button>
+              </div>
+            {:else}
+              <button
+                type="button"
+                class="version-history-row"
+                class:active={v.id === selectedId}
+                onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), v)}
+              >
+                <span class="version-history-row-label">
+                  {#if v.kind === "commit"}
+                    <svg class="icon"><use href="#icon-github"></use></svg>
+                    {v.message}
+                  {:else}
+                    {formatTimestamp(v.timestamp)}
+                  {/if}
+                </span>
+                {#if i === 0}<span class="version-history-current">(current)</span>{/if}
+              </button>
+            {/if}
           {/each}
         {/if}
       </div>
@@ -333,6 +447,15 @@
           <button type="button" class:active={viewMode === "diff"} onclick={() => (viewMode = "diff")}>Diff</button>
         </div>
         {#if viewMode === "diff"}
+          <div class="version-history-compare-picker">
+            <label for="versionCompareSelect">Compare against</label>
+            <select id="versionCompareSelect" value={compareId} onchange={(e) => selectCompare((e.target as HTMLSelectElement).value)}>
+              <option value="__live__">Live document</option>
+              {#each flatEntries as entry (entry.id)}
+                <option value={entry.id}>{compareLabel(entry)}</option>
+              {/each}
+            </select>
+          </div>
           <div class="version-history-preview">
             {#if selectedContent === undefined}
               <div class="empty-state">
@@ -340,14 +463,19 @@
                 <div class="empty-state-title">Loading…</div>
               </div>
             {:else}
-              <DiffView before={selectedContent} after={$activeDocContent} beforeImages={selectedImages} afterImages={getActiveDoc()?.images} />
+              <DiffView
+                before={selectedContent}
+                after={compareId === "__live__" ? $activeDocContent : compareContent}
+                beforeImages={selectedImages}
+                afterImages={compareId === "__live__" ? getActiveDoc()?.images : compareImages}
+              />
             {/if}
           </div>
         {:else}
           <div class="version-history-preview" bind:this={previewEl}></div>
         {/if}
         <div class="version-history-actions">
-          <button type="button" class="primary-btn" disabled={!selectedId || restoring || !restoreAllowed || selectedId === versions[0]?.id} onclick={restore}>
+          <button type="button" class="primary-btn" disabled={!selectedId || restoring || !restoreAllowed || selectedId === currentEntryId} onclick={restore}>
             Restore this version
           </button>
         </div>

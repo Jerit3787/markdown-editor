@@ -1,6 +1,7 @@
 import type { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import type { MetadataPair } from "./mmd-metadata";
+import type { BibEntry, CitationPrefs } from "./mmd-citations";
 
 export interface InvitedPerson {
   username: string;
@@ -131,6 +132,9 @@ export interface Doc {
   // Key: Value pairs, edited via Document Info, not present in the live editor
   // body (see mmd-metadata.ts). Order preserved for round-tripping on export.
   metadata?: MetadataPair[];
+  // Citation/bibliography config and entries — see mmd-citations.ts. One
+  // field (not two) since both parts always sync together as a unit.
+  citations?: { prefs: CitationPrefs; bibliography: BibEntry[] };
 }
 
 // The cross-module contract app.ts publishes on window.MDE — collab.ts and
@@ -173,6 +177,8 @@ export interface MDEBridge {
   onDocRenamed: ((id: string, name: string) => void) | null;
   setDocMetadata(id: string, metadata: MetadataPair[]): void;
   onDocMetadataChanged: ((id: string, metadata: MetadataPair[]) => void) | null;
+  setDocCitations(id: string, citations: { prefs: CitationPrefs; bibliography: BibEntry[] }): void;
+  onDocCitationsChanged: ((id: string, citations: { prefs: CitationPrefs; bibliography: BibEntry[] }) => void) | null;
   toggleDropdown(btn: HTMLElement, menu: HTMLElement): void;
   closeAllDropdowns(): void;
   requireGithubSignIn(hint?: string): void;

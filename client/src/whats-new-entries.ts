@@ -161,4 +161,25 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Definition lists and superscript/subscript now render correctly, and a new Metadata section in Document Info lets you add Title/Author/etc. fields that round-trip as real MultiMarkdown text on export, Gist publish, and repo push.",
     screenshot: "/whats-new/multimarkdown-syntax-support.png",
   },
+  {
+    version: "1.37.0",
+    title: "Citations & Bibliography",
+    description:
+      "Add [@key] or [#key] citations that resolve against a bibliography — numbered or inline author-year style, typed directly in the document or managed as structured entries in a new Citations section in Document Info. Round-trips as real reference text on export, Gist publish, and repo push.",
+    screenshot: "/whats-new/citations-and-bibliography.png",
+  },
+  {
+    version: "1.37.0",
+    title: "Format and Insert Menus",
+    description:
+      "Bold/Italic/Strikethrough and Insert Link/Insert Image/Manage Images now live in their own Format and Insert menus instead of being crowded into Edit. Nothing about how they work changed — just where to find them.",
+    screenshot: "/whats-new/split-format-insert-menus.png",
+  },
+  {
+    version: "1.37.0",
+    title: "Smart Version History Grouping",
+    description:
+      "Version History now groups continuous edits into collapsible sessions instead of a flat list, with much finer-grained capture underneath. Compare any two historical entries against each other, not just a version against the live document.",
+    screenshot: "/whats-new/smart-version-history-grouping.png",
+  },
 ];

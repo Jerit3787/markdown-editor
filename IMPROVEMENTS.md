@@ -72,16 +72,20 @@ its own, same process as every feature shipped this session.
 - [x] Printing support. (Shipped v1.33.0.)
 - [x] Replace an existing image's file in place (keep the same
       reference/position, swap the underlying image). (Shipped v1.32.0.)
-- [ ] Split the Format and Insert menu concerns apart (currently
-      combined).
+- [x] Split the Format and Insert menu concerns apart. (Shipped
+      v1.37.0.) Bold/Italic/Strikethrough moved into a new Format menu;
+      Insert Link/Insert Image/Manage Images moved into a new Insert
+      menu — pure relocation out of the overloaded Edit menu, no
+      command or shortcut changes.
 - [x] MultiMarkdown syntax support. (Shipped v1.36.0 as definition lists,
       superscript/subscript, and a structured document-metadata field —
       round-trips as a real Key: Value block on import/export. Citations
       & bibliography split off as its own separate, still-open item below.)
-- [ ] **Citations & bibliography.** `[#Author2000]`-style citations resolved
-      against a bibliography — needs its own bibliography data model and UI,
-      split off from the MultiMarkdown syntax support item above as too
-      different in kind to bundle with it.
+- [x] **Citations & bibliography.** (Shipped v1.37.0.) `[@key]`/`[#key]`
+      citations resolve against a bibliography, with three independent
+      per-document settings — marker syntax, bibliography source (typed
+      text or a structured Document Info UI), and display style (numbered
+      or inline author-year, the latter requiring structured storage).
 - [x] Markdown compatibility checker. (Shipped v1.35.0 as a
       Document Info panel row flagging app-only and flavor-specific
       syntax. "Support all flavors of Markdown" was descoped — it's a
@@ -104,14 +108,13 @@ its own, same process as every feature shipped this session.
 Large enough that each deserves its own full design cycle; not
 sequenced relative to each other yet.
 
-- [ ] **Smart version-history grouping.** Replace (or augment) the
-      current time-window-based snapshotting with dynamic grouping
-      closer to Google Docs' behavior: continuous edits within a
-      session collapse into one entry, a real gap starts a new one,
-      and small in-between changes nest under the session they
-      belong to. Needs its own grouping algorithm design. Bundle in
-      diff display between versions (already tracked as a deferred
-      consideration from the original Version History feature).
+- [x] **Smart version-history grouping.** (Shipped v1.37.0.) 30-second
+      capture instead of 5-minute, with sessions computed purely from
+      timestamps (a 30-minute gap starts a new one) — a closed
+      session's intermediate snapshots collapse to its final state,
+      shown as collapsible rows in Version History. Diff view now
+      compares any two selected entries, not just a version against
+      the live document.
 - [ ] **Shared-document session separation.** A shared document is
       currently treated like any local document in the same window/
       session. Evaluate: either keep that, or make an opened shared

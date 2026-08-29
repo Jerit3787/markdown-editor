@@ -251,6 +251,7 @@ describe("shared document name sync", () => {
       setDocImage: vi.fn(),
       setDocName: vi.fn(),
       setDocMetadata: vi.fn(),
+      setDocCitations: vi.fn(),
       requireGithubSignIn: vi.fn(),
     } as unknown as typeof window.MDE;
 
@@ -309,5 +310,32 @@ describe("shared document name sync", () => {
     binding.ydoc.transact(() => binding.metaMap.set("metadata", JSON.stringify([{ key: "Title", value: "Remote" }])), "server");
 
     expect(window.MDE.setDocMetadata).toHaveBeenCalledWith("doc1", [{ key: "Title", value: "Remote" }]);
+  });
+
+  it("seeds the shared doc's current citations into its Y.Doc meta map when sharing for the first time", async () => {
+    const citations = {
+      prefs: { markerStyle: "pandoc" as const, bibliographySource: "structured" as const, displayStyle: "numbered" as const },
+      bibliography: [{ key: "A", author: "Alpha", year: "2020", text: "Alpha (2020)." }],
+    };
+    docsStore.set([{ id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1", citations }]);
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get("doc1");
+    expect(JSON.parse(binding?.metaMap.get("citations") ?? "null")).toEqual(citations);
+  });
+
+  it("applies a remote citations change on the active doc via MDE.setDocCitations", async () => {
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get("doc1")!;
+    const remote = {
+      prefs: { markerStyle: "multimarkdown" as const, bibliographySource: "text" as const, displayStyle: "numbered" as const },
+      bibliography: [],
+    };
+    binding.ydoc.transact(() => binding.metaMap.set("citations", JSON.stringify(remote)), "server");
+
+    expect(window.MDE.setDocCitations).toHaveBeenCalledWith("doc1", remote);
   });
 });

@@ -134,4 +134,14 @@ describe("scanMarkdownCompatibility", () => {
     expect(labels).toContain("Footnote reference");
     expect(labels).not.toContain("Superscript");
   });
+
+  test("flags a pandoc-style citation", () => {
+    const issues = scanMarkdownCompatibility("A claim.[@Smith2020]", undefined, undefined);
+    expect(issues).toContainEqual(expect.objectContaining({ category: "flavor-specific", label: "Citation" }));
+  });
+
+  test("flags a multimarkdown-style citation", () => {
+    const issues = scanMarkdownCompatibility("A claim.[#Smith2020]", undefined, undefined);
+    expect(issues).toContainEqual(expect.objectContaining({ category: "flavor-specific", label: "Citation" }));
+  });
 });

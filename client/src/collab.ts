@@ -27,6 +27,7 @@ import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
 import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace } from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
+import { EMPTY_CITATIONS } from "./mmd-citations";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
 // informational for whoever's reading the link — actual access is always
@@ -109,7 +110,9 @@ function flushDirtyBackgroundDocs(): void {
     const name = binding.metaMap.get("name");
     const metadataRaw = binding.metaMap.get("metadata");
     const metadata = metadataRaw !== undefined ? JSON.parse(metadataRaw) : undefined;
-    if (syncRemoteDocContent(docId, content, images, name, metadata)) changed = true;
+    const citationsRaw = binding.metaMap.get("citations");
+    const citations = citationsRaw !== undefined ? JSON.parse(citationsRaw) : undefined;
+    if (syncRemoteDocContent(docId, content, images, name, metadata, citations)) changed = true;
   }
   dirtyBackgroundDocs.clear();
   if (changed) persistDocs();
@@ -136,6 +139,10 @@ function init() {
   window.MDE.onDocMetadataChanged = (docId, metadata) => {
     const binding = workspaceRoom.docs.get(docId);
     if (binding) binding.ydoc.transact(() => binding.metaMap.set("metadata", JSON.stringify(metadata)), "local");
+  };
+  window.MDE.onDocCitationsChanged = (docId, citations) => {
+    const binding = workspaceRoom.docs.get(docId);
+    if (binding) binding.ydoc.transact(() => binding.metaMap.set("citations", JSON.stringify(citations)), "local");
   };
   // A rename always happens through the docTitle input, which is always
   // the active document (DocList.svelte's row "Rename" action switches
@@ -351,6 +358,7 @@ function seedDocBindingFromEditor(docId: string): void {
     binding.ydoc.transact(() => {
       binding.metaMap.set("name", doc.name || "Untitled");
       binding.metaMap.set("metadata", JSON.stringify(doc.metadata ?? []));
+      binding.metaMap.set("citations", JSON.stringify(doc.citations ?? EMPTY_CITATIONS));
       if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
     }, "local");
   }
@@ -393,6 +401,14 @@ function createDocBinding(docId: string, role: string): DocBinding {
       if (workspaceRoom.activeDocId === docId) {
         const raw = metaMap.get("metadata");
         if (raw !== undefined) window.MDE.setDocMetadata(docId, JSON.parse(raw));
+      } else {
+        markDirty(docId);
+      }
+    }
+    if (event.changes.keys.has("citations")) {
+      if (workspaceRoom.activeDocId === docId) {
+        const raw = metaMap.get("citations");
+        if (raw !== undefined) window.MDE.setDocCitations(docId, JSON.parse(raw));
       } else {
         markDirty(docId);
       }

@@ -3,12 +3,13 @@
   import Modal from "./Modal.svelte";
   import Toggletip from "./Toggletip.svelte";
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
-  import { activeIdStore, activeDocContent, getActiveDoc, docsStore, switchDoc, setActiveDocMetadata } from "../stores/docs";
+  import { activeIdStore, activeDocContent, getActiveDoc, docsStore, switchDoc, setActiveDocMetadata, setActiveDocCitations } from "../stores/docs";
   import { workspacesStore } from "../stores/workspaces";
   import { findBacklinks } from "../wikilinks";
   import { fetchRepoDocDates, type RepoDocDates } from "../repo-doc-dates";
   import { scanMarkdownCompatibility, type CompatIssue } from "../markdown-compat";
   import type { MetadataPair } from "../mmd-metadata";
+  import { DEFAULT_CITATION_PREFS, type CitationPrefs, type BibEntry } from "../mmd-citations";
 
   const COMPAT_CATEGORIES = ["app-only", "flavor-specific"] as const;
 
@@ -88,6 +89,51 @@
     updateMetadata((doc?.metadata ?? []).filter((_, i) => i !== index));
   }
 
+  const citationPrefs = $derived(doc?.citations?.prefs ?? DEFAULT_CITATION_PREFS);
+  const bibliography = $derived(doc?.citations?.bibliography ?? []);
+
+  function updateCitations(prefs: CitationPrefs, bib: BibEntry[]) {
+    if (!doc) return;
+    const citations = { prefs, bibliography: bib };
+    setActiveDocCitations(citations);
+    window.MDE.onDocCitationsChanged?.(doc.id, citations);
+    window.MDE.updatePreview?.();
+  }
+
+  function setMarkerStyle(markerStyle: CitationPrefs["markerStyle"]) {
+    updateCitations({ ...citationPrefs, markerStyle }, bibliography);
+  }
+
+  function setBibliographySource(bibliographySource: CitationPrefs["bibliographySource"]) {
+    // Falls back to "numbered" when leaving structured mode while
+    // author-year was active — author-year has nothing reliable to render
+    // once there's no structured author/year data behind it.
+    const displayStyle = bibliographySource === "text" && citationPrefs.displayStyle === "author-year" ? "numbered" : citationPrefs.displayStyle;
+    updateCitations({ ...citationPrefs, bibliographySource, displayStyle }, bibliography);
+  }
+
+  function setDisplayStyle(displayStyle: CitationPrefs["displayStyle"]) {
+    updateCitations({ ...citationPrefs, displayStyle }, bibliography);
+  }
+
+  function addBibEntry() {
+    updateCitations(citationPrefs, [...bibliography, { key: "", author: "", year: "", text: "" }]);
+  }
+
+  function updateBibEntry(index: number, field: keyof BibEntry, value: string) {
+    updateCitations(
+      citationPrefs,
+      bibliography.map((entry, i) => (i === index ? { ...entry, [field]: value } : entry)),
+    );
+  }
+
+  function removeBibEntry(index: number) {
+    updateCitations(
+      citationPrefs,
+      bibliography.filter((_, i) => i !== index),
+    );
+  }
+
   // formatRelativeTime (the window.MDE bridge method) is deliberately
   // compact ("Today") for where it's used elsewhere (the Open Recent
   // submenu) — this panel is the one place precise enough to want the
@@ -156,6 +202,45 @@
       {/each}
       <button type="button" class="secondary-btn" onclick={addMetadataField}>Add field</button>
     </div>
+    <div class="menu-section-label">Citations</div>
+    <div class="doc-info-citation-prefs">
+      <div class="tab-switch" role="tablist">
+        <button type="button" class="tab-switch-btn" class:active={citationPrefs.markerStyle === "pandoc"} onclick={() => setMarkerStyle("pandoc")}>Pandoc [@key]</button>
+        <button type="button" class="tab-switch-btn" class:active={citationPrefs.markerStyle === "multimarkdown"} onclick={() => setMarkerStyle("multimarkdown")}>MultiMarkdown [#key]</button>
+      </div>
+      <div class="tab-switch" role="tablist">
+        <button type="button" class="tab-switch-btn" class:active={citationPrefs.bibliographySource === "text"} onclick={() => setBibliographySource("text")}>Plain text</button>
+        <button type="button" class="tab-switch-btn" class:active={citationPrefs.bibliographySource === "structured"} onclick={() => setBibliographySource("structured")}>Structured</button>
+      </div>
+      <div class="tab-switch" role="tablist">
+        <button type="button" class="tab-switch-btn" class:active={citationPrefs.displayStyle === "numbered"} onclick={() => setDisplayStyle("numbered")}>Numbered</button>
+        <button
+          type="button"
+          class="tab-switch-btn"
+          class:active={citationPrefs.displayStyle === "author-year"}
+          disabled={citationPrefs.bibliographySource === "text"}
+          onclick={() => setDisplayStyle("author-year")}
+        >
+          Author-year
+        </button>
+      </div>
+    </div>
+    {#if citationPrefs.bibliographySource === "structured"}
+      <div class="doc-info-metadata-list">
+        {#each bibliography as entry, i}
+          <div class="doc-info-citation-row">
+            <input type="text" placeholder="Key" value={entry.key} oninput={(e) => updateBibEntry(i, "key", (e.target as HTMLInputElement).value)} />
+            <input type="text" placeholder="Author" value={entry.author} oninput={(e) => updateBibEntry(i, "author", (e.target as HTMLInputElement).value)} />
+            <input type="text" placeholder="Year" value={entry.year} oninput={(e) => updateBibEntry(i, "year", (e.target as HTMLInputElement).value)} />
+            <input type="text" placeholder="Text" value={entry.text} oninput={(e) => updateBibEntry(i, "text", (e.target as HTMLInputElement).value)} />
+            <button type="button" class="doc-info-metadata-remove" aria-label="Remove entry" onclick={() => removeBibEntry(i)}>
+              <svg class="icon"><use href="#icon-trash-2"></use></svg>
+            </button>
+          </div>
+        {/each}
+        <button type="button" class="secondary-btn" onclick={addBibEntry}>Add entry</button>
+      </div>
+    {/if}
     {#if doc.repoPath || doc.gistId}
       <div class="menu-section-label">Synced to</div>
       {#if doc.repoPath}

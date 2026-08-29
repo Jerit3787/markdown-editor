@@ -17,11 +17,13 @@ import {
   saveActiveDocContent,
   setDocImage,
   setActiveDocMetadata,
+  setActiveDocCitations,
   refreshDocNoteAnchors,
   findCollidingDoc,
   persistDocs,
 } from "./stores/docs";
 import { serializeMetadataBlock } from "./mmd-metadata";
+import { DEFAULT_CITATION_PREFS } from "./mmd-citations";
 import { ensureUniqueName } from "./doc-naming";
 import { workspacesStore, createWorkspace } from "./stores/workspaces";
 import { initRouter, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
@@ -942,6 +944,14 @@ import katexCss from "katex/dist/katex.min.css?raw";
     return name.replace(/[\\/:*?"<>|]+/g, "-") || "document";
   }
 
+  function serializeCitationsBlock(doc: Doc | undefined, content: string): string {
+    const citations = doc?.citations;
+    if (!citations || citations.prefs.bibliographySource !== "structured" || citations.bibliography.length === 0) return content;
+    const marker = citations.prefs.markerStyle === "pandoc" ? "@" : "#";
+    const lines = citations.bibliography.map((entry) => `[${marker}${entry.key}]: ${entry.text}`).join("\n");
+    return `${content.replace(/\n+$/, "")}\n\n${lines}\n`;
+  }
+
   async function exportAs(format: string) {
     saveNow();
     const base = currentFileBase();
@@ -951,7 +961,8 @@ import katexCss from "katex/dist/katex.min.css?raw";
       const doc = getActiveDoc();
       const resolved = resolveDiagramRefs(resolveImageRefs(raw, doc), doc?.diagrams);
       const withMetadata = serializeMetadataBlock(doc?.metadata ?? [], resolved);
-      downloadBlob(new Blob([withMetadata], { type: "text/markdown;charset=utf-8" }), `${base}.md`);
+      const withCitations = serializeCitationsBlock(doc, withMetadata);
+      downloadBlob(new Blob([withCitations], { type: "text/markdown;charset=utf-8" }), `${base}.md`);
       showToast(`Exported ${base}.md`, "success");
       return;
     }
@@ -1130,7 +1141,7 @@ ${bodyHtml}
     getResolvedContent() {
       const doc = getActiveDoc();
       const resolved = resolveDiagramRefs(resolveImageRefs(cm.state.doc.toString(), doc), doc?.diagrams);
-      return serializeMetadataBlock(doc?.metadata ?? [], resolved);
+      return serializeCitationsBlock(doc, serializeMetadataBlock(doc?.metadata ?? [], resolved));
     },
     setDocImage(key, dataUrl) {
       setDocImage(key, dataUrl);
@@ -1159,6 +1170,11 @@ ${bodyHtml}
       setActiveDocMetadata(metadata);
     },
     onDocMetadataChanged: null,
+    setDocCitations(id, citations) {
+      if (getActiveDoc()?.id !== id) return;
+      setActiveDocCitations(citations);
+    },
+    onDocCitationsChanged: null,
     toggleDropdown,
     closeAllDropdowns,
     requireGithubSignIn(hint) {

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.0] - 2026-08-29
+
+### Added
+
+- **Split Format and Insert out of the Edit menu.** Bold/Italic/Strikethrough now live in a new Format menu, and Insert Link/Insert Image/Manage Images now live in a new Insert menu, instead of all being crowded into Edit alongside Undo/Redo/Find/Cut/Copy/Paste. No commands, shortcuts, or behavior changed — only where they live in the menu bar.
+
 ## [1.37.0] - 2026-08-29
 
 ### Added

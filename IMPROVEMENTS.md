@@ -72,8 +72,11 @@ its own, same process as every feature shipped this session.
 - [x] Printing support. (Shipped v1.33.0.)
 - [x] Replace an existing image's file in place (keep the same
       reference/position, swap the underlying image). (Shipped v1.32.0.)
-- [ ] Split the Format and Insert menu concerns apart (currently
-      combined).
+- [x] Split the Format and Insert menu concerns apart. (Shipped
+      v1.38.0.) Bold/Italic/Strikethrough moved into a new Format menu;
+      Insert Link/Insert Image/Manage Images moved into a new Insert
+      menu — pure relocation out of the overloaded Edit menu, no
+      command or shortcut changes.
 - [x] MultiMarkdown syntax support. (Shipped v1.36.0 as definition lists,
       superscript/subscript, and a structured document-metadata field —
       round-trips as a real Key: Value block on import/export. Citations

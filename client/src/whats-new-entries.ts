@@ -168,4 +168,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Add [@key] or [#key] citations that resolve against a bibliography — numbered or inline author-year style, typed directly in the document or managed as structured entries in a new Citations section in Document Info. Round-trips as real reference text on export, Gist publish, and repo push.",
     screenshot: "/whats-new/citations-and-bibliography.png",
   },
+  {
+    version: "1.38.0",
+    title: "Format and Insert Menus",
+    description:
+      "Bold/Italic/Strikethrough and Insert Link/Insert Image/Manage Images now live in their own Format and Insert menus instead of being crowded into Edit. Nothing about how they work changed — just where to find them.",
+    screenshot: "/whats-new/split-format-insert-menus.png",
+  },
 ];

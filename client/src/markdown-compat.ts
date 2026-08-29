@@ -1,5 +1,6 @@
 import { Marked } from "marked";
 import type { Token, Tokens } from "marked";
+import { DEFLIST_GROUP_RE, SUPERSCRIPT_RE } from "./mmd-inline-blocks";
 
 export type CompatCategory = "app-only" | "flavor-specific";
 
@@ -43,11 +44,11 @@ export function scanMarkdownCompatibility(
   }
 
   function scanTextToken(raw: string, start: number) {
-    for (const re of [WIKILINK_RE, FOOTNOTE_REF_RE, MATH_RE]) {
+    for (const re of [WIKILINK_RE, FOOTNOTE_REF_RE, MATH_RE, SUPERSCRIPT_RE]) {
       re.lastIndex = 0;
       let m: RegExpExecArray | null;
       while ((m = re.exec(raw))) {
-        const label = re === WIKILINK_RE ? "Wikilink" : re === FOOTNOTE_REF_RE ? "Footnote reference" : "Math";
+        const label = re === WIKILINK_RE ? "Wikilink" : re === FOOTNOTE_REF_RE ? "Footnote reference" : re === MATH_RE ? "Math" : "Superscript";
         const category: CompatCategory = re === WIKILINK_RE ? "app-only" : "flavor-specific";
         issues.push({ category, label, from: start + m.index, to: start + m.index + m[0].length });
       }
@@ -70,7 +71,17 @@ export function scanMarkdownCompatibility(
           issues.push({ category: "app-only", label: "Image reference", from: absoluteStart, to: absoluteStart + t.raw.length });
         }
       } else if (t.type === "del") {
-        issues.push({ category: "flavor-specific", label: "Strikethrough", from: absoluteStart, to: absoluteStart + t.raw.length });
+        // marked's own del-tokenizer accepts a single tilde as well as the
+        // real GFM double-tilde delimiter (verified empirically against
+        // this exact installed marked version) — a genuine MultiMarkdown
+        // subscript span ("H~2~O") is therefore already isolated as its
+        // own `del` token by the time it reaches here, never as literal
+        // text a SUPERSCRIPT_RE-style regex could scan for. Distinguish
+        // the two by how many tildes the token's own raw text starts
+        // with, rather than trying to regex-match subscript out of a text
+        // token it can never actually appear in.
+        const isSubscript = !t.raw.startsWith("~~");
+        issues.push({ category: "flavor-specific", label: isSubscript ? "Subscript" : "Strikethrough", from: absoluteStart, to: absoluteStart + t.raw.length });
       } else if (t.type === "text") {
         scanTextToken(t.raw, absoluteStart);
       }
@@ -121,6 +132,16 @@ export function scanMarkdownCompatibility(
         }
         walkInline(item.tokens, token.raw, start);
       }
+      continue;
+    }
+
+    if (token.type === "paragraph") {
+      DEFLIST_GROUP_RE.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = DEFLIST_GROUP_RE.exec(token.raw))) {
+        issues.push({ category: "flavor-specific", label: "Definition list", from: start + m.index, to: start + m.index + m[0].length });
+      }
+      walkInline((token as { tokens?: Token[] }).tokens, token.raw, start);
       continue;
     }
 

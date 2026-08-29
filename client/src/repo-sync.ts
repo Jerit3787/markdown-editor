@@ -15,6 +15,7 @@ import {
 } from "./stores/docs";
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
+import { serializeMetadataBlock } from "./mmd-metadata";
 import {
   workspacesStore,
   createWorkspace,
@@ -382,7 +383,12 @@ export async function planPush(
         }
       }
     }
-    const { content, assets } = rewriteImagesForPush(doc.content, slugFromRepoPath(repoPath), doc.images, doc.diagrams);
+    const { content, assets } = rewriteImagesForPush(
+      serializeMetadataBlock(doc.metadata ?? [], doc.content),
+      slugFromRepoPath(repoPath),
+      doc.images,
+      doc.diagrams,
+    );
     // Was a plain `continue` before history/notes needed independent
     // consideration — a doc whose CONTENT is unchanged can still have
     // new local snapshots or notes to push, so this no longer skips the

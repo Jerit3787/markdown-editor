@@ -250,6 +250,7 @@ describe("shared document name sync", () => {
       githubSessionReady: Promise.resolve(),
       setDocImage: vi.fn(),
       setDocName: vi.fn(),
+      setDocMetadata: vi.fn(),
       requireGithubSignIn: vi.fn(),
     } as unknown as typeof window.MDE;
 
@@ -287,5 +288,26 @@ describe("shared document name sync", () => {
     binding.ydoc.transact(() => binding.metaMap.set("name", "Renamed By Collaborator"), "server");
 
     expect(window.MDE.setDocName).toHaveBeenCalledWith("doc1", "Renamed By Collaborator");
+  });
+
+  it("seeds the shared doc's current metadata into its Y.Doc meta map when sharing for the first time", async () => {
+    docsStore.set([
+      { id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1", metadata: [{ key: "Title", value: "My Doc" }] },
+    ]);
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get("doc1");
+    expect(JSON.parse(binding?.metaMap.get("metadata") ?? "[]")).toEqual([{ key: "Title", value: "My Doc" }]);
+  });
+
+  it("applies a remote metadata change on the active doc via MDE.setDocMetadata", async () => {
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get("doc1")!;
+    binding.ydoc.transact(() => binding.metaMap.set("metadata", JSON.stringify([{ key: "Title", value: "Remote" }])), "server");
+
+    expect(window.MDE.setDocMetadata).toHaveBeenCalledWith("doc1", [{ key: "Title", value: "Remote" }]);
   });
 });

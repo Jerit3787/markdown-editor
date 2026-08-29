@@ -3,11 +3,12 @@
   import Modal from "./Modal.svelte";
   import Toggletip from "./Toggletip.svelte";
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
-  import { activeIdStore, activeDocContent, getActiveDoc, docsStore, switchDoc } from "../stores/docs";
+  import { activeIdStore, activeDocContent, getActiveDoc, docsStore, switchDoc, setActiveDocMetadata } from "../stores/docs";
   import { workspacesStore } from "../stores/workspaces";
   import { findBacklinks } from "../wikilinks";
   import { fetchRepoDocDates, type RepoDocDates } from "../repo-doc-dates";
   import { scanMarkdownCompatibility, type CompatIssue } from "../markdown-compat";
+  import type { MetadataPair } from "../mmd-metadata";
 
   const COMPAT_CATEGORIES = ["app-only", "flavor-specific"] as const;
 
@@ -68,6 +69,25 @@
     close();
   }
 
+  function updateMetadata(next: MetadataPair[]) {
+    if (!doc) return;
+    setActiveDocMetadata(next);
+    window.MDE.onDocMetadataChanged?.(doc.id, next);
+  }
+
+  function addMetadataField() {
+    updateMetadata([...(doc?.metadata ?? []), { key: "", value: "" }]);
+  }
+
+  function updateMetadataField(index: number, field: "key" | "value", value: string) {
+    const next = (doc?.metadata ?? []).map((pair, i) => (i === index ? { ...pair, [field]: value } : pair));
+    updateMetadata(next);
+  }
+
+  function removeMetadataField(index: number) {
+    updateMetadata((doc?.metadata ?? []).filter((_, i) => i !== index));
+  }
+
   // formatRelativeTime (the window.MDE bridge method) is deliberately
   // compact ("Today") for where it's used elsewhere (the Open Recent
   // submenu) — this panel is the one place precise enough to want the
@@ -123,6 +143,19 @@
         {/each}
       </div>
     {/if}
+    <div class="menu-section-label">Metadata</div>
+    <div class="doc-info-metadata-list">
+      {#each doc.metadata ?? [] as pair, i}
+        <div class="doc-info-metadata-row">
+          <input type="text" placeholder="Key" value={pair.key} oninput={(e) => updateMetadataField(i, "key", (e.target as HTMLInputElement).value)} />
+          <input type="text" placeholder="Value" value={pair.value} oninput={(e) => updateMetadataField(i, "value", (e.target as HTMLInputElement).value)} />
+          <button type="button" class="doc-info-metadata-remove" aria-label="Remove field" onclick={() => removeMetadataField(i)}>
+            <svg class="icon"><use href="#icon-trash-2"></use></svg>
+          </button>
+        </div>
+      {/each}
+      <button type="button" class="secondary-btn" onclick={addMetadataField}>Add field</button>
+    </div>
     {#if doc.repoPath || doc.gistId}
       <div class="menu-section-label">Synced to</div>
       {#if doc.repoPath}

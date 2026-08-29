@@ -74,12 +74,19 @@ its own, same process as every feature shipped this session.
       reference/position, swap the underlying image). (Shipped v1.32.0.)
 - [ ] Split the Format and Insert menu concerns apart (currently
       combined).
-- [ ] MultiMarkdown syntax support.
+- [x] MultiMarkdown syntax support. (Shipped v1.36.0 as definition lists,
+      superscript/subscript, and a structured document-metadata field —
+      round-trips as a real Key: Value block on import/export. Citations
+      & bibliography split off as its own separate, still-open item below.)
+- [ ] **Citations & bibliography.** `[#Author2000]`-style citations resolved
+      against a bibliography — needs its own bibliography data model and UI,
+      split off from the MultiMarkdown syntax support item above as too
+      different in kind to bundle with it.
 - [x] Markdown compatibility checker. (Shipped v1.35.0 as a
       Document Info panel row flagging app-only and flavor-specific
       syntax. "Support all flavors of Markdown" was descoped — it's a
-      separate, much larger effort that overlaps the still-open
-      MultiMarkdown syntax support item below.)
+      separate, much larger effort that overlaps the MultiMarkdown
+      syntax support item above, shipped in v1.36.0.)
 - [x] **Shared document name sync.** (Shipped v1.28.0.) The name now
       lives in a `meta` Y.Map on the same per-document Y.Doc as
       `ytext`/`imagesMap` — the same pattern imagesMap already

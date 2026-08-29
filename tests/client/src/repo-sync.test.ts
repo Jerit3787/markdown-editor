@@ -220,6 +220,13 @@ describe("planPull", () => {
 });
 
 describe("planPush", () => {
+  it("prepends the document's metadata block to pushed content", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "My Notes", repoPath: undefined, content: "# Body\n", metadata: [{ key: "Title", value: "Pushed Doc" }] })];
+    const plan = await planPush(docs, [], false);
+    expect(plan.changes).toHaveLength(1);
+    expect(plan.changes[0]!.content).toBe("Title: Pushed Doc\n\n# Body\n");
+  });
+
   it("assigns a new repoPath to a doc that has never synced", async () => {
     const docs = [fakeDoc({ id: "d1", name: "My Notes", repoPath: undefined })];
     const plan = await planPush(docs, [], false);

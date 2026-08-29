@@ -105,4 +105,33 @@ describe("scanMarkdownCompatibility", () => {
     const issues = scanMarkdownCompatibility("# Heading\n\nJust a normal paragraph.\n", undefined, undefined);
     expect(issues).toHaveLength(0);
   });
+
+  test("flags a definition list", () => {
+    const issues = scanMarkdownCompatibility("Apple\n:   A fruit\n", undefined, undefined);
+    expect(issues).toContainEqual(expect.objectContaining({ category: "flavor-specific", label: "Definition list" }));
+  });
+
+  test("flags superscript", () => {
+    const issues = scanMarkdownCompatibility("2^10^ is 1024", undefined, undefined);
+    expect(issues).toContainEqual(expect.objectContaining({ category: "flavor-specific", label: "Superscript" }));
+  });
+
+  test("flags subscript", () => {
+    const issues = scanMarkdownCompatibility("H~2~O", undefined, undefined);
+    expect(issues).toContainEqual(expect.objectContaining({ category: "flavor-specific", label: "Subscript" }));
+  });
+
+  test("does not double-flag strikethrough as subscript", () => {
+    const issues = scanMarkdownCompatibility("~~deleted~~", undefined, undefined);
+    const labels = issues.map((i) => i.label);
+    expect(labels).toContain("Strikethrough");
+    expect(labels).not.toContain("Subscript");
+  });
+
+  test("does not double-flag a footnote reference as superscript", () => {
+    const issues = scanMarkdownCompatibility("A claim.[^1]\n\n[^1]: A note.", undefined, undefined);
+    const labels = issues.map((i) => i.label);
+    expect(labels).toContain("Footnote reference");
+    expect(labels).not.toContain("Superscript");
+  });
 });

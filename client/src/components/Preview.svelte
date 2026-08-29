@@ -10,6 +10,7 @@
   import { extractMathSpans, renderMathPlaceholders, type MathSource } from "../math-preview";
   import { computeBlockLineStarts, computeListItemLineStarts } from "../scroll-sync";
   import { resolveWikilinkTarget, transformWikilinks } from "../wikilinks";
+  import { transformDefinitionLists, transformSuperscriptSubscript } from "../mmd-inline-blocks";
   import { debounceWithFlush } from "../debounce";
   import { diagramEditorOpen, diagramEditorRef } from "../stores/diagramEditor";
   import { escapeHtml } from "../escape-html";
@@ -78,7 +79,8 @@
     };
     const { text: extractedRaw, sources } = extractMathSpans(transformWikilinks(raw));
     currentMathSources = sources;
-    const html = marked.parse(extractedRaw, { gfm: true, breaks: false, renderer }) as string;
+    const withInlineBlocks = transformSuperscriptSubscript(transformDefinitionLists(extractedRaw));
+    const html = marked.parse(withInlineBlocks, { gfm: true, breaks: false, renderer }) as string;
     // KaTeX's output includes a MathML companion tree (for accessibility)
     // alongside its visible HTML — DOMPurify's default allowlist is
     // HTML-only and strips MathML entirely without ADD_TAGS/ADD_ATTR

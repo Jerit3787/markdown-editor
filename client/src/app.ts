@@ -16,10 +16,12 @@ import {
   renameDoc,
   saveActiveDocContent,
   setDocImage,
+  setActiveDocMetadata,
   refreshDocNoteAnchors,
   findCollidingDoc,
   persistDocs,
 } from "./stores/docs";
+import { serializeMetadataBlock } from "./mmd-metadata";
 import { ensureUniqueName } from "./doc-naming";
 import { workspacesStore, createWorkspace } from "./stores/workspaces";
 import { initRouter, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
@@ -948,7 +950,8 @@ import katexCss from "katex/dist/katex.min.css?raw";
     if (format === "md") {
       const doc = getActiveDoc();
       const resolved = resolveDiagramRefs(resolveImageRefs(raw, doc), doc?.diagrams);
-      downloadBlob(new Blob([resolved], { type: "text/markdown;charset=utf-8" }), `${base}.md`);
+      const withMetadata = serializeMetadataBlock(doc?.metadata ?? [], resolved);
+      downloadBlob(new Blob([withMetadata], { type: "text/markdown;charset=utf-8" }), `${base}.md`);
       showToast(`Exported ${base}.md`, "success");
       return;
     }
@@ -1126,7 +1129,8 @@ ${bodyHtml}
     // needs to stand on its own outside this app.
     getResolvedContent() {
       const doc = getActiveDoc();
-      return resolveDiagramRefs(resolveImageRefs(cm.state.doc.toString(), doc), doc?.diagrams);
+      const resolved = resolveDiagramRefs(resolveImageRefs(cm.state.doc.toString(), doc), doc?.diagrams);
+      return serializeMetadataBlock(doc?.metadata ?? [], resolved);
     },
     setDocImage(key, dataUrl) {
       setDocImage(key, dataUrl);
@@ -1150,6 +1154,11 @@ ${bodyHtml}
       }
     },
     onDocRenamed: null,
+    setDocMetadata(id, metadata) {
+      if (getActiveDoc()?.id !== id) return;
+      setActiveDocMetadata(metadata);
+    },
+    onDocMetadataChanged: null,
     toggleDropdown,
     closeAllDropdowns,
     requireGithubSignIn(hint) {

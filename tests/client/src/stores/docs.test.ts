@@ -472,6 +472,36 @@ describe("docs store — workspace integration", () => {
     expect(after.updatedAt).toBeGreaterThanOrEqual(before);
   });
 
+  it("createDoc splits a leading metadata block out of imported content", async () => {
+    const { createDoc } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, content: "Title: Imported Doc\nAuthor: Jane\n\n# Real content\n" });
+    expect(doc.metadata).toEqual([
+      { key: "Title", value: "Imported Doc" },
+      { key: "Author", value: "Jane" },
+    ]);
+    expect(doc.content).toBe("# Real content\n");
+  });
+
+  it("createDoc never re-parses content when metadata is already provided (duplicate case)", async () => {
+    const { createDoc } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, content: "Title: Not Metadata\n\nJust content.", metadata: [{ key: "Custom", value: "value" }] });
+    expect(doc.metadata).toEqual([{ key: "Custom", value: "value" }]);
+    expect(doc.content).toBe("Title: Not Metadata\n\nJust content.");
+  });
+
+  it("setActiveDocMetadata updates and persists the active doc's metadata", async () => {
+    const { createDoc, setActiveDocMetadata, findDocById } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = createWorkspace("Notes");
+    const doc = createDoc({ workspaceId: ws.id, name: "Test" });
+    setActiveDocMetadata([{ key: "Title", value: "Set via UI" }]);
+    expect(findDocById(doc.id)?.metadata).toEqual([{ key: "Title", value: "Set via UI" }]);
+  });
+
   it("syncRemoteDocContent writes new images and bumps updatedAt when images differ", async () => {
     const { createDoc, syncRemoteDocContent, findDocById } = await import("../../../../client/src/stores/docs");
     const { createWorkspace } = await import("../../../../client/src/stores/workspaces");

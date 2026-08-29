@@ -161,4 +161,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Definition lists and superscript/subscript now render correctly, and a new Metadata section in Document Info lets you add Title/Author/etc. fields that round-trip as real MultiMarkdown text on export, Gist publish, and repo push.",
     screenshot: "/whats-new/multimarkdown-syntax-support.png",
   },
+  {
+    version: "1.37.0",
+    title: "Citations & Bibliography",
+    description:
+      "Add [@key] or [#key] citations that resolve against a bibliography — numbered or inline author-year style, typed directly in the document or managed as structured entries in a new Citations section in Document Info. Round-trips as real reference text on export, Gist publish, and repo push.",
+    screenshot: "/whats-new/citations-and-bibliography.png",
+  },
 ];

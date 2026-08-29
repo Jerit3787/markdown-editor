@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.37.0] - 2026-08-29
+
+### Added
+
+- **Citations & bibliography.** `[@key]` (or `[#key]`, per a new per-document marker-style setting) resolves against a bibliography and renders as a numbered link or an inline `(Author, Year)` — both configurable per document from a new Citations section in Document Info, alongside a choice between typing reference definitions directly in the document (like footnotes) or managing them as structured entries in the panel. Structured entries round-trip as real reference-definition text on `.md` export, Gist publish, and repo push. The Markdown Compatibility Checker now flags citations as flavor-specific.
+
 ## [1.36.0] - 2026-08-28
 
 ### Added

@@ -78,10 +78,11 @@ its own, same process as every feature shipped this session.
       superscript/subscript, and a structured document-metadata field —
       round-trips as a real Key: Value block on import/export. Citations
       & bibliography split off as its own separate, still-open item below.)
-- [ ] **Citations & bibliography.** `[#Author2000]`-style citations resolved
-      against a bibliography — needs its own bibliography data model and UI,
-      split off from the MultiMarkdown syntax support item above as too
-      different in kind to bundle with it.
+- [x] **Citations & bibliography.** (Shipped v1.37.0.) `[@key]`/`[#key]`
+      citations resolve against a bibliography, with three independent
+      per-document settings — marker syntax, bibliography source (typed
+      text or a structured Document Info UI), and display style (numbered
+      or inline author-year, the latter requiring structured storage).
 - [x] Markdown compatibility checker. (Shipped v1.35.0 as a
       Document Info panel row flagging app-only and flavor-specific
       syntax. "Support all flavors of Markdown" was descoped — it's a

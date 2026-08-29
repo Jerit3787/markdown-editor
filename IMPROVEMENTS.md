@@ -73,7 +73,7 @@ its own, same process as every feature shipped this session.
 - [x] Replace an existing image's file in place (keep the same
       reference/position, swap the underlying image). (Shipped v1.32.0.)
 - [x] Split the Format and Insert menu concerns apart. (Shipped
-      v1.38.0.) Bold/Italic/Strikethrough moved into a new Format menu;
+      v1.37.0.) Bold/Italic/Strikethrough moved into a new Format menu;
       Insert Link/Insert Image/Manage Images moved into a new Insert
       menu — pure relocation out of the overloaded Edit menu, no
       command or shortcut changes.
@@ -108,7 +108,7 @@ its own, same process as every feature shipped this session.
 Large enough that each deserves its own full design cycle; not
 sequenced relative to each other yet.
 
-- [x] **Smart version-history grouping.** (Shipped v1.39.0.) 30-second
+- [x] **Smart version-history grouping.** (Shipped v1.37.0.) 30-second
       capture instead of 5-minute, with sessions computed purely from
       timestamps (a 30-minute gap starts a new one) — a closed
       session's intermediate snapshots collapse to its final state,

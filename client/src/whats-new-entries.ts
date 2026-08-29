@@ -169,14 +169,14 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/citations-and-bibliography.png",
   },
   {
-    version: "1.38.0",
+    version: "1.37.0",
     title: "Format and Insert Menus",
     description:
       "Bold/Italic/Strikethrough and Insert Link/Insert Image/Manage Images now live in their own Format and Insert menus instead of being crowded into Edit. Nothing about how they work changed — just where to find them.",
     screenshot: "/whats-new/split-format-insert-menus.png",
   },
   {
-    version: "1.39.0",
+    version: "1.37.0",
     title: "Smart Version History Grouping",
     description:
       "Version History now groups continuous edits into collapsible sessions instead of a flat list, with much finer-grained capture underneath. Compare any two historical entries against each other, not just a version against the live document.",

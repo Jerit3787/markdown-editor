@@ -4,23 +4,13 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
-## [1.39.0] - 2026-08-29
-
-### Added
-
-- **Smart version-history grouping.** History now captures every 30 seconds instead of every 5 minutes, and Version History groups continuous edits into collapsible sessions (e.g. "Today, 2:00–2:45 PM · 12 edits") instead of a flat list — a real gap of 30+ minutes starts a new session, and an older session's in-between snapshots collapse down to its final state once it closes, keeping storage bounded. The Diff view can now compare any two selected historical entries against each other, not just a version against the live document.
-
-## [1.38.0] - 2026-08-29
-
-### Added
-
-- **Split Format and Insert out of the Edit menu.** Bold/Italic/Strikethrough now live in a new Format menu, and Insert Link/Insert Image/Manage Images now live in a new Insert menu, instead of all being crowded into Edit alongside Undo/Redo/Find/Cut/Copy/Paste. No commands, shortcuts, or behavior changed — only where they live in the menu bar.
-
 ## [1.37.0] - 2026-08-29
 
 ### Added
 
 - **Citations & bibliography.** `[@key]` (or `[#key]`, per a new per-document marker-style setting) resolves against a bibliography and renders as a numbered link or an inline `(Author, Year)` — both configurable per document from a new Citations section in Document Info, alongside a choice between typing reference definitions directly in the document (like footnotes) or managing them as structured entries in the panel. Structured entries round-trip as real reference-definition text on `.md` export, Gist publish, and repo push. The Markdown Compatibility Checker now flags citations as flavor-specific.
+- **Split Format and Insert out of the Edit menu.** Bold/Italic/Strikethrough now live in a new Format menu, and Insert Link/Insert Image/Manage Images now live in a new Insert menu, instead of all being crowded into Edit alongside Undo/Redo/Find/Cut/Copy/Paste. No commands, shortcuts, or behavior changed — only where they live in the menu bar.
+- **Smart version-history grouping.** History now captures every 30 seconds instead of every 5 minutes, and Version History groups continuous edits into collapsible sessions (e.g. "Today, 2:00–2:45 PM · 12 edits") instead of a flat list — a real gap of 30+ minutes starts a new session, and an older session's in-between snapshots collapse down to its final state once it closes, keeping storage bounded. The Diff view can now compare any two selected historical entries against each other, not just a version against the live document.
 
 ## [1.36.0] - 2026-08-28
 

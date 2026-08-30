@@ -59,7 +59,7 @@
 </script>
 
 {#if $renameCollision}
-  <Modal title="Name already in use" labelledBy="renameCollisionTitle" onClose={cancel}>
+  <Modal title="Name already in use" elevated labelledBy="renameCollisionTitle" onClose={cancel}>
     <p>Another document is already named "{$renameCollision.pendingName}".</p>
     {#snippet footer()}
       <button type="button" class="secondary-btn" onclick={cancel}>Cancel</button>

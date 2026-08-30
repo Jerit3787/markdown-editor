@@ -241,6 +241,21 @@ button.doc-info-link {
     min-width: 0;
   }
 }
+// Standard styled-input treatment used elsewhere for modal text fields
+// (see .modal-field input in _modals.scss) — applied here directly, since
+// these inputs sit in table-like rows rather than the label+input blocks
+// .modal-field wraps, but should still look like the same kind of field
+// rather than falling back to the browser's plain default input box.
+.doc-info-metadata-row input,
+.doc-info-citation-row input,
+.doc-edit-name-input {
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+}
 .doc-info-metadata-remove {
   flex-shrink: 0;
   background: none;
@@ -268,6 +283,26 @@ button.doc-info-link {
     flex: 1;
     min-width: 0;
   }
+}
+.doc-edit-name-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 260px;
+  text-align: right;
+}
+.doc-info-edit-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.doc-info-edit-btn:hover,
+.doc-info-edit-btn:focus-visible {
+  text-decoration: underline;
 }
 .citation-bibliography {
   margin-top: 24px;

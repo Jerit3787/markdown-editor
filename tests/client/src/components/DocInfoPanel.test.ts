@@ -1,81 +1,45 @@
 import { test, expect, beforeEach, vi } from "vitest";
+import { get } from "svelte/store";
 import { render } from "vitest-browser-svelte";
 import DocInfoPanel from "../../../../client/src/components/DocInfoPanel.svelte";
 import { docInfoPanelOpen } from "../../../../client/src/stores/docInfoPanel";
+import { docEditModalOpen } from "../../../../client/src/stores/docEditModalOpen";
 import { docsStore, activeIdStore } from "../../../../client/src/stores/docs";
 
 beforeEach(() => {
-  // DocInfoPanel's template calls window.MDE.formatRelativeTime(...)
-  // directly (not optional-chained) for the Created/Edited rows, so it
-  // must be stubbed or rendering throws — the rest of window.MDE isn't
-  // touched by anything these tests exercise.
   window.MDE = { formatRelativeTime: () => "just now", updatePreview: vi.fn() } as unknown as typeof window.MDE;
   docsStore.set([{ id: "d1", name: "Test", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1", metadata: [{ key: "Title", value: "Existing" }] }]);
   activeIdStore.set("d1");
   docInfoPanelOpen.set(true);
+  docEditModalOpen.set(false);
 });
 
-test("renders existing metadata pairs as rows", async () => {
+test("shows the document name as read-only text, not an input", async () => {
   const screen = await render(DocInfoPanel);
-  await expect.element(screen.getByPlaceholder("Key").first()).toHaveValue("Title");
-  await expect.element(screen.getByPlaceholder("Value").first()).toHaveValue("Existing");
+  await expect.element(screen.getByText("Test")).toBeVisible();
+  expect((await screen.getByRole("textbox").all()).length).toBe(0);
 });
 
-test("Add field appends an empty row", async () => {
+test("shows metadata pairs as read-only rows, not inputs", async () => {
   const screen = await render(DocInfoPanel);
-  expect((await screen.getByPlaceholder("Key").all()).length).toBe(1);
-
-  await screen.getByRole("button", { name: "Add field" }).click();
-
-  expect((await screen.getByPlaceholder("Key").all()).length).toBe(2);
-});
-
-test("editing a row's key updates the underlying doc metadata", async () => {
-  const screen = await render(DocInfoPanel);
-  await screen.getByPlaceholder("Key").first().fill("Renamed");
-
-  const { getActiveDoc } = await import("../../../../client/src/stores/docs");
-  expect(getActiveDoc()?.metadata).toEqual([{ key: "Renamed", value: "Existing" }]);
-});
-
-test("deleting a row removes it", async () => {
-  const screen = await render(DocInfoPanel);
-  await screen.getByRole("button", { name: "Remove field" }).click();
+  await expect.element(screen.getByText("Title")).toBeVisible();
+  await expect.element(screen.getByText("Existing")).toBeVisible();
   expect((await screen.getByPlaceholder("Key").all()).length).toBe(0);
-
-  const { getActiveDoc } = await import("../../../../client/src/stores/docs");
-  expect(getActiveDoc()?.metadata).toEqual([]);
 });
 
-test("renders the citation preference controls with correct defaults", async () => {
+test("shows a citation preference summary line", async () => {
   const screen = await render(DocInfoPanel);
-  await expect.element(screen.getByRole("button", { name: "Pandoc [@key]" })).toHaveClass(/active/);
-  await expect.element(screen.getByRole("button", { name: "Plain text" })).toHaveClass(/active/);
-  await expect.element(screen.getByRole("button", { name: "Numbered" })).toHaveClass(/active/);
+  await expect.element(screen.getByText("Pandoc [@key] · Plain text · Numbered")).toBeVisible();
 });
 
-test("Author-year is disabled when bibliography source is plain text", async () => {
+test("clicking Edit opens the edit modal", async () => {
   const screen = await render(DocInfoPanel);
-  await expect.element(screen.getByRole("button", { name: "Author-year" })).toBeDisabled();
+  await screen.getByRole("button", { name: "Edit" }).click();
+  expect(get(docEditModalOpen)).toBe(true);
 });
 
-test("switching to Structured enables Author-year and shows entry rows", async () => {
+test("shows a metadata empty state when there is no metadata", async () => {
+  docsStore.set([{ id: "d1", name: "Test", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1" }]);
   const screen = await render(DocInfoPanel);
-  await screen.getByRole("button", { name: "Structured" }).click();
-  await expect.element(screen.getByRole("button", { name: "Author-year" })).not.toBeDisabled();
-  await expect.element(screen.getByPlaceholder("Key")).toBeVisible();
-});
-
-test("adding a bibliography entry updates the underlying doc", async () => {
-  const screen = await render(DocInfoPanel);
-  await screen.getByRole("button", { name: "Structured" }).click();
-  await screen.getByRole("button", { name: "Add entry" }).click();
-  const { getActiveDoc } = await import("../../../../client/src/stores/docs");
-  expect(getActiveDoc()?.citations?.bibliography).toHaveLength(1);
-});
-
-test("a citation preference change refreshes the preview, since it changes rendered output the editor content alone would not", async () => {
-  const screen = await render(DocInfoPanel);
-  await screen.getByRole("button", { name: "Structured" }).click();
-  expect(window.MDE.updatePreview).toHaveBeenCalled();
+  await expect.element(screen.getByText("No metadata", { exact: true })).toBeVisible();
 });

@@ -58,6 +58,8 @@
     font-family: inherit;
     font-size: 13px;
     border: 1px solid var(--border);
+    background: var(--bg-alt);
+    color: var(--text);
     border-radius: 6px;
     padding: 6px;
     box-sizing: border-box;
@@ -163,6 +165,8 @@
     flex: 1;
     font-size: 13px;
     border: 1px solid var(--border);
+    background: var(--bg-alt);
+    color: var(--text);
     border-radius: 6px;
     padding: 4px 6px;
   }

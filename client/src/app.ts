@@ -584,22 +584,54 @@ import katexCss from "katex/dist/katex.min.css?raw";
   // The formatting toolbar itself is Toolbar.svelte now (mounted at
   // #toolbar-mount) — its buttons call window.MDE.runCmd() directly
   // instead of a delegated click listener here.
+  let docTitleInput: HTMLInputElement;
+
+  // Shared by the #docTitle toolbar input (initToolbar, below) and
+  // DocEditModal's own Name field via window.MDE — one implementation of
+  // "rename the active doc" instead of two.
+  function renameActiveDoc(name: string) {
+    const doc = getActiveDoc();
+    if (!doc) return;
+    renameDoc(doc.id, name);
+    scheduleSave();
+    if (docTitleInput.value !== name) docTitleInput.value = name;
+    resizeDocTitle();
+    updatePageTitle(name);
+    window.MDE.onDocRenamed?.(doc.id, name);
+  }
+
+  // Left blank without typing a replacement (or typed-then-deleted, which
+  // renameActiveDoc above already renamed back to "Untitled" — this just
+  // makes the field's own display catch up) — show "Untitled" again rather
+  // than leaving the field looking empty. Collision-checking is
+  // deliberately skipped for this empty-then-restored case (see the
+  // design doc's Error handling section) — only a real, non-empty,
+  // actually-changed name triggers it.
+  function commitActiveDocRename(previousName: string) {
+    if (!docTitleInput.value.trim()) {
+      docTitleInput.value = "Untitled";
+      resizeDocTitle();
+      return;
+    }
+    const doc = getActiveDoc();
+    if (!doc) return;
+    const finalName = docTitleInput.value;
+    if (finalName === previousName) return;
+    const colliding = findCollidingDoc(doc.id, finalName);
+    if (colliding) {
+      renameCollision.set({ docId: doc.id, pendingName: finalName, previousName, collidingDocId: colliding.id });
+    }
+  }
+
   function initToolbar() {
-    const docTitleInput = document.getElementById("docTitle") as HTMLInputElement;
+    docTitleInput = document.getElementById("docTitle") as HTMLInputElement;
     // Captured on focus, read on blur — doc.name has already been
     // rewritten to the (possibly colliding) in-progress value by every
     // "input" event by the time blur fires, so this is the only place
     // "what it was before this edit" is still available.
     let nameBeforeEdit = "";
     docTitleInput.addEventListener("input", (e) => {
-      const doc = getActiveDoc();
-      if (!doc) return;
-      const name = (e.target as HTMLInputElement).value || "Untitled";
-      renameDoc(doc.id, name);
-      scheduleSave();
-      resizeDocTitle();
-      updatePageTitle(name);
-      window.MDE.onDocRenamed?.(doc.id, name);
+      renameActiveDoc((e.target as HTMLInputElement).value || "Untitled");
     });
     // "Untitled" is the real stored name for a never-renamed doc, not just
     // a placeholder — but making the user delete it by hand before typing
@@ -613,28 +645,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
       nameBeforeEdit = doc ? doc.name : "";
       if (docTitleInput.value === "Untitled") docTitleInput.value = "";
     });
-    // Left blank without typing a replacement (or typed-then-deleted, which
-    // the input handler above already renamed back to "Untitled" — this
-    // just makes the field's own display catch up) — show "Untitled" again
-    // rather than leaving the field looking empty. Collision-checking is
-    // deliberately skipped for this empty-then-restored case (see the
-    // design doc's Error handling section) — only a real, non-empty,
-    // actually-changed name triggers it.
-    docTitleInput.addEventListener("blur", () => {
-      if (!docTitleInput.value.trim()) {
-        docTitleInput.value = "Untitled";
-        resizeDocTitle();
-        return;
-      }
-      const doc = getActiveDoc();
-      if (!doc) return;
-      const finalName = docTitleInput.value;
-      if (finalName === nameBeforeEdit) return;
-      const colliding = findCollidingDoc(doc.id, finalName);
-      if (colliding) {
-        renameCollision.set({ docId: doc.id, pendingName: finalName, previousName: nameBeforeEdit, collidingDocId: colliding.id });
-      }
-    });
+    docTitleInput.addEventListener("blur", () => commitActiveDocRename(nameBeforeEdit));
     // Enter commits the rename (via the existing blur handler above)
     // and moves focus to the editor — same as clicking away, just
     // reachable from the keyboard without tabbing.
@@ -1165,6 +1176,8 @@ ${bodyHtml}
       }
     },
     onDocRenamed: null,
+    renameActiveDoc,
+    commitActiveDocRename,
     setDocMetadata(id, metadata) {
       if (getActiveDoc()?.id !== id) return;
       setActiveDocMetadata(metadata);

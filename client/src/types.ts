@@ -175,6 +175,19 @@ export interface MDEBridge {
   // shared workspace's Y.Doc if the document is currently shared.
   setDocName(id: string, name: string): void;
   onDocRenamed: ((id: string, name: string) => void) | null;
+  // Renames the active doc as-you-type: store update + scheduled save +
+  // toolbar title sync + page title + collab notification. Same effect as
+  // typing into the #docTitle toolbar input — DocEditModal's own Name field
+  // (client/src/components/DocEditModal.svelte) calls this on every input
+  // so both fields and the doc store stay in sync regardless of which one
+  // the user is typing into.
+  renameActiveDoc(name: string): void;
+  // Commits a rename on blur/Enter: falls back to "Untitled" for an empty
+  // value, otherwise checks for a name collision against previousName (the
+  // name captured when editing started) and opens RenameCollisionModal via
+  // the renameCollision store if one is found. Same effect as blurring the
+  // #docTitle toolbar input.
+  commitActiveDocRename(previousName: string): void;
   setDocMetadata(id: string, metadata: MetadataPair[]): void;
   onDocMetadataChanged: ((id: string, metadata: MetadataPair[]) => void) | null;
   setDocCitations(id: string, citations: { prefs: CitationPrefs; bibliography: BibEntry[] }): void;

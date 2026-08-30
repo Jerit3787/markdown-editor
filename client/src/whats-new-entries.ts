@@ -182,4 +182,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Version History now groups continuous edits into collapsible sessions instead of a flat list, with much finer-grained capture underneath. Compare any two historical entries against each other, not just a version against the live document.",
     screenshot: "/whats-new/smart-version-history-grouping.png",
   },
+  {
+    version: "1.38.0",
+    title: "Document Info Edit Modal",
+    description:
+      "Document Info is now a read-only summary — including a new Name row — with an Edit button that opens a dedicated modal for renaming the document and editing its metadata and citation settings.",
+    screenshot: "/whats-new/doc-info-edit-modal.png",
+  },
 ];

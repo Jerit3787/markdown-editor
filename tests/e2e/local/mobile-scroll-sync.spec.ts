@@ -124,6 +124,79 @@ test.describe("preview-at-bottom sync on mobile", () => {
   });
 });
 
+// A boolean-plus-requestAnimationFrame guard (syncingScroll, before this)
+// only tolerates the mirrored "echo" scroll event — the one our own
+// preview.scrollTop write produces — arriving within about one animation
+// frame. On a real device, writing scrollTop on a pane the user is
+// actively touch-scrolling can be silently deferred by the compositor
+// until the gesture ends, arriving well past that window — reported live
+// as "after I release an aggressive scroll, the view slowly drifts back to
+// an unpredictable position, not just at the very top/bottom." The guard
+// is now value-based (comparing the incoming scrollTop against the value
+// we last wrote, not a timing window), so it recognizes its own echo no
+// matter how long the browser defers it.
+test.describe("scroll-sync echo guard on mobile", () => {
+  test.use({ viewport: { width: 375, height: 700 } });
+
+  test("a scroll echo arriving long after the write triggers no redundant write attempt", async ({ page }) => {
+    const longText = Array.from({ length: 60 }, (_, i) => `## Heading ${i}\n\nSome paragraph text for line ${i} to give real height.`).join("\n\n");
+    await page.evaluate((t) => {
+      const view = window.MDE.getEditor();
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: t } });
+    }, longText);
+
+    const editorScroll = page.locator("#editor-mount .cm-scroller");
+    const preview = page.locator("#preview");
+
+    await editorScroll.evaluate((el) => (el.scrollTop = el.scrollHeight));
+    await page.waitForTimeout(150);
+
+    // A real, interior (non-edge) scroll — triggers the normal
+    // interpolation branch, which computes and writes preview.scrollTop.
+    await editorScroll.evaluate((el) => (el.scrollTop = 1000));
+    await editorScroll.evaluate((el) => el.dispatchEvent(new Event("scroll")));
+    await page.waitForTimeout(200);
+
+    const previewAfterSync = await preview.evaluate((el) => el.scrollTop);
+    expect(previewAfterSync).toBeGreaterThan(0);
+
+    // Spy on the editor scroller's scrollTop setter, wait far longer than
+    // any requestAnimationFrame window, then fire the preview's own
+    // "scroll" event with its scrollTop unchanged from what our sync write
+    // just set — modeling a compositor-deferred echo of that write finally
+    // surfacing long after any rAF-based guard would have reset itself. A
+    // correct guard recognizes this by value and never attempts a write —
+    // not just "ends up at the same value," which an exact algebraic
+    // round-trip can do even when the (buggy) guard fires for real.
+    const writeCount = await page.evaluate(async () => {
+      const el = document.querySelector("#editor-mount .cm-scroller")! as HTMLElement;
+      const previewEl = document.getElementById("preview")!;
+      const proto = Object.getPrototypeOf(el);
+      const desc = Object.getOwnPropertyDescriptor(proto, "scrollTop") ?? Object.getOwnPropertyDescriptor(Object.getPrototypeOf(proto), "scrollTop")!;
+      let calls = 0;
+      Object.defineProperty(el, "scrollTop", {
+        configurable: true,
+        get() {
+          return desc.get!.call(el);
+        },
+        set(v) {
+          calls++;
+          desc.set!.call(el, v);
+        },
+      });
+
+      await new Promise((r) => setTimeout(r, 1500));
+      previewEl.dispatchEvent(new Event("scroll"));
+      await new Promise((r) => setTimeout(r, 200));
+
+      delete (el as unknown as Record<string, unknown>).scrollTop;
+      return calls;
+    });
+
+    expect(writeCount).toBe(0);
+  });
+});
+
 test.describe("cursor-follow on mobile", () => {
   test.use({ viewport: { width: 375, height: 700 } });
 

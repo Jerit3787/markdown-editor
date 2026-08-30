@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.5] - 2026-08-30
+
+### Fixed
+
+- **Hardened split-view scroll-sync against a wider version of the "drifts back on its own" bug than 1.38.4 fixed.** That release fixed one specific case (scrolling to the very end of a document); further reports showed the same symptom after aggressive fling-scrolling in general, settling at an unpredictable position. The guard that stops scroll-sync's own mirrored write from being treated as a fresh user scroll only tolerated that mirrored "echo" event arriving within about one animation frame — on a real device, writing a pane's scroll position while the user is actively touch-scrolling it can be silently deferred by the browser until the gesture ends, arriving well past that window. The guard now recognizes its own echo by comparing the incoming value against what it last wrote, rather than a timing window, so it holds regardless of how long the echo is delayed.
+
 ## [1.38.4] - 2026-08-30
 
 ### Fixed

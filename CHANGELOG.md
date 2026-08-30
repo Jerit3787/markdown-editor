@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.2] - 2026-08-30
+
+### Fixed
+
+- **The preview pane could still snap back to an unrelated position on mobile, and split view no longer scrolled the two panes together.** 1.38.1 worked around this by disabling split view's scroll-sync entirely on mobile, but that also removed the desired "scroll one pane, the other follows" behavior — and it turned out not to be scroll-sync's fault in the first place. The actual cause was a separate mechanism (`followCursorInPreview`) that re-centers the preview on the cursor's position on every cursor/selection change, not just scroll events; on mobile's shorter, stacked panes its "already visible" check is far more likely to fail, and a fast scroll-then-release touch gesture commonly registers as a tap that moves the cursor — snapping the preview to wherever the cursor last was, discarding wherever the user had actually scrolled to. Scroll-sync itself is restored on mobile (it was never actually the problem); the cursor-follow behavior is now scoped to the side-by-side desktop layout only, where "the preview follows what you're typing" makes sense in a way it doesn't on mobile's stacked layout.
+
 ## [1.38.1] - 2026-08-30
 
 ### Fixed

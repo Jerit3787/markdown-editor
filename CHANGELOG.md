@@ -10,6 +10,10 @@ All notable changes to this project are documented here. Format follows
 
 - **Document Info edit modal.** Document Info is now a read-only summary — including a new Name row — with an Edit button that opens a dedicated modal for renaming the document and editing its metadata and citation settings.
 
+### Fixed
+
+- **Comment reply field and comment draft box rendered as a plain white box in dark mode.** Both had a border but no explicit background/text color, so they fell back to the browser's default light input styling instead of matching the theme.
+
 ## [1.37.0] - 2026-08-29
 
 ### Added

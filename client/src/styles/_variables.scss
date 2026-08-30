@@ -88,11 +88,21 @@ body {
      was still relying on the browser's own default form-control size,
      well under 16px). Not fought via a maximum-scale/user-scalable
      viewport override instead, since that disables pinch-zoom for
-     everyone — a real accessibility regression. */
+     everyone — a real accessibility regression.
+     !important is required, not decorative: almost every styled text
+     field in the app sets its own font-size on a class selector (e.g.
+     .modal-field input, .doc-edit-name-input), which beats this bare
+     element selector's specificity and silently wins even inside this
+     media query — confirmed live via computed styles on LinkModal and
+     DocEditModal's fields, both rendering under 16px on a narrow
+     viewport despite this rule. This is the one place in the app a
+     component style is deliberately not allowed to override — the
+     16px floor must hold everywhere, on every current and future text
+     field, or a phone user gets stuck zoomed in. */
   input,
   textarea,
   select {
-    font-size: 16px;
+    font-size: 16px !important;
   }
 }
 

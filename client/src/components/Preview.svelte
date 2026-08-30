@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { EditorView } from "@codemirror/view";
   import { marked } from "marked";
   import DOMPurify from "dompurify";
   import markedFootnote from "marked-footnote";
@@ -309,7 +308,18 @@
       if (previewMax <= 0) return;
       if (preview.scrollTop >= previewMax - SYNC_SCROLL_END_SLACK_PX) {
         syncingScroll = true;
-        view.dispatch({ effects: EditorView.scrollIntoView(view.state.doc.length, { y: "end" }) });
+        // A plain scrollTop write, not view.dispatch(EditorView.scrollIntoView(...,
+        // {y:"end"})) as this used to do — that CM6 effect doesn't reliably land
+        // exactly at scrollHeight - clientHeight (confirmed live: it can settle a
+        // few px short, depending on line-height/font metrics), which on a real
+        // device could push the editor's landing position outside the SLACK
+        // window its *own* "near max" check above uses. A later editor scroll
+        // event would then miss that check, fall through to the normal
+        // interpolation branch, and yank both panes back toward mid-document —
+        // this was the actual cause of the reported "auto-scrolls back on its
+        // own" bug, not a scroll-sync desync between the panes. A raw scrollTop
+        // write matches its "editor at max" counterpart exactly, every time.
+        view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
         requestAnimationFrame(() => { syncingScroll = false; });
         return;
       }

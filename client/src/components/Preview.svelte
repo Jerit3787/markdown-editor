@@ -272,13 +272,25 @@
   // end" for the at-max special case below.
   const SYNC_SCROLL_END_SLACK_PX = 8;
 
+  // Split mode stacks the two panes vertically below this width (see
+  // #body.mode-split #main in _layout.scss) instead of placing them
+  // side by side — at that point they read as two independent scrollable
+  // sections, not one document shown two ways, so forcing one pane's
+  // scroll position onto the other (below) feels like a random jump to
+  // the top rather than a sync. Same breakpoint app.ts's own isMobile()
+  // uses. Checked live on each scroll rather than cached, so rotating a
+  // device or resizing past the breakpoint takes effect immediately.
+  function panesAreSideBySide(): boolean {
+    return !window.matchMedia("(max-width: 780px)").matches;
+  }
+
   function initSyncScroll() {
     const view = window.MDE.getEditor();
     const body = document.getElementById("body") as HTMLElement;
     const preview = hostEl!;
 
     view.scrollDOM.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split")) return;
+      if (syncingScroll || !body.classList.contains("mode-split") || !panesAreSideBySide()) return;
       const el = view.scrollDOM;
       const editorMax = el.scrollHeight - el.clientHeight;
       if (editorMax <= 0) return;
@@ -304,7 +316,7 @@
     });
 
     preview.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split")) return;
+      if (syncingScroll || !body.classList.contains("mode-split") || !panesAreSideBySide()) return;
       const previewMax = preview.scrollHeight - preview.clientHeight;
       if (previewMax <= 0) return;
       if (preview.scrollTop >= previewMax - SYNC_SCROLL_END_SLACK_PX) {

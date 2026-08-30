@@ -9,6 +9,7 @@ All notable changes to this project are documented here. Format follows
 ### Fixed
 
 - **Styled text fields (Link, Share, Custom CSS, the new Document Info edit fields, and others) still triggered iOS Safari's zoom-on-focus on narrow viewports.** The app has a global rule forcing every text field to at least 16px on mobile specifically to prevent this, but any component that set its own smaller font-size on a class selector silently outranked it by CSS specificity. The mobile rule now uses `!important` so it holds as the intended hard floor regardless of what any individual component declares.
+- **Scrolling could unexpectedly jump a pane back to the top on mobile.** Split view's scroll-sync mirrors one pane's position onto the other, correct when they sit side by side on desktop, but on a narrow viewport split mode stacks them vertically as two independently-scrollable sections instead — scrolling one pane near its own top silently reset the other, already-scrolled pane back to the top. Scroll-sync is now scoped to the side-by-side desktop layout only.
 
 ## [1.38.0] - 2026-08-30
 

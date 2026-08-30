@@ -29,7 +29,6 @@
 
   let hostEl: HTMLDivElement | undefined = $state();
   let activeDocTitle = $state("");
-  let syncingScroll = false;
   let currentMathSources: Map<string, MathSource> = new Map();
 
   function updatePreview() {
@@ -271,70 +270,81 @@
   // end" for the at-max special case below.
   const SYNC_SCROLL_END_SLACK_PX = 8;
 
+  // The value we most recently wrote programmatically to each pane's
+  // scrollTop, so the "echo" scroll event that write produces on that same
+  // pane isn't treated as a fresh user scroll and mirrored right back —
+  // compared by VALUE, not a boolean-plus-requestAnimationFrame timing
+  // window (the previous approach). On a real device, writing scrollTop on
+  // a pane the user is actively touch-scrolling can be silently deferred by
+  // the compositor until the gesture actually ends — arriving well past the
+  // next animation frame, sometimes played back as a whole catch-up
+  // sequence of late scroll events — so a timing-based guard reliably
+  // misses it. Confirmed live: aggressively fling-scrolling and releasing
+  // caused a slow, multi-second drift back toward earlier content
+  // afterward, landing at an unpredictable position, on release in general —
+  // not just at the very top/bottom edges the previous (partial) fix
+  // addressed. Matching by value instead works no matter how long the
+  // browser defers the echo, since it recognizes our own write whenever it
+  // finally lands rather than assuming it lands within one frame.
+  let lastSyncedEditorScrollTop: number | null = null;
+  let lastSyncedPreviewScrollTop: number | null = null;
+  const SYNC_ECHO_EPSILON_PX = 4;
+
   function initSyncScroll() {
     const view = window.MDE.getEditor();
     const body = document.getElementById("body") as HTMLElement;
     const preview = hostEl!;
 
     view.scrollDOM.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split")) return;
       const el = view.scrollDOM;
+      if (lastSyncedEditorScrollTop !== null && Math.abs(el.scrollTop - lastSyncedEditorScrollTop) <= SYNC_ECHO_EPSILON_PX) {
+        lastSyncedEditorScrollTop = null;
+        return;
+      }
+      if (!body.classList.contains("mode-split")) return;
       const editorMax = el.scrollHeight - el.clientHeight;
       if (editorMax <= 0) return;
       if (el.scrollTop >= editorMax - SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        preview.scrollTop = preview.scrollHeight - preview.clientHeight;
-        requestAnimationFrame(() => { syncingScroll = false; });
+        lastSyncedPreviewScrollTop = preview.scrollHeight - preview.clientHeight;
+        preview.scrollTop = lastSyncedPreviewScrollTop;
         return;
       }
       if (el.scrollTop <= SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
+        lastSyncedPreviewScrollTop = 0;
         preview.scrollTop = 0;
-        requestAnimationFrame(() => { syncingScroll = false; });
         return;
       }
       const topLine = view.state.doc.lineAt(view.lineBlockAtHeight(Math.max(0, el.scrollTop - editorPaddingTop())).from).number - 1;
       const match = previewBlockForLine(preview, topLine, view.state.doc.lines);
       if (!match) return;
       const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
-      syncingScroll = true;
-      preview.scrollTop = interpolateAcross(el.scrollTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
-      requestAnimationFrame(() => { syncingScroll = false; });
+      lastSyncedPreviewScrollTop = interpolateAcross(el.scrollTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
+      preview.scrollTop = lastSyncedPreviewScrollTop;
     });
 
     preview.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split")) return;
+      if (lastSyncedPreviewScrollTop !== null && Math.abs(preview.scrollTop - lastSyncedPreviewScrollTop) <= SYNC_ECHO_EPSILON_PX) {
+        lastSyncedPreviewScrollTop = null;
+        return;
+      }
+      if (!body.classList.contains("mode-split")) return;
       const previewMax = preview.scrollHeight - preview.clientHeight;
       if (previewMax <= 0) return;
       if (preview.scrollTop >= previewMax - SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
-        // A plain scrollTop write, not view.dispatch(EditorView.scrollIntoView(...,
-        // {y:"end"})) as this used to do — that CM6 effect doesn't reliably land
-        // exactly at scrollHeight - clientHeight (confirmed live: it can settle a
-        // few px short, depending on line-height/font metrics), which on a real
-        // device could push the editor's landing position outside the SLACK
-        // window its *own* "near max" check above uses. A later editor scroll
-        // event would then miss that check, fall through to the normal
-        // interpolation branch, and yank both panes back toward mid-document —
-        // this was the actual cause of the reported "auto-scrolls back on its
-        // own" bug, not a scroll-sync desync between the panes. A raw scrollTop
-        // write matches its "editor at max" counterpart exactly, every time.
-        view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
-        requestAnimationFrame(() => { syncingScroll = false; });
+        lastSyncedEditorScrollTop = view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
+        view.scrollDOM.scrollTop = lastSyncedEditorScrollTop;
         return;
       }
       if (preview.scrollTop <= SYNC_SCROLL_END_SLACK_PX) {
-        syncingScroll = true;
+        lastSyncedEditorScrollTop = 0;
         view.scrollDOM.scrollTop = 0;
-        requestAnimationFrame(() => { syncingScroll = false; });
         return;
       }
       const match = previewBlockForScrollTop(preview, preview.scrollTop, view.state.doc.lines);
       if (!match) return;
       const editorRange = editorPixelRangeForLines(match.startLine, match.endLine);
-      syncingScroll = true;
-      view.scrollDOM.scrollTop = interpolateAcross(preview.scrollTop, match.top, match.bottom, editorRange.top, editorRange.bottom);
-      requestAnimationFrame(() => { syncingScroll = false; });
+      lastSyncedEditorScrollTop = interpolateAcross(preview.scrollTop, match.top, match.bottom, editorRange.top, editorRange.bottom);
+      view.scrollDOM.scrollTop = lastSyncedEditorScrollTop;
     });
   }
 
@@ -398,9 +408,8 @@
     const cursorEditorTop = view.lineBlockAt(cursorPos).top + editorPaddingTop();
     const targetScrollTop = interpolateAcross(cursorEditorTop, editorRange.top, editorRange.bottom, match.top, match.bottom);
     if (targetScrollTop >= preview.scrollTop && targetScrollTop <= preview.scrollTop + preview.clientHeight) return; // already visible
-    syncingScroll = true;
+    lastSyncedPreviewScrollTop = targetScrollTop;
     preview.scrollTop = targetScrollTop;
-    requestAnimationFrame(() => { syncingScroll = false; });
   }
 
   onMount(() => {

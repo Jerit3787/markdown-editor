@@ -269,6 +269,12 @@ button.doc-info-link {
     min-width: 0;
   }
 }
+.doc-edit-name-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 260px;
+  text-align: right;
+}
 .citation-bibliography {
   margin-top: 24px;
   font-size: 0.9em;

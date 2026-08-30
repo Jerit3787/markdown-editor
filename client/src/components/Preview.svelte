@@ -272,25 +272,13 @@
   // end" for the at-max special case below.
   const SYNC_SCROLL_END_SLACK_PX = 8;
 
-  // Split mode stacks the two panes vertically below this width (see
-  // #body.mode-split #main in _layout.scss) instead of placing them
-  // side by side — at that point they read as two independent scrollable
-  // sections, not one document shown two ways, so forcing one pane's
-  // scroll position onto the other (below) feels like a random jump to
-  // the top rather than a sync. Same breakpoint app.ts's own isMobile()
-  // uses. Checked live on each scroll rather than cached, so rotating a
-  // device or resizing past the breakpoint takes effect immediately.
-  function panesAreSideBySide(): boolean {
-    return !window.matchMedia("(max-width: 780px)").matches;
-  }
-
   function initSyncScroll() {
     const view = window.MDE.getEditor();
     const body = document.getElementById("body") as HTMLElement;
     const preview = hostEl!;
 
     view.scrollDOM.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split") || !panesAreSideBySide()) return;
+      if (syncingScroll || !body.classList.contains("mode-split")) return;
       const el = view.scrollDOM;
       const editorMax = el.scrollHeight - el.clientHeight;
       if (editorMax <= 0) return;
@@ -316,7 +304,7 @@
     });
 
     preview.addEventListener("scroll", () => {
-      if (syncingScroll || !body.classList.contains("mode-split") || !panesAreSideBySide()) return;
+      if (syncingScroll || !body.classList.contains("mode-split")) return;
       const previewMax = preview.scrollHeight - preview.clientHeight;
       if (previewMax <= 0) return;
       if (preview.scrollTop >= previewMax - SYNC_SCROLL_END_SLACK_PX) {
@@ -360,6 +348,25 @@
     });
   }
 
+  // Split mode stacks the two panes vertically below this width (see
+  // #body.mode-split #main in _layout.scss) instead of placing them side
+  // by side, roughly halving each pane's own clientHeight — which makes
+  // followCursorInPreview()'s "already visible" window (below) far
+  // narrower, so a cursor move is much more likely to force a jump.
+  // Combined with mobile text editors commonly registering a fast
+  // scroll-then-release touch gesture as a tap that plants the cursor at
+  // the release point, this made the preview snap to wherever the cursor
+  // last happened to be (confirmed live: scrolling the preview elsewhere,
+  // then moving the cursor with no editor scroll involved at all, forced
+  // the preview back by thousands of pixels) — not a scroll-sync bug at
+  // all, since initSyncScroll's own listeners (above) were never involved.
+  // Same breakpoint app.ts's own isMobile() uses. Checked live on each
+  // call rather than cached, so rotating a device or resizing past the
+  // breakpoint takes effect immediately.
+  function panesAreSideBySide(): boolean {
+    return !window.matchMedia("(max-width: 780px)").matches;
+  }
+
   // initSyncScroll()'s listeners only react to explicit scroll *events* —
   // typing or moving the cursor onto a line that's already visible in the
   // editor's current viewport (so the editor itself never scrolls) never
@@ -370,7 +377,7 @@
   // editing something already on screen.
   function followCursorInPreview() {
     const body = document.getElementById("body") as HTMLElement;
-    if (!body.classList.contains("mode-split")) return;
+    if (!body.classList.contains("mode-split") || !panesAreSideBySide()) return;
     const view = window.MDE.getEditor();
     const preview = hostEl!;
     const cursorPos = view.state.selection.main.head;

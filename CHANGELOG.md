@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.1] - 2026-08-30
+
+### Fixed
+
+- **Styled text fields (Link, Share, Custom CSS, the new Document Info edit fields, and others) still triggered iOS Safari's zoom-on-focus on narrow viewports.** The app has a global rule forcing every text field to at least 16px on mobile specifically to prevent this, but any component that set its own smaller font-size on a class selector silently outranked it by CSS specificity. The mobile rule now uses `!important` so it holds as the intended hard floor regardless of what any individual component declares.
+
 ## [1.38.0] - 2026-08-30
 
 ### Added

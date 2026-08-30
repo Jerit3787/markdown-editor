@@ -27,6 +27,7 @@ test("adding a metadata field in Document Info round-trips through .md export", 
 
   await page.click("#fileMenuBtn");
   await page.click("#menuDocInfo");
+  await page.locator(".modal-box-v2", { hasText: "Document info" }).getByRole("button", { name: "Edit" }).click();
   await page.click('button:has-text("Add field")');
   await page.fill('.doc-info-metadata-row input[placeholder="Key"]', "Title");
   await page.fill('.doc-info-metadata-row input[placeholder="Value"]', "Round Trip Test");

@@ -14,6 +14,7 @@ test("adding a structured bibliography entry in Document Info round-trips throug
 
   await page.click("#fileMenuBtn");
   await page.click("#menuDocInfo");
+  await page.locator(".modal-box-v2", { hasText: "Document info" }).getByRole("button", { name: "Edit" }).click();
   await page.click('button:has-text("Structured")');
   await page.click('button:has-text("Add entry")');
   await page.fill('.doc-info-citation-row input[placeholder="Key"]', "Smith2020");

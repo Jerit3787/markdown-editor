@@ -3,11 +3,16 @@
   gap: 2px;
   padding: 0 0 4px 0;
 
-  /* File/Edit/View/Help sit near the left edge — anchor their menus to the
-     trigger's left edge (extending rightward) instead of the default
-     right-anchor (which is correct for Share/Settings near the right edge,
-     but would push these menus off-screen to the left). */
-  .dropdown-menu {
+  /* File/Edit/Format/Insert/View sit near the left edge — anchor their
+     menus to the trigger's left edge (extending rightward) instead of the
+     default right-anchor (which is correct for Share/Settings near the
+     right edge, but would push these menus off-screen to the left).
+     #helpMenu is excluded: it's the last/rightmost item in the bar, so
+     left-anchoring it instead pushed it off the *right* edge of the
+     viewport on mobile (confirmed live: items clipped past the screen
+     edge) — it needs the same right-anchor Share/Settings use, extending
+     leftward from its own trigger. */
+  .dropdown-menu:not(#helpMenu) {
     left: 0;
     right: auto;
   }

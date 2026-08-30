@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.3] - 2026-08-30
+
+### Fixed
+
+- **The Help menu overflowed off the right edge of the screen on mobile, clipping its items.** Every menu bar dropdown (File/Edit/Format/Insert/View/Help) was anchored to its trigger's left edge, correct for the ones near the left of the bar, but Help is the last/rightmost item — left-anchoring it pushed the dropdown past the right edge of a narrow viewport instead. Help now anchors to its trigger's right edge like Share/Settings do, extending leftward.
+
 ## [1.38.2] - 2026-08-30
 
 ### Fixed

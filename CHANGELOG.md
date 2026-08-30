@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.0] - 2026-08-30
+
+### Added
+
+- **Document Info edit modal.** Document Info is now a read-only summary — including a new Name row — with an Edit button that opens a dedicated modal for renaming the document and editing its metadata and citation settings.
+
 ## [1.37.0] - 2026-08-29
 
 ### Added

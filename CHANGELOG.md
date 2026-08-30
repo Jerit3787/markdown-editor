@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.4] - 2026-08-30
+
+### Fixed
+
+- **Split view could scroll itself back away from where you'd scrolled to, with no touch input, after reaching the end of a document.** When the preview pane reached its own bottom, scroll-sync moved the editor to its end via a CodeMirror `scrollIntoView` effect instead of a plain scroll position write like every other edge case in this function — that effect resolves asynchronously (confirmed live: the editor's scroll position didn't move until a later animation frame) and doesn't reliably land at the editor's exact maximum scroll position. On a real device this could land the editor just outside the small tolerance its own "already at the end" check uses, so a follow-up scroll event fell through to normal interpolation and pulled both panes back toward the middle of the document. The editor now jumps to its end with the same plain, synchronous write its "editor at its own bottom" counterpart already used.
+
 ## [1.38.3] - 2026-08-30
 
 ### Fixed

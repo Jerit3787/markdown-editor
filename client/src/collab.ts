@@ -420,7 +420,33 @@ function createDocBinding(docId: string, role: string): DocBinding {
   });
   const suggestionsMap = getSuggestionsMap(ydoc);
   suggestionsMap.observe(() => {
-    if (workspaceRoom.activeDocId === docId) pendingSuggestionCount.set(suggestionsMap.size);
+    if (workspaceRoom.activeDocId !== docId) return;
+    pendingSuggestionCount.set(suggestionsMap.size);
+    // A delete suggestion (and accepting an insert, or rejecting a
+    // delete) never touches ytext — that's the point, the text stays put
+    // until an editor resolves it — so CM6's own docChanged never fires
+    // and app.ts's usual updatePreview() trigger (gated on
+    // update.docChanged) never runs for it. The suggestions map is the
+    // one thing every one of those cases does change, so refresh Preview
+    // from here instead of relying on a docChanged side effect.
+    //
+    // Deferred to a microtask, not called synchronously: this observer
+    // can fire from INSIDE an already-in-progress Y.Doc transaction
+    // (recordInsertSuggestion/recordDeleteSuggestion call doc.transact()
+    // themselves, synchronously, from within a CM6 updateListener that's
+    // still mid-dispatch of the transaction that triggered them) — same
+    // reentrancy hazard suggestionDecorationField's own observer already
+    // guards against. Concretely: updatePreview()'s marked.parse/
+    // DOMPurify.sanitize work is expensive enough that running it
+    // synchronously here delays this same tick's Yjs update flush over
+    // the WebSocket, which made the server's independent ytext-insert
+    // reconciliation (WorkspaceRoom's reconcileReviewerDelta) win the
+    // "two separate Yjs updates" race far more often in practice —
+    // confirmed live, it turned an already-documented rare race into a
+    // reliably reproducing duplicate suggestion.
+    queueMicrotask(() => {
+      if (workspaceRoom.activeDocId === docId) window.MDE.updatePreview?.();
+    });
   });
   const awareness = new awarenessProtocol.Awareness(ydoc);
 

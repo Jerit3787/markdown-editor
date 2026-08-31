@@ -339,3 +339,74 @@ describe("shared document name sync", () => {
     expect(window.MDE.setDocCitations).toHaveBeenCalledWith("doc1", remote);
   });
 });
+
+describe("suggestion-mode role wiring", () => {
+  // Distinct remoteId/docId per test — workspaceRoom.docs caches bindings
+  // by docId for the lifetime of the module (createDocBinding returns the
+  // existing binding if one's already there), and this file's tests all
+  // share that one singleton, so reusing "docA"/the default remoteId
+  // across these three role variants would silently reuse the FIRST
+  // test's cached binding (and its role) for the other two.
+  function setupWithRole(role: "reviewer" | "viewer" | "editor", suffix: string) {
+    document.body.innerHTML = '<div id="shareBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role, invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [`doc-${suffix}`] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    const mde = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: "bob",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+    window.MDE = mde;
+
+    const ws = fakeSharedWorkspace({ id: `local-ws-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const doc = { id: `doc-${suffix}`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([doc]);
+    return { mde, doc };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("a reviewer's editor surface is NOT read-only (unlike today)", async () => {
+    const { mde, doc } = setupWithRole("reviewer", "reviewer");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(mde.setReadOnly).toHaveBeenLastCalledWith(false);
+  });
+
+  it("a viewer's editor surface stays read-only", async () => {
+    const { mde, doc } = setupWithRole("viewer", "viewer");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(mde.setReadOnly).toHaveBeenLastCalledWith(true);
+  });
+
+  it("an editor's editor surface stays writable", async () => {
+    const { mde, doc } = setupWithRole("editor", "editor");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(mde.setReadOnly).toHaveBeenLastCalledWith(false);
+  });
+});

@@ -28,6 +28,9 @@ import { workspacePresence } from "./stores/workspacePresence";
 import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace } from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
+import { suggestionExtensions } from "./suggestion-editor";
+import { getSuggestionsMap } from "./suggestions";
+import { pendingSuggestionCount } from "./stores/suggestions";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
 // informational for whoever's reading the link — actual access is always
@@ -414,6 +417,10 @@ function createDocBinding(docId: string, role: string): DocBinding {
       }
     }
   });
+  const suggestionsMap = getSuggestionsMap(ydoc);
+  suggestionsMap.observe(() => {
+    if (workspaceRoom.activeDocId === docId) pendingSuggestionCount.set(suggestionsMap.size);
+  });
   const awareness = new awarenessProtocol.Awareness(ydoc);
 
   const ydocUpdateHandler = (update: Uint8Array, origin: unknown) => {
@@ -441,16 +448,31 @@ function bindActiveDoc(docId: string): void {
 
   const undoManager = binding.undoManager || new Y.UndoManager(binding.ytext);
   binding.undoManager = undoManager;
-  window.MDE.enterCollabMode([yCollab(binding.ytext, binding.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)], undoManager);
-  window.MDE.setReadOnly(binding.role !== "editor");
-
   const username = window.MDE.githubUsername;
   const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
+  const extensions = [yCollab(binding.ytext, binding.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)];
+  if (binding.role === "reviewer" || binding.role === "editor") {
+    // suggestionExtensions internally gates its own pieces by role: the
+    // decoration field (so an editor can see and act on suggestions too)
+    // always applies; the edit-interception pieces (typing becomes a
+    // suggestion instead of a direct edit) apply only when viewerRole is
+    // "reviewer". A viewer never reaches this branch — Preview-only
+    // locking keeps them out of the editor surface entirely.
+    extensions.push(...suggestionExtensions(binding.ydoc, identity.name, { viewerRole: binding.role, viewerName: identity.name }));
+  }
+  window.MDE.enterCollabMode(extensions, undoManager);
+  // Only a viewer is read-only now — a reviewer has a fully live,
+  // typeable surface; their edits become suggestions instead of direct
+  // writes (suggestionExtensions above), not a disabled editor.
+  window.MDE.setReadOnly(binding.role === "viewer");
+
   binding.awareness.setLocalState({ user: identity, role: binding.role, username });
   binding.awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
     sendAwareness(docId, binding.awareness, added.concat(updated, removed));
     updatePresence();
   });
+
+  pendingSuggestionCount.set(getSuggestionsMap(binding.ydoc).size);
 
   sendPresence(docId);
 }

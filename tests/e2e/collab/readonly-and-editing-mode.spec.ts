@@ -69,7 +69,7 @@ test("undo/redo route through the collab UndoManager while in a shared room, and
   await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toContain("plus a collab edit");
 });
 
-test("a viewer-access room makes the editor read-only, and editable access allows typing", async ({ browser }) => {
+test("a viewer-access room locks the app to Preview-only, and editable access allows typing", async ({ browser }) => {
   const ownerCtx = await browser.newContext();
   const viewerCtx = await browser.newContext();
   const owner = await ownerCtx.newPage();
@@ -131,8 +131,16 @@ test("a viewer-access room makes the editor read-only, and editable access allow
   // Read-only: CodeMirror's readOnly facet blocks dispatched changes.
   await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor().state.readOnly)).toBe(true);
 
+  // A viewer isn't merely read-only — the app locks into Preview-only view
+  // mode for the whole session, so there's no editor surface to even click
+  // into. #editor-mount is hidden (display:none via #body.mode-preview),
+  // not just disabled, and the Editor/Split toolbar control disappears
+  // entirely (see stores/view.ts's viewModeLocked).
+  await expect(viewer.locator("#editor-mount")).toBeHidden();
+  await expect(viewer.locator("#preview")).toBeVisible();
+  await expect(viewer.locator(".view-selector")).toHaveCount(0);
+
   const beforeAttempt = await viewer.evaluate(() => window.MDE.getEditor().state.doc.toString());
-  await viewer.click("#editor-mount .cm-content");
   await viewer.keyboard.type("this should not appear");
   await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe(beforeAttempt);
 

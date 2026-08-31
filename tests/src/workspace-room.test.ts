@@ -8,6 +8,7 @@ import { WorkspaceRoom } from "../../src/workspace-room";
 import type { AccessRecord } from "../../src/workspace-room";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
+import { getSuggestionsMap, recordInsertSuggestion, listResolvedSuggestions } from "../../src/suggestions";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -586,5 +587,136 @@ describe("WorkspaceRoom.handleInternalSeedRequest", () => {
     expect(docRoom.doc.getText("content").toString()).toBe("migrated content");
     expect(await room.getAccess()).toMatchObject({ owner: "alice" });
     expect(await room.getSnapshots("docA")).toHaveLength(1);
+  });
+});
+
+describe("reviewer writes", () => {
+  function fakeSession(role: "viewer" | "reviewer" | "editor") {
+    return { username: "bob", role, viewingDocId: null };
+  }
+
+  function scratchUpdateWith(text: string): Uint8Array {
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, text);
+    return Y.encodeStateAsUpdate(scratch);
+  }
+
+  it("a reviewer's update now applies instead of being dropped", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", scratchUpdateWith("hello")));
+
+    expect(docRoom.doc.getText("content").toString()).toBe("hello");
+  });
+
+  it("a viewer's update is still dropped", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("viewer"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", scratchUpdateWith("hello")));
+
+    expect(docRoom.doc.getText("content").toString()).toBe("");
+  });
+
+  it("auto-wraps a reviewer's raw, unsuggested insert into a suggestion entry server-side", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", scratchUpdateWith("hello")));
+
+    const list = listResolvedSuggestions(docRoom.doc);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ kind: "insert", author: "bob", from: 0, to: 5 });
+  });
+
+  it("does not double-wrap a reviewer's update that already includes its own suggestion entry", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "hello");
+    recordInsertSuggestion(scratch, 0, 5, "bob");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", Y.encodeStateAsUpdate(scratch)));
+
+    expect(listResolvedSuggestions(docRoom.doc)).toHaveLength(1);
+  });
+
+  it("converges to one suggestion even when a reviewer's ytext insert and its own suggestion entry arrive as two separate updates", async () => {
+    // Reproduces a real bug only a genuine networked run surfaced: a real
+    // browser client never sends the ytext insert and its suggestion-map
+    // entry as one combined update the way the test above does.
+    // y-codemirror.next's ySync plugin writes the ytext change via its
+    // own doc.transact() call the instant CM6 dispatches; suggestion-
+    // editor.ts's suggestionInsertListener records the suggestion entry
+    // afterward, from a separate EditorView.updateListener, via a SECOND,
+    // independent doc.transact() call — so a correctly-behaving reviewer
+    // client always emits two separate Yjs updates for one keystroke,
+    // never one. The first (ytext-only) update reaches this room's
+    // ytext.observe before the second (suggestion-only) update has
+    // arrived, so the server's own reconciliation auto-wraps it — then
+    // the client's own suggestion entry arrives right behind it. Without
+    // dedup, both entries survive, leaving two overlapping suggestions
+    // covering the identical range.
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+    const docRoom = await room.loadDocRoom("doc1");
+
+    const client = new Y.Doc();
+    const beforeInsert = Y.encodeStateVector(client);
+    client.getText("content").insert(0, "hello");
+    const afterInsert = Y.encodeStateVector(client);
+    const insertUpdate = Y.encodeStateAsUpdate(client, beforeInsert);
+    recordInsertSuggestion(client, 0, 5, "bob");
+    const suggestionUpdate = Y.encodeStateAsUpdate(client, afterInsert);
+
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", insertUpdate));
+    expect(listResolvedSuggestions(docRoom.doc)).toHaveLength(1); // server's own reconciliation already wrapped it
+
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", suggestionUpdate));
+    expect(listResolvedSuggestions(docRoom.doc)).toHaveLength(1); // must converge, not double up
+  });
+
+  it("merges overlapping-but-not-identical same-author insert suggestions, not just exact duplicates", async () => {
+    // Across several rapid keystrokes, the client-vs-server race above
+    // doesn't always leave two IDENTICAL ranges: each side's own
+    // contiguous-extend logic (recordInsertSuggestion's "does an existing
+    // entry's `to` already match this insert's `from`") can pick a
+    // DIFFERENT one of the two duplicate candidates to extend, so the
+    // pair drifts into overlapping-but-not-equal ranges instead — this
+    // reproduces that end state directly (three suggestion entries for
+    // the same author covering [5,6), [5,7), and [6,8), all overlapping
+    // or touching) rather than re-deriving it keystroke by keystroke.
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+
+    recordInsertSuggestion(docRoom.doc, 5, 6, "bob");
+    recordInsertSuggestion(docRoom.doc, 5, 7, "bob");
+    recordInsertSuggestion(docRoom.doc, 6, 8, "bob");
+
+    const list = listResolvedSuggestions(docRoom.doc);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ kind: "insert", author: "bob", from: 5, to: 8 });
+  });
+
+  it("an editor's write is never reconciled into a suggestion", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("editor"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", scratchUpdateWith("hello")));
+
+    expect(getSuggestionsMap(docRoom.doc).size).toBe(0);
   });
 });

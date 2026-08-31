@@ -121,14 +121,12 @@ sequenced relative to each other yet.
       document exclusive to its own window/session (local documents
       would need a separate window). Also relevant prep work if
       folder/repo sync is ever built.
-- [ ] **Suggestion-mode collaboration** (Google Docs parity). Reviewer
-      role becomes "suggester" — edits become suggestions the
-      document's editor can approve (merge into the document) or
-      reject (discard), rather than committing directly. Needs its
-      own review of Google Docs' actual UX for this. Bundle in:
-      viewer mode should fully hide the editor (no visible edit
-      surface, comment-only), and a broader pass over collaboration-
-      role behavior generally.
+- [x] **Suggestion-mode collaboration** (Google Docs parity). (Shipped
+      v1.39.0.) Reviewer role becomes a suggester; edits become tracked
+      insert/delete suggestions an editor can accept, reject, or the
+      reviewer can withdraw. Viewer mode now hides the editor entirely
+      (Preview-only, no visible edit surface) — comment permissions were
+      left unchanged, matching each role's existing comment access.
 - [x] **Full UI redesign — desktop.** (Shipped v1.16.0, plus earlier
       topbar work.) Restructure the chrome: logo +
       document name + sync icon + comment/history/share actions on

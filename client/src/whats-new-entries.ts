@@ -189,4 +189,11 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
       "Document Info is now a read-only summary — including a new Name row — with an Edit button that opens a dedicated modal for renaming the document and editing its metadata and citation settings.",
     screenshot: "/whats-new/doc-info-edit-modal.png",
   },
+  {
+    version: "1.39.0",
+    title: "Suggestion-Mode Collaboration",
+    description:
+      "The reviewer role now proposes edits instead of being read-only — insertions and deletions show up as tracked, per-suggestion changes the document's editor can accept, reject, or that the reviewer can withdraw. Viewer role is now Preview-only, with no edit surface at all.",
+    screenshot: "/whats-new/suggestion-mode-collaboration.png",
+  },
 ];

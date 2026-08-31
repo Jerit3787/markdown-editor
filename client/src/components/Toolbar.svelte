@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { diagramEditorOpen, diagramEditorRef } from "../stores/diagramEditor";
-  import { viewMode, isEditorOn, isPreviewOn, toggleEditorPane, togglePreviewPane } from "../stores/view";
+  import { viewMode, viewModeLocked, isEditorOn, isPreviewOn, toggleEditorPane, togglePreviewPane } from "../stores/view";
   import { commandPaletteOpen } from "../stores/commandPalette";
   import { runCmd } from "../formatting-commands";
 
@@ -168,11 +168,13 @@
      #body's grid-template-areas in style.css. #toolbar-mount's
      display:contents makes both this and #toolbar direct grid children
      of #body, despite both being rendered by this one component. -->
-<div class="view-selector" role="group" aria-label="View mode">
-  <button type="button" class:active={editorOn} title="Toggle editor pane" aria-label="Toggle editor pane" aria-pressed={editorOn} onclick={toggleEditorPane}>
-    <svg class="icon"><use href="#icon-panel-left"></use></svg>
-  </button>
-  <button type="button" class:active={previewOn} title="Toggle preview pane" aria-label="Toggle preview pane" aria-pressed={previewOn} onclick={togglePreviewPane}>
-    <svg class="icon"><use href="#icon-panel-right"></use></svg>
-  </button>
-</div>
+{#if !$viewModeLocked}
+  <div class="view-selector" role="group" aria-label="View mode">
+    <button type="button" class:active={editorOn} title="Toggle editor pane" aria-label="Toggle editor pane" aria-pressed={editorOn} onclick={toggleEditorPane}>
+      <svg class="icon"><use href="#icon-panel-left"></use></svg>
+    </button>
+    <button type="button" class:active={previewOn} title="Toggle preview pane" aria-label="Toggle preview pane" aria-pressed={previewOn} onclick={togglePreviewPane}>
+      <svg class="icon"><use href="#icon-panel-right"></use></svg>
+    </button>
+  </div>
+{/if}

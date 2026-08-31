@@ -3,11 +3,12 @@
   import { docsStore, activeIdStore, deleteDoc } from "../stores/docs";
   import { githubUsername } from "../stores/github";
   import { gistBusyLabel } from "../stores/gist";
-  import { viewMode, isEditorOn, isPreviewOn, toggleEditorPane, togglePreviewPane } from "../stores/view";
+  import { viewMode, viewModeLocked, isEditorOn, isPreviewOn, toggleEditorPane, togglePreviewPane } from "../stores/view";
   import { focusMode } from "../stores/focusMode";
   import { whatsNewOpen } from "../stores/whatsNew";
   import { versionHistoryOpen } from "../stores/versionHistory";
   import { commentsPanelOpen, unresolvedCommentCount } from "../stores/commentsPanel";
+  import { pendingSuggestionCount } from "../stores/suggestions";
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
@@ -33,6 +34,21 @@
   const hasRepoLink = $derived(!!activeWorkspace?.repoLink);
   const repoLinkLabel = $derived(activeWorkspace?.repoLink ? `${activeWorkspace.repoLink.owner}/${activeWorkspace.repoLink.repo}` : "");
   const repoLastSyncedLabel = $derived(activeWorkspace?.repoLastSyncedAt ? `Synced ${window.MDE.formatRelativeTime(activeWorkspace.repoLastSyncedAt)}` : "");
+
+  // #suggestionsBtn/#suggestionsBadge are plain HTML (index.html), not this
+  // component's own markup — same reasoning as CommentsPanel.svelte's own
+  // #commentsBtn/#commentsBadge sync. No dedicated "suggestions panel"
+  // component exists to own this (unlike comments), so it lives here on
+  // MenuBar, which is always mounted regardless of active document.
+  $effect(() => {
+    const btn = document.getElementById("suggestionsBtn");
+    const badge = document.getElementById("suggestionsBadge");
+    if (!btn || !badge) return;
+    const count = $pendingSuggestionCount;
+    btn.hidden = count === 0;
+    badge.hidden = count === 0;
+    badge.textContent = count > 99 ? "99+" : String(count);
+  });
 
   // Every action below closes the menu it came from afterward — matching
   // the old per-menu closeFileMenu()/closeEditMenu()/etc., which
@@ -239,12 +255,14 @@
   <div class="dropdown">
     <button bind:this={viewMenuBtn} id="viewMenuBtn" class="menubar-btn" type="button">View</button>
     <div bind:this={viewMenu} id="viewMenu" class="dropdown-menu menubar-menu">
-      <button class="menu-view-btn" class:active={viewEditorOn} type="button" onclick={() => act(toggleEditorPane)}>
-        <svg class="icon menu-check"><use href="#icon-check"></use></svg> Editor pane
-      </button>
-      <button class="menu-view-btn" class:active={viewPreviewOn} type="button" onclick={() => act(togglePreviewPane)}>
-        <svg class="icon menu-check"><use href="#icon-check"></use></svg> Preview pane
-      </button>
+      {#if !$viewModeLocked}
+        <button class="menu-view-btn" class:active={viewEditorOn} type="button" onclick={() => act(toggleEditorPane)}>
+          <svg class="icon menu-check"><use href="#icon-check"></use></svg> Editor pane
+        </button>
+        <button class="menu-view-btn" class:active={viewPreviewOn} type="button" onclick={() => act(togglePreviewPane)}>
+          <svg class="icon menu-check"><use href="#icon-check"></use></svg> Preview pane
+        </button>
+      {/if}
       <div class="menu-divider"></div>
       <button id="menuToggleSidebar" type="button" onclick={() => act(() => window.MDE.toggleSidebar())}>
         <svg class="icon"><use href="#icon-panel-left"></use></svg> Toggle Sidebar

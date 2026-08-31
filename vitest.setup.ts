@@ -31,3 +31,14 @@ if (typeof localStorage === "undefined") {
   }
   (globalThis as any).localStorage = new MockLocalStorage();
 }
+
+// stores/view.ts sets #body's className as a module-load side effect
+// (mirrors the old app.ts initViewToggle) — any test file that statically
+// imports it, directly or transitively (e.g. via collab.ts), crashes on
+// import against jsdom's default document, which has no element with
+// id="body". Real index.html always has this div, so this mirrors that.
+if (typeof document !== "undefined" && !document.getElementById("body")) {
+  const body = document.createElement("div");
+  body.id = "body";
+  document.body.appendChild(body);
+}

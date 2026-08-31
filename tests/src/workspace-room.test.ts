@@ -8,6 +8,7 @@ import { WorkspaceRoom } from "../../src/workspace-room";
 import type { AccessRecord } from "../../src/workspace-room";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
+import { getSuggestionsMap, recordInsertSuggestion, listResolvedSuggestions } from "../../src/suggestions";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -586,5 +587,77 @@ describe("WorkspaceRoom.handleInternalSeedRequest", () => {
     expect(docRoom.doc.getText("content").toString()).toBe("migrated content");
     expect(await room.getAccess()).toMatchObject({ owner: "alice" });
     expect(await room.getSnapshots("docA")).toHaveLength(1);
+  });
+});
+
+describe("reviewer writes", () => {
+  function fakeSession(role: "viewer" | "reviewer" | "editor") {
+    return { username: "bob", role, viewingDocId: null };
+  }
+
+  function scratchUpdateWith(text: string): Uint8Array {
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, text);
+    return Y.encodeStateAsUpdate(scratch);
+  }
+
+  it("a reviewer's update now applies instead of being dropped", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", scratchUpdateWith("hello")));
+
+    expect(docRoom.doc.getText("content").toString()).toBe("hello");
+  });
+
+  it("a viewer's update is still dropped", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("viewer"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", scratchUpdateWith("hello")));
+
+    expect(docRoom.doc.getText("content").toString()).toBe("");
+  });
+
+  it("auto-wraps a reviewer's raw, unsuggested insert into a suggestion entry server-side", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", scratchUpdateWith("hello")));
+
+    const list = listResolvedSuggestions(docRoom.doc);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ kind: "insert", author: "bob", from: 0, to: 5 });
+  });
+
+  it("does not double-wrap a reviewer's update that already includes its own suggestion entry", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "hello");
+    recordInsertSuggestion(scratch, 0, 5, "bob");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", Y.encodeStateAsUpdate(scratch)));
+
+    expect(listResolvedSuggestions(docRoom.doc)).toHaveLength(1);
+  });
+
+  it("an editor's write is never reconciled into a suggestion", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, fakeSession("editor"));
+
+    const docRoom = await room.loadDocRoom("doc1");
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", scratchUpdateWith("hello")));
+
+    expect(getSuggestionsMap(docRoom.doc).size).toBe(0);
   });
 });

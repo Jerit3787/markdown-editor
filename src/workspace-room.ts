@@ -6,6 +6,7 @@ import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
 import { relocateAnchor } from "./anchor";
 import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
+import { reconcileReviewerDelta } from "./suggestions";
 import type { Env } from "./env";
 
 const MESSAGE_SYNC = 0;
@@ -169,6 +170,21 @@ export class WorkspaceRoom {
       persistScheduled: false,
     };
     doc.on("update", (update: Uint8Array, origin: unknown) => this.handleDocUpdate(docId, docRoom, update, origin));
+    // Server-side integrity net for the reviewer role (see suggestions.ts's
+    // reconcileReviewerDelta): a reviewer's write is allowed to apply
+    // (above), but every change it makes must be covered by a suggestions
+    // entry — verified here directly from Yjs's own transaction delta
+    // rather than trusting the reviewer's client to have created it
+    // correctly. `transaction.origin` for a message applied via
+    // syncProtocol.readSyncMessage(decoder, encoder, docRoom.doc, ws) is
+    // the same `ws` handleAwarenessUpdate already looks up sessions by.
+    const ytext = doc.getText("content");
+    ytext.observe((event, transaction) => {
+      if (transaction.origin === "suggestion") return; // our own reconciliation write — never re-reconcile it
+      const session = this.sessions.get(transaction.origin as WebSocket);
+      if (!session || session.role !== "reviewer") return;
+      reconcileReviewerDelta(doc, event.changes.delta, session.username || "Anonymous");
+    });
     awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
       this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin),
     );
@@ -351,7 +367,12 @@ export class WorkspaceRoom {
       decoder.pos = savedPos;
 
       const isWrite = syncType === SYNC_STEP2 || syncType === SYNC_UPDATE;
-      if (isWrite && session && session.role !== "editor") return; // read-only: drop silently
+      if (isWrite && session && session.role === "viewer") return; // read-only: drop silently
+      // A reviewer's write is now allowed to apply (both ytext and the
+      // suggestions map need to sync — a reviewer must be able to
+      // actually type); loadDocRoom's ytext.observe hook independently
+      // verifies every reviewer-authored change lands with a suggestion
+      // entry covering it, auto-wrapping one if a client fails to.
 
       // A docId this instance has never seen before is about to be
       // auto-vivified by withDocRoom below — captured now, before that

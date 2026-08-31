@@ -39,7 +39,7 @@
   - `recordDeleteSuggestion(doc: Y.Doc, from: number, to: number, author: string, now?: number): void`
   - `resolveSuggestion(doc: Y.Doc, id: string, outcome: "accept" | "reject"): void`
   - `withdrawSuggestion(doc: Y.Doc, id: string): void` — "make my own proposal go away, don't judge it," which for both kinds is exactly what `resolveSuggestion(doc, id, "reject")` already means: an insert's text is removed, a delete's text stays. Withdraw is `resolveSuggestion(doc, id, "reject")` with no branching on kind; the UI layer (Task 5) is what restricts it to the suggestion's own author, not this function.
-  - `reconcileReviewerDelta(doc: Y.Doc, delta: { retain?: number; insert?: string; delete?: number }[], author: string, now?: number): void` (Task 2 consumes this directly)
+  - `reconcileReviewerDelta(doc: Y.Doc, delta: { retain?: number; insert?: string | unknown[]; delete?: number }[], author: string, now?: number): void` (Task 2 consumes this directly)
 
 - [ ] **Step 1: Write the failing tests**
 

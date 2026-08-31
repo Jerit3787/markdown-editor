@@ -120,7 +120,7 @@ export function withdrawSuggestion(doc: Y.Doc, id: string): void {
 // anything, `insert` and `delete` are the ranges that matter).
 export function reconcileReviewerDelta(
   doc: Y.Doc,
-  delta: { retain?: number; insert?: string; delete?: number }[],
+  delta: { retain?: number; insert?: string | unknown[]; delete?: number }[],
   author: string,
   now: number = Date.now(),
 ): void {
@@ -129,7 +129,7 @@ export function reconcileReviewerDelta(
   for (const op of delta) {
     if (op.retain) {
       pos += op.retain;
-    } else if (op.insert) {
+    } else if (typeof op.insert === "string" && op.insert.length > 0) {
       const from = pos;
       const to = pos + op.insert.length;
       const covered = existing.some((s) => s.kind === "insert" && s.author === author && s.from <= from && s.to >= to);

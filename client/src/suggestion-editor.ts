@@ -201,7 +201,10 @@ export function suggestionDecorationField(doc: Y.Doc, viewer: { viewerRole: stri
 export function suggestionExtensions(doc: Y.Doc, author: string, viewer: { viewerRole: string; viewerName: string }): Extension[] {
   const extensions: Extension[] = [suggestionDecorationField(doc, viewer)];
   if (viewer.viewerRole === "reviewer") {
-    extensions.push(suggestionTransactionFilter(doc, () => author), suggestionInsertListener(doc, () => author));
+    extensions.push(
+      suggestionTransactionFilter(doc, () => author),
+      suggestionInsertListener(doc, () => author),
+    );
   }
   return extensions;
 }

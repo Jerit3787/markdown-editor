@@ -31,6 +31,7 @@ import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";
 import { getSuggestionsMap } from "./suggestions";
 import { pendingSuggestionCount } from "./stores/suggestions";
+import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
 // informational for whoever's reading the link — actual access is always
@@ -465,6 +466,14 @@ function bindActiveDoc(docId: string): void {
   // typeable surface; their edits become suggestions instead of direct
   // writes (suggestionExtensions above), not a disabled editor.
   window.MDE.setReadOnly(binding.role === "viewer");
+  // A viewer gets a true look-only mode with no edit surface at all —
+  // locking to Preview removes the Editor/Split panes entirely rather
+  // than just disabling typing in a visible CodeMirror instance.
+  if (binding.role === "viewer") {
+    lockToPreviewOnly();
+  } else {
+    unlockViewMode();
+  }
 
   binding.awareness.setLocalState({ user: identity, role: binding.role, username });
   binding.awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
@@ -487,6 +496,7 @@ function teardownWorkspace(): void {
   remotePresenceByUsername.clear();
   workspacePresence.set(new Map());
   window.MDE.setReadOnly(false);
+  unlockViewMode();
   window.MDE.exitCollabMode();
   if (workspaceRoom.reconnectTimer) {
     clearTimeout(workspaceRoom.reconnectTimer);

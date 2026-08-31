@@ -13,6 +13,7 @@ import { get } from "svelte/store";
 import { decideShareTarget, decideJoinTarget, handleDocChanged, workspaceRoom, setAccessMode } from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
+import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
 import type { Doc, Workspace } from "../../../client/src/types";
 
 function fakeDoc(overrides: Partial<Doc>): Doc {
@@ -348,7 +349,7 @@ describe("suggestion-mode role wiring", () => {
   // across these three role variants would silently reuse the FIRST
   // test's cached binding (and its role) for the other two.
   function setupWithRole(role: "reviewer" | "viewer" | "editor", suffix: string) {
-    document.body.innerHTML = '<div id="shareBtn"></div>';
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="body"></div>';
     MockWebSocket.instances = [];
     vi.stubGlobal("WebSocket", MockWebSocket);
     vi.stubGlobal(
@@ -400,6 +401,23 @@ describe("suggestion-mode role wiring", () => {
     for (let i = 0; i < 10; i++) await Promise.resolve();
 
     expect(mde.setReadOnly).toHaveBeenLastCalledWith(true);
+  });
+
+  it("a viewer's view mode is locked to Preview-only", async () => {
+    const { doc } = setupWithRole("viewer", "viewer-lock");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(viewModeLocked)).toBe(true);
+    expect(get(viewMode)).toBe("preview");
+  });
+
+  it("an editor's view mode is not locked", async () => {
+    const { doc } = setupWithRole("editor", "editor-lock");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(viewModeLocked)).toBe(false);
   });
 
   it("an editor's editor surface stays writable", async () => {

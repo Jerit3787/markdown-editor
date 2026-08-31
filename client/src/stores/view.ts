@@ -23,10 +23,27 @@ export function isPreviewOn(mode: ViewMode): boolean {
   return mode !== "editor";
 }
 
+// Set while the active document's role is "viewer" (collab.ts) — a true
+// look-only mode with no edit surface, so the Editor/Split panes are
+// unreachable rather than merely read-only. setView becomes a no-op for
+// any value other than "preview" while locked; lockToPreviewOnly/
+// unlockViewMode are the only way to change the lock itself.
+export const viewModeLocked = writable(false);
+
 export function setView(view: ViewMode): void {
+  if (get(viewModeLocked) && view !== "preview") return;
   document.getElementById("body")!.className = `mode-${view}`;
   localStorage.setItem(STORAGE_VIEW, view);
   viewMode.set(view);
+}
+
+export function lockToPreviewOnly(): void {
+  viewModeLocked.set(true);
+  setView("preview");
+}
+
+export function unlockViewMode(): void {
+  viewModeLocked.set(false);
 }
 
 // Applies the loaded mode's #body class on module load — mirrors

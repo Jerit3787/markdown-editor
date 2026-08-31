@@ -3,7 +3,7 @@
   import { docsStore, activeIdStore, deleteDoc } from "../stores/docs";
   import { githubUsername } from "../stores/github";
   import { gistBusyLabel } from "../stores/gist";
-  import { viewMode, isEditorOn, isPreviewOn, toggleEditorPane, togglePreviewPane } from "../stores/view";
+  import { viewMode, viewModeLocked, isEditorOn, isPreviewOn, toggleEditorPane, togglePreviewPane } from "../stores/view";
   import { focusMode } from "../stores/focusMode";
   import { whatsNewOpen } from "../stores/whatsNew";
   import { versionHistoryOpen } from "../stores/versionHistory";
@@ -255,12 +255,14 @@
   <div class="dropdown">
     <button bind:this={viewMenuBtn} id="viewMenuBtn" class="menubar-btn" type="button">View</button>
     <div bind:this={viewMenu} id="viewMenu" class="dropdown-menu menubar-menu">
-      <button class="menu-view-btn" class:active={viewEditorOn} type="button" onclick={() => act(toggleEditorPane)}>
-        <svg class="icon menu-check"><use href="#icon-check"></use></svg> Editor pane
-      </button>
-      <button class="menu-view-btn" class:active={viewPreviewOn} type="button" onclick={() => act(togglePreviewPane)}>
-        <svg class="icon menu-check"><use href="#icon-check"></use></svg> Preview pane
-      </button>
+      {#if !$viewModeLocked}
+        <button class="menu-view-btn" class:active={viewEditorOn} type="button" onclick={() => act(toggleEditorPane)}>
+          <svg class="icon menu-check"><use href="#icon-check"></use></svg> Editor pane
+        </button>
+        <button class="menu-view-btn" class:active={viewPreviewOn} type="button" onclick={() => act(togglePreviewPane)}>
+          <svg class="icon menu-check"><use href="#icon-check"></use></svg> Preview pane
+        </button>
+      {/if}
       <div class="menu-divider"></div>
       <button id="menuToggleSidebar" type="button" onclick={() => act(() => window.MDE.toggleSidebar())}>
         <svg class="icon"><use href="#icon-panel-left"></use></svg> Toggle Sidebar

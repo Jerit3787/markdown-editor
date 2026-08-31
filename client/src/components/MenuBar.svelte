@@ -8,6 +8,7 @@
   import { whatsNewOpen } from "../stores/whatsNew";
   import { versionHistoryOpen } from "../stores/versionHistory";
   import { commentsPanelOpen, unresolvedCommentCount } from "../stores/commentsPanel";
+  import { pendingSuggestionCount } from "../stores/suggestions";
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
@@ -33,6 +34,21 @@
   const hasRepoLink = $derived(!!activeWorkspace?.repoLink);
   const repoLinkLabel = $derived(activeWorkspace?.repoLink ? `${activeWorkspace.repoLink.owner}/${activeWorkspace.repoLink.repo}` : "");
   const repoLastSyncedLabel = $derived(activeWorkspace?.repoLastSyncedAt ? `Synced ${window.MDE.formatRelativeTime(activeWorkspace.repoLastSyncedAt)}` : "");
+
+  // #suggestionsBtn/#suggestionsBadge are plain HTML (index.html), not this
+  // component's own markup — same reasoning as CommentsPanel.svelte's own
+  // #commentsBtn/#commentsBadge sync. No dedicated "suggestions panel"
+  // component exists to own this (unlike comments), so it lives here on
+  // MenuBar, which is always mounted regardless of active document.
+  $effect(() => {
+    const btn = document.getElementById("suggestionsBtn");
+    const badge = document.getElementById("suggestionsBadge");
+    if (!btn || !badge) return;
+    const count = $pendingSuggestionCount;
+    btn.hidden = count === 0;
+    badge.hidden = count === 0;
+    badge.textContent = count > 99 ? "99+" : String(count);
+  });
 
   // Every action below closes the menu it came from afterward — matching
   // the old per-menu closeFileMenu()/closeEditMenu()/etc., which

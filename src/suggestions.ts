@@ -22,8 +22,24 @@ export function getSuggestionsMap(doc: Y.Doc): Y.Map<SuggestionEntry> {
   return doc.getMap<SuggestionEntry>("suggestions");
 }
 
-function toRelative(ytext: Y.Text, index: number): ReturnType<typeof Y.relativePositionToJSON> {
-  return Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(ytext, index));
+// assoc (Yjs's relative-position association): 0 (default) associates the
+// anchor with the character AFTER `index`, meaning new content inserted
+// exactly at `index` gets absorbed — the anchor silently moves forward to
+// stay past it. -1 associates with the character BEFORE `index` instead,
+// so an insertion exactly at that point does NOT move the anchor. A
+// suggestion's `to` boundary needs -1: without it, a second reviewer edit
+// landing exactly at a pending suggestion's end (the common "keep typing"
+// case, or an unrelated edit from someone else) would silently grow that
+// suggestion's resolved range before recordInsertSuggestion's own
+// contiguous-extend check ever runs, since suggestionInsertListener reads
+// positions AFTER the edit has already applied to `ytext` (confirmed
+// live: typing two characters in a row extended the first entry with NO
+// call touching it, because its `to` anchor had already absorbed the
+// second character by the time the comparison ran). `from` keeps the
+// default (0): it should move forward with the content it borders when
+// something ahead of it shifts, which default association already does.
+function toRelative(ytext: Y.Text, index: number, assoc: 0 | -1 = 0): ReturnType<typeof Y.relativePositionToJSON> {
+  return Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(ytext, index, assoc));
 }
 
 function toAbsoluteIndex(doc: Y.Doc, ytext: Y.Text, json: ReturnType<typeof Y.relativePositionToJSON>): number | null {
@@ -65,7 +81,7 @@ export function recordInsertSuggestion(doc: Y.Doc, from: number, to: number, aut
   const createdAt = extendId ? map.get(extendId)!.createdAt : now;
   const fromJson = extendId ? map.get(extendId)!.from : toRelative(ytext, from);
   doc.transact(() => {
-    map.set(id, { kind: "insert", author, createdAt, from: fromJson, to: toRelative(ytext, to) });
+    map.set(id, { kind: "insert", author, createdAt, from: fromJson, to: toRelative(ytext, to, -1) });
   }, "suggestion");
 }
 
@@ -77,7 +93,7 @@ export function recordDeleteSuggestion(doc: Y.Doc, from: number, to: number, aut
   const map = getSuggestionsMap(doc);
   const id = uid();
   doc.transact(() => {
-    map.set(id, { kind: "delete", author, createdAt: now, from: toRelative(ytext, from), to: toRelative(ytext, to) });
+    map.set(id, { kind: "delete", author, createdAt: now, from: toRelative(ytext, from), to: toRelative(ytext, to, -1) });
   }, "suggestion");
 }
 

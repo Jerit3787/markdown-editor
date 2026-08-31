@@ -24,6 +24,24 @@
 
 ## Task 1: `suggestions.ts` core data model (shared, client + Worker copies)
 
+> **Execution note:** a real bug surfaced only once Task 4's live CM6
+> integration test exercised this code against actual sequential edits
+> (this task's own isolated unit tests never mutate `ytext` between two
+> `recordInsertSuggestion` calls, so they couldn't catch it): Yjs's
+> default relative-position association (`assoc: 0`) makes a `to`
+> anchor absorb a new insertion landing exactly at that boundary — so by
+> the time `suggestionInsertListener` (which fires *after* the edit has
+> already applied) checked whether a contiguous keystroke should extend
+> the previous suggestion, the previous suggestion's own `to` had already
+> silently grown to include it. Fixed by creating `to` anchors with
+> `assoc: -1` (associates with the character *before* the index, so it
+> doesn't move when something is inserted exactly there) in both
+> `recordInsertSuggestion` and `recordDeleteSuggestion`; `from` keeps the
+> default. See `toRelative`'s comment in the actual file for the full
+> explanation — the code below reflects the ORIGINAL plan and is missing
+> this fix; treat the real `src/suggestions.ts` as authoritative over
+> this snippet.
+
 **Files:**
 - Create: `src/suggestions.ts`
 - Create: `client/src/suggestions.ts` (identical copy of the above)
@@ -680,6 +698,19 @@ git commit -m "feat: suggestion decoration computation"
 ---
 
 ## Task 4: Client — live decoration field + edit interception (`client/src/suggestion-editor.ts`)
+
+> **Execution note:** the `ViewPlugin`'s `onMapChange` handler (Step 6)
+> must defer its `view.dispatch({})` call to a microtask
+> (`queueMicrotask(() => view.dispatch({}))`), not call it synchronously
+> as the snippet below shows. `recordInsertSuggestion`/
+> `recordDeleteSuggestion` run from inside `suggestionTransactionFilter`/
+> `suggestionInsertListener`, both of which execute as part of an
+> already-in-progress `view.dispatch()` call — their `Y.Map` write fires
+> this observer synchronously, before that outer dispatch has finished,
+> and a reentrant `view.dispatch()` from inside another one isn't
+> supported by CodeMirror ("Trying to update state with a transaction
+> that doesn't start from the previous state," confirmed live). See the
+> real file's comment on `onMapChange` for the full explanation.
 
 **Files:**
 - Modify: `client/src/suggestion-editor.ts` (add to Task 3's file)

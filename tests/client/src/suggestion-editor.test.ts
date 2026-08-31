@@ -1,8 +1,16 @@
+// @vitest-environment jsdom
+// EditorView needs a real `document` global (constructing/dispatching
+// against it in suggestionExtensions' tests below) — the default node
+// environment doesn't provide one, same reasoning as collab.test.ts's
+// own environment docblock.
 import { describe, it, expect } from "vitest";
 import * as Y from "yjs";
 import { EditorState } from "@codemirror/state";
-import { recordInsertSuggestion, recordDeleteSuggestion } from "../../../src/suggestions";
-import { suggestionDecorations } from "../../../client/src/suggestion-editor";
+import { EditorView } from "@codemirror/view";
+import { yCollab } from "y-codemirror.next";
+import * as awarenessProtocol from "y-protocols/awareness";
+import { recordInsertSuggestion, recordDeleteSuggestion, listResolvedSuggestions } from "../../../src/suggestions";
+import { suggestionDecorations, suggestionExtensions } from "../../../client/src/suggestion-editor";
 
 function docWith(text: string): Y.Doc {
   const doc = new Y.Doc();
@@ -51,5 +59,80 @@ describe("suggestionDecorations", () => {
     recordInsertSuggestion(doc, 0, 5, "bob"); // "hello" — but starts earlier
     const state = EditorState.create({ doc: doc.getText("content").toString() });
     expect(() => suggestionDecorations(state, doc, VIEWER_EDITOR)).not.toThrow();
+  });
+});
+
+function viewFor(doc: Y.Doc, author: string): EditorView {
+  const ytext = doc.getText("content");
+  const awareness = new awarenessProtocol.Awareness(doc);
+  return new EditorView({
+    doc: ytext.toString(),
+    extensions: [yCollab(ytext, awareness), ...suggestionExtensions(doc, author, { viewerRole: "reviewer", viewerName: author })],
+  });
+}
+
+describe("suggestionExtensions", () => {
+  it("typing creates an insert suggestion instead of a plain edit", () => {
+    const doc = docWith("hello world");
+    const view = viewFor(doc, "alice");
+    view.dispatch({ changes: { from: 5, insert: "!" } });
+
+    expect(doc.getText("content").toString()).toBe("hello! world");
+    const list = listResolvedSuggestions(doc);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ kind: "insert", author: "alice", from: 5, to: 6 });
+    view.destroy();
+  });
+
+  it("typing two characters in a row extends one suggestion, not two", () => {
+    const doc = docWith("hello world");
+    const view = viewFor(doc, "alice");
+    view.dispatch({ changes: { from: 11, insert: "!" } });
+    view.dispatch({ changes: { from: 12, insert: "!" } });
+
+    expect(listResolvedSuggestions(doc)).toHaveLength(1);
+    expect(listResolvedSuggestions(doc)[0]).toMatchObject({ from: 11, to: 13 });
+    view.destroy();
+  });
+
+  it("deleting blocks the removal and records a delete suggestion instead", () => {
+    const doc = docWith("hello world");
+    const view = viewFor(doc, "alice");
+    view.dispatch({ changes: { from: 0, to: 5 } }); // delete "hello"
+
+    expect(doc.getText("content").toString()).toBe("hello world"); // unchanged
+    const list = listResolvedSuggestions(doc);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ kind: "delete", author: "alice", from: 0, to: 5 });
+    view.destroy();
+  });
+
+  it("replacing a selection by typing suggests deleting the old text and inserting the new text", () => {
+    const doc = docWith("hello world");
+    const view = viewFor(doc, "alice");
+    view.dispatch({ changes: { from: 0, to: 5, insert: "goodbye" } }); // select "hello", type "goodbye"
+
+    expect(doc.getText("content").toString()).not.toBe("goodbye world"); // old text still present somewhere
+    const list = listResolvedSuggestions(doc);
+    expect(list).toHaveLength(2);
+    expect(list.find((s) => s.kind === "delete")).toMatchObject({ from: 0, to: 5 });
+    const insert = list.find((s) => s.kind === "insert")!;
+    expect(doc.getText("content").toString().slice(insert.from, insert.to)).toBe("goodbye");
+    view.destroy();
+  });
+
+  it("does not intercept a remote Yjs update applied through yCollab", () => {
+    const doc = docWith("hello world");
+    const view = viewFor(doc, "alice");
+    const remoteDoc = new Y.Doc();
+    Y.applyUpdate(remoteDoc, Y.encodeStateAsUpdate(doc));
+    remoteDoc.getText("content").insert(0, "REMOTE ");
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(remoteDoc));
+
+    // A remote change must land as plain content, never as a local
+    // suggestion attributed to "alice" (the local reviewer didn't type it).
+    expect(doc.getText("content").toString()).toBe("REMOTE hello world");
+    expect(listResolvedSuggestions(doc)).toHaveLength(0);
+    view.destroy();
   });
 });

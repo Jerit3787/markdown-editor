@@ -10,7 +10,7 @@ import { EditorView } from "@codemirror/view";
 import { yCollab } from "y-codemirror.next";
 import * as awarenessProtocol from "y-protocols/awareness";
 import { recordInsertSuggestion, recordDeleteSuggestion, listResolvedSuggestions } from "../../../src/suggestions";
-import { suggestionDecorations, suggestionExtensions } from "../../../client/src/suggestion-editor";
+import { suggestionDecorations, suggestionExtensions, suggestionWidgetFor } from "../../../client/src/suggestion-editor";
 
 function docWith(text: string): Y.Doc {
   const doc = new Y.Doc();
@@ -134,5 +134,45 @@ describe("suggestionExtensions", () => {
     expect(doc.getText("content").toString()).toBe("REMOTE hello world");
     expect(listResolvedSuggestions(doc)).toHaveLength(0);
     view.destroy();
+  });
+});
+
+describe("suggestionWidgetFor", () => {
+  it("renders an insert suggestion's author and an accept/reject pair for an editor", () => {
+    const doc = docWith("hello world");
+    recordInsertSuggestion(doc, 5, 11, "alice");
+    const [s] = listResolvedSuggestions(doc);
+    const el = suggestionWidgetFor(doc, s!, { viewerRole: "editor", viewerName: "carol" }).toDOM();
+    expect(el.textContent).toContain("alice");
+    expect(el.querySelector("[data-action='accept']")).not.toBeNull();
+    expect(el.querySelector("[data-action='reject']")).not.toBeNull();
+    expect(el.querySelector("[data-action='withdraw']")).toBeNull();
+  });
+
+  it("renders only a withdraw action for the suggestion's own author", () => {
+    const doc = docWith("hello world");
+    recordInsertSuggestion(doc, 5, 11, "alice");
+    const [s] = listResolvedSuggestions(doc);
+    const el = suggestionWidgetFor(doc, s!, { viewerRole: "reviewer", viewerName: "alice" }).toDOM();
+    expect(el.querySelector("[data-action='withdraw']")).not.toBeNull();
+    expect(el.querySelector("[data-action='accept']")).toBeNull();
+  });
+
+  it("renders read-only info for a different reviewer", () => {
+    const doc = docWith("hello world");
+    recordInsertSuggestion(doc, 5, 11, "alice");
+    const [s] = listResolvedSuggestions(doc);
+    const el = suggestionWidgetFor(doc, s!, { viewerRole: "reviewer", viewerName: "bob" }).toDOM();
+    expect(el.querySelector("[data-action]")).toBeNull();
+  });
+
+  it("clicking accept resolves the suggestion", () => {
+    const doc = docWith("hello world");
+    recordInsertSuggestion(doc, 5, 11, "alice");
+    const [s] = listResolvedSuggestions(doc);
+    const el = suggestionWidgetFor(doc, s!, { viewerRole: "editor", viewerName: "carol" }).toDOM();
+    (el.querySelector("[data-action='accept']") as HTMLButtonElement).click();
+    expect(listResolvedSuggestions(doc)).toHaveLength(0);
+    expect(doc.getText("content").toString()).toBe("hello world");
   });
 });

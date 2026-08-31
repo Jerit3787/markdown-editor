@@ -1,26 +1,86 @@
 import * as Y from "yjs";
 import { EditorState, StateField, type Extension, type TransactionSpec } from "@codemirror/state";
-import { Decoration, EditorView, ViewPlugin, type DecorationSet } from "@codemirror/view";
+import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from "@codemirror/view";
 import { ySyncAnnotation } from "y-codemirror.next";
-import { listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion, getSuggestionsMap } from "./suggestions";
+import {
+  listResolvedSuggestions,
+  recordInsertSuggestion,
+  recordDeleteSuggestion,
+  resolveSuggestion,
+  withdrawSuggestion,
+  getSuggestionsMap,
+  type ResolvedSuggestion,
+} from "./suggestions";
 
 export const suggestionInsertMark = Decoration.mark({ class: "cm-suggestion-insert" });
 export const suggestionDeleteMark = Decoration.mark({ class: "cm-suggestion-delete" });
 
+class SuggestionWidget extends WidgetType {
+  constructor(
+    private doc: Y.Doc,
+    private suggestion: ResolvedSuggestion,
+    private viewer: { viewerRole: string; viewerName: string },
+  ) {
+    super();
+  }
+
+  eq(other: SuggestionWidget): boolean {
+    return other.suggestion.id === this.suggestion.id;
+  }
+
+  toDOM(): HTMLElement {
+    const el = document.createElement("span");
+    el.className = "cm-suggestion-card";
+    const label = document.createElement("span");
+    label.className = "cm-suggestion-author";
+    label.textContent = `${this.suggestion.author} suggested ${this.suggestion.kind === "insert" ? "adding" : "removing"} this`;
+    el.appendChild(label);
+
+    const isOwnSuggestion = this.viewer.viewerName === this.suggestion.author;
+    const isEditor = this.viewer.viewerRole === "editor";
+
+    if (isEditor) {
+      el.appendChild(this.actionButton("accept", "✓", () => resolveSuggestion(this.doc, this.suggestion.id, "accept")));
+      el.appendChild(this.actionButton("reject", "✗", () => resolveSuggestion(this.doc, this.suggestion.id, "reject")));
+    } else if (isOwnSuggestion) {
+      el.appendChild(this.actionButton("withdraw", "Withdraw", () => withdrawSuggestion(this.doc, this.suggestion.id)));
+    }
+    return el;
+  }
+
+  private actionButton(action: string, label: string, onClick: () => void): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.dataset.action = action;
+    btn.className = "cm-suggestion-action";
+    btn.textContent = label;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      onClick();
+    });
+    return btn;
+  }
+}
+
+export function suggestionWidgetFor(doc: Y.Doc, suggestion: ResolvedSuggestion, viewer: { viewerRole: string; viewerName: string }): SuggestionWidget {
+  return new SuggestionWidget(doc, suggestion, viewer);
+}
+
 // Pure: derives the full decoration set from the Y.Doc's current
-// suggestions. Wrapped in a live-updating StateField (suggestionExtensions
-// below) — kept separate here so this core mapping logic is testable
-// without a live EditorView. `viewer` (who's looking) doesn't affect which
-// ranges get marked, only which actions the accompanying widget offers —
-// threaded through now so this signature doesn't change again once the
-// widget is added.
+// suggestions, plus an inline widget at the end of each range carrying
+// the accept/reject/withdraw actions appropriate to who's looking.
+// Wrapped in a live-updating StateField (suggestionExtensions below) —
+// kept separate here so this core mapping logic is testable without a
+// live EditorView.
 export function suggestionDecorations(state: EditorState, doc: Y.Doc, viewer: { viewerRole: string; viewerName: string }): DecorationSet {
-  void viewer; // consumed once the widget lands
   const list = listResolvedSuggestions(doc); // already sorted by `from`
   const ranges = list
     .filter((s) => s.to > s.from && s.to <= state.doc.length)
-    .map((s) => (s.kind === "insert" ? suggestionInsertMark : suggestionDeleteMark).range(s.from, s.to));
-  return Decoration.set(ranges);
+    .flatMap((s) => [
+      (s.kind === "insert" ? suggestionInsertMark : suggestionDeleteMark).range(s.from, s.to),
+      Decoration.widget({ widget: suggestionWidgetFor(doc, s, viewer), side: 1 }).range(s.to),
+    ]);
+  return Decoration.set(ranges, true); // `true`: sort for us — mark + widget ranges interleaved aren't guaranteed pre-sorted
 }
 
 // Reviewer-only edit interception: insertions apply to ytext normally

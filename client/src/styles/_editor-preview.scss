@@ -173,6 +173,24 @@
     border-bottom-color: var(--text-dim);
   }
 
+  /* Mirrors .cm-suggestion-insert/.cm-suggestion-delete's editor-pane
+     styling (this same file, near the bottom) for the <ins>/<del>
+     elements suggestion-preview.ts's transformSuggestions() wraps into
+     the raw markdown before it's parsed — kept as separate rules since
+     these target real DOM elements marked's renderer emits, not CM6
+     Decoration.mark classes. */
+  .suggestion-insert {
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  .suggestion-delete {
+    text-decoration: line-through;
+    text-decoration-color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+  }
+
   h1 {
     font-size: 1.9em;
     border-bottom: 1px solid var(--border);

@@ -14,6 +14,9 @@
   import { debounceWithFlush } from "../debounce";
   import { diagramEditorOpen, diagramEditorRef } from "../stores/diagramEditor";
   import { escapeHtml } from "../escape-html";
+  import { transformSuggestions } from "../suggestion-preview";
+  import { listResolvedSuggestions } from "../suggestions";
+  import { workspaceRoom } from "../collab";
 
   // Registered once, at module scope — marked.use() mutates the shared
   // marked singleton permanently, so this must never run inside
@@ -81,7 +84,12 @@
     const withInlineBlocks = transformSuperscriptSubscript(transformDefinitionLists(extractedRaw));
     const citationPrefs = doc?.citations?.prefs ?? DEFAULT_CITATION_PREFS;
     const withCitations = transformCitations(withInlineBlocks, citationPrefs, doc?.citations?.bibliography ?? []);
-    const html = marked.parse(withCitations, { gfm: true, breaks: false, renderer }) as string;
+    // A local (never-shared) document has no binding in workspaceRoom.docs
+    // at all — listResolvedSuggestions is only ever meaningful against the
+    // active shared document's own Y.Doc.
+    const activeBinding = workspaceRoom.activeDocId ? workspaceRoom.docs.get(workspaceRoom.activeDocId) : undefined;
+    const withSuggestions = activeBinding ? transformSuggestions(withCitations, listResolvedSuggestions(activeBinding.ydoc)) : withCitations;
+    const html = marked.parse(withSuggestions, { gfm: true, breaks: false, renderer }) as string;
     // KaTeX's output includes a MathML companion tree (for accessibility)
     // alongside its visible HTML — DOMPurify's default allowlist is
     // HTML-only and strips MathML entirely without ADD_TAGS/ADD_ATTR

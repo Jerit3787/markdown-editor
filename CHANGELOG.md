@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.39.0] - 2026-08-31
+
+### Added
+
+- **Suggestion-mode collaboration.** The reviewer role now proposes edits instead of being read-only: insertions and deletions show up as tracked, per-suggestion changes (underlined additions, struck-through deletions) that the document's editor can accept or reject, or the reviewer can withdraw. Viewer role now shows Preview only, with no edit surface at all.
+
 ## [1.38.5] - 2026-08-30
 
 ### Fixed

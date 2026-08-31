@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.39.1] - 2026-08-31
+
+### Fixed
+
+- **The Preview pane didn't refresh for a pending suggestion, or for an editor's accept/reject of one.** A delete suggestion is deliberately blocked from ever touching the document's text (the text stays until an editor resolves it), and accepting an insert or rejecting a delete drops the suggestion without touching the text either — so CodeMirror's own change event, the only thing that previously triggered a Preview refresh, never fired for any of those three cases. Preview now also refreshes whenever the suggestions themselves change, not just the document text.
+- **The "Suggestion-Mode Collaboration" What's New entry was missing its screenshot.**
+
 ## [1.39.0] - 2026-08-31
 
 ### Added

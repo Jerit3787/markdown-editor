@@ -14,6 +14,7 @@ import { decideShareTarget, decideJoinTarget, handleDocChanged, workspaceRoom, s
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
+import { getSuggestionsMap } from "../../../client/src/suggestions";
 import type { Doc, Workspace } from "../../../client/src/types";
 
 function fakeDoc(overrides: Partial<Doc>): Doc {
@@ -373,6 +374,7 @@ describe("suggestion-mode role wiring", () => {
       githubSessionReady: Promise.resolve(),
       setDocImage: vi.fn(),
       requireGithubSignIn: vi.fn(),
+      updatePreview: vi.fn(),
     } as unknown as typeof window.MDE;
     window.MDE = mde;
 
@@ -426,5 +428,35 @@ describe("suggestion-mode role wiring", () => {
     for (let i = 0; i < 10; i++) await Promise.resolve();
 
     expect(mde.setReadOnly).toHaveBeenLastCalledWith(false);
+  });
+
+  // Regression: a delete suggestion is blocked from ever touching ytext
+  // (that's the whole point — the text stays until an editor resolves it),
+  // so CodeMirror's own docChanged never fires and app.ts's usual
+  // updatePreview() trigger (EditorView.updateListener, gated on
+  // update.docChanged) never runs. The same gap hits accepting an insert
+  // or rejecting a delete — both just drop the suggestions-map entry
+  // without touching ytext. Preview must instead refresh off the
+  // suggestions map itself, the one thing every one of those cases does
+  // change.
+  it("a suggestions-map-only change (no ytext change) still refreshes Preview", async () => {
+    const { mde, doc } = setupWithRole("reviewer", "preview-refresh");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get(doc.id)!;
+    (mde.updatePreview as ReturnType<typeof vi.fn>).mockClear();
+    getSuggestionsMap(binding.ydoc).set("s1", {
+      kind: "delete",
+      author: "bob",
+      createdAt: Date.now(),
+      from: { type: {}, tname: null, item: null, assoc: 0 },
+      to: { type: {}, tname: null, item: null, assoc: -1 },
+    });
+    // The refresh is deferred to a microtask (see collab.ts) to avoid
+    // doing expensive work synchronously inside a Y.Doc transaction.
+    await Promise.resolve();
+
+    expect(mde.updatePreview).toHaveBeenCalled();
   });
 });

@@ -30,6 +30,24 @@ async function joinSharedWorkspace(page: import("@playwright/test").Page, shareU
   await dismissWhatsNew(page);
 }
 
+// A reviewer's own insert briefly exists as two overlapping suggestion-map
+// entries (ytext insert and its own suggestion-map write are two separate
+// Yjs updates, plus the server's own reconciliation of the ytext half —
+// see suggestion-editor.ts and workspace-room.ts's suggestionsMap.observe
+// self-heal) before WorkspaceRoom's own dedup collapses them back to one,
+// usually within milliseconds. `expect(locator).toBeVisible()` is the
+// wrong tool to wait through that window: Playwright's strict-mode check
+// throws immediately the first time a locator resolves to more than one
+// element, rather than treating it as "not ready yet" and retrying —
+// confirmed live, a naive toBeVisible() here fails almost instantly during
+// that transient window even though the suggestions map (and the DOM)
+// settle to exactly one entry well within the timeout. `count()` isn't
+// strict-mode-sensitive, so polling it tolerates the transient duplicate
+// and waits for the self-heal to actually land.
+async function waitForExactlyOne(locator: import("@playwright/test").Locator, timeout = 10000) {
+  await expect.poll(() => locator.count(), { timeout }).toBe(1);
+}
+
 test("a reviewer's edits become suggestions an editor can accept or reject, and a viewer sees preview-only", async ({ browser }) => {
   const ownerCtx = await browser.newContext();
   const reviewerCtx = await browser.newContext();
@@ -118,15 +136,20 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   // polling through the dedup's own settle time, longer still when the
   // full collab suite's parallel workers are contending for the same
   // wrangler dev instance.
-  await expect(reviewer.locator(".cm-suggestion-insert")).toBeVisible({ timeout: 15000 });
-  await expect(reviewer.locator("#preview .suggestion-insert")).toContainText("proposed addition", { timeout: 15000 });
+  await waitForExactlyOne(reviewer.locator(".cm-suggestion-insert"), 15000);
+  await waitForExactlyOne(reviewer.locator("#preview .suggestion-insert"), 15000);
+  await expect(reviewer.locator("#preview .suggestion-insert")).toContainText("proposed addition");
 
   // Owner (editor via ownership) sees the same suggestion and accepts it.
-  await expect(owner.locator(".cm-suggestion-insert")).toBeVisible({ timeout: 10000 });
+  await waitForExactlyOne(owner.locator(".cm-suggestion-insert"), 10000);
   await owner.locator(".cm-suggestion-action[data-action='accept']").click();
   await expect(owner.locator(".cm-suggestion-insert")).toHaveCount(0);
   await expect(reviewer.locator(".cm-suggestion-insert")).toHaveCount(0, { timeout: 10000 });
   await expect.poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("proposed addition");
+  // Accepting an insert never touches ytext (only the suggestions map
+  // entry is dropped) — regression coverage for Preview staying in sync
+  // with suggestion resolutions that don't themselves change the document.
+  await expect(owner.locator("#preview .suggestion-insert")).toHaveCount(0);
 
   // Reviewer selects text and deletes it — confirms it's struck through,
   // not actually removed, until the owner resolves it. Rejecting keeps
@@ -136,11 +159,19 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   for (let i = 0; i < 5; i++) await reviewer.keyboard.press("ArrowRight");
   await reviewer.keyboard.up("Shift");
   await reviewer.keyboard.press("Backspace");
-  await expect(reviewer.locator(".cm-suggestion-delete")).toBeVisible();
-  await expect(owner.locator(".cm-suggestion-delete")).toBeVisible({ timeout: 10000 });
+  await waitForExactlyOne(reviewer.locator(".cm-suggestion-delete"));
+  await waitForExactlyOne(owner.locator(".cm-suggestion-delete"), 10000);
+  // A delete suggestion never touches ytext either (the text stays until
+  // resolved) — Preview must still pick it up even though CodeMirror's
+  // own docChanged never fires for it.
+  await waitForExactlyOne(owner.locator("#preview .suggestion-delete"), 10000);
   await owner.locator(".cm-suggestion-action[data-action='reject']").click();
   await expect(owner.locator(".cm-suggestion-delete")).toHaveCount(0);
   await expect.poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("owner");
+  // Rejecting a delete also never touches ytext (only the suggestion
+  // entry is dropped) — same Preview-refresh regression as the accept
+  // case above.
+  await expect(owner.locator("#preview .suggestion-delete")).toHaveCount(0);
 
   // Viewer sees Preview only — no editor pane, no Editor/Split option in
   // either the toolbar or the View menu, and typing does nothing since

@@ -1718,6 +1718,50 @@ git commit -m "feat: viewer role locks the app into Preview-only view"
 
 ## Task 10: Playwright e2e coverage (`tests/e2e/collab/suggestion-mode.spec.ts`)
 
+> **Execution note:** this task's own instruction to "fix any gaps... before
+> moving on" surfaced a real bug Tasks 2/4's unit tests never could: a
+> correctly-behaving reviewer client's ytext insert and its own
+> suggestion-map entry always leave the client as **two separate Yjs
+> updates** (y-codemirror.next's ySync plugin and suggestion-editor.ts's
+> suggestionInsertListener each call `doc.transact()` independently, and
+> the first one fully commits — including syncing to the server — before
+> the second even starts). Against a real WorkspaceRoom over a real
+> WebSocket, the server's own reconciliation (Task 2) sees the raw insert
+> before the client's own entry arrives and auto-wraps it, leaving two
+> overlapping suggestions once the second update lands; across several
+> rapid keystrokes the two sides' own contiguous-extend logic can pick
+> different existing entries to extend, so the pair drifts into
+> overlapping-but-not-identical ranges rather than staying exact
+> duplicates. Tried and discarded: making the client write atomic by
+> having `suggestionTransactionFilter` cancel the transaction and perform
+> the ytext insert + suggestion entry together in one deferred
+> `doc.transact()` call — correct in principle, but cancelling then
+> asynchronously re-applying a keystroke desyncs CM6's model from the
+> browser's own contenteditable DOM under back-to-back keystrokes,
+> fragmenting a burst of typing into one suggestion per character. The
+> shipped fix instead self-heals server-side: `loadDocRoom` now also
+> observes the suggestions map itself and collapses any
+> overlapping-or-touching same-kind-same-author entries into one spanning
+> their union (`src/workspace-room.ts`), the same merge
+> `recordInsertSuggestion` already performs for a single, non-racing
+> contiguous extend, just applied after the fact. Covered by new tests in
+> `tests/src/workspace-room.test.ts` (`reviewer writes` describe block:
+> the two-separate-updates reproduction and the three-overlapping-ranges
+> merge). The e2e spec below also uses `keyboard.insertText()` instead of
+> `.type()` for the reviewer's suggested addition — one CDP command, like
+> a paste or an IME commit, rather than one real keydown per character
+> with zero delay (a Playwright-only stress case no human typing speed
+> reaches) — with a longer (15s) timeout on the assertion that waits out
+> the dedup's own settle time.
+>
+> Separately: this sandbox's full `--project=collab` suite (all spec
+> files together) intermittently fails on `readonly-and-editing-mode.spec.ts`
+> — confirmed independent of every change in this plan by running that
+> file alone against a fresh `wrangler dev` instance, with zero suggestion-
+> mode code involved. `suggestion-mode.spec.ts` passes cleanly and quickly
+> or on its own; treat any full-suite flakiness in this specific sandbox as
+> that pre-existing issue, not a regression here.
+
 **Files:**
 - Create: `tests/e2e/collab/suggestion-mode.spec.ts`
 

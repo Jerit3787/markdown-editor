@@ -6,7 +6,8 @@ import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
 import { relocateAnchor } from "./anchor";
 import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
-import { reconcileReviewerDelta } from "./suggestions";
+import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion } from "./suggestions";
+import type { ResolvedSuggestion } from "./suggestions";
 import type { Env } from "./env";
 
 const MESSAGE_SYNC = 0;
@@ -184,6 +185,67 @@ export class WorkspaceRoom {
       const session = this.sessions.get(transaction.origin as WebSocket);
       if (!session || session.role !== "reviewer") return;
       reconcileReviewerDelta(doc, event.changes.delta, session.username || "Anonymous");
+    });
+    // A correctly-behaving reviewer client's own suggestion-map write for
+    // an insert ALWAYS arrives as a separate update from the ytext insert
+    // itself (y-codemirror.next's ySync plugin and suggestion-editor.ts's
+    // suggestionInsertListener each call doc.transact() independently —
+    // confirmed live against a real WorkspaceRoom over a real WebSocket,
+    // not just in-process). The ytext.observe reconciliation above always
+    // sees an insert before that companion write has arrived and
+    // auto-wraps it, so the client's own entry lands moments later as a
+    // second, overlapping suggestion. Across several rapid keystrokes
+    // (typing more than one character), each side's own contiguous-extend
+    // logic (recordInsertSuggestion's own "does an existing entry's `to`
+    // match this insert's `from`") can independently pick a DIFFERENT one
+    // of the two duplicate candidates to extend, so the two entries drift
+    // into overlapping-but-not-identical ranges rather than staying exact
+    // duplicates — confirmed live typing a multi-character suggestion
+    // against a real WorkspaceRoom. Rather than try to make the write
+    // atomic (would mean bypassing y-codemirror.next's own ytext sync
+    // entirely), self-heal here: whenever the suggestions map changes,
+    // collapse any overlapping-or-touching same-kind-same-author entries
+    // into one spanning their union — the same merge recordInsertSuggestion
+    // already performs for a single, non-racing contiguous extend, just
+    // applied after the fact to entries that arrived as separate writes.
+    const suggestionsMap = getSuggestionsMap(doc);
+    suggestionsMap.observe(() => {
+      const byAuthorKind = new Map<string, ResolvedSuggestion[]>();
+      for (const s of listResolvedSuggestions(doc)) {
+        const key = `${s.kind}|${s.author}`;
+        (byAuthorKind.get(key) ?? byAuthorKind.set(key, []).get(key)!).push(s);
+      }
+      const idsToDelete: string[] = [];
+      const toCreate: { kind: "insert" | "delete"; author: string; from: number; to: number }[] = [];
+      for (const group of byAuthorKind.values()) {
+        group.sort((a, b) => a.from - b.from);
+        let clusterStart = 0;
+        let clusterMaxTo = group[0]!.to;
+        for (let i = 1; i <= group.length; i++) {
+          const cur = group[i];
+          if (cur && cur.from <= clusterMaxTo) {
+            clusterMaxTo = Math.max(clusterMaxTo, cur.to);
+            continue;
+          }
+          const cluster = group.slice(clusterStart, i);
+          if (cluster.length > 1) {
+            idsToDelete.push(...cluster.map((c) => c.id));
+            toCreate.push({ kind: cluster[0]!.kind, author: cluster[0]!.author, from: cluster[0]!.from, to: clusterMaxTo });
+          }
+          if (cur) {
+            clusterStart = i;
+            clusterMaxTo = cur.to;
+          }
+        }
+      }
+      if (idsToDelete.length === 0) return;
+      doc.transact(() => {
+        for (const id of idsToDelete) suggestionsMap.delete(id);
+        for (const c of toCreate) {
+          if (c.kind === "insert") recordInsertSuggestion(doc, c.from, c.to, c.author);
+          else recordDeleteSuggestion(doc, c.from, c.to, c.author);
+        }
+      }, "suggestion");
     });
     awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
       this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin),

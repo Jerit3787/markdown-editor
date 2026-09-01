@@ -38,6 +38,11 @@ export default defineConfig({
     command: "vite dev --config client/vite.config.ts --port 5275",
     url: "http://localhost:5275",
     reuseExistingServer: !process.env.CI,
+    // No wrangler dev running behind this server (the collab project
+    // talks to its own, started separately by e2e-collab.sh) — tells
+    // client/vite.config.ts's /api proxy to skip straight to a quiet 404
+    // instead of attempting, and logging, a doomed connection to :8787.
+    env: { VITE_DISABLE_API_PROXY: "1" },
   },
   projects: [
     {

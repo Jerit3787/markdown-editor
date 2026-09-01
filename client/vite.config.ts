@@ -53,7 +53,23 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://127.0.0.1:8787",
+      "/api": {
+        target: "http://127.0.0.1:8787",
+        // `dev:client` (and Playwright's local e2e project, which runs
+        // this exact command as its webServer) never has `wrangler dev`
+        // running alongside it — every /api/* request would otherwise
+        // hit ECONNREFUSED, which Vite logs to stderr on every single
+        // page load even though both call sites (gist.ts's
+        // checkSession(), repo-sync-ui.ts's hasRepoScope()) already
+        // try/catch the failure into a quiet "not connected". Bypassing
+        // the proxy entirely short-circuits straight to a 404 — same
+        // effective outcome for the client, zero connection attempt, zero
+        // log noise. Only opts out when explicitly asked (set by
+        // playwright.config.ts's local project); left proxying normally
+        // by default so a real two-terminal `vite dev` + `wrangler dev`
+        // workflow is unaffected.
+        bypass: () => (process.env.VITE_DISABLE_API_PROXY ? false : undefined),
+      },
     },
   },
 });

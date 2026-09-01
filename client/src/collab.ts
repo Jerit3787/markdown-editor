@@ -25,7 +25,7 @@ import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, pe
 import { debounceWithFlush } from "./debounce";
 import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
-import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace } from "./stores/workspaces";
+import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace, previewSharedWorkspace } from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";
@@ -202,8 +202,15 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const validDocs = docs.filter((d): d is NonNullable<typeof d> => !!d);
 
   const decision = decideJoinTarget(validDocs, get(workspacesStore).length);
-  if (decision.kind === "auto") {
+  if (decision.kind === "auto-permanent") {
     const ws = adoptSharedWorkspace(workspaceId, decision.workspaceName);
+    importRemoteDocs(ws.id, validDocs);
+    switchWorkspace(ws.id);
+    switchDoc(landOnDocId);
+    return;
+  }
+  if (decision.kind === "auto-preview") {
+    const ws = previewSharedWorkspace(workspaceId, decision.workspaceName);
     importRemoteDocs(ws.id, validDocs);
     switchWorkspace(ws.id);
     switchDoc(landOnDocId);
@@ -915,18 +922,24 @@ export function decideShareTarget(doc: Doc, docs: Doc[], workspaces: Workspace[]
   };
 }
 
-export type JoinDecision = { kind: "auto"; workspaceName: string } | { kind: "choice" };
+export type JoinDecision = { kind: "auto-permanent"; workspaceName: string } | { kind: "auto-preview"; workspaceName: string } | { kind: "choice" };
 
-// A single shared document is unambiguous — there's nothing to meaningfully
-// choose between (merge one document into an existing workspace, or give it
-// its own?) — so it always lands as its own new workspace, named after the
-// document, regardless of how many workspaces the receiver already has.
-// A multi-document workspace share still gets a real choice, except for a
-// receiver with zero workspaces, who — per item 22 — has nothing to choose
-// between either.
+// A single shared document is unambiguous — there's nothing meaningful to
+// choose between (merge it into an existing workspace, or give it its
+// own?). It lands permanently only when the receiver has no workspaces of
+// their own — likely their only reason for being here at all, so losing
+// it on reload would be worse than today's behavior, and there's no
+// existing local library to protect. Otherwise it previews first:
+// auto-committing into an existing library is exactly the clutter this
+// was built to avoid. A multi-document workspace share gets a real choice
+// (including a Preview option — see JoinWorkspaceModal.svelte), except for
+// a receiver with zero workspaces, who has nothing to choose between
+// either and lands permanently the same way as the single-doc case.
 export function decideJoinTarget(validDocs: { name: string }[], existingWorkspaceCount: number): JoinDecision {
-  if (validDocs.length === 1) return { kind: "auto", workspaceName: validDocs[0]!.name || "Untitled" };
-  if (existingWorkspaceCount === 0) return { kind: "auto", workspaceName: "Shared workspace" };
+  if (existingWorkspaceCount === 0) {
+    return { kind: "auto-permanent", workspaceName: validDocs.length === 1 ? validDocs[0]!.name || "Untitled" : "Shared workspace" };
+  }
+  if (validDocs.length === 1) return { kind: "auto-preview", workspaceName: validDocs[0]!.name || "Untitled" };
   return { kind: "choice" };
 }
 

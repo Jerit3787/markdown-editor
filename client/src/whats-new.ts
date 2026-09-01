@@ -22,6 +22,16 @@ export function missedEntries(all: WhatsNewEntry[], lastSeen: string | null): Wh
   return all.filter((e) => compareVersions(e.version, lastSeen) > 0);
 }
 
+// Sprite ids from client/index.html's <symbol> defs — one glyph per
+// category card in the manual-reopen index (WhatsNew.svelte).
+export const CATEGORY_ICONS: Record<WhatsNewCategory, string> = {
+  "Editing & Formatting": "icon-pencil",
+  Collaboration: "icon-users",
+  "Version History": "icon-history",
+  "GitHub Integration": "icon-github",
+  "Organization & Navigation": "icon-panel-left",
+};
+
 export interface WhatsNewCategoryGroup {
   category: WhatsNewCategory;
   entries: WhatsNewEntry[]; // newest-first within the category

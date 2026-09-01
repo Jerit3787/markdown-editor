@@ -4,7 +4,7 @@
   import { whatsNewOpen } from "../stores/whatsNew";
   import { WHATS_NEW_ENTRIES } from "../whats-new-entries";
   import type { WhatsNewCategory } from "../whats-new-entries";
-  import { missedEntries, groupByCategory } from "../whats-new";
+  import { missedEntries, groupByCategory, CATEGORY_ICONS } from "../whats-new";
 
   const STORAGE_KEY = "mde:whatsNewSeen";
   // Single source of truth for "what version is this build" — already
@@ -118,6 +118,7 @@
       <div class="whats-new-category-grid">
         {#each categoryGroups as group (group.category)}
           <button type="button" class="whats-new-category-card" onclick={() => openCategory(group.category)}>
+            <svg class="icon whats-new-category-icon"><use href="#{CATEGORY_ICONS[group.category]}"></use></svg>
             <span class="whats-new-category-name">{group.category}</span>
             <span class="whats-new-category-count">{group.entries.length}</span>
           </button>

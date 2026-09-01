@@ -177,6 +177,15 @@ select:not(.share-access-select):not(.share-role-select) {
   cursor: pointer;
   appearance: auto;
 }
+/* Second line of defense alongside the +32px buffer in Share.svelte's
+   $effect — if some engine's native arrow still claims more room than
+   that, degrade to an ellipsis instead of the raw glyph clipping a plain
+   fixed width alone produces. */
+.share-access-select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* Actual width of .share-access-select is set in JS (see Share.svelte's
    $effect) by measuring this invisible twin — a native <select> sizes
    to its widest <option> regardless of which one is selected, so without
@@ -272,7 +281,17 @@ select:not(.share-access-select):not(.share-role-select) {
   display: flex;
   align-items: center;
   gap: 4px;
-  max-width: 100%;
+  // A <button>, even with display:flex applied, doesn't stretch to fill a
+  // block parent's width via width:auto the way a <div> would — it still
+  // shrink-to-fits its own content by default in every engine tested here.
+  // max-width:100% alone therefore never did anything (there was nothing
+  // over 100% to clamp): the button just grew to its full, un-truncated
+  // content width regardless, taking .workspace-preview-badge past
+  // #sidebar's edge with it. width:100% is what actually ties it to
+  // .workspace-switcher's (already correctly flex:1; min-width:0)
+  // available width, which is what lets .workspace-name's own
+  // min-width:0/ellipsis engage at all.
+  width: 100%;
   border: none;
   background: transparent;
   color: inherit;
@@ -286,6 +305,12 @@ select:not(.share-access-select):not(.share-role-select) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    // A flex item's default min-width is auto (its own content size), not
+    // 0 — without this, text-overflow:ellipsis never actually engages: the
+    // item just refuses to shrink below the full name's width, pushing the
+    // trigger (and the Preview badge beside it) past #sidebar's edge
+    // instead of truncating.
+    min-width: 0;
   }
 
   .icon {
@@ -293,6 +318,16 @@ select:not(.share-access-select):not(.share-role-select) {
     height: 12px;
     flex-shrink: 0;
   }
+}
+.workspace-preview-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
 }
 .workspace-switcher-popover {
   position: absolute;
@@ -385,6 +420,23 @@ select:not(.share-access-select):not(.share-role-select) {
 .workspace-new-btn:hover {
   background: var(--accent-dim);
   color: var(--accent);
+}
+.workspace-keep-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 14px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.workspace-keep-btn:hover {
+  background: var(--accent);
+  color: var(--bg);
 }
 @media (max-width: 780px) {
   .share-pill,

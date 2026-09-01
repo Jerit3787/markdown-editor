@@ -77,6 +77,39 @@ describe("docs store — workspace integration", () => {
     expect(doc.workspaceId).toBe(first.id);
   });
 
+  it("excludes documents belonging to an ephemeral workspace from persistence", async () => {
+    const { docsStore, createDoc } = await import("../../../../client/src/stores/docs");
+    const { previewSharedWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const preview = previewSharedWorkspace("room-x", "Preview");
+    const doc = createDoc({ name: "Preview Doc" });
+    expect(doc.workspaceId).toBe(preview.id);
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!);
+    expect(persisted.map((d: { id: string }) => d.id)).not.toContain(doc.id);
+    expect(get(docsStore).find((d) => d.id === doc.id)).toBeTruthy();
+  });
+
+  it("persists a workspace's documents once it's promoted out of ephemeral", async () => {
+    const { createDoc, persistDocs } = await import("../../../../client/src/stores/docs");
+    const { previewSharedWorkspace, promoteEphemeralWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const preview = previewSharedWorkspace("room-x", "Preview");
+    const doc = createDoc({ name: "Preview Doc" });
+    promoteEphemeralWorkspace(preview.id);
+    persistDocs();
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!);
+    expect(persisted.map((d: { id: string }) => d.id)).toContain(doc.id);
+  });
+
+  it("switching to a doc in an ephemeral workspace does not persist it as the active doc", async () => {
+    const { createDoc } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace, previewSharedWorkspace } = await import("../../../../client/src/stores/workspaces");
+    createWorkspace("Real");
+    const realDoc = createDoc({ name: "Real Doc" });
+    expect(localStorage.getItem("mde:active")).toBe(realDoc.id);
+    previewSharedWorkspace("room-x", "Preview");
+    createDoc({ name: "Preview Doc" }); // createDoc's own setActiveId call
+    expect(localStorage.getItem("mde:active")).toBe(realDoc.id);
+  });
+
   it("getActiveDoc falls back to a doc in the active workspace, not an arbitrary one", async () => {
     const { docsStore, activeIdStore, getActiveDoc } = await import("../../../../client/src/stores/docs");
     const { createWorkspace } = await import("../../../../client/src/stores/workspaces");

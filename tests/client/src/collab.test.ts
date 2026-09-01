@@ -66,24 +66,24 @@ describe("decideShareTarget", () => {
 });
 
 describe("decideJoinTarget", () => {
-  it("auto-lands a single document as its own new workspace, even with existing workspaces", () => {
+  it("auto-previews a single document when the receiver already has workspaces of their own", () => {
     const result = decideJoinTarget([{ name: "Release Notes" }], 3);
-    expect(result).toEqual({ kind: "auto", workspaceName: "Release Notes" });
+    expect(result).toEqual({ kind: "auto-preview", workspaceName: "Release Notes" });
   });
 
-  it("auto-lands a single document as its own new workspace when the receiver has none", () => {
+  it("auto-lands a single document permanently when the receiver has none", () => {
     const result = decideJoinTarget([{ name: "Release Notes" }], 0);
-    expect(result).toEqual({ kind: "auto", workspaceName: "Release Notes" });
+    expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Release Notes" });
   });
 
   it("falls back to a placeholder name when the single document has no name", () => {
     const result = decideJoinTarget([{ name: "" }], 1);
-    expect(result).toEqual({ kind: "auto", workspaceName: "Untitled" });
+    expect(result).toEqual({ kind: "auto-preview", workspaceName: "Untitled" });
   });
 
-  it("auto-lands a multi-document workspace when the receiver has zero workspaces", () => {
+  it("auto-lands a multi-document workspace permanently when the receiver has zero workspaces", () => {
     const result = decideJoinTarget([{ name: "A" }, { name: "B" }], 0);
-    expect(result).toEqual({ kind: "auto", workspaceName: "Shared workspace" });
+    expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Shared workspace" });
   });
 
   it("returns a choice decision for a multi-document workspace when the receiver has existing workspaces", () => {
@@ -93,7 +93,7 @@ describe("decideJoinTarget", () => {
 
   it("treats zero valid documents as a multi-document share (no single doc to auto-land)", () => {
     const result = decideJoinTarget([], 0);
-    expect(result).toEqual({ kind: "auto", workspaceName: "Shared workspace" });
+    expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Shared workspace" });
   });
 });
 

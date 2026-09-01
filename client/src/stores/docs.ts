@@ -140,7 +140,17 @@ function persistDocsExcluding(deletedIds: Set<string>) {
     const external = raw ? (JSON.parse(raw) as Doc[]).filter((d) => !deletedIds.has(d.id)) : [];
     const merged = mergeById(get(docsStore), external);
     docsStore.set(merged);
-    localStorage.setItem(STORAGE_DOCS, JSON.stringify(merged));
+    // A doc belonging to an ephemeral workspace (see stores/workspaces.ts's
+    // previewSharedWorkspace) follows that workspace's own exclusion from
+    // localStorage — same one-choke-point pattern persistWorkspacesExcluding
+    // uses for the workspace record itself.
+    const ephemeralWorkspaceIds = new Set(
+      get(workspacesStore)
+        .filter((w) => w.ephemeral)
+        .map((w) => w.id),
+    );
+    const toPersist = ephemeralWorkspaceIds.size === 0 ? merged : merged.filter((d) => !ephemeralWorkspaceIds.has(d.workspaceId));
+    localStorage.setItem(STORAGE_DOCS, JSON.stringify(toPersist));
   } catch (e) {
     // Most commonly a full storage quota (large embedded images) — this
     // used to fail silently, leaving the in-memory doc looking "saved"
@@ -160,8 +170,14 @@ export function persistDocs() {
 
 function setActiveId(id: string | null) {
   activeIdStore.set(id);
-  if (id) localStorage.setItem(STORAGE_ACTIVE, id);
-  else localStorage.removeItem(STORAGE_ACTIVE);
+  if (!id) {
+    localStorage.removeItem(STORAGE_ACTIVE);
+    return;
+  }
+  const doc = findDocById(id);
+  const ws = doc ? get(workspacesStore).find((w) => w.id === doc.workspaceId) : undefined;
+  if (ws?.ephemeral) return;
+  localStorage.setItem(STORAGE_ACTIVE, id);
 }
 
 function updateDoc(id: string, changes: Partial<Doc>) {

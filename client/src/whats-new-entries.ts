@@ -234,4 +234,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/categorized-whats-new.png",
     category: "Editing & Formatting",
   },
+  {
+    version: "1.41.0",
+    title: "Shared-Workspace Previews",
+    description:
+      'Opening a share link now previews it instead of permanently cluttering your sidebar — look first, and click "Keep this workspace" only if you want to hang onto it. Closing or reloading the tab drops an unpicked preview.',
+    screenshot: "/whats-new/shared-workspace-preview.png",
+    category: "Collaboration",
+  },
 ];

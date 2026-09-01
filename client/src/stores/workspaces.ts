@@ -63,7 +63,12 @@ function persistWorkspacesExcluding(deletedIds: Set<string>) {
     const external = raw ? (JSON.parse(raw) as Workspace[]).filter((w) => !deletedIds.has(w.id)) : [];
     const merged = mergeById(get(workspacesStore), external);
     workspacesStore.set(merged);
-    localStorage.setItem(STORAGE_WORKSPACES, JSON.stringify(merged));
+    // Ephemeral workspaces (see previewSharedWorkspace) live in the store
+    // for this tab's lifetime only — excluded here, at the one place
+    // every persistence path funnels through, rather than at each call
+    // site.
+    const toPersist = merged.filter((w) => !w.ephemeral);
+    localStorage.setItem(STORAGE_WORKSPACES, JSON.stringify(toPersist));
   } catch (e) {
     showToast("Couldn't save — your browser's local storage may be full", "error");
   }
@@ -84,8 +89,18 @@ if (storedWorkspaces === null) persistWorkspaces();
 
 function setActiveWorkspaceId(id: string | null) {
   activeWorkspaceIdStore.set(id);
-  if (id) localStorage.setItem(STORAGE_ACTIVE_WORKSPACE, id);
-  else localStorage.removeItem(STORAGE_ACTIVE_WORKSPACE);
+  if (!id) {
+    localStorage.removeItem(STORAGE_ACTIVE_WORKSPACE);
+    return;
+  }
+  const ws = get(workspacesStore).find((w) => w.id === id);
+  // Leave the persisted "default landing workspace" pointing at whatever
+  // real workspace was active before — a fresh tab must never inherit an
+  // ephemeral one. Switching away from an ephemeral workspace back to a
+  // real one persists normally on that later call, immediately restoring
+  // the invariant.
+  if (ws?.ephemeral) return;
+  localStorage.setItem(STORAGE_ACTIVE_WORKSPACE, id);
 }
 
 export function createWorkspace(name: string): Workspace {
@@ -113,6 +128,38 @@ export function adoptSharedWorkspace(remoteId: string, name: string): Workspace 
 export function mergeSharedWorkspaceInto(workspaceId: string, remoteId: string): void {
   workspacesStore.update((all) => all.map((w) => (w.id === workspaceId ? { ...w, shared: true, remoteId, updatedAt: Date.now() } : w)));
   persistWorkspaces();
+}
+
+// Opening a shared link when the receiver already has workspaces of
+// their own and there's nothing meaningfully to choose between (a single
+// shared document) — lands it as active immediately, but never commits
+// it to storage. "Keep this workspace" (promoteEphemeralWorkspace) is
+// the only way it survives a reload.
+export function previewSharedWorkspace(remoteId: string, name: string): Workspace {
+  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), updatedAt: Date.now(), shared: true, remoteId, ephemeral: true };
+  workspacesStore.update((all) => [ws, ...all]);
+  setActiveWorkspaceId(ws.id);
+  // Deliberately no persistWorkspaces() call — persistWorkspacesExcluding's
+  // own filter would drop this record anyway (defense in depth for any
+  // *other* persist call that runs while this is active), but skipping it
+  // here avoids a pointless localStorage rewrite for a record that was
+  // never going to be written.
+  return ws;
+}
+
+// Backs the "Keep this workspace" UI action (WorkspaceSwitcher.svelte).
+// Only handles the workspace-side half — this module still has no
+// dependency on stores/docs.ts (see the module comment at the top of this
+// file), so the caller is responsible for also calling docs.ts's
+// persistDocs() to flush this workspace's now-no-longer-ephemeral
+// documents.
+export function promoteEphemeralWorkspace(id: string): void {
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, ephemeral: false, updatedAt: Date.now() } : w)));
+  persistWorkspaces();
+  // If this was the active workspace, its activation was never persisted
+  // (see setActiveWorkspaceId above) — now that it's no longer ephemeral,
+  // run it again so a fresh tab going forward actually lands here.
+  if (get(activeWorkspaceIdStore) === id) setActiveWorkspaceId(id);
 }
 
 export function setWorkspaceRepoLink(id: string, repoLink: { owner: string; repo: string; branch: string }): void {

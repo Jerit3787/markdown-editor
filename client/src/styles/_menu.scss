@@ -3,18 +3,26 @@
   gap: 2px;
   padding: 0 0 4px 0;
 
-  /* File/Edit/Format/Insert/View sit near the left edge — anchor their
-     menus to the trigger's left edge (extending rightward) instead of the
-     default right-anchor (which is correct for Share/Settings near the
-     right edge, but would push these menus off-screen to the left).
-     #helpMenu is excluded: it's the last/rightmost item in the bar, so
-     left-anchoring it instead pushed it off the *right* edge of the
-     viewport on mobile (confirmed live: items clipped past the screen
-     edge) — it needs the same right-anchor Share/Settings use, extending
-     leftward from its own trigger. */
-  .dropdown-menu:not(#helpMenu) {
+  /* File/Edit/Format/Insert/View/Help all default to anchoring their menu
+     to the trigger's left edge (extending rightward) instead of the base
+     .dropdown-menu right-anchor (which is correct for Share/Settings near
+     the right edge, but would push these menus off-screen to the left).
+     Whichever of these ends up close enough to the right edge of a narrow
+     viewport still needs the opposite, Share/Settings-style right-anchor —
+     previously handled by hardcoding a `:not(#helpMenu)` exclusion here,
+     since Help was the rightmost item at the time. That broke the moment
+     View's own dropdown grew wide enough to overflow too, without ever
+     being added to the list. app.ts's toggleDropdown() now measures each
+     menu against the viewport at open-time and applies
+     .dropdown-menu-right-anchor (below) when it would overflow, so no menu
+     needs to be named here by id. */
+  .dropdown-menu {
     left: 0;
     right: auto;
+  }
+  .dropdown-menu.dropdown-menu-right-anchor {
+    left: auto;
+    right: 0;
   }
 
   /* The gist-open row (input + button) isn't a menu-item button — .share-row

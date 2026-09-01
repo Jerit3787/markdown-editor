@@ -118,12 +118,14 @@ sequenced relative to each other yet.
       shown as collapsible rows in Version History. Diff view now
       compares any two selected entries, not just a version against
       the live document.
-- [ ] **Shared-document session separation.** A shared document is
-      currently treated like any local document in the same window/
-      session. Evaluate: either keep that, or make an opened shared
-      document exclusive to its own window/session (local documents
-      would need a separate window). Also relevant prep work if
-      folder/repo sync is ever built.
+- [x] **Shared-document session separation.** (Shipped v1.41.0.)
+      Opening a share link now previews the workspace (never persisted)
+      instead of always permanently committing it — a "Preview" badge
+      and "Keep this workspace" action in the switcher, plus a "Preview
+      only" option in the join-choice modal. A receiver with zero
+      workspaces of their own still lands directly and permanently,
+      since there's nothing to protect from clutter and losing their
+      only workspace on reload would be worse than today.
 - [x] **Suggestion-mode collaboration** (Google Docs parity). (Shipped
       v1.39.0.) Reviewer role becomes a suggester; edits become tracked
       insert/delete suggestions an editor can accept, reject, or the

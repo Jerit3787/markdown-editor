@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.40.5] - 2026-09-01
+
+### Fixed
+
+- **Flaky `mobile-scroll-sync.spec.ts` echo-guard test** ("a scroll echo arriving long after the write triggers no redundant write attempt"). Root cause: the test relied on a real browser `scrollTop` write's native "scroll" echo staying deferred long enough for the test's own synthetic late-echo dispatch to be first — but in headless Chromium that native echo reliably arrives within ~150-200ms, consuming the app's echo guard before the test's simulation ever ran, making the guard (working exactly as designed) look broken. The test now swallows that real echo with a capturing listener (which runs before the app's own non-capturing listener on the same target, regardless of registration order) until it's ready to fire its own deterministic "long-delayed echo" simulation. No production code changed — the guard itself was already correct.
+
 ## [1.40.4] - 2026-09-01
 
 ### Fixed

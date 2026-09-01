@@ -5,10 +5,11 @@ on:
     branches:
       - master
 
-# Needs write access only to push the version tag; everything else here is
-# read-only.
+# contents:write to push the version tag; actions:write to explicitly
+# invoke release.yml afterward (see below for why that's necessary at all).
 permissions:
   contents: write
+  actions: write
 
 jobs:
   auto-tag:
@@ -26,6 +27,8 @@ jobs:
           node-version: "lts/*"
 
       - name: Tag if this version isn't tagged yet
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="v$(node -p "require('./package.json').version")"
           if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
@@ -36,3 +39,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$VERSION" -m "$VERSION"
           git push origin "$VERSION"
+          # The push above won't itself trigger release.yml's tag-push
+          # trigger — GITHUB_TOKEN-authored pushes don't fire other
+          # workflows' push triggers, only workflow_dispatch/
+          # repository_dispatch are exempted from that. Ask for it
+          # directly instead of relying on the (silently no-op) push event.
+          gh workflow run release.yml --ref master

@@ -7,8 +7,9 @@
     renameWorkspace,
     switchWorkspace,
     deleteWorkspaceRecord,
+    promoteEphemeralWorkspace,
   } from "../stores/workspaces";
-  import { docsStore, removeDocById, ensureActiveDocInWorkspace } from "../stores/docs";
+  import { docsStore, removeDocById, ensureActiveDocInWorkspace, persistDocs } from "../stores/docs";
   import { confirmAction } from "../stores/confirmDialog";
 
   let open = $state(false);
@@ -33,6 +34,12 @@
 
   function pick(id: string) {
     if (switchWorkspace(id)) ensureActiveDocInWorkspace(id);
+    close();
+  }
+
+  function keepWorkspace(id: string) {
+    promoteEphemeralWorkspace(id);
+    persistDocs();
     close();
   }
 
@@ -82,10 +89,14 @@
 <div class="workspace-switcher">
   <button type="button" class="workspace-switcher-trigger" onclick={toggle}>
     <span class="workspace-name">{activeWorkspace?.name ?? "No workspace"}</span>
+    {#if activeWorkspace?.ephemeral}<span class="workspace-preview-badge">Preview</span>{/if}
     <svg class="icon"><use href="#icon-chevron-down"></use></svg>
   </button>
   {#if open}
     <div class="workspace-switcher-popover">
+      {#if activeWorkspace?.ephemeral}
+        <button type="button" class="workspace-keep-btn" onclick={() => keepWorkspace(activeWorkspace!.id)}>Keep this workspace</button>
+      {/if}
       <ul class="workspace-list">
         {#each $workspacesStore as ws (ws.id)}
           <li class:active={ws.id === $activeWorkspaceIdStore}>

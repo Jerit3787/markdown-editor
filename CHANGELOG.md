@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.40.4] - 2026-09-01
+
+### Fixed
+
+- **Noisy "http proxy error: /api/auth/github/me" / `ECONNREFUSED` output from every local dev-server-only test run.** `client/vite.config.ts`'s `/api` proxy always targets `127.0.0.1:8787`, but neither `dev:client` nor Playwright's local e2e project ever run `wrangler dev` alongside it, so every auth-check request was a doomed connection Vite logged to stderr — even though the client already handles the failure gracefully. The proxy now bypasses straight to a quiet 404 when `VITE_DISABLE_API_PROXY` is set (set by `playwright.config.ts`'s local webServer); a real two-terminal `vite dev` + `wrangler dev` workflow is unaffected.
+
 ## [1.40.3] - 2026-09-01
 
 ### Changed

@@ -41,8 +41,23 @@ jobs:
               return
             fi
             git tag -a "$tag" "$commit" -m "$tag"
-            tagged_any=1
-            echo "Tagged $tag at ${commit:0:12}"
+            # Pushed individually, not batched — GITHUB_TOKEN lacks the
+            # separate "workflows" permission scope needed to push a ref
+            # pointing at a commit that touches .github/workflows/* (some
+            # historical version-bump commits do, incidentally), and a
+            # batched `git push --tags` fails that one ref but aborts the
+            # whole push, silently dropping every other tag in the same
+            # call along with it (confirmed live: this ate 27 good tags
+            # alongside the 2 it actually rejected). Testing each push's
+            # own exit status in this `if` is what keeps GitHub Actions'
+            # default `set -e` from treating one rejected ref as fatal.
+            if git push origin "refs/tags/$tag" 2>&1; then
+              tagged_any=1
+              echo "Tagged and pushed $tag at ${commit:0:12}"
+            else
+              echo "::warning::Could not push $tag (at ${commit:0:12}) — likely GITHUB_TOKEN missing the 'workflows' permission for a commit that touches .github/workflows/*. Needs a PAT with that scope to ever land; skipping for now."
+              git tag -d "$tag" >/dev/null
+            fi
           }
 
           # Current HEAD first — the common case on every ordinary push.
@@ -68,7 +83,8 @@ jobs:
             exit 0
           fi
 
-          git push origin --tags
+          # Each tag above was already pushed individually inside
+          # tag_if_missing as it was created — nothing left to push here.
           # A GITHUB_TOKEN-authored push doesn't fire other workflows' push
           # triggers — a deliberate GitHub Actions restriction against
           # recursive runs, with workflow_dispatch/repository_dispatch as

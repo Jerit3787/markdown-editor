@@ -2,20 +2,58 @@ const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 
-function escapeRegExp(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// Every "## [x.y.z] - date" section in CHANGELOG.md, in file order (newest
+// first) — including ones whose version never became its own git tag (an
+// intermediate package.json state that got superseded by a later bump
+// before its branch's merge commit ever became master's HEAD, so no commit
+// anywhere actually shipped exactly that version on its own).
+function parseChangelogSections(content) {
+  // (?![\s\S]) is a true end-of-string assertion — \s*$ under the /m flag
+  // this needs for ^## to match at each line's start instead matches at
+  // *any* blank-line boundary (m makes $ match before every \n, and \s*
+  // can match zero characters), so it stopped the lazy body capture at
+  // the very first blank line after each heading, before ever reaching
+  // the heading's actual content.
+  const regex = /^##\s*\[?([0-9][0-9.]*)\]?[^\n]*\n([\s\S]*?)(?=\n##\s*\[|(?![\s\S]))/gm;
+  const sections = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    const body = match[2].trim();
+    if (body) {
+      sections.push({ version: match[1], body });
+    }
+  }
+  return sections;
 }
 
-function extractChangelog(content, tagName) {
+// A tag's own CHANGELOG section, with any immediately-older orphaned
+// versions folded in ahead of it — the versions listed between it and
+// whichever real tag precedes it that never got a tag of their own, so
+// this tag's release is the only place their changes actually ship.
+// sortedGitTags is what release-helper already computes from `git tag -l`
+// for every other purpose; passing it in here (rather than re-deriving it)
+// is what tells this function which versions are "real" vs. orphaned — a
+// required argument rather than defaulting to [], since [] would mean
+// "nothing is a real tag" and fold in every older section indefinitely,
+// not "fold nothing."
+function extractChangelog(content, tagName, sortedGitTags) {
+  const sections = parseChangelogSections(content);
   const version = tagName.replace(/^v/, "");
-  const escapedVersion = escapeRegExp(version);
-  // Match heading like ## [1.14.0] or ## [1.14.0] - 2026-08-13
-  const regex = new RegExp(`##\\s*\\[?${escapedVersion}\\]?[^\n]*\n([\\s\\S]*?)(?=\n##\\s*\\[|\\s*$)`, "i");
-  const match = content.match(regex);
-  if (!match || !match[1].trim()) {
+  const idx = sections.findIndex((s) => s.version === version);
+  if (idx === -1) {
     return null;
   }
-  return match[1].trim();
+
+  const bodies = [sections[idx].body];
+  for (let i = idx + 1; i < sections.length; i++) {
+    if (sortedGitTags.includes(`v${sections[i].version}`)) {
+      break;
+    }
+    bodies.push(sections[i].body);
+  }
+  // bodies is newest-to-oldest (current tag first, then any orphans below
+  // it); reversed so the notes read chronologically, oldest change first.
+  return bodies.reverse().join("\n\n");
 }
 
 function parseSemver(tag) {
@@ -121,7 +159,7 @@ function processReleases() {
       continue;
     }
 
-    let notes = extractChangelog(changelogContent, tag);
+    let notes = extractChangelog(changelogContent, tag, sortedGitTags);
     if (!notes) {
       console.log(`No changelog notes found for ${tag}. Skipping.`);
       continue;
@@ -180,4 +218,4 @@ if (require.main === module) {
   processReleases();
 }
 
-module.exports = { extractChangelog, sortTags, appendComparisonLink, getRepoSlug, processReleases };
+module.exports = { extractChangelog, parseChangelogSections, sortTags, appendComparisonLink, getRepoSlug, processReleases };

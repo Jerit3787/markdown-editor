@@ -1,7 +1,17 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { playwright } from "@vitest/browser-playwright";
+
+// Same single source of truth client/vite.config.ts's own __APP_VERSION__
+// define reads from — needed here too since WhatsNew.svelte references
+// the raw __APP_VERSION__ global at module scope, and this project's
+// bare `svelte()` plugin (unlike the real client build) never injects
+// it otherwise. Only __APP_VERSION__, not client/vite.config.ts's other
+// __OSS_LICENSES__ define — nothing under test needs that one yet, and
+// duplicating its node_modules-scanning collectLicenses() here on
+// spec would be unused work.
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8"));
 
 // Some sandboxed dev environments pre-stage a Chromium build at a fixed
 // path outside Playwright's own managed cache, which can trail whatever
@@ -39,6 +49,9 @@ export default defineConfig({
       },
       {
         plugins: [svelte()],
+        define: {
+          __APP_VERSION__: JSON.stringify(pkg.version),
+        },
         test: {
           name: "components",
           include: ["tests/client/src/components/**/*.test.ts"],

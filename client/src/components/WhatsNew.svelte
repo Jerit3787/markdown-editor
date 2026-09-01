@@ -3,7 +3,8 @@
   import Modal from "./Modal.svelte";
   import { whatsNewOpen } from "../stores/whatsNew";
   import { WHATS_NEW_ENTRIES } from "../whats-new-entries";
-  import { missedEntries } from "../whats-new";
+  import type { WhatsNewCategory } from "../whats-new-entries";
+  import { missedEntries, groupByCategory } from "../whats-new";
 
   const STORAGE_KEY = "mde:whatsNewSeen";
   // Single source of truth for "what version is this build" — already
@@ -25,30 +26,49 @@
   // after the first dismissal (which bumps localStorage to
   // CURRENT_VERSION) — that's exactly what made the Help menu's manual
   // "What's New" entry look broken (silently rendering nothing) for
-  // anyone already caught up. `slides` switches to the full list once
-  // `showAll` flips true, below.
+  // anyone already caught up. `slides` switches to a category's own
+  // entries once `showAll` flips true and a category is picked, below.
   const missed = missedEntries(WHATS_NEW_ENTRIES, localStorage.getItem(STORAGE_KEY));
   // The Help menu's "What's New" entry is a manual, on-demand re-open —
-  // like any other app's changelog menu item, it should always show
-  // everything, not just whatever's still unseen.
+  // unlike the auto-open catch-up popup (always just the few missed
+  // entries, plain stepper), a manual reopen lands on a category index
+  // first rather than a 27-entry stepper starting at the oldest release.
+  // Only meaningful once `showAll` is true; null means "show the index."
   let showAll = $state(false);
-  const slides = $derived(showAll ? WHATS_NEW_ENTRIES : missed);
+  let categoryView = $state<WhatsNewCategory | null>(null);
+  const categoryGroups = $derived(groupByCategory(WHATS_NEW_ENTRIES));
+  const slides = $derived(
+    !showAll ? missed : categoryView !== null ? (categoryGroups.find((g) => g.category === categoryView)?.entries ?? []) : [],
+  );
   let slideIndex = $state(0);
   const isLast = $derived(slideIndex >= slides.length - 1);
+  const inCategoryStepper = $derived(showAll && categoryView !== null);
+  const doneLabel = $derived(inCategoryStepper ? "Done" : "Got it");
 
   function dismiss() {
     whatsNewOpen.set(false);
     localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
   }
+  function backToCategories() {
+    categoryView = null;
+  }
   function next() {
     if (isLast) {
-      dismiss();
+      if (inCategoryStepper) {
+        backToCategories();
+      } else {
+        dismiss();
+      }
       return;
     }
     slideIndex += 1;
   }
   function prev() {
     if (slideIndex > 0) slideIndex -= 1;
+  }
+  function openCategory(category: WhatsNewCategory) {
+    categoryView = category;
+    slideIndex = 0;
   }
 
   onMount(() => {
@@ -65,7 +85,7 @@
     // current value synchronously as its first callback, so that first
     // call is the auto-open case (or the initial `false`) and is
     // ignored; every later transition to true is a real, later trigger
-    // — i.e. the Help menu — and should show everything.
+    // — i.e. the Help menu — and should show the category index.
     let sawInitialValue = false;
     const unsubscribe = whatsNewOpen.subscribe((open) => {
       if (!sawInitialValue) {
@@ -74,6 +94,7 @@
       }
       if (open) {
         showAll = true;
+        categoryView = null;
         slideIndex = 0;
       }
     });
@@ -84,24 +105,44 @@
   });
 </script>
 
-{#if $whatsNewOpen && slides[slideIndex]}
+{#if $whatsNewOpen}
   <Modal title="What's new" icon="icon-rocket" maxWidth="680px" labelledBy="whatsNewTitle" onClose={dismiss}>
-    <div class="whats-new-slide">
-      <img class="whats-new-screenshot" src={slides[slideIndex].screenshot} alt={slides[slideIndex].title} />
-      <div class="whats-new-text">
-        <div class="menu-section-label">{slides[slideIndex].title}</div>
-        <p class="hint-text">{slides[slideIndex].description}</p>
+    {#snippet quickAction()}
+      {#if inCategoryStepper}
+        <button type="button" class="whats-new-back-link" onclick={backToCategories}>
+          <svg class="icon"><use href="#icon-chevron-left"></use></svg> Categories
+        </button>
+      {/if}
+    {/snippet}
+    {#if showAll && categoryView === null}
+      <div class="whats-new-category-grid">
+        {#each categoryGroups as group (group.category)}
+          <button type="button" class="whats-new-category-card" onclick={() => openCategory(group.category)}>
+            <span class="whats-new-category-name">{group.category}</span>
+            <span class="whats-new-category-count">{group.entries.length}</span>
+          </button>
+        {/each}
       </div>
-    </div>
+    {:else if slides[slideIndex]}
+      <div class="whats-new-slide">
+        <img class="whats-new-screenshot" src={slides[slideIndex].screenshot} alt={slides[slideIndex].title} />
+        <div class="whats-new-text">
+          <div class="menu-section-label">{slides[slideIndex].title}</div>
+          <p class="hint-text">{slides[slideIndex].description}</p>
+        </div>
+      </div>
+    {/if}
     {#snippet footer()}
-      {#if slides.length > 1}
+      {#if showAll && categoryView === null}
+        <!-- Index has no footer controls — Modal's own X (or Escape) closes it. -->
+      {:else if slides.length > 1}
         <div class="whats-new-nav">
           <button type="button" class="secondary-btn" disabled={slideIndex === 0} onclick={prev}>← Back</button>
           <span class="whats-new-counter">{slideIndex + 1} of {slides.length}</span>
-          <button type="button" class="primary-btn" onclick={next}>{isLast ? "Got it" : "Next →"}</button>
+          <button type="button" class="primary-btn" onclick={next}>{isLast ? doneLabel : "Next →"}</button>
         </div>
       {:else}
-        <button class="primary-btn" type="button" onclick={dismiss}>Got it</button>
+        <button class="primary-btn" type="button" onclick={next}>{doneLabel}</button>
       {/if}
     {/snippet}
   </Modal>

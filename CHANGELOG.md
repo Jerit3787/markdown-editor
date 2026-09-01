@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.40.0] - 2026-09-01
+
+### Added
+
+- **Categorized What's New.** Reopening What's New from the Help menu now starts at a category index instead of a 27-entry stepper beginning at the very first release. Pick a category to step through just its updates; "Done" returns to the index instead of closing the whole modal. The automatic popup for missed updates on load is unchanged.
+
 ## [1.39.1] - 2026-08-31
 
 ### Fixed

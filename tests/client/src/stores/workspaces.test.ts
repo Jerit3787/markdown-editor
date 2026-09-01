@@ -156,6 +156,60 @@ describe("workspaces store — mutations", () => {
     expect(updated?.remoteId).toBe("room-xyz");
   });
 
+  it("previewSharedWorkspace creates an ephemeral workspace, activates it, but never persists it", async () => {
+    const { workspacesStore, activeWorkspaceIdStore, previewSharedWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = previewSharedWorkspace("room-preview", "Peek");
+    expect(ws.ephemeral).toBe(true);
+    expect(get(workspacesStore).find((w) => w.id === ws.id)).toBeTruthy();
+    expect(get(activeWorkspaceIdStore)).toBe(ws.id);
+    expect(JSON.parse(localStorage.getItem("mde:workspaces")!)).toEqual([]);
+    expect(localStorage.getItem("mde:activeWorkspace")).toBeNull();
+  });
+
+  it("previewSharedWorkspace does not overwrite the persisted default landing workspace", async () => {
+    const { createWorkspace, previewSharedWorkspace, activeWorkspaceIdStore } = await import("../../../../client/src/stores/workspaces");
+    const real = createWorkspace("Real");
+    expect(localStorage.getItem("mde:activeWorkspace")).toBe(real.id);
+    const preview = previewSharedWorkspace("room-x", "Preview");
+    expect(get(activeWorkspaceIdStore)).toBe(preview.id);
+    expect(localStorage.getItem("mde:activeWorkspace")).toBe(real.id);
+  });
+
+  it("persistWorkspaces never writes an ephemeral workspace to storage, even via an unrelated call", async () => {
+    const { createWorkspace, previewSharedWorkspace, renameWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const real = createWorkspace("Real");
+    const preview = previewSharedWorkspace("room-x", "Preview");
+    renameWorkspace(real.id, "Real renamed");
+    const persisted = JSON.parse(localStorage.getItem("mde:workspaces")!);
+    expect(persisted.map((w: { id: string }) => w.id)).not.toContain(preview.id);
+    expect(persisted.find((w: { id: string }) => w.id === real.id)?.name).toBe("Real renamed");
+  });
+
+  it("promoteEphemeralWorkspace clears the ephemeral flag and persists the workspace for real", async () => {
+    const { previewSharedWorkspace, promoteEphemeralWorkspace, workspacesStore } = await import("../../../../client/src/stores/workspaces");
+    const preview = previewSharedWorkspace("room-x", "Preview");
+    promoteEphemeralWorkspace(preview.id);
+    expect(get(workspacesStore).find((w) => w.id === preview.id)?.ephemeral).toBe(false);
+    const persisted = JSON.parse(localStorage.getItem("mde:workspaces")!);
+    expect(persisted.map((w: { id: string }) => w.id)).toContain(preview.id);
+  });
+
+  it("promoting the active ephemeral workspace also makes it the persisted default landing workspace", async () => {
+    const { createWorkspace, previewSharedWorkspace, promoteEphemeralWorkspace } = await import("../../../../client/src/stores/workspaces");
+    createWorkspace("Real");
+    const preview = previewSharedWorkspace("room-x", "Preview");
+    promoteEphemeralWorkspace(preview.id);
+    expect(localStorage.getItem("mde:activeWorkspace")).toBe(preview.id);
+  });
+
+  it("switching between two previewed workspaces never touches the persisted default landing workspace", async () => {
+    const { createWorkspace, previewSharedWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const real = createWorkspace("Real");
+    previewSharedWorkspace("room-a", "Preview A");
+    previewSharedWorkspace("room-b", "Preview B");
+    expect(localStorage.getItem("mde:activeWorkspace")).toBe(real.id);
+  });
+
   it("setWorkspaceRepoLink sets repoLink on the matching workspace, leaves others untouched", async () => {
     const { workspacesStore, createWorkspace, setWorkspaceRepoLink } = await import("../../../../client/src/stores/workspaces");
     const ws = createWorkspace("Notes");

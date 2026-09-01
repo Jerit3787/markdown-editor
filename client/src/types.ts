@@ -77,6 +77,15 @@ export interface Workspace {
   // pulled in yet (e.g. linking to a repo with pre-existing files) and
   // delete it before it ever reached the user.
   pendingRepoDeletions?: string[];
+  // Live in workspacesStore/docsStore normally (renders everywhere:
+  // sidebar, switcher, editor) but never written to localStorage —
+  // persistWorkspaces()/persistDocs() filter these out at the one choke
+  // point each, so no call site has to remember to skip them. Sends the
+  // workspace back to being effectively gone on reload since nothing
+  // durable existed to restore it from. Cleared by
+  // promoteEphemeralWorkspace(), the one way to make it permanent after
+  // the fact.
+  ephemeral?: boolean;
 }
 
 export interface Doc {

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.40.1] - 2026-09-01
+
+### Changed
+
+- Each category card in the What's New index (Help menu's manual reopen) now shows an icon alongside its name and count.
+
 ## [1.40.0] - 2026-09-01
 
 ### Added

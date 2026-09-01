@@ -226,4 +226,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/suggestion-mode-collaboration.png",
     category: "Collaboration",
   },
+  {
+    version: "1.40.0",
+    title: "Categorized What's New",
+    description:
+      "Reopening What's New from the Help menu now starts at a category index instead of a 27-entry stepper from the very first release — pick a topic to step through just its updates, with a Done button that returns you to the index instead of closing the whole thing.",
+    screenshot: "/whats-new/categorized-whats-new.png",
+    category: "Editing & Formatting",
+  },
 ];

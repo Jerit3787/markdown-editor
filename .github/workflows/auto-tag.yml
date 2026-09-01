@@ -5,10 +5,11 @@ on:
     branches:
       - master
 
-# Needs write access only to push the version tag; everything else here is
-# read-only.
+# contents:write to push the version tag; actions:write to explicitly
+# invoke release.yml afterward (see below for why that's necessary at all).
 permissions:
   contents: write
+  actions: write
 
 jobs:
   auto-tag:
@@ -25,14 +26,54 @@ jobs:
         with:
           node-version: "lts/*"
 
-      - name: Tag if this version isn't tagged yet
+      - name: Tag any untagged version, current and historical
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="v$(node -p "require('./package.json').version")"
-          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
-            echo "$VERSION already exists, skipping."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$VERSION" -m "$VERSION"
-          git push origin "$VERSION"
+          tagged_any=0
+
+          tag_if_missing() {
+            local version="$1" commit="$2"
+            local tag="v$version"
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              return
+            fi
+            git tag -a "$tag" "$commit" -m "$tag"
+            tagged_any=1
+            echo "Tagged $tag at ${commit:0:12}"
+          }
+
+          # Current HEAD first — the common case on every ordinary push.
+          tag_if_missing "$(node -p "require('./package.json').version")" HEAD
+
+          # Backfill: release-helper.cjs (run by release.yml) already
+          # creates a GitHub Release for any *existing* tag that doesn't
+          # have one yet, but it has no way to invent a missing tag in the
+          # first place — this workflow itself didn't exist for most of
+          # this repo's history, so plenty of version bumps on master were
+          # merged without the manual `git tag` step ever happening. Walk
+          # every commit that touched package.json and tag whichever
+          # versions are still missing, each at the actual commit that
+          # shipped it (not today's HEAD) so comparison links between
+          # releases stay meaningful.
+          for commit in $(git log --first-parent --format=%H -- package.json | tac); do
+            version=$(git show "$commit:package.json" | node -e "console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).version)" 2>/dev/null) || continue
+            tag_if_missing "$version" "$commit"
+          done
+
+          if [ "$tagged_any" = "0" ]; then
+            echo "Nothing new to tag."
+            exit 0
+          fi
+
+          git push origin --tags
+          # A GITHUB_TOKEN-authored push doesn't fire other workflows' push
+          # triggers — a deliberate GitHub Actions restriction against
+          # recursive runs, with workflow_dispatch/repository_dispatch as
+          # the documented exceptions. Ask for it directly instead of
+          # relying on the (silently no-op) push event; release-helper.cjs
+          # processes every git tag that still lacks a release, so one call
+          # here covers this run's tag plus any backfilled ones together.
+          gh workflow run release.yml --ref master

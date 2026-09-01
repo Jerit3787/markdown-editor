@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - "v*"
+  # A tag pushed by auto-tag.yml using the default GITHUB_TOKEN does NOT
+  # fire this workflow's own push trigger above — GitHub deliberately
+  # suppresses events produced by GITHUB_TOKEN to prevent recursive runs,
+  # with workflow_dispatch/repository_dispatch as the documented
+  # exceptions. auto-tag.yml calls this explicitly via workflow_dispatch
+  # right after pushing the tag; the push trigger above still covers a
+  # human (or a PAT) pushing a tag directly.
+  workflow_dispatch: {}
 
 permissions:
   contents: write

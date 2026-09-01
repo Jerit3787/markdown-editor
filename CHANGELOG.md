@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.41.0] - 2026-09-01
+
+### Added
+
+- **Shared-workspace previews.** Opening a share link when you already have your own workspaces now previews it instead of permanently adding it to your sidebar — a "Preview" badge shows in the workspace switcher, with a "Keep this workspace" action if you decide to hang onto it. Closing or reloading the tab drops an unpicked preview; revisiting the link starts a fresh one. A brand-new visitor with no workspaces of their own still lands directly in the shared workspace, same as before. The "Join shared workspace" dialog (shown for a multi-document share when you have workspaces to merge into) also gains a "Preview only" option alongside "Merge in" and "Add as new workspace".
+
 ## [1.40.5] - 2026-09-01
 
 ### Fixed

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.40.2] - 2026-09-01
+
+### Fixed
+
+- **The What's New category icons rendered at ~13px instead of the intended 32px.** `.icon`'s own `width/height: 1em` and the new `.whats-new-category-icon` rule had equal CSS specificity, so source order in the compiled stylesheet — not the more specific-looking rule — decided which one won.
+
 ## [1.40.1] - 2026-09-01
 
 ### Changed

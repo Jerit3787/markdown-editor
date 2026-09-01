@@ -187,9 +187,17 @@
     background: var(--bg-alt);
   }
 }
-.whats-new-category-icon {
-  width: 22px;
-  height: 22px;
+// Doubled-up class selector (not just .whats-new-category-icon) — .icon's
+// own width/height:1em is the same specificity as a single class, so
+// without this the two rules tie and source order in the compiled
+// stylesheet decides, which happened to pick .icon's 1em over this one.
+.icon.whats-new-category-icon {
+  width: 32px;
+  height: 32px;
+  // Thinner than the default 2, which reads as chunky/blurry at this icon
+  // class's largest use in the app — a 24x24 sprite glyph scaled up to
+  // 32px.
+  stroke-width: 1.5;
   color: var(--text-dim);
 }
 .whats-new-category-name {

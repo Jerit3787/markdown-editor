@@ -159,6 +159,66 @@
   font-size: 12px;
   color: var(--text-dim);
 }
+.whats-new-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.whats-new-category-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  span:first-child {
+    flex: 1;
+  }
+
+  &:hover {
+    background: var(--bg-alt);
+  }
+
+  .icon {
+    flex-shrink: 0;
+    color: var(--text-dim);
+  }
+}
+.whats-new-category-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.whats-new-back-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  .icon {
+    width: 14px;
+    height: 14px;
+  }
+}
 .modal-hint {
   font-size: 12.5px;
   color: var(--text-dim);

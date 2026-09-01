@@ -22,9 +22,9 @@ describe("compareVersions", () => {
 
 describe("missedEntries", () => {
   const entries: WhatsNewEntry[] = [
-    { version: "1.10.0", title: "A", description: "a", screenshot: "/a.png" },
-    { version: "1.11.0", title: "B", description: "b", screenshot: "/b.png" },
-    { version: "1.12.0", title: "C", description: "c", screenshot: "/c.png" },
+    { version: "1.10.0", title: "A", description: "a", screenshot: "/a.png", category: "Editing & Formatting" },
+    { version: "1.11.0", title: "B", description: "b", screenshot: "/b.png", category: "Editing & Formatting" },
+    { version: "1.12.0", title: "C", description: "c", screenshot: "/c.png", category: "Editing & Formatting" },
   ];
 
   it("returns only the newest entry when nothing has been seen", () => {

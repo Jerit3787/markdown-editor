@@ -153,6 +153,31 @@ test.describe("scroll-sync echo guard on mobile", () => {
 
     // A real, interior (non-edge) scroll — triggers the normal
     // interpolation branch, which computes and writes preview.scrollTop.
+    // That write is a genuine scrollTop change, so the browser itself
+    // (not just our own code) schedules a native "scroll" echo on
+    // #preview — and in headless Chromium that echo reliably arrives
+    // within ~150-200ms, not "eventually or never" as originally assumed
+    // here. Left alone, it would consume the guard's memory of what it
+    // just wrote (working exactly as designed) well before this test gets
+    // to simulate ITS OWN "arrives long after" echo below — making the
+    // later dispatch look like a brand new, unrelated scroll and
+    // (correctly, per the guard's own logic) produce a real write. That
+    // was the actual flake: not a bug in the guard, but this setup
+    // racing against a real echo whose arrival time it never controlled.
+    // A capturing listener on #preview swallows that real echo before the
+    // app's own (non-capturing) listener ever sees it — capturing-phase
+    // listeners on a target always run before that target's own
+    // "at-target" listeners, regardless of registration order — leaving
+    // the guard armed and unconsumed until the synthetic dispatch below
+    // deterministically stands in for "the deferred echo finally arrives".
+    const swallowRealEcho = () => {
+      const previewEl = document.getElementById("preview")!;
+      const blocker = (e: Event) => e.stopImmediatePropagation();
+      previewEl.addEventListener("scroll", blocker, { capture: true });
+      return () => previewEl.removeEventListener("scroll", blocker, { capture: true });
+    };
+    const stopSwallowing = await page.evaluateHandle(swallowRealEcho);
+
     await editorScroll.evaluate((el) => (el.scrollTop = 1000));
     await editorScroll.evaluate((el) => el.dispatchEvent(new Event("scroll")));
     await page.waitForTimeout(200);
@@ -161,14 +186,15 @@ test.describe("scroll-sync echo guard on mobile", () => {
     expect(previewAfterSync).toBeGreaterThan(0);
 
     // Spy on the editor scroller's scrollTop setter, wait far longer than
-    // any requestAnimationFrame window, then fire the preview's own
-    // "scroll" event with its scrollTop unchanged from what our sync write
-    // just set — modeling a compositor-deferred echo of that write finally
-    // surfacing long after any rAF-based guard would have reset itself. A
-    // correct guard recognizes this by value and never attempts a write —
-    // not just "ends up at the same value," which an exact algebraic
-    // round-trip can do even when the (buggy) guard fires for real.
-    const writeCount = await page.evaluate(async () => {
+    // any requestAnimationFrame window, then stop swallowing and fire the
+    // preview's own "scroll" event with its scrollTop unchanged from what
+    // our sync write just set — modeling a compositor-deferred echo of
+    // that write finally surfacing long after any rAF-based guard would
+    // have reset itself. A correct guard recognizes this by value and
+    // never attempts a write — not just "ends up at the same value,"
+    // which an exact algebraic round-trip can do even when the (buggy)
+    // guard fires for real.
+    const writeCount = await page.evaluate(async (stopSwallowingReal) => {
       const el = document.querySelector("#editor-mount .cm-scroller")! as HTMLElement;
       const previewEl = document.getElementById("preview")!;
       const proto = Object.getPrototypeOf(el);
@@ -186,12 +212,13 @@ test.describe("scroll-sync echo guard on mobile", () => {
       });
 
       await new Promise((r) => setTimeout(r, 1500));
+      (stopSwallowingReal as unknown as () => void)();
       previewEl.dispatchEvent(new Event("scroll"));
       await new Promise((r) => setTimeout(r, 200));
 
       delete (el as unknown as Record<string, unknown>).scrollTop;
       return calls;
-    });
+    }, stopSwallowing);
 
     expect(writeCount).toBe(0);
   });

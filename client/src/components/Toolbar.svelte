@@ -136,14 +136,20 @@
     <button type="button" title="Image" onclick={() => run("image")}><svg class="icon"><use href="#icon-image"></use></svg></button>
     <!-- Wired by app.ts's initImagesManager(), same as before. -->
     <button id="imagesManagerBtn" type="button" title="Manage images"><svg class="icon"><use href="#icon-images"></use></svg></button>
+    <span class="sep"></span>
     <button type="button" title="Table" onclick={() => run("table")}><svg class="icon"><use href="#icon-table"></use></svg></button>
     <button type="button" title="Horizontal rule" onclick={() => run("hr")}>―</button>
     <button type="button" title="Insert diagram" onclick={() => { diagramEditorRef.set(null); diagramEditorOpen.set(true); }}><svg class="icon"><use href="#icon-workflow"></use></svg></button>
+    <span class="sep"></span>
     <!-- A text glyph, not an SVG icon — matches the existing H1/H2/H3 and
          ― buttons in this same toolbar, which use plain text rather than
          inventing a new icon sprite entry. -->
     <button type="button" title="Math" onclick={() => run("math")}>&Sigma;</button>
     <button type="button" title="Footnote" onclick={() => run("footnote")}>[^]</button>
+    <span class="sep"></span>
+    <!-- Not a content-insertion command like everything else in this row
+         — kept last and set apart by its own separator so it doesn't read
+         as one more formatting tool. -->
     <button type="button" title="Command Palette (Ctrl/Cmd+Shift+P)" onclick={() => commandPaletteOpen.set(true)}><svg class="icon"><use href="#icon-search"></use></svg></button>
   </div>
 

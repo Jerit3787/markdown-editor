@@ -45,9 +45,12 @@ not a rendering bug; a Gist API filename-matching bug was why renaming
 
 ### Layout / sizing
 
-- [ ] Toolbar/tooltip ordering isn't grouped by type — re-arrange so
-      related tools sit together. (Deferred: needs an actual proposed
-      grouping to react to, not a guess at what "by type" means here.)
+- [x] Toolbar/tooltip ordering isn't grouped by type. (Shipped v1.40.3.)
+      The trailing insert cluster (link/image/table/hr/diagram/math/
+      footnote/command-palette) was one ungrouped run of 9 buttons;
+      re-grouped into media/reference insert, structural insert, and
+      notation insert, with Command Palette set apart at the end since
+      it isn't a content-insertion command.
 
 ---
 

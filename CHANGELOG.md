@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.40.3] - 2026-09-01
+
+### Changed
+
+- **Toolbar grouping.** The trailing cluster of insert-type buttons (Link, Image, Manage images, Table, Horizontal rule, Insert diagram, Math, Footnote, Command Palette) was one long run with no separators. Now grouped by type — media/reference insert, structural insert, notation insert — with Command Palette set apart at the end since it isn't a content-insertion command.
+
 ## [1.40.2] - 2026-09-01
 
 ### Fixed

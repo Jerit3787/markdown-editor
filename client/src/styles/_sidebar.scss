@@ -114,6 +114,19 @@
   display: flex;
   flex-direction: column;
 }
+/* Wraps WorkspaceSwitcher.svelte's rendered .workspace-switcher —
+   display:contents makes the wrapper itself generate no box, so
+   #sidebarHeaderLeft's flex row sees .workspace-switcher (flex:1;
+   min-width:0, same as #docList above) as a direct child, identical to
+   before it was Svelte-mounted. Without this, the unstyled wrapper was
+   the actual flex item instead, and its default min-width:auto (content-
+   based) refused to shrink below the switcher's full, un-truncated
+   width — every min-width:0/ellipsis rule further inside was reachable
+   in principle but never actually engaged, since the flex algorithm
+   never got asked to shrink anything past this point. */
+#workspace-switcher-mount {
+  display: contents;
+}
 #docList {
   list-style: none;
   margin: 0;

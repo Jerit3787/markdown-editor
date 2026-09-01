@@ -68,6 +68,15 @@ test("a shared workspace previews without persisting, and Keep makes it survive 
   await expect.poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("Shared preview content");
   await expect(bob.locator(".workspace-preview-badge")).toBeVisible();
 
+  // The "Preview" badge sits inside the switcher's flex row alongside the
+  // workspace name — .workspace-name needs min-width:0 for its own
+  // ellipsis to actually kick in, otherwise the whole row (badge included)
+  // refuses to shrink below its natural content width and spills past
+  // #sidebar's right edge instead of truncating the name.
+  const sidebarBox = (await bob.locator("#sidebar").boundingBox())!;
+  const triggerBox = (await bob.locator(".workspace-switcher-trigger").boundingBox())!;
+  expect(triggerBox.x + triggerBox.width).toBeLessThanOrEqual(sidebarBox.x + sidebarBox.width);
+
   await bob.reload();
   await waitForApp(bob);
   const afterReload = await bob.evaluate(() => JSON.parse(localStorage.getItem("mde:workspaces") || "[]"));

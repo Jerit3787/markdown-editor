@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.41.1] - 2026-09-01
+
+### Fixed
+
+- **Share dialog's "Anyone with the link" label truncated on mobile Safari.** The width reserved for the native dropdown's arrow was tuned against desktop Chromium's narrower arrow chrome and clipped the label on an iPhone; widened the buffer and added a text-overflow ellipsis as a fallback.
+- **The View menu dropdown could overflow off the right edge of the screen on mobile.** Every menu-bar dropdown used to hardcode which single item anchored to the right instead of the left, so it broke again the moment a different menu's dropdown grew wide enough to overflow — now each dropdown measures itself against the viewport when it opens and flips anchor side only if it would actually overflow.
+- **The workspace switcher's "Preview" badge could push past the sidebar's edge.** The Svelte-mounted wrapper around the switcher had no `display: contents`, unlike every other mount point in the app, so its flex-shrink/ellipsis styling was never actually reachable — the row just grew to its full, un-truncated width instead of shrinking to fit.
+
 ## [1.41.0] - 2026-09-01
 
 ### Added

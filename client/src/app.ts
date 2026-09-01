@@ -824,6 +824,13 @@ import katexCss from "katex/dist/katex.min.css?raw";
       if (willOpen) {
         menu.classList.add("open");
         btn.classList.add("active");
+        // Measured against its default left-anchor (see _menu.scss) —
+        // flip to right-anchor if that would push it past the right edge
+        // of the viewport, so any menu bar item stays on-screen regardless
+        // of how wide its own dropdown is or how close to the edge its
+        // trigger sits, instead of hardcoding which item is "rightmost".
+        const rect = menu.getBoundingClientRect();
+        menu.classList.toggle("dropdown-menu-right-anchor", rect.right > window.innerWidth);
       }
     });
     // Deliberately NOT menu.addEventListener("click", stopPropagation) (the

@@ -44,10 +44,15 @@
   $effect(() => {
     if (!accessMirrorEl || !accessSelectEl) return;
     accessMirrorEl.textContent = ACCESS_MODE_LABEL[accessMode];
-    // +22px reserves room for the native dropdown arrow, which the mirror
+    // +32px reserves room for the native dropdown arrow, which the mirror
     // itself doesn't render (appearance:auto draws it inside the select's
     // own box, not as separate content the text-only mirror would count).
-    accessSelectEl.style.width = `${accessMirrorEl.offsetWidth + 22}px`;
+    // Mobile Safari's own arrow affordance claims noticeably more of that
+    // space than desktop Chromium's — 22px was tuned against the latter
+    // and clipped the label text on an iPhone (reported live); .share-
+    // access-select's own text-overflow:ellipsis is a second line of
+    // defense in case some other engine still needs more than 32px.
+    accessSelectEl.style.width = `${accessMirrorEl.offsetWidth + 32}px`;
   });
   const linkDisabled = $derived(!isAnyone && access.invited.length === 0);
   const hint = $derived(

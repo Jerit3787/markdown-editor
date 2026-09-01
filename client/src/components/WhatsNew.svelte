@@ -115,12 +115,11 @@
       {/if}
     {/snippet}
     {#if showAll && categoryView === null}
-      <div class="whats-new-category-list">
+      <div class="whats-new-category-grid">
         {#each categoryGroups as group (group.category)}
-          <button type="button" class="whats-new-category-row" onclick={() => openCategory(group.category)}>
-            <span>{group.category}</span>
+          <button type="button" class="whats-new-category-card" onclick={() => openCategory(group.category)}>
+            <span class="whats-new-category-name">{group.category}</span>
             <span class="whats-new-category-count">{group.entries.length}</span>
-            <svg class="icon"><use href="#icon-chevron-right"></use></svg>
           </button>
         {/each}
       </div>

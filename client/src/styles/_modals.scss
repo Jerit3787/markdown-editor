@@ -159,44 +159,43 @@
   font-size: 12px;
   color: var(--text-dim);
 }
-.whats-new-category-list {
+.whats-new-category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.whats-new-category-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-.whats-new-category-row {
-  display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
+  justify-content: center;
+  gap: 8px;
+  // aspect-ratio (not a fixed height) keeps each card square while still
+  // growing with the grid column's own width — a plain fixed height
+  // would either clip long names on a narrow column or leave slack on a
+  // wide one.
+  aspect-ratio: 1;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: transparent;
   color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
-
-  span:first-child {
-    flex: 1;
-  }
 
   &:hover {
     background: var(--bg-alt);
   }
-
-  .icon {
-    flex-shrink: 0;
-    color: var(--text-dim);
-  }
+}
+.whats-new-category-name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 .whats-new-category-count {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-dim);
-  flex-shrink: 0;
 }
 .whats-new-back-link {
   display: flex;

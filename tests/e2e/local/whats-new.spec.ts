@@ -4,7 +4,7 @@ test("Help menu > What's New shows a category index; picking one steps through i
   await page.click("#helpMenuBtn");
   await page.click('button:has-text("What\'s New")');
 
-  const categoryRow = (name: string) => page.locator(".whats-new-category-row", { hasText: name });
+  const categoryRow = (name: string) => page.locator(".whats-new-category-card", { hasText: name });
   await expect(categoryRow("Editing & Formatting")).toBeVisible();
   await expect(categoryRow("GitHub Integration")).toBeVisible();
 

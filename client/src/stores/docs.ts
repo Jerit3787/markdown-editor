@@ -144,7 +144,11 @@ function persistDocsExcluding(deletedIds: Set<string>) {
     // previewSharedWorkspace) follows that workspace's own exclusion from
     // localStorage — same one-choke-point pattern persistWorkspacesExcluding
     // uses for the workspace record itself.
-    const ephemeralWorkspaceIds = new Set(get(workspacesStore).filter((w) => w.ephemeral).map((w) => w.id));
+    const ephemeralWorkspaceIds = new Set(
+      get(workspacesStore)
+        .filter((w) => w.ephemeral)
+        .map((w) => w.id),
+    );
     const toPersist = ephemeralWorkspaceIds.size === 0 ? merged : merged.filter((d) => !ephemeralWorkspaceIds.has(d.workspaceId));
     localStorage.setItem(STORAGE_DOCS, JSON.stringify(toPersist));
   } catch (e) {

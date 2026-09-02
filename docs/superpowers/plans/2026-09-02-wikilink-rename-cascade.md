@@ -694,11 +694,11 @@ git commit -m "feat: add Worker endpoint for wikilink-rename cascade into shared
 - Consumes: `planWikilinkRenameCascade` (Task 2, same file); `rewriteWikilinksInLocalDoc` from `./stores/docs` (Task 3); `docsStore`, `workspacesStore` from `./stores/docs`/`./stores/workspaces`; `window.MDE.applyWikilinkRenameToActiveDoc` (Task 6 adds this to the real bridge — mocked in this task's tests).
 - Produces: `pushWikilinkRenameToSharedDoc(workspaceRemoteId: string, docId: string, oldName: string, newName: string): Promise<boolean>` (in `history.ts`) and `runWikilinkRenameCascade(renamedDocId: string, oldName: string, newName: string): Promise<number>` (in `wikilink-rename-cascade.ts`) — both consumed by Task 6's `app.ts` wiring.
 
-- [ ] **Step 1: Write the failing test for the HTTP wrapper's shape**
+- [x] **Step 1: Write the failing test for the HTTP wrapper's shape**
 
 This function is covered indirectly through the orchestrator's mocked-`fetch` tests below (matching how `restoreSharedVersionContent` has no dedicated unit test of its own in this codebase — check `tests/client/src/history.test.ts` to confirm it isn't tested directly before writing this). No standalone test file needed for this step; proceed to Step 2.
 
-- [ ] **Step 2: Write the HTTP wrapper implementation**
+- [x] **Step 2: Write the HTTP wrapper implementation**
 
 In `client/src/history.ts`, add this function directly after `restoreSharedVersionContent`:
 
@@ -719,12 +719,12 @@ export async function pushWikilinkRenameToSharedDoc(workspaceRemoteId: string, d
 }
 ```
 
-- [ ] **Step 3: Run the client test suite to confirm nothing broke**
+- [x] **Step 3: Run the client test suite to confirm nothing broke**
 
 Run: `npx vitest run tests/client/src/history.test.ts`
 Expected: PASS (unchanged — this step only adds an export, no behavior change to existing functions)
 
-- [ ] **Step 4: Write the failing tests for the orchestrator**
+- [x] **Step 4: Write the failing tests for the orchestrator**
 
 Add to `tests/client/src/wikilink-rename-cascade.test.ts` (the file Task 2 created), as a new `describe` block. This needs `docsStore`/`workspacesStore` seeded and `window.MDE`/`fetch` mocked — use the same dynamic-import-after-`vi.resetModules()` pattern `docs.test.ts` uses, since `docsStore`/`workspacesStore` are module-level singletons.
 
@@ -817,12 +817,12 @@ describe("runWikilinkRenameCascade", () => {
 });
 ```
 
-- [ ] **Step 5: Run the test to verify it fails**
+- [x] **Step 5: Run the test to verify it fails**
 
 Run: `npx vitest run tests/client/src/wikilink-rename-cascade.test.ts`
 Expected: FAIL — `runWikilinkRenameCascade is not a function`
 
-- [ ] **Step 6: Write the orchestrator implementation**
+- [x] **Step 6: Write the orchestrator implementation**
 
 Append to `client/src/wikilink-rename-cascade.ts` (the file from Task 2), adding the needed imports at the top of the file (extend the existing import list):
 
@@ -861,7 +861,7 @@ export async function runWikilinkRenameCascade(renamedDocId: string, oldName: st
 }
 ```
 
-- [ ] **Step 7: Run the test to verify it passes**
+- [x] **Step 7: Run the test to verify it passes**
 
 Run: `npx vitest run tests/client/src/wikilink-rename-cascade.test.ts`
 Expected: PASS (all planner tests from Task 2 plus the 3 new orchestrator tests)

@@ -866,7 +866,7 @@ export async function runWikilinkRenameCascade(renamedDocId: string, oldName: st
 Run: `npx vitest run tests/client/src/wikilink-rename-cascade.test.ts`
 Expected: PASS (all planner tests from Task 2 plus the 3 new orchestrator tests)
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add client/src/history.ts client/src/wikilink-rename-cascade.ts tests/client/src/wikilink-rename-cascade.test.ts
@@ -887,7 +887,7 @@ git commit -m "feat: add pushWikilinkRenameToSharedDoc and runWikilinkRenameCasc
 - Consumes: `findWikilinkOccurrences` from `./wikilink-rewrite` (Task 1); `runWikilinkRenameCascade` from `./wikilink-rename-cascade` (Task 5); `showToast` from `./stores/toast` (already imported in `app.ts`).
 - Produces: `window.MDE.applyWikilinkRenameToActiveDoc(oldName: string, newName: string): boolean`; `window.MDE.cascadeWikilinkRenameAndToast(docId: string, oldName: string, newName: string): Promise<void>`.
 
-- [ ] **Step 1: Extend the `MDEBridge` type**
+- [x] **Step 1: Extend the `MDEBridge` type**
 
 In `client/src/types.ts`, add these two members to the `MDEBridge` interface, right after `commitActiveDocRename(previousName: string): void;` (around line 199):
 
@@ -905,7 +905,7 @@ In `client/src/types.ts`, add these two members to the `MDEBridge` interface, ri
   cascadeWikilinkRenameAndToast(docId: string, oldName: string, newName: string): Promise<void>;
 ```
 
-- [ ] **Step 2: Add the imports to `app.ts`**
+- [x] **Step 2: Add the imports to `app.ts`**
 
 In `client/src/app.ts`, add these two imports alongside the existing `./stores/docs` and other local imports (near the top of the file, after the `import { showToast } from "./stores/toast";` line):
 
@@ -914,7 +914,7 @@ import { findWikilinkOccurrences } from "./wikilink-rewrite";
 import { runWikilinkRenameCascade } from "./wikilink-rename-cascade";
 ```
 
-- [ ] **Step 3: Add the bridge method implementation and the toast wrapper**
+- [x] **Step 3: Add the bridge method implementation and the toast wrapper**
 
 In `client/src/app.ts`, add a new local function right after `commitActiveDocRename` (currently ending around line 623):
 
@@ -925,7 +925,7 @@ In `client/src/app.ts`, add a new local function right after `commitActiveDocRen
   }
 ```
 
-- [ ] **Step 4: Wire the no-collision commit path**
+- [x] **Step 4: Wire the no-collision commit path**
 
 In `client/src/app.ts`, modify `commitActiveDocRename` (currently at line 610) to call the new function. Change:
 
@@ -949,7 +949,7 @@ to:
   }
 ```
 
-- [ ] **Step 5: Add both new methods to the `window.MDE` object literal**
+- [x] **Step 5: Add both new methods to the `window.MDE` object literal**
 
 In `client/src/app.ts`, add both to the bridge object (near `renameActiveDoc,`/`commitActiveDocRename,` at lines 1186-1187):
 
@@ -966,7 +966,7 @@ In `client/src/app.ts`, add both to the bridge object (near `renameActiveDoc,`/`
     cascadeWikilinkRenameAndToast,
 ```
 
-- [ ] **Step 6: Wire `RenameCollisionModal.svelte`'s finalizing actions**
+- [x] **Step 6: Wire `RenameCollisionModal.svelte`'s finalizing actions**
 
 In `client/src/components/RenameCollisionModal.svelte`, modify `replace()` and `saveAsSuffixed()`. Change:
 
@@ -1008,12 +1008,12 @@ to:
 
 `cancel()` is untouched — it reverts to `previousName`, so no rename actually happened and no cascade is needed.
 
-- [ ] **Step 7: Typecheck**
+- [x] **Step 7: Typecheck**
 
 Run: `npm run typecheck`
 Expected: PASS — confirms the `MDEBridge` interface, its implementation in `app.ts`, and both call sites in `RenameCollisionModal.svelte` all agree on types.
 
-- [ ] **Step 8: Manually verify in the running app**
+- [x] **Step 8: Manually verify in the running app**
 
 Run: `npm run build && npm run dev`, then in the browser:
 1. Create two local documents, "Alpha" and "Beta". In "Beta", type `See [[Alpha]] for more`.
@@ -1022,7 +1022,7 @@ Run: `npm run build && npm run dev`, then in the browser:
 4. Switch to "Beta" and confirm its content now reads `See [[Gamma]] for more`.
 5. Repeat, this time triggering `RenameCollisionModal`: create a document named "Gamma" already, then try renaming "Beta" to "Gamma" — confirm the collision modal appears, click "Replace", and confirm the cascade still ran (check any other document that referenced "Beta").
 
-- [ ] **Step 9: Write the local Playwright e2e spec**
+- [x] **Step 9: Write the local Playwright e2e spec**
 
 Check `tests/e2e/local/slash-and-wikilinks.spec.ts` first for this project's existing helpers for creating documents and interacting with the toolbar title field (e.g. a shared `test.beforeEach` fixture, selectors for `#docTitle`, how a new document is created) — reuse them rather than inventing new selectors. Then create `tests/e2e/local/wikilink-rename-cascade.spec.ts` following that file's structure, covering:
 
@@ -1030,12 +1030,12 @@ Check `tests/e2e/local/slash-and-wikilinks.spec.ts` first for this project's exi
 2. A collision case: create a document already named "Target", attempt to rename another document to "Target" (triggering `RenameCollisionModal`), click "Replace", and assert the cascade still updated a third document that referenced the renamed one's old name.
 3. A self-reference case: a document containing `[[OwnOldName]]` referring to its own current name; rename it; assert the open editor's own buffer updated in place (no need to switch away and back).
 
-- [ ] **Step 10: Run the new e2e spec**
+- [x] **Step 10: Run the new e2e spec**
 
 Run: `npx playwright test --project=local wikilink-rename-cascade`
 Expected: PASS (3 tests)
 
-- [ ] **Step 11: Run the full local test suite to check nothing broke**
+- [x] **Step 11: Run the full local test suite to check nothing broke**
 
 Run: `npm test && npm run typecheck && npx playwright test --project=local`
 Expected: PASS

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { extractMathSpans } from "../../../client/src/math-preview";
+import { describe, it, expect, vi } from "vitest";
+import { extractMathSpans, renderMathPlaceholders, type KatexLike } from "../../../client/src/math-preview";
 
 describe("extractMathSpans", () => {
   it("extracts inline math, replacing it with a placeholder marker", () => {
@@ -68,5 +68,28 @@ describe("extractMathSpans", () => {
     const { text, sources } = extractMathSpans("Just plain *markdown* text.");
     expect(text).toBe("Just plain *markdown* text.");
     expect(sources.size).toBe(0);
+  });
+});
+
+// @vitest-environment jsdom
+describe("renderMathPlaceholders", () => {
+  it("renders with trust disabled, so caller-controlled URLs and attributes can't reach the DOM", async () => {
+    // KaTeX's markup is inserted after Preview.svelte's DOMPurify pass,
+    // not through it — with trust enabled, \href and friends would put a
+    // collaborator's URL straight into the live preview.
+    const container = document.createElement("div");
+    container.textContent = "before §MATH0§ after";
+    const katex: KatexLike = { renderToString: vi.fn().mockReturnValue('<span class="katex">x</span>') };
+
+    await renderMathPlaceholders(container, new Map([["MATH0", { src: "\\href{javascript:alert(1)}{x}", display: false }]]), async () => ({
+      default: katex,
+    }));
+
+    expect(katex.renderToString).toHaveBeenCalledWith("\\href{javascript:alert(1)}{x}", {
+      throwOnError: false,
+      displayMode: false,
+      trust: false,
+    });
+    expect(container.querySelector(".katex")).not.toBeNull();
   });
 });

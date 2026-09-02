@@ -9,6 +9,9 @@ import {
   filterMarkdownEntries,
   handleRepoPush,
   computeNewTreeEntries,
+  isSafeSegment,
+  isSafeRepoPath,
+  isSafeSha,
 } from "../../src/github-repo";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
@@ -128,19 +131,23 @@ describe("handleRepoTree", () => {
       "fetch",
       vi.fn(async (url: string) => {
         calls.push(url);
-        if (url === "https://api.github.com/repos/alice/notes/git/trees/old-commit-sha?recursive=1") {
+        if (url === "https://api.github.com/repos/alice/notes/git/trees/1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d?recursive=1") {
           return new Response(JSON.stringify({ sha: "old-tree-sha", tree: [{ path: "readme.md", sha: "x", type: "blob" }] }), { status: 200 });
         }
         throw new Error(`unexpected fetch: ${url}`);
       }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
-    const req = new Request("https://example.com/api/repo/alice/notes/tree?sha=old-commit-sha", { headers: { Cookie: cookie } });
-    const res = await handleRepoTree(req, fakeEnv, "alice", "notes", "", "old-commit-sha");
+    const req = new Request("https://example.com/api/repo/alice/notes/tree?sha=1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d", { headers: { Cookie: cookie } });
+    const res = await handleRepoTree(req, fakeEnv, "alice", "notes", "", "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d");
     expect(res.status).toBe(200);
     const data = (await res.json()) as { commitSha: string; treeSha: string; tree: unknown };
-    expect(data).toEqual({ commitSha: "old-commit-sha", treeSha: "old-tree-sha", tree: [{ path: "readme.md", sha: "x", type: "blob" }] });
-    expect(calls).toEqual(["https://api.github.com/repos/alice/notes/git/trees/old-commit-sha?recursive=1"]);
+    expect(data).toEqual({
+      commitSha: "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+      treeSha: "old-tree-sha",
+      tree: [{ path: "readme.md", sha: "x", type: "blob" }],
+    });
+    expect(calls).toEqual(["https://api.github.com/repos/alice/notes/git/trees/1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d?recursive=1"]);
   });
 
   it("returns an empty tree instead of an error when the branch has no commits yet", async () => {
@@ -164,8 +171,8 @@ describe("handleRepoTree", () => {
 
 describe("handleRepoBlob", () => {
   it("returns 401 when signed out", async () => {
-    const req = new Request("https://example.com/api/repo/alice/notes/blob/x");
-    const res = await handleRepoBlob(req, fakeEnv, "alice", "notes", "x");
+    const req = new Request("https://example.com/api/repo/alice/notes/blob/9a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3");
+    const res = await handleRepoBlob(req, fakeEnv, "alice", "notes", "9a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3");
     expect(res.status).toBe(401);
   });
 
@@ -173,13 +180,13 @@ describe("handleRepoBlob", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        expect(url).toBe("https://api.github.com/repos/alice/notes/git/blobs/x");
-        return new Response(JSON.stringify({ sha: "x", content: "aGVsbG8=", encoding: "base64" }), { status: 200 });
+        expect(url).toBe("https://api.github.com/repos/alice/notes/git/blobs/9a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3");
+        return new Response(JSON.stringify({ sha: "9a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3", content: "aGVsbG8=", encoding: "base64" }), { status: 200 });
       }),
     );
     const cookie = await sessionCookieHeader("tok", "alice");
-    const req = new Request("https://example.com/api/repo/alice/notes/blob/x", { headers: { Cookie: cookie } });
-    const res = await handleRepoBlob(req, fakeEnv, "alice", "notes", "x");
+    const req = new Request("https://example.com/api/repo/alice/notes/blob/9a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3", { headers: { Cookie: cookie } });
+    const res = await handleRepoBlob(req, fakeEnv, "alice", "notes", "9a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3");
     expect(res.status).toBe(200);
     const data = (await res.json()) as { content: string };
     expect(data.content).toBe("aGVsbG8=");
@@ -370,8 +377,8 @@ describe("handleRepoPush", () => {
       headers: { Cookie: cookie },
       body: JSON.stringify({
         branch: "main",
-        baseTreeSha: "base-tree",
-        parentCommitSha: "parent-commit-sha",
+        baseTreeSha: "aaaabbbbccccddddeeeeffff0000111122223333",
+        parentCommitSha: "4444555566667777888899990000aaaabbbbcccc",
         blobs: [{ path: "a.md", contentBase64: "aGVsbG8=" }],
         deletePaths: [],
       }),
@@ -405,8 +412,8 @@ describe("handleRepoPush", () => {
       headers: { Cookie: cookie },
       body: JSON.stringify({
         branch: "main",
-        baseTreeSha: "base-tree",
-        parentCommitSha: "parent-commit-sha",
+        baseTreeSha: "aaaabbbbccccddddeeeeffff0000111122223333",
+        parentCommitSha: "4444555566667777888899990000aaaabbbbcccc",
         blobs: [{ path: "a.md", contentBase64: "aGk=" }],
         deletePaths: [],
       }),
@@ -454,7 +461,7 @@ describe("handleRepoPush", () => {
     const req = new Request("https://example.com/api/repo/alice/notes/push", {
       method: "POST",
       headers: { Cookie: cookie },
-      body: JSON.stringify({ branch: "main", baseTreeSha: "base-tree", blobs: [], deletePaths: [] }),
+      body: JSON.stringify({ branch: "main", baseTreeSha: "aaaabbbbccccddddeeeeffff0000111122223333", blobs: [], deletePaths: [] }),
     });
     const res = await handleRepoPush(req, fakeEnv, "alice", "notes");
     expect(res.status).toBe(400);
@@ -530,5 +537,86 @@ describe("handleRepoPush against a real fake GitHub server", () => {
     const followUpRes = await handleRepoTree(followUpReq, fakeEnv, "alice", "notes", "main");
     const followUpData = (await followUpRes.json()) as { tree: { path: string }[] };
     expect(followUpData.tree.map((e) => e.path)).toEqual(["notes.md"]);
+  });
+});
+
+// The Worker holds the user's `repo`-scoped GitHub token and never gives it
+// to the client (see auth.ts) — these endpoints are the only way to reach
+// GitHub with it, so each one is only as narrow as its own URL building. A
+// value that survives into the interpolated URL and then resolves as a dot
+// segment walks the request out of /repos/{owner}/{repo}/ and turns the
+// endpoint into a general-purpose authenticated API proxy. Every case below
+// asserts the request is refused *before* any fetch goes out, not merely
+// that GitHub would have rejected it.
+describe("GitHub API URL injection guards", () => {
+  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.fn(() => {
+      throw new Error("fetch must not be called for a rejected target");
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+  });
+
+  async function cookie() {
+    return sessionCookieHeader("tok", "alice");
+  }
+
+  it("rejects a percent-encoded dot segment in the owner (the URL parser resolves %2e%2e as ..)", async () => {
+    const req = new Request("https://example.com/api/repo/x/tree?branch=main", { headers: { Cookie: await cookie() } });
+    const res = await handleRepoTree(req, fakeEnv, "%2e%2e", "notes", "main");
+    expect(res.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a traversing sha, which arrives already decoded from the query string", async () => {
+    const req = new Request("https://example.com/api/repo/x/tree", { headers: { Cookie: await cookie() } });
+    const res = await handleRepoTree(req, fakeEnv, "alice", "notes", "", "../../user");
+    expect(res.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-hex blob sha", async () => {
+    const req = new Request("https://example.com/api/repo/x/blob/y", { headers: { Cookie: await cookie() } });
+    const res = await handleRepoBlob(req, fakeEnv, "alice", "notes", "../../../user");
+    expect(res.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a contents path that climbs out of the repo (encodeURIComponent leaves '..' intact)", async () => {
+    const req = new Request("https://example.com/api/repo/x/contents/y", { headers: { Cookie: await cookie() } });
+    const res = await handleRepoFileAtRef(req, fakeEnv, "alice", "notes", "../../../../user", "main");
+    expect(res.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a push whose blob path escapes the repo root", async () => {
+    const req = new Request("https://example.com/api/repo/x/push", {
+      method: "POST",
+      headers: { Cookie: await cookie(), "Content-Type": "application/json" },
+      body: JSON.stringify({ branch: "main", blobs: [{ path: "../../evil.yml", contentBase64: "eA==" }], deletePaths: [] }),
+    });
+    const res = await handleRepoPush(req, fakeEnv, "alice", "notes");
+    expect(res.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a branch containing a dot segment, which reaches git/refs/heads/{branch} as a path", async () => {
+    const req = new Request("https://example.com/api/repo/x/tree", { headers: { Cookie: await cookie() } });
+    const res = await handleRepoTree(req, fakeEnv, "alice", "notes", "..");
+    expect(res.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("still accepts the dots and hyphens that appear in real repo names and paths", () => {
+    expect(isSafeSegment("my.notes-repo_2")).toBe(true);
+    expect(isSafeSegment("..")).toBe(false);
+    expect(isSafeSegment("%2e%2e")).toBe(false);
+    expect(isSafeSegment("a/b")).toBe(false);
+    expect(isSafeRepoPath("docs/notes/some.file.md")).toBe(true);
+    expect(isSafeRepoPath("docs/../../etc/passwd")).toBe(false);
+    expect(isSafeRepoPath("docs//notes.md")).toBe(false);
+    expect(isSafeSha("a94a8fe5ccb19ba61c4c0873d391e987982fbbd3")).toBe(true);
+    expect(isSafeSha("../../user")).toBe(false);
   });
 });

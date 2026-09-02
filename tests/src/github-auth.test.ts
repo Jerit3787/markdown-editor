@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleMe } from "../../src/github-auth";
+import { handleMe, handleCallback } from "../../src/github-auth";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
 
@@ -46,5 +46,48 @@ describe("handleMe", () => {
     const data = (await res.json()) as { connected: boolean; username?: string; scopes: string[] };
     expect(data.connected).toBe(false);
     expect(data.scopes).toEqual([]);
+  });
+});
+
+// The popup page inlines its postMessage payload into a <script> block on
+// the app's own origin. JSON.stringify escapes quotes and backslashes but
+// not "<", so an upstream message containing "</script>" would close that
+// block early and land as live markup — see popupHtml's own comment.
+describe("handleCallback popup page", () => {
+  const oauthEnv = { ...fakeEnv, GITHUB_CLIENT_ID: "cid", GITHUB_CLIENT_SECRET: "secret" } as unknown as Env;
+
+  function callbackRequest(): Request {
+    return new Request("https://example.com/api/auth/github/callback?code=abc&state=s1", {
+      headers: { Cookie: "mde_oauth_state=s1" },
+    });
+  }
+
+  it("escapes tag-boundary characters in an upstream error before inlining it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error_description: "</script><script>alert(1)</script>" }), { status: 200 })),
+    );
+
+    const res = await handleCallback(callbackRequest(), oauthEnv);
+    const html = await res.text();
+
+    // Only the page's own single <script> tag survives; the payload's
+    // angle brackets are \u-escaped, and the human-readable line below it
+    // is HTML-escaped by escapeHtml.
+    expect(html.match(/<script/g)).toHaveLength(1);
+    expect(html).not.toContain("</script><script>");
+    expect(html).toContain("\\u003c/script\\u003e");
+  });
+
+  it("still delivers a benign message intact", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "bad_verification_code" }), { status: 200 })),
+    );
+
+    const res = await handleCallback(callbackRequest(), oauthEnv);
+    const html = await res.text();
+
+    expect(html).toContain('"message":"bad_verification_code"');
   });
 });

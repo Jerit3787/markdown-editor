@@ -10,6 +10,51 @@ import type { Env, SessionData } from "./env";
 const API = "https://api.github.com";
 const USER_AGENT = "markdown-editor-app (+https://editor.danplace.tech)";
 
+// Anything interpolated into an api.github.com URL below has to be
+// *validated*, not just encoded. The WHATWG URL parser resolves dot
+// segments after interpolation, and it counts the percent-encoded spellings
+// ("%2e%2e", ".%2e", ...) as dot segments too — so an owner of "%2e%2e" or
+// a sha of "../../user" walks the request up out of
+// /repos/{owner}/{repo}/ and turns these deliberately narrow proxy
+// endpoints into a general-purpose GitHub API proxy carrying the user's own
+// `repo`-scoped token. That token is the one thing this Worker never hands
+// to the client (see auth.ts's header comment), so letting a same-origin
+// script reach arbitrary API endpoints with it would defeat the whole
+// point of proxying. encodeURIComponent is not a fix on its own: "." and
+// ".." are unreserved characters, so it passes them through untouched.
+const SAFE_SEGMENT = /^[A-Za-z0-9._-]{1,100}$/;
+const HEX_SHA = /^[0-9a-f]{4,64}$/i;
+
+export function isSafeSegment(value: string): boolean {
+  return SAFE_SEGMENT.test(value) && value !== "." && value !== "..";
+}
+
+export function isSafeSha(value: string): boolean {
+  return HEX_SHA.test(value);
+}
+
+// A repo-relative file path: real subdirectories are fine, dot segments and
+// empty segments are not (see isSafeSegment's note on why encoding alone
+// doesn't stop traversal). Backslashes are rejected too — harmless to
+// GitHub, but they let a path read one way here and another on a Windows
+// checkout.
+export function isSafeRepoPath(value: string): boolean {
+  if (!value || value.length > 1024) return false;
+  return value.split("/").every((segment) => segment !== "" && segment !== "." && segment !== ".." && !segment.includes("\\"));
+}
+
+// Only guards the one place a branch reaches a URL *path*
+// (git/refs/heads/{branch}); every other use is a query-string value or a
+// JSON body field, neither of which is path-normalized. Git itself forbids
+// ".." in a ref name, so nothing legitimate is lost.
+export function isSafeBranch(value: string): boolean {
+  return value.length > 0 && value.length <= 255 && value !== "." && !value.includes("..") && !value.includes("\\");
+}
+
+function invalidTarget(what: string): Response {
+  return new Response(`Invalid ${what}.`, { status: 400 });
+}
+
 export async function handleRepoList(request: Request, env: Env): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
@@ -94,6 +139,9 @@ export function filterMarkdownEntries(entries: TreeEntry[]): TreeEntry[] {
 export async function handleRepoTree(request: Request, env: Env, owner: string, repo: string, branch: string, sha?: string): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
+  if (!isSafeSegment(owner) || !isSafeSegment(repo)) return invalidTarget("repository");
+  if (sha !== undefined && !isSafeSha(sha)) return invalidTarget("sha");
+  if (!sha && !isSafeBranch(branch)) return invalidTarget("branch");
   const headers = ghHeaders(session.token);
   let commitSha = sha;
   if (!commitSha) {
@@ -122,6 +170,8 @@ export async function handleRepoTree(request: Request, env: Env, owner: string, 
 export async function handleRepoBlob(request: Request, env: Env, owner: string, repo: string, sha: string): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
+  if (!isSafeSegment(owner) || !isSafeSegment(repo)) return invalidTarget("repository");
+  if (!isSafeSha(sha)) return invalidTarget("sha");
   const res = await fetch(`${API}/repos/${owner}/${repo}/git/blobs/${sha}`, { headers: ghHeaders(session.token) });
   return proxyJson(res);
 }
@@ -137,6 +187,7 @@ export async function handleRepoCommits(
 ): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
+  if (!isSafeSegment(owner) || !isSafeSegment(repo)) return invalidTarget("repository");
   const pathParam = path ? `&path=${encodeURIComponent(path)}` : "";
   const res = await fetch(`${API}/repos/${owner}/${repo}/commits?sha=${encodeURIComponent(branch)}&page=${page}&per_page=30${pathParam}`, {
     headers: ghHeaders(session.token),
@@ -147,6 +198,8 @@ export async function handleRepoCommits(
 export async function handleRepoFileAtRef(request: Request, env: Env, owner: string, repo: string, path: string, ref: string): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
+  if (!isSafeSegment(owner) || !isSafeSegment(repo)) return invalidTarget("repository");
+  if (!isSafeRepoPath(path)) return invalidTarget("path");
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
   const res = await fetch(`${API}/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`, { headers: ghHeaders(session.token) });
   return proxyJson(res);
@@ -166,6 +219,7 @@ export function computeNewTreeEntries(
 export async function handleRepoPush(request: Request, env: Env, owner: string, repo: string): Promise<Response> {
   const session = await getSession(request, env);
   if (!session) return new Response("Not signed in", { status: 401 });
+  if (!isSafeSegment(owner) || !isSafeSegment(repo)) return invalidTarget("repository");
 
   let body: { branch?: unknown; baseTreeSha?: unknown; parentCommitSha?: unknown; blobs?: unknown; deletePaths?: unknown };
   try {
@@ -190,6 +244,19 @@ export async function handleRepoPush(request: Request, env: Env, owner: string, 
   const isFirstCommit = !baseTreeSha && !parentCommitSha;
   if (!branch || (!isFirstCommit && (!baseTreeSha || !parentCommitSha))) {
     return new Response("branch is required, and baseTreeSha/parentCommitSha must both be present or both absent.", { status: 400 });
+  }
+  if (!isSafeBranch(branch)) return invalidTarget("branch");
+  if (!isFirstCommit && (!isSafeSha(baseTreeSha) || !isSafeSha(parentCommitSha))) return invalidTarget("sha");
+  // These land in the tree API's JSON body rather than a URL, so they're
+  // not a traversal risk against api.github.com itself — but a path that
+  // climbs out of the repo root has no legitimate meaning here either, and
+  // silently writing one is worse than rejecting it.
+  for (const blob of blobs) {
+    if (typeof blob?.path !== "string" || !isSafeRepoPath(blob.path)) return invalidTarget("blob path");
+    if (typeof blob?.contentBase64 !== "string") return invalidTarget("blob content");
+  }
+  for (const path of deletePaths) {
+    if (typeof path !== "string" || !isSafeRepoPath(path)) return invalidTarget("delete path");
   }
 
   const headers = { ...ghHeaders(session.token), "Content-Type": "application/json" };

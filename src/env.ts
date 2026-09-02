@@ -10,4 +10,8 @@ export interface Env {
 export interface SessionData {
   token: string;
   username: string;
+  // Epoch-ms expiry, stamped by encryptSession and enforced by
+  // decryptSession — see auth.ts. Optional only so callers construct
+  // sessions without it; every session that round-trips has one.
+  exp?: number;
 }

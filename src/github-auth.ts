@@ -114,7 +114,17 @@ export async function handleLogout(request: Request, env: Env): Promise<Response
 // failure shows the reason for a couple seconds first so it's not just a
 // window vanishing with no explanation.
 function popupHtml(ok: boolean, message: string | null): string {
-  const payload = JSON.stringify({ type: "mde-github-auth", ok, message: message || null });
+  // JSON.stringify escapes quotes and backslashes but leaves "<" and "/"
+  // alone, so a message containing "</script>" would close this inline
+  // script early and land as live markup on the app's own origin. The
+  // message comes from GitHub's token endpoint rather than directly from a
+  // request param, but "upstream text is safe to inline" isn't a property
+  // worth depending on — escape the three characters that can start a tag
+  // boundary instead.
+  const payload = JSON.stringify({ type: "mde-github-auth", ok, message: message || null })
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
   const body = ok ? "Signed in — this window will close automatically." : `Sign-in failed: ${escapeHtml(message || "unknown error")}`;
   const closeDelay = ok ? 0 : 2500;
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>GitHub sign-in</title></head><body style="font:14px system-ui;padding:24px;color:${ok ? "#333" : "#c0392b"}">${body}<script>

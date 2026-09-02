@@ -28,6 +28,8 @@ import { ensureUniqueName } from "./doc-naming";
 import { workspacesStore, createWorkspace } from "./stores/workspaces";
 import { initRouter, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
 import { showToast } from "./stores/toast";
+import { findWikilinkOccurrences } from "./wikilink-rewrite";
+import { runWikilinkRenameCascade } from "./wikilink-rename-cascade";
 import { viewMode } from "./stores/view";
 import { commentsPanelOpen } from "./stores/commentsPanel";
 import { docListActiveTab } from "./stores/docList";
@@ -620,7 +622,14 @@ import katexCss from "katex/dist/katex.min.css?raw";
     const colliding = findCollidingDoc(doc.id, finalName);
     if (colliding) {
       renameCollision.set({ docId: doc.id, pendingName: finalName, previousName, collidingDocId: colliding.id });
+      return;
     }
+    void cascadeWikilinkRenameAndToast(doc.id, previousName, finalName);
+  }
+
+  async function cascadeWikilinkRenameAndToast(docId: string, oldName: string, newName: string) {
+    const count = await runWikilinkRenameCascade(docId, oldName, newName);
+    if (count > 0) showToast(`Updated ${count} link${count === 1 ? "" : "s"} to "${newName}"`, "success");
   }
 
   function initToolbar() {
@@ -1185,6 +1194,14 @@ ${bodyHtml}
     onDocRenamed: null,
     renameActiveDoc,
     commitActiveDocRename,
+    applyWikilinkRenameToActiveDoc(oldName, newName) {
+      const content = cm.state.doc.toString();
+      const occurrences = findWikilinkOccurrences(content, oldName);
+      if (occurrences.length === 0) return false;
+      cm.dispatch({ changes: occurrences.map((o) => ({ from: o.from, to: o.to, insert: `[[${newName}]]` })) });
+      return true;
+    },
+    cascadeWikilinkRenameAndToast,
     setDocMetadata(id, metadata) {
       if (getActiveDoc()?.id !== id) return;
       setActiveDocMetadata(metadata);

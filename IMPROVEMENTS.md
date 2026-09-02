@@ -15,8 +15,8 @@ of these (the comment-highlight-while-typing bug, the gist rename
 duplication) are exactly the kind of regression that's cheap to prevent
 with a test and expensive to rediscover by hand later.
 
-**Tested until v1.15.0** — items below may already be stale against
-later releases; verify before starting each one.
+**Current through v1.41.1** — verify against CHANGELOG.md before
+starting an item if it's been a while since this was last updated.
 
 ---
 
@@ -45,12 +45,35 @@ not a rendering bug; a Gist API filename-matching bug was why renaming
 
 ### Layout / sizing
 
-- [x] Toolbar/tooltip ordering isn't grouped by type. (Shipped v1.40.3.)
-      The trailing insert cluster (link/image/table/hr/diagram/math/
-      footnote/command-palette) was one ungrouped run of 9 buttons;
-      re-grouped into media/reference insert, structural insert, and
-      notation insert, with Command Palette set apart at the end since
-      it isn't a content-insertion command.
+- [x] Toolbar/tooltip ordering isn't grouped by type. (Shipped v1.40.4 —
+      the intended v1.40.3 never landed as its own commit on master
+      before v1.40.4's bump superseded it.) The trailing insert cluster
+      (link/image/table/hr/diagram/math/footnote/command-palette) was
+      one ungrouped run of 9 buttons; re-grouped into media/reference
+      insert, structural insert, and notation insert, with Command
+      Palette set apart at the end since it isn't a content-insertion
+      command.
+
+### Mobile / collab layout (reported live with screenshots)
+
+- [x] Share dialog's "Anyone with the link" label truncated mid-word on
+      mobile Safari. (Shipped v1.41.1.) The width reserved for the
+      native dropdown's arrow was tuned against desktop Chromium's
+      narrower arrow chrome; widened the buffer and added a
+      text-overflow ellipsis as a fallback.
+- [x] The View menu dropdown could overflow off the right edge of the
+      screen on mobile. (Shipped v1.41.1.) Every menu-bar dropdown used
+      to hardcode which single item anchored to the right instead of the
+      left, so it broke again the moment a different menu's dropdown
+      grew wide enough to overflow — replaced with a runtime check that
+      flips any dropdown to right-anchor only when it would actually
+      overflow the viewport.
+- [x] The workspace switcher's "Preview" badge could push past the
+      sidebar's edge. (Shipped v1.41.1.) The Svelte-mounted wrapper
+      around the switcher was missing the `display: contents` every
+      other Svelte mount point in the app already has, so the
+      switcher's own flex-shrink/ellipsis styling was never actually
+      reachable.
 
 ---
 
@@ -118,8 +141,10 @@ sequenced relative to each other yet.
       shown as collapsible rows in Version History. Diff view now
       compares any two selected entries, not just a version against
       the live document.
-- [x] **Shared-document session separation.** (Shipped v1.41.0.)
-      Opening a share link now previews the workspace (never persisted)
+- [x] **Shared-document session separation.** (Shipped v1.41.1 — the
+      intended v1.41.0 never landed as its own commit on master before
+      v1.41.1's bugfixes were bundled into the same PR and superseded
+      it.) Opening a share link now previews the workspace (never persisted)
       instead of always permanently committing it — a "Preview" badge
       and "Keep this workspace" action in the switcher, plus a "Preview
       only" option in the join-choice modal. A receiver with zero

@@ -29,6 +29,10 @@ Areas of particular interest given this app's architecture:
 
 - Session/auth handling (`src/auth.ts`, `src/github-auth.ts`) — cookie
   encryption, OAuth flow
-- Collaboration access control (`src/collab-room.ts`) — who can join a
-  shared room and with what role
-- Output sanitization (rendered markdown/HTML, PDF export)
+- Collaboration access control (`src/workspace-room.ts`, and the legacy
+  `src/collab-room.ts`) — who can join a shared workspace/room and with
+  what role, and whether a write is actually gated to editors
+- GitHub repo sync (`src/github-repo.ts`) — token scope, and whether a
+  push/pull can be tricked into touching a repo or path outside the
+  linked workspace
+- Output sanitization (rendered markdown/HTML, PDF export, print)

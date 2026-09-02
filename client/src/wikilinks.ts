@@ -22,7 +22,7 @@ export function resolveWikilinkTarget(name: string, docs: Doc[]): Doc | undefine
 // syntax itself, the same "good enough, documents are small" stance
 // refreshDocNoteAnchors/refreshCommentAnchors already take for their
 // own per-document content scans.
-export function findBacklinks(targetName: string, docs: Doc[], excludeId: string): Doc[] {
+export function findBacklinks(targetName: string, docs: Doc[], excludeId?: string): Doc[] {
   const needle = `[[${targetName}]]`;
   return docs.filter((d) => d.id !== excludeId && d.content.includes(needle));
 }

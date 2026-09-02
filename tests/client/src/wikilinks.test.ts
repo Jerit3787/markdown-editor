@@ -47,4 +47,9 @@ describe("findBacklinks", () => {
     const selfRef: Doc[] = [{ id: "1", name: "Target", content: "[[Target]]", updatedAt: 0, createdAt: 0, workspaceId: "ws1" }];
     expect(findBacklinks("Target", selfRef, "1")).toEqual([]);
   });
+
+  it("includes a self-referencing document when no excludeId is passed", () => {
+    const selfRef: Doc[] = [{ id: "1", name: "Target", content: "[[Target]]", updatedAt: 0, createdAt: 0, workspaceId: "ws1" }];
+    expect(findBacklinks("Target", selfRef).map((d) => d.id)).toEqual(["1"]);
+  });
 });

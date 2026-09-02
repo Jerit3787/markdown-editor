@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.42.0] - 2026-09-02
+
+### Added
+
+- **Wikilink rename cascade.** Renaming a document now automatically rewrites every `[[OldName]]` reference to it elsewhere — in local documents, in the document itself if it self-references its own old name, and in any shared workspace's documents (even one you aren't currently connected to) via a new authenticated endpoint that patches that workspace's live content directly. A brief toast reports how many links were updated; nothing appears when there was nothing to fix. A document in a shared workspace you don't have editor access to is silently left as-is, same as before this feature.
+
 ## [1.41.2] - 2026-09-02
 
 ### Security

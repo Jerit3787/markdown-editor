@@ -242,4 +242,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/shared-workspace-preview.png",
     category: "Collaboration",
   },
+  {
+    version: "1.42.0",
+    title: "Wikilink Rename Cascade",
+    description:
+      "Renaming a document now automatically fixes every [[Name]] reference to it elsewhere, instead of leaving them pointing at a name that no longer exists — including references in shared workspace documents you aren't currently connected to.",
+    screenshot: "/whats-new/wikilink-rename-cascade.png",
+    category: "Organization & Navigation",
+  },
 ];

@@ -1040,7 +1040,7 @@ Expected: PASS (3 tests)
 Run: `npm test && npm run typecheck && npx playwright test --project=local`
 Expected: PASS
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add client/src/types.ts client/src/app.ts client/src/components/RenameCollisionModal.svelte tests/e2e/local/wikilink-rename-cascade.spec.ts
@@ -1090,13 +1090,13 @@ git commit -m "test: add collab e2e coverage for wikilink rename cascade"
 
 **Interfaces:** None — documentation/metadata only.
 
-- [ ] **Step 1: Bump the version**
+- [x] **Step 1: Bump the version**
 
 In `package.json`, change `"version": "1.41.2"` to `"version": "1.42.0"`.
 
 In `package-lock.json`, hand-edit both `"version": "1.41.2"` occurrences at the top of the file (the root package entry and the `""` entry under `packages`) to `"1.42.0"` — do not run a full `npm install --package-lock-only` regeneration (per this repo's CLAUDE.md, that can pull in unrelated lockfile churn).
 
-- [ ] **Step 2: Add the CHANGELOG entry**
+- [x] **Step 2: Add the CHANGELOG entry**
 
 In `CHANGELOG.md`, add a new section at the top (Keep a Changelog format), right after the header block and before the current top entry:
 
@@ -1110,7 +1110,7 @@ In `CHANGELOG.md`, add a new section at the top (Keep a Changelog format), right
 
 (Use today's actual date if this plan is executed on a different day than 2026-09-02.)
 
-- [ ] **Step 3: Add the What's New entry**
+- [x] **Step 3: Add the What's New entry**
 
 In `client/src/whats-new-entries.ts`, append a new entry to the end of the `WHATS_NEW_ENTRIES` array (after the `1.41.0` entry):
 
@@ -1127,7 +1127,7 @@ In `client/src/whats-new-entries.ts`, append a new entry to the end of the `WHAT
 
 Note: the `screenshot` path points at an asset that doesn't exist yet (`client/public/whats-new/wikilink-rename-cascade.png`) — per this repo's existing convention (see `whats-new-entries.ts`'s own header comment), a real screenshot is expected but its absence doesn't block `WhatsNew.svelte`'s dev-mode version-match check, which only warns about a missing *entry*, not a missing image. Flag this to the user/reviewer rather than fabricating a placeholder image.
 
-- [ ] **Step 4: Update ROADMAP.md**
+- [x] **Step 4: Update ROADMAP.md**
 
 In `ROADMAP.md`, find the line `- [ ] Wikilink rename cascade — v1.15.0 renaming a document never` (in the deferred-scope list near the other wikilink items) and change it to a checked, shipped entry matching the style of neighboring shipped items, e.g.:
 
@@ -1141,12 +1141,12 @@ In `ROADMAP.md`, find the line `- [ ] Wikilink rename cascade — v1.15.0 renami
 
 (Check the exact current wording of this line in `ROADMAP.md` first with `grep -n "rename cascade" ROADMAP.md` — the text above is illustrative of the shipped-item style to match, not necessarily the exact original unchecked wording.)
 
-- [ ] **Step 5: Verify the version-match warning is gone**
+- [x] **Step 5: Verify the version-match warning is gone**
 
 Run: `npm test` and check the console output doesn't include `WhatsNew: no announcement entry for the current version` (this warning appears in test output when `__APP_VERSION__` and the last `WHATS_NEW_ENTRIES` entry's version disagree).
 Expected: no such warning; all tests still PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add package.json package-lock.json CHANGELOG.md client/src/whats-new-entries.ts ROADMAP.md

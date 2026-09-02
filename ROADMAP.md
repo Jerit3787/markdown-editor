@@ -380,9 +380,11 @@ to matter later.
 - [ ] An authoring/editing UI for What's New entries — v1.14.0 entries
       are added directly to `whats-new-entries.ts` as a manual step per
       release, same as CHANGELOG/ROADMAP updates already are
-- [ ] Wikilink rename cascade — v1.15.0 renaming a document never
-      rewrites `[[OldName]]` references inside other documents; they
-      become "missing" links instead until fixed by hand
+- [x] **Wikilink rename cascade.** Renaming a document now rewrites
+      every `[[OldName]]` reference to it elsewhere — local documents,
+      a self-reference in the renamed document itself, and any shared
+      workspace's documents (even one not currently connected) via a
+      new authenticated endpoint (v1.42.0).
 - [ ] Case-insensitive wikilink matching — v1.15.0 is exact-match only,
       the same simplicity tradeoff that motivated enforcing unique
       names in the first place

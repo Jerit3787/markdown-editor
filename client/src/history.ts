@@ -226,3 +226,18 @@ export async function restoreSharedVersionContent(workspaceId: string, docId: st
     return false;
   }
 }
+
+export async function pushWikilinkRenameToSharedDoc(workspaceRemoteId: string, docId: string, oldName: string, newName: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceRemoteId)}/docs/${encodeURIComponent(docId)}/wikilink-rename`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName, newName }),
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { changed: boolean };
+    return data.changed;
+  } catch (err) {
+    return false;
+  }
+}

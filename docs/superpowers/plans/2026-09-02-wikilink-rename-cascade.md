@@ -33,7 +33,7 @@
 **Interfaces:**
 - Produces: `rewriteWikilinkReferences(content: string, oldName: string, newName: string): string` (both files, identical). `findWikilinkOccurrences(content: string, name: string): { from: number; to: number }[]` (client file only).
 
-- [ ] **Step 1: Write the failing tests for the client copy**
+- [x] **Step 1: Write the failing tests for the client copy**
 
 Create `tests/client/src/wikilink-rewrite.test.ts`:
 
@@ -88,12 +88,12 @@ describe("findWikilinkOccurrences", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/client/src/wikilink-rewrite.test.ts`
 Expected: FAIL — `Cannot find module '../../../client/src/wikilink-rewrite'`
 
-- [ ] **Step 3: Write the client implementation**
+- [x] **Step 3: Write the client implementation**
 
 Create `client/src/wikilink-rewrite.ts`:
 
@@ -131,12 +131,12 @@ export function findWikilinkOccurrences(content: string, name: string): Wikilink
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/client/src/wikilink-rewrite.test.ts`
 Expected: PASS (9 tests)
 
-- [ ] **Step 5: Write the failing test for the Worker copy**
+- [x] **Step 5: Write the failing test for the Worker copy**
 
 Create `tests/src/wikilink-rewrite.test.ts`:
 
@@ -163,12 +163,12 @@ describe("rewriteWikilinkReferences (Worker copy)", () => {
 });
 ```
 
-- [ ] **Step 6: Run the test to verify it fails**
+- [x] **Step 6: Run the test to verify it fails**
 
 Run: `npx vitest run tests/src/wikilink-rewrite.test.ts`
 Expected: FAIL — `Cannot find module '../../src/wikilink-rewrite'`
 
-- [ ] **Step 7: Write the Worker implementation**
+- [x] **Step 7: Write the Worker implementation**
 
 Create `src/wikilink-rewrite.ts` — byte-for-byte the same `rewriteWikilinkReferences` function and its `WIKILINK_RE` constant as the client copy, minus `findWikilinkOccurrences` (the Worker never needs character ranges, only the final string):
 
@@ -187,12 +187,12 @@ export function rewriteWikilinkReferences(content: string, oldName: string, newN
 }
 ```
 
-- [ ] **Step 8: Run the test to verify it passes**
+- [x] **Step 8: Run the test to verify it passes**
 
 Run: `npx vitest run tests/src/wikilink-rewrite.test.ts`
 Expected: PASS (4 tests)
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add client/src/wikilink-rewrite.ts src/wikilink-rewrite.ts tests/client/src/wikilink-rewrite.test.ts tests/src/wikilink-rewrite.test.ts
@@ -213,7 +213,7 @@ git commit -m "feat: add shared wikilink-rewrite primitive (client + Worker copi
 - Consumes: `findBacklinks` from `./wikilinks` (Task 2 modifies it); `Doc`, `Workspace` from `./types`.
 - Produces: `WikilinkRenamePlan { selfReferenceDoc: Doc | null; localTargets: Doc[]; sharedTargets: { doc: Doc; workspace: Workspace }[] }` and `planWikilinkRenameCascade(oldName: string, docs: Doc[], renamedDocId: string, workspaces: Workspace[]): WikilinkRenamePlan` — both consumed by Task 5's orchestrator.
 
-- [ ] **Step 1: Write the failing test for the excludeId-optional change**
+- [x] **Step 1: Write the failing test for the excludeId-optional change**
 
 Add to `tests/client/src/wikilinks.test.ts`, inside the existing `describe("findBacklinks", ...)` block (after the last existing `it`):
 
@@ -224,12 +224,12 @@ Add to `tests/client/src/wikilinks.test.ts`, inside the existing `describe("find
   });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/client/src/wikilinks.test.ts`
 Expected: FAIL — `Expected 2 arguments, but got 1` (TypeScript) or, if run without typechecking, the existing 3-argument signature still requires `excludeId` at the type level so this won't compile.
 
-- [ ] **Step 3: Make `excludeId` optional**
+- [x] **Step 3: Make `excludeId` optional**
 
 In `client/src/wikilinks.ts`, change:
 
@@ -245,12 +245,12 @@ export function findBacklinks(targetName: string, docs: Doc[], excludeId?: strin
 
 (The function body — `docs.filter((d) => d.id !== excludeId && d.content.includes(needle))` — needs no change: `d.id !== undefined` is `true` for every real doc id, so omitting `excludeId` naturally excludes nothing.)
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/client/src/wikilinks.test.ts`
 Expected: PASS (all existing `findBacklinks` tests plus the new one)
 
-- [ ] **Step 5: Write the failing tests for the planner**
+- [x] **Step 5: Write the failing tests for the planner**
 
 Create `tests/client/src/wikilink-rename-cascade.test.ts`:
 
@@ -327,12 +327,12 @@ describe("planWikilinkRenameCascade", () => {
 });
 ```
 
-- [ ] **Step 6: Run the test to verify it fails**
+- [x] **Step 6: Run the test to verify it fails**
 
 Run: `npx vitest run tests/client/src/wikilink-rename-cascade.test.ts`
 Expected: FAIL — `Cannot find module '../../../client/src/wikilink-rename-cascade'`
 
-- [ ] **Step 7: Write the planner implementation**
+- [x] **Step 7: Write the planner implementation**
 
 Create `client/src/wikilink-rename-cascade.ts`:
 
@@ -372,12 +372,12 @@ export function planWikilinkRenameCascade(oldName: string, docs: Doc[], renamedD
 }
 ```
 
-- [ ] **Step 8: Run the test to verify it passes**
+- [x] **Step 8: Run the test to verify it passes**
 
 Run: `npx vitest run tests/client/src/wikilink-rename-cascade.test.ts`
 Expected: PASS (7 tests)
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add client/src/wikilinks.ts client/src/wikilink-rename-cascade.ts tests/client/src/wikilinks.test.ts tests/client/src/wikilink-rename-cascade.test.ts
@@ -396,7 +396,7 @@ git commit -m "feat: make findBacklinks' excludeId optional, add pure wikilink-r
 - Consumes: `rewriteWikilinkReferences` from `../wikilink-rewrite` (Task 1); `findDocById`, `updateDoc` (private to the module, already exist), `persistDocs` (already exists).
 - Produces: `rewriteWikilinksInLocalDoc(id: string, oldName: string, newName: string): boolean` — consumed by Task 5's orchestrator.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/client/src/stores/docs.test.ts`, as a new `describe` block (this file uses the dynamic-import-per-test pattern shown by its existing `createDoc` tests — follow it exactly since `vi.resetModules()` in `beforeEach` means a static top-of-file import would see stale module state):
 
@@ -430,12 +430,12 @@ describe("rewriteWikilinksInLocalDoc", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/client/src/stores/docs.test.ts`
 Expected: FAIL — `rewriteWikilinksInLocalDoc is not a function` (or not exported)
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `client/src/stores/docs.ts`, add the import at the top of the file alongside the other relative imports:
 
@@ -463,12 +463,12 @@ export function rewriteWikilinksInLocalDoc(id: string, oldName: string, newName:
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/client/src/stores/docs.test.ts`
 Expected: PASS (all existing tests plus the 3 new ones)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add client/src/stores/docs.ts tests/client/src/stores/docs.test.ts
@@ -488,7 +488,7 @@ git commit -m "feat: add rewriteWikilinksInLocalDoc to docs store"
 - Consumes: `rewriteWikilinkReferences` from `./wikilink-rewrite` (Task 1); `this.authorize`, `this.loadDocRoom` (already exist on `WorkspaceRoom`).
 - Produces: `WorkspaceRoom.handleWikilinkRenameRequest(request: Request, docId: string): Promise<Response>`, reachable at `POST /api/workspace/:workspaceId/docs/:docId/wikilink-rename` — consumed by Task 5's `pushWikilinkRenameToSharedDoc`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/src/workspace-room.test.ts`, as a new `describe` block (uses the same `fakeState()`, `fakeEnvWithSecret`, `encryptSession` helpers the file's existing `describe("WorkspaceRoom.handleVersionRestoreContentRequest", ...)` block uses — check that block for the exact helper import/usage pattern already in this file before writing these):
 
@@ -583,12 +583,12 @@ describe("WorkspaceRoom.handleWikilinkRenameRequest", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/src/workspace-room.test.ts`
 Expected: FAIL — `room.handleWikilinkRenameRequest is not a function`
 
-- [ ] **Step 3: Write the handler implementation**
+- [x] **Step 3: Write the handler implementation**
 
 In `src/workspace-room.ts`, add the import at the top of the file alongside the other relative imports (after the `access-visibility` import, matching the file's existing import ordering):
 
@@ -646,12 +646,12 @@ Then wire it into `fetch()`'s routing — add this alongside the existing `/docs
     if (wikilinkRenameMatch) return this.handleWikilinkRenameRequest(request, wikilinkRenameMatch[1]!);
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/src/workspace-room.test.ts`
 Expected: PASS (all existing tests plus the 5 new ones)
 
-- [ ] **Step 5: Add the top-level Worker route**
+- [x] **Step 5: Add the top-level Worker route**
 
 In `src/worker.ts`, add the new regex constant alongside the other `WORKSPACE_DOC_*_PATH` constants near the top of the file:
 
@@ -669,12 +669,12 @@ Then add the dispatch inside `fetch()`, alongside the other `workspaceDoc*Match`
     }
 ```
 
-- [ ] **Step 6: Run the full server test suite to check nothing broke**
+- [x] **Step 6: Run the full server test suite to check nothing broke**
 
 Run: `npx vitest run tests/src/`
 Expected: PASS (all files)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/workspace-room.ts src/worker.ts tests/src/workspace-room.test.ts
@@ -779,14 +779,23 @@ describe("runWikilinkRenameCascade", () => {
   });
 
   it("counts a shared target pushed successfully, and doesn't let one failure suppress others", async () => {
-    const { createDoc } = await import("../../../client/src/stores/docs");
+    const { createDoc, activeDocContent } = await import("../../../client/src/stores/docs");
     const { createWorkspace, workspacesStore } = await import("../../../client/src/stores/workspaces");
+    const { runWikilinkRenameCascade } = await import("../../../client/src/wikilink-rename-cascade");
     const renamed = createDoc({ name: "New", content: "" });
     const sharedWs = createWorkspace("Shared");
     workspacesStore.update((all) => all.map((w) => (w.id === sharedWs.id ? { ...w, shared: true, remoteId: "room-1" } : w)));
     const failingWs = createWorkspace("AlsoShared");
     workspacesStore.update((all) => all.map((w) => (w.id === failingWs.id ? { ...w, shared: true, remoteId: "room-2" } : w)));
     createDoc({ workspaceId: sharedWs.id, name: "Good", content: "[[Old]]" });
+    // createDoc makes its new doc the active one, and the *next* createDoc
+    // call flushes activeDocContent (the live-editor buffer store) into
+    // whichever doc was active before it — in this bare unit-test
+    // environment activeDocContent never tracks a real editor, so without
+    // this it would silently clobber "Good"'s content back to "" the
+    // moment "Bad" is created. Setting it to match first makes that flush
+    // a no-op.
+    activeDocContent.set("[[Old]]");
     createDoc({ workspaceId: failingWs.id, name: "Bad", content: "[[Old]]" });
     (window as any).MDE = { applyWikilinkRenameToActiveDoc: vi.fn().mockReturnValue(false) };
     const fetchMock = vi.fn(async (url: string) => {

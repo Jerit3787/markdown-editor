@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { planWikilinkRenameCascade } from "../../../client/src/wikilink-rename-cascade";
 import type { Doc, Workspace } from "../../../client/src/types";
 
@@ -66,5 +66,82 @@ describe("planWikilinkRenameCascade", () => {
     expect(plan.selfReferenceDoc?.id).toBe("renamed-id");
     expect(plan.localTargets.map((d) => d.id)).toEqual(["2"]);
     expect(plan.sharedTargets.map((t) => t.doc.id)).toEqual(["3"]);
+  });
+});
+
+// @vitest-environment jsdom
+describe("runWikilinkRenameCascade", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete (window as any).MDE;
+  });
+
+  it("counts a local target rewrite and shows no active-doc or shared work when there's none", async () => {
+    const { createDoc } = await import("../../../client/src/stores/docs");
+    const { runWikilinkRenameCascade } = await import("../../../client/src/wikilink-rename-cascade");
+    const renamed = createDoc({ name: "New", content: "" });
+    const linker = createDoc({ name: "Linker", content: "[[Old]]" });
+    (window as any).MDE = { applyWikilinkRenameToActiveDoc: vi.fn().mockReturnValue(false) };
+
+    const count = await runWikilinkRenameCascade(renamed.id, "Old", "New");
+
+    expect(count).toBe(1);
+    const { findDocById } = await import("../../../client/src/stores/docs");
+    expect(findDocById(linker.id)?.content).toBe("[[New]]");
+  });
+
+  it("counts a self-reference fixed via the active-editor bridge", async () => {
+    const { createDoc } = await import("../../../client/src/stores/docs");
+    const { runWikilinkRenameCascade } = await import("../../../client/src/wikilink-rename-cascade");
+    const renamed = createDoc({ name: "New", content: "links to [[Old]] itself" });
+    const applyToActive = vi.fn().mockReturnValue(true);
+    (window as any).MDE = { applyWikilinkRenameToActiveDoc: applyToActive };
+
+    const count = await runWikilinkRenameCascade(renamed.id, "Old", "New");
+
+    expect(count).toBe(1);
+    expect(applyToActive).toHaveBeenCalledWith("Old", "New");
+  });
+
+  it("counts a shared target pushed successfully, and doesn't let one failure suppress others", async () => {
+    const { createDoc, activeDocContent } = await import("../../../client/src/stores/docs");
+    const { createWorkspace, workspacesStore } = await import("../../../client/src/stores/workspaces");
+    const { runWikilinkRenameCascade } = await import("../../../client/src/wikilink-rename-cascade");
+    const renamed = createDoc({ name: "New", content: "" });
+    const sharedWs = createWorkspace("Shared");
+    workspacesStore.update((all) => all.map((w) => (w.id === sharedWs.id ? { ...w, shared: true, remoteId: "room-1" } : w)));
+    const failingWs = createWorkspace("AlsoShared");
+    workspacesStore.update((all) => all.map((w) => (w.id === failingWs.id ? { ...w, shared: true, remoteId: "room-2" } : w)));
+    createDoc({ workspaceId: sharedWs.id, name: "Good", content: "[[Old]]" });
+    // createDoc makes its new doc the active one, and the *next* createDoc
+    // call flushes activeDocContent (the live-editor buffer store) into
+    // whichever doc was active before it — in this bare unit-test
+    // environment activeDocContent never tracks a real editor, so without
+    // this it would silently clobber "Good"'s content back to "" the
+    // moment "Bad" is created. Setting it to match first makes that flush
+    // a no-op.
+    activeDocContent.set("[[Old]]");
+    createDoc({ workspaceId: failingWs.id, name: "Bad", content: "[[Old]]" });
+    (window as any).MDE = { applyWikilinkRenameToActiveDoc: vi.fn().mockReturnValue(false) };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("room-1")) return new Response(JSON.stringify({ changed: true }), { status: 200 });
+      return new Response("nope", { status: 403 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const count = await runWikilinkRenameCascade(renamed.id, "Old", "New");
+
+    // Only the room-1 push (the "Good" target) counts — the room-2 push
+    // (the "Bad" target) returns 403, which pushWikilinkRenameToSharedDoc
+    // reports as `false` rather than throwing, so it just doesn't add to
+    // the total. Both fetches still happen (asserted below) — one
+    // target's failure doesn't stop the loop from reaching the other.
+    expect(count).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

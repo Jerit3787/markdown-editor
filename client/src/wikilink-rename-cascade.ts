@@ -1,5 +1,9 @@
+import { get } from "svelte/store";
 import type { Doc, Workspace } from "./types";
 import { findBacklinks } from "./wikilinks";
+import { docsStore, rewriteWikilinksInLocalDoc } from "./stores/docs";
+import { workspacesStore } from "./stores/workspaces";
+import { pushWikilinkRenameToSharedDoc } from "./history";
 
 export interface WikilinkRenamePlan {
   // Set only when the renamed document's own content contains a
@@ -30,4 +34,28 @@ export function planWikilinkRenameCascade(oldName: string, docs: Doc[], renamedD
     else plan.localTargets.push(doc);
   }
   return plan;
+}
+
+// Reads the live stores, plans, applies every bucket, and returns how
+// many documents actually changed (0 -> caller shows no toast). A
+// failure applying to one shared target never stops the others -- each
+// is independent and best-effort. Nothing here awaits before the
+// selfReferenceDoc/localTargets handling, so it all runs synchronously
+// in the same task as the rename commit -- no risk of the active
+// document having changed underneath it by the time
+// applyWikilinkRenameToActiveDoc runs.
+export async function runWikilinkRenameCascade(renamedDocId: string, oldName: string, newName: string): Promise<number> {
+  const docs = get(docsStore);
+  const workspaces = get(workspacesStore);
+  const plan = planWikilinkRenameCascade(oldName, docs, renamedDocId, workspaces);
+
+  let changed = 0;
+  if (plan.selfReferenceDoc && window.MDE.applyWikilinkRenameToActiveDoc(oldName, newName)) changed++;
+  for (const doc of plan.localTargets) {
+    if (rewriteWikilinksInLocalDoc(doc.id, oldName, newName)) changed++;
+  }
+  for (const { doc, workspace } of plan.sharedTargets) {
+    if (await pushWikilinkRenameToSharedDoc(workspace.remoteId!, doc.id, oldName, newName)) changed++;
+  }
+  return changed;
 }

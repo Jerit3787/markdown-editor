@@ -6,6 +6,7 @@ import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
 import { relocateAnchor } from "./anchor";
 import { redactAccessForOutsider } from "./access-visibility";
+import { rewriteWikilinkReferences } from "./wikilink-rewrite";
 import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
 import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion } from "./suggestions";
 import type { ResolvedSuggestion } from "./suggestions";
@@ -282,6 +283,9 @@ export class WorkspaceRoom {
     if (versionMatch) return this.handleVersionContentRequest(request, versionMatch[1]!, versionMatch[2]!);
     const versionsListMatch = url.pathname.match(/\/docs\/([^/]+)\/versions$/);
     if (versionsListMatch) return this.handleVersionsListRequest(request, versionsListMatch[1]!);
+
+    const wikilinkRenameMatch = url.pathname.match(/\/docs\/([^/]+)\/wikilink-rename$/);
+    if (wikilinkRenameMatch) return this.handleWikilinkRenameRequest(request, wikilinkRenameMatch[1]!);
 
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected websocket", { status: 426 });
@@ -708,6 +712,45 @@ export class WorkspaceRoom {
     }, "restore");
     const created = await this.forceSnapshot(docId, docRoom, content);
     return Response.json(created);
+  }
+
+  // Rewrites [[oldName]] -> [[newName]] wherever it appears in this
+  // document's live content, computed against the DO's own authoritative
+  // text — never trusts a client-supplied "new content" wholesale, since
+  // the requesting client's own cached copy of a document it isn't
+  // actively viewing can be stale. Best-effort from the caller's
+  // perspective: a 403 here just means the cascade skips this one
+  // document rather than failing the whole rename. Uses a distinct
+  // transact origin (not "restore") so the ordinary maybeSnapshot capture
+  // in handleDocUpdate still applies — this is a normal edit, not a
+  // version restore, so it shouldn't force an immediate snapshot.
+  async handleWikilinkRenameRequest(request: Request, docId: string): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (auth.role !== "editor") return new Response("Only an editor can update links in this document.", { status: 403 });
+
+    let body: { oldName?: unknown; newName?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      return new Response("Invalid JSON.", { status: 400 });
+    }
+    const oldName = typeof body.oldName === "string" ? body.oldName : undefined;
+    const newName = typeof body.newName === "string" ? body.newName : undefined;
+    if (!oldName || !newName) return new Response("oldName and newName are required.", { status: 400 });
+
+    const docRoom = await this.loadDocRoom(docId);
+    const text = docRoom.doc.getText("content");
+    const current = text.toString();
+    const rewritten = rewriteWikilinkReferences(current, oldName, newName);
+    if (rewritten === current) return Response.json({ changed: false });
+
+    docRoom.doc.transact(() => {
+      text.delete(0, text.length);
+      text.insert(0, rewritten);
+    }, "wikilink-rename");
+    return Response.json({ changed: true });
   }
 
   // ---------- Comment threads ----------

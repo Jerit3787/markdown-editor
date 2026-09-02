@@ -25,7 +25,21 @@ For fast client-only iteration without the Worker (no
 collaboration/auth/Gist endpoints), `npm run dev:client` runs a plain
 Vite dev server instead.
 
-Run the test suite with `npm test` (Vitest).
+## Tests and checks
+
+```
+npm test              # Vitest — unit tests + Svelte component tests, one command
+npm run typecheck     # tsc --noEmit (root/server) + svelte-check (client)
+npm run format:check  # Prettier
+npm run test:e2e:local    # Playwright, client-only flows
+npm run test:e2e:collab   # Playwright, spins up a real Worker + live collaboration
+```
+
+`npm test` and `npm run typecheck` are fast enough to run on every
+change; the Playwright suites are heavier (`test:e2e:collab` needs a
+real `wrangler dev` instance) and mainly matter for collaboration/
+sharing changes. All of the above (plus `npm run build`) run in CI on
+every PR.
 
 ## GitHub OAuth App (optional, for sign-in/Gist/Share)
 
@@ -53,9 +67,15 @@ See [ARCHITECTURE.md](ARCHITECTURE.md).
 ## Submitting changes
 
 - Keep pull requests focused — one change per PR is easier to review
-  than a bundle of unrelated fixes.
+  than a bundle of unrelated fixes. Use the PR template's Summary/Test
+  plan structure.
 - Add or update tests for behavior changes where practical (`npm test`).
-- Update `CHANGELOG.md` for user-facing changes.
+- Update `CHANGELOG.md` for user-facing changes, and bump the version in
+  `package.json` — see `CLAUDE.md`'s versioning section for the
+  minor-vs-patch rule and what else moves with it.
+- Opening a bug report or feature request? The issue templates
+  (`.github/ISSUE_TEMPLATE/`) cover the common cases, or open a blank
+  issue.
 
 ## Reporting a security issue
 

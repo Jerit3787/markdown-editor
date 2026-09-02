@@ -126,6 +126,113 @@ commitments.
       live-updating progress toast, instead of the only feedback being
       a menu button's own label that's invisible behind whatever modal
       triggered the action (v1.23.0).
+- [x] **Version History meets repo commits, and workspace-gated actions.**
+      Version History now interleaves a repo-linked document's actual
+      GitHub commits with local snapshots in one chronological list, with
+      a Preview/Diff toggle and undoable restore from either a commit or a
+      snapshot; linking to an existing repo preserves filenames instead of
+      duplicating them, surfaces push conflicts instead of discarding
+      them, and Mermaid diagrams/filenames survive a push intact. Actions
+      that need a workspace or open document (New document, GitHub Repo,
+      Publish, Export) now disable upfront instead of erroring after the
+      fact, and shared workspaces sync every open document's edits, not
+      just the active one (v1.24.0).
+- [x] **A URL for every document.** Each tab's URL now reflects whichever
+      document is open — deep links and browser back/forward work, and
+      Ctrl/Cmd-click (or middle-click) a sidebar row to open it in a
+      genuine new tab. Receiving a single shared document always lands it
+      as its own new workspace, for every receiver, not just someone with
+      no workspaces yet. Also fixed: opening the app in more than one tab
+      could silently destroy unrelated documents or workspaces, since
+      every save now merges with local storage's actual current contents
+      instead of blindly overwriting it (v1.25.0).
+- [x] **GitHub-style diff view, with images.** The diff view now has line
+      numbers on both sides, word-level highlighting for exactly what
+      changed within a line, and a Split/Unified toggle — for local
+      documents, shared documents, and repo commits alike. A line that's
+      just an image reference renders as a before/after thumbnail
+      comparison instead of raw text, with per-snapshot accuracy (v1.26.0).
+- [x] **Portable local history.** Version History snapshots and personal
+      notes on a repo-linked document now travel with the repo instead of
+      staying stuck on whichever device created them — pushing bundles
+      them into the commit, and opening the doc anywhere else pulls them
+      back in and merges with whatever's already there (v1.27.0).
+- [x] **Shared document names sync live.** Renaming a shared document now
+      shows up for every collaborator immediately instead of staying
+      stuck on whichever browser made the change until it happened to
+      reload — the name rides the same live connection as content and
+      images (v1.28.0).
+- [x] **Search and replace.** Ctrl/Cmd+F opens a find bar with a live
+      match count and case/whole-word/regex toggles; Ctrl/Cmd+H expands
+      it into Replace and Replace All (v1.29.0).
+- [x] **Unresolved-comment count badge.** The Comments topbar icon and
+      File menu entry show a live count of unresolved comment threads on
+      a shared document, visible before opening the panel (v1.30.0).
+- [x] **Undo/Redo and Command Palette toolbar buttons.** Undo and Redo
+      now sit at the start of the formatting toolbar, always visible; a
+      Command Palette quick-access icon sits at the end — all three were
+      previously reachable only via keyboard shortcut or a menu (v1.31.0).
+- [x] **Insert an existing image, or replace one in place.** The Insert
+      image toolbar button now opens a picker of every image already in
+      the document; each image also gets a Replace action to swap its
+      underlying file everywhere it's referenced, without touching the
+      document text or position (v1.32.0).
+- [x] **Printing support.** A Print action in the File menu and Command
+      Palette opens the browser's native print dialog with a dedicated,
+      chrome-free print layout, titled with the document name and
+      paginated cleanly (v1.33.0).
+- [x] **Choose Gist visibility.** Publishing a document to Gist for the
+      first time now lets you choose Public or Secret before it's
+      created, since GitHub only accepts this choice at creation and
+      can't change it later (v1.34.0).
+- [x] **Markdown compatibility checker.** Document Info's new
+      Compatibility row flags constructs that won't render the same
+      elsewhere — wikilinks and image/diagram references (app-only) plus
+      GFM/math extensions that work here and on GitHub but aren't
+      guaranteed everywhere. Click a flagged item to jump right to it
+      (v1.35.0).
+- [x] **MultiMarkdown syntax support.** Definition lists and
+      superscript/subscript now render correctly, and a new Metadata
+      section in Document Info round-trips freeform `Key: Value` fields
+      as real MultiMarkdown text on export, Gist publish, and repo push
+      (v1.36.0).
+- [x] **Citations & bibliography, split Format/Insert menus, smart
+      version-history grouping.** `[@key]`/`[#key]` citations resolve
+      against a bibliography (numbered or inline author-year, typed
+      directly or managed as structured entries in Document Info);
+      Bold/Italic/Strikethrough and Insert Link/Image/Manage Images moved
+      out of the overloaded Edit menu into their own Format and Insert
+      menus; Version History now groups continuous edits into collapsible
+      sessions instead of a flat list, with much finer-grained capture
+      underneath, and the Diff view can compare any two historical
+      entries against each other, not just a version against the live
+      document (v1.37.0).
+- [x] **Document Info edit modal.** Document Info is now a read-only
+      summary — including a new Name row — with an Edit button that
+      opens a dedicated modal for renaming the document and editing its
+      metadata and citation settings (v1.38.0).
+- [x] **Suggestion-mode collaboration** (Google Docs parity). The
+      reviewer role now proposes edits instead of being read-only —
+      insertions and deletions show up as tracked, per-suggestion changes
+      the document's editor can accept, reject, or that the reviewer can
+      withdraw. Viewer role is now Preview-only, with no edit surface at
+      all (v1.39.0).
+- [x] **Categorized What's New.** Reopening What's New from the Help menu
+      now starts at a category index instead of a long stepper from the
+      very first release — pick a topic to step through just its
+      updates (v1.40.0).
+- [x] **Toolbar grouping by type.** The trailing insert cluster (link,
+      image, table, diagram, math, footnote, etc.) was one ungrouped run
+      of buttons; re-grouped into media/reference insert, structural
+      insert, and notation insert, with Command Palette set apart at the
+      end (v1.40.4).
+- [x] **Shared-document session separation.** Opening a share link now
+      previews the workspace (never persisted) instead of always
+      permanently committing it — a "Preview" badge and "Keep this
+      workspace" action in the switcher, plus a "Preview only" option in
+      the join-choice modal. A receiver with zero workspaces of their own
+      still lands directly and permanently, since there's nothing to
+      protect from clutter (v1.41.1).
 
 ## Backlog — quick wins
 
@@ -225,9 +332,6 @@ to matter later.
       Command-Palette-only for now
 - [ ] Custom/user-defined slash commands — v1.11.0's 14 entries are a
       fixed, built-in list
-- [ ] Text diff / change-highlighting between versions in Version
-      History — v1.12.0 shipped full-content read-only preview only, no
-      line-by-line comparison UI
 - [ ] Manually-named version checkpoints ("save version now") — v1.12.0's
       history is fully automatic (throttled background snapshots); a
       manual save action was considered and explicitly deferred
@@ -288,11 +392,6 @@ to matter later.
       popup — v1.15.0's popup only lists existing documents; creating
       a new one is still only reachable by typing a new name and
       closing `]]` by hand, or clicking a rendered "missing" link
-- [ ] Toolbar button reordering/grouping by type — v1.16.0's overflow
-      menu collapses whichever buttons don't fit in DOM order; it
-      doesn't group related tools together first (needs a proposed
-      grouping to react to, same reason this was deferred back in the
-      original Phase 1 pass)
 - [ ] Pinning the view selector visible while only the formatting
       buttons scroll on mobile — v1.16.0's mobile toolbar scrolls (or
       overflows into "⋮") as one unit; the selector isn't pinned

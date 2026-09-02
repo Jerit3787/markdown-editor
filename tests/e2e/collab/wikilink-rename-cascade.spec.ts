@@ -154,9 +154,7 @@ test("renaming a document while a second collaborator is connected updates a bac
   // since joining — its own live binding just receives the Durable
   // Object's broadcast update in place, proving the fix reached the
   // room itself, not just the renaming client's local cache.
-  await expect.poll(() => collaborator.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""), { timeout: 10000 }).toBe(
-    "See [[Renamed]] here",
-  );
+  await expect.poll(() => collaborator.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""), { timeout: 10000 }).toBe("See [[Renamed]] here");
 
   await ownerCtx.close();
   await collabCtx.close();

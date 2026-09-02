@@ -1159,37 +1159,37 @@ git commit -m "chore: bump version to 1.42.0 for wikilink rename cascade"
 
 **Files:** None (verification only).
 
-- [ ] **Step 1: Full unit/component test suite**
+- [x] **Step 1: Full unit/component test suite**
 
 Run: `npm test`
 Expected: PASS, all files (including every new test file from Tasks 1-5)
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `npm run typecheck`
 Expected: PASS (root strict tsconfig + client's own via svelte-check)
 
-- [ ] **Step 3: Formatting**
+- [x] **Step 3: Formatting**
 
 Run: `npm run format:check`
 Expected: PASS. If it fails, run `npm run format` and review the diff before re-committing.
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `npm run build`
 Expected: succeeds, no errors.
 
-- [ ] **Step 5: Local e2e suite**
+- [x] **Step 5: Local e2e suite**
 
 Run: `npm run test:e2e:local`
 Expected: PASS, all specs including the new `wikilink-rename-cascade.spec.ts`.
 
-- [ ] **Step 6: Collab e2e suite**
+- [x] **Step 6: Collab e2e suite**
 
 Run: `npm run test:e2e:collab`
 Expected: PASS, all specs including the new collab spec from Task 7.
 
-- [ ] **Step 7: Commit any formatting fixes**
+- [x] **Step 7: Commit any formatting fixes**
 
 If Step 3 required running `npm run format`, commit the result:
 
@@ -1198,6 +1198,6 @@ git add -A
 git commit -m "chore: apply formatting"
 ```
 
-- [ ] **Step 8: Hand off**
+- [x] **Step 8: Hand off**
 
 Report the final state to the user/reviewer: all six verification commands green, the two new user-visible behaviors (cascade + toast), the one deliberately-missing asset (`whats-new/wikilink-rename-cascade.png`) flagged for follow-up, and the branch ready for the push/PR/merge workflow described in this repo's own CLAUDE.md ("Shipping a change" section) — do not push, open a PR, or merge without the user's separate go-ahead for that step.

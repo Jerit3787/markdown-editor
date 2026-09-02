@@ -11,6 +11,7 @@ import { deleteHistory } from "../history";
 import { confirmAction } from "./confirmDialog";
 import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
+import { rewriteWikilinkReferences } from "../wikilink-rewrite";
 import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace, queueRepoDeletion } from "./workspaces";
 import { mergeById } from "../merge-records";
 import { parseMetadataBlock, type MetadataPair } from "../mmd-metadata";
@@ -393,6 +394,22 @@ export function duplicateDoc(id: string): Doc | undefined {
 // picks it up along with content, same as before this doc-state move.
 export function renameDoc(id: string, name: string) {
   updateDoc(id, { name: name || "Untitled" });
+}
+
+// Rewrites [[oldName]] -> [[newName]] in one local (non-shared, non-
+// active) document's content, as part of a rename cascade (see
+// wikilink-rename-cascade.ts). Returns whether anything actually
+// changed, so the cascade orchestrator can count it. A real content
+// edit — bumps updatedAt like any other, so the sidebar reorders and
+// autosave/version-history capture it normally.
+export function rewriteWikilinksInLocalDoc(id: string, oldName: string, newName: string): boolean {
+  const doc = findDocById(id);
+  if (!doc) return false;
+  const rewritten = rewriteWikilinkReferences(doc.content, oldName, newName);
+  if (rewritten === doc.content) return false;
+  updateDoc(id, { content: rewritten, updatedAt: Date.now() });
+  persistDocs();
+  return true;
 }
 
 export function setActiveDocMetadata(metadata: MetadataPair[]) {

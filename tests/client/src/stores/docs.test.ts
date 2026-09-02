@@ -620,3 +620,31 @@ describe("docs store — workspace integration", () => {
     expect(doc.images).toEqual({ new: "data:new" });
   });
 });
+
+describe("rewriteWikilinksInLocalDoc", () => {
+  it("rewrites a matching wikilink and bumps updatedAt", async () => {
+    const { createDoc, rewriteWikilinksInLocalDoc, findDocById } = await import("../../../../client/src/stores/docs");
+    const doc = createDoc({ name: "Linker", content: "See [[Old]] here" });
+    const before = doc.updatedAt;
+    const changed = rewriteWikilinksInLocalDoc(doc.id, "Old", "New");
+    expect(changed).toBe(true);
+    const updated = findDocById(doc.id);
+    expect(updated?.content).toBe("See [[New]] here");
+    expect(updated!.updatedAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it("returns false and makes no change when the name doesn't appear", async () => {
+    const { createDoc, rewriteWikilinksInLocalDoc, findDocById } = await import("../../../../client/src/stores/docs");
+    const doc = createDoc({ name: "NoLinks", content: "nothing here" });
+    const before = findDocById(doc.id)!.updatedAt;
+    const changed = rewriteWikilinksInLocalDoc(doc.id, "Old", "New");
+    expect(changed).toBe(false);
+    expect(findDocById(doc.id)!.content).toBe("nothing here");
+    expect(findDocById(doc.id)!.updatedAt).toBe(before);
+  });
+
+  it("returns false for an id that doesn't exist", async () => {
+    const { rewriteWikilinksInLocalDoc } = await import("../../../../client/src/stores/docs");
+    expect(rewriteWikilinksInLocalDoc("nonexistent", "Old", "New")).toBe(false);
+  });
+});

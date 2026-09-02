@@ -5,6 +5,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
 import { relocateAnchor } from "./anchor";
+import { redactAccessForOutsider } from "./access-visibility";
 import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
 import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion } from "./suggestions";
 import type { ResolvedSuggestion } from "./suggestions";
@@ -342,7 +343,11 @@ export class WorkspaceRoom {
   async handleAccessRequest(request: Request): Promise<Response> {
     if (request.method === "GET") {
       const access = await this.getAccess();
-      return Response.json(access);
+      // Readable without authorization on purpose (the join flow needs it
+      // before the visitor has any access), but only participants see the
+      // roster — see access-visibility.ts.
+      const auth = await this.authorize(request);
+      return Response.json(auth.ok ? access : redactAccessForOutsider(access));
     }
     if (request.method === "PUT") {
       let body: { generalAccess?: unknown; requireAccount?: unknown; role?: unknown; invited?: unknown };

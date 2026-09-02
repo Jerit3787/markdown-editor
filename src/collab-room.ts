@@ -5,6 +5,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
 import { relocateAnchor } from "./anchor";
+import { redactAccessForOutsider } from "./access-visibility";
 import type { Env } from "./env";
 
 const MESSAGE_SYNC = 0;
@@ -372,7 +373,11 @@ export class CollabRoom {
   async handleAccessRequest(request: Request): Promise<Response> {
     if (request.method === "GET") {
       const access = await this.getAccess();
-      return Response.json(access);
+      // Readable without authorization on purpose (the join flow needs it
+      // before the visitor has any access), but only participants see the
+      // roster — see access-visibility.ts.
+      const auth = await this.authorize(request);
+      return Response.json(auth.ok ? access : redactAccessForOutsider(access));
     }
     if (request.method === "PUT") {
       // Read the body before any other await — some runtimes tie the

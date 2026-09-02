@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.41.2] - 2026-09-02
+
+### Security
+
+- **GitHub repo endpoints now validate every caller-supplied value before it reaches a GitHub API URL or a git tree entry.** The Worker holds the user's `repo`-scoped token and never hands it to the client, so `/api/repo/*` is the only way to spend it — but owner, repo, branch, commit/tree shas, and the `contents/` path were interpolated straight into the upstream URL, and push blob/delete paths went into the tree entries unchecked. A dot segment surviving into any of those turns a narrow endpoint into a general-purpose authenticated API proxy (per-segment `encodeURIComponent` does not help: `.` is unreserved, so `..` and `%2e%2e` alike are still resolved as dot segments by the URL parser after interpolation). Each value is now checked against what it can legitimately be, and the request is refused with a 400 before any fetch goes out.
+- **The access endpoint no longer discloses a workspace's owner and invite roster to people who have no access to it.** `GET .../access` stays readable without authorization on purpose — the join flow needs `generalAccess` and the link role before a visitor has any access at all — but the roster was never part of that decision. Owner and invited list are now blanked for a requester who does not authorize into the room; participants see them unchanged. Applies to both `WorkspaceRoom` and the legacy `CollabRoom`.
+- **Sessions now carry a server-enforced expiry.** The session cookie is a bearer credential, and only the browser's `Max-Age` bounded it — a copied value stayed valid until `SESSION_SECRET` was rotated. The 30-day lifetime is now stamped inside the encrypted payload and enforced on every request. **One-time effect: existing sign-ins are invalidated, so you'll be asked to sign in to GitHub again once.**
+- **The GitHub sign-in popup escapes its result payload before inlining it.** The popup page inlines a `postMessage` payload into a `<script>` block on the app's own origin; `JSON.stringify` escapes quotes but not `<`, so an upstream error message containing `</script>` would have closed the block early and landed as live markup.
+- **Mermaid and KaTeX rendering pin their sanitization settings explicitly.** Both render collaborator-supplied source into the preview _after_ its DOMPurify pass, not through it — `securityLevel: "strict"` and `trust: false` are each library's own default, but pinning them means a future version changing that default can't silently turn it off.
+
 ## [1.41.1] - 2026-09-01
 
 ### Fixed

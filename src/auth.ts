@@ -7,6 +7,16 @@ import type { Env, SessionData } from "./env";
 export const SESSION_COOKIE = "mde_gh_session";
 export const STATE_COOKIE = "mde_oauth_state";
 
+// The encrypted cookie is a bearer credential: whoever can replay the
+// string is the session. `Max-Age` on the Set-Cookie header only asks the
+// *browser* to forget it, so a value copied off a machine (or out of a
+// backup, or a shared profile) would otherwise stay valid until
+// SESSION_SECRET is rotated. Stamping the expiry inside the ciphertext —
+// where it can't be edited without the key — and enforcing it on the way
+// back in gives the cookie a real lifetime that matches the advertised
+// one. Keep this in sync with the Max-Age handleCallback sets.
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 async function deriveKey(env: Env): Promise<CryptoKey> {
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(env.SESSION_SECRET));
   return crypto.subtle.importKey("raw", hash, "AES-GCM", false, ["encrypt", "decrypt"]);
@@ -32,7 +42,8 @@ function fromBase64Url(str: string): ArrayBuffer {
 export async function encryptSession(env: Env, data: SessionData): Promise<string> {
   const key = await deriveKey(env);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(data)));
+  const payload: SessionData = { ...data, exp: Date.now() + SESSION_TTL_MS };
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(payload)));
   return `${toBase64Url(iv.buffer)}.${toBase64Url(ciphertext)}`;
 }
 
@@ -42,7 +53,12 @@ export async function decryptSession(env: Env, value: string): Promise<SessionDa
     if (!ivPart || !ctPart) return null;
     const key = await deriveKey(env);
     const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64Url(ivPart) }, key, fromBase64Url(ctPart));
-    return JSON.parse(new TextDecoder().decode(plaintext)) as SessionData;
+    const session = JSON.parse(new TextDecoder().decode(plaintext)) as SessionData;
+    // A session minted before `exp` existed carries no verifiable lifetime
+    // at all — treat that as expired rather than as unlimited. The cost is
+    // one re-authentication for anyone holding a pre-existing cookie.
+    if (typeof session.exp !== "number" || session.exp <= Date.now()) return null;
+    return session;
   } catch (err) {
     return null;
   }

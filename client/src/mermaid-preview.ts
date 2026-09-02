@@ -34,7 +34,7 @@ export function mermaidCodeRenderer(
 }
 
 export interface MermaidLike {
-  initialize(config: { theme: "default" | "dark"; startOnLoad: boolean; htmlLabels: boolean }): void;
+  initialize(config: { theme: "default" | "dark"; startOnLoad: boolean; htmlLabels: boolean; securityLevel: "strict" }): void;
   render(id: string, text: string): Promise<{ svg: string }>;
 }
 
@@ -62,7 +62,15 @@ export async function renderMermaidDiagrams(
   // onto a <canvas> (for PNG export) throws "Tainted canvases may not be
   // exported" — browsers refuse to read back pixels from a canvas that drew
   // an SVG containing embedded HTML, even same-origin.
-  mermaid.initialize({ theme, startOnLoad: false, htmlLabels: false });
+  //
+  // securityLevel: "strict" is mermaid's own default, but this diagram
+  // source can come from a collaborator on a shared document and the SVG it
+  // produces goes straight into innerHTML below, without passing through
+  // Preview.svelte's DOMPurify call — so the one thing standing between a
+  // hostile diagram and script execution is mermaid's internal
+  // sanitization. Pinning it explicitly means a future version changing its
+  // default can't silently turn that off.
+  mermaid.initialize({ theme, startOnLoad: false, htmlLabels: false, securityLevel: "strict" });
 
   for (const block of blocks) {
     // On a first pass, block.textContent is the raw mermaid source (see

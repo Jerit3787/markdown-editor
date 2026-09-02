@@ -640,6 +640,34 @@ describe("CollabRoom.handleAccessRequest", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  // Same rule as WorkspaceRoom's: GET stays open for the join flow, but the
+  // roster is only for participants. See src/access-visibility.ts.
+  it("blanks the owner and invite roster for a GET from someone with no access", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [{ username: "bob", role: "reviewer" }] });
+
+    const res = await room.handleAccessRequest(new Request("https://example.com/room1/access"));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as AccessRecord;
+    expect(body.owner).toBeNull();
+    expect(body.invited).toEqual([]);
+    expect(body.generalAccess).toBe("restricted");
+    expect(body.role).toBe("viewer");
+  });
+
+  it("returns the full roster to an invited collaborator", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [{ username: "bob", role: "reviewer" }] });
+    const cookie = await encryptSession(fakeEnv, { token: "gh-token", username: "bob" });
+
+    const res = await room.handleAccessRequest(new Request("https://example.com/room1/access", { headers: { Cookie: `mde_gh_session=${cookie}` } }));
+
+    const body = (await res.json()) as AccessRecord;
+    expect(body.owner).toBe("alice");
+    expect(body.invited).toEqual([{ username: "bob", role: "reviewer" }]);
+  });
 });
 
 describe("CollabRoom.handleMessage — read-only enforcement", () => {

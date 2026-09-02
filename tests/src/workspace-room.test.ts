@@ -287,6 +287,68 @@ describe("WorkspaceRoom.handleAccessRequest", () => {
     const res = await room.handleAccessRequest(request);
     expect(res.status).toBe(403);
   });
+
+  // GET stays readable without authorization on purpose — the join flow
+  // needs generalAccess/role before the visitor has any access at all —
+  // but the roster is not part of that decision, so an outsider gets it
+  // blanked rather than the endpoint getting locked. See
+  // src/access-visibility.ts.
+  it("blanks the owner and invite roster for a GET from someone with no access", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: "reviewer" }],
+    });
+
+    const res = await room.handleAccessRequest(new Request("https://example.com/w/ws1/access"));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as AccessRecord;
+    expect(body.owner).toBeNull();
+    expect(body.invited).toEqual([]);
+    // The join flow's own inputs still come through untouched.
+    expect(body.generalAccess).toBe("restricted");
+    expect(body.role).toBe("viewer");
+  });
+
+  it("returns the full roster to the owner", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: "reviewer" }],
+    });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+
+    const res = await room.handleAccessRequest(new Request("https://example.com/w/ws1/access", { headers: { Cookie: `mde_gh_session=${cookie}` } }));
+
+    const body = (await res.json()) as AccessRecord;
+    expect(body.owner).toBe("alice");
+    expect(body.invited).toEqual([{ username: "bob", role: "reviewer" }]);
+  });
+
+  it("returns the full roster to an invited collaborator", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: "reviewer" }],
+    });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "bob" });
+
+    const res = await room.handleAccessRequest(new Request("https://example.com/w/ws1/access", { headers: { Cookie: `mde_gh_session=${cookie}` } }));
+
+    const body = (await res.json()) as AccessRecord;
+    expect(body.owner).toBe("alice");
+    expect(body.invited).toEqual([{ username: "bob", role: "reviewer" }]);
+  });
 });
 
 const SNAPSHOT_INTERVAL_MS = 30 * 1000;

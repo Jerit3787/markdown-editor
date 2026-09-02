@@ -28,7 +28,7 @@ const BLOCK_MATH_RE = /\$\$([^$]+?)\$\$/g;
 const INLINE_MATH_RE = /\$([^\s$][^$\n]*?[^\s$]|[^\s$])\$/g;
 
 export interface KatexLike {
-  renderToString(tex: string, options: { throwOnError: boolean; displayMode: boolean }): string;
+  renderToString(tex: string, options: { throwOnError: boolean; displayMode: boolean; trust: boolean }): string;
 }
 
 async function loadRealKatex(): Promise<{ default: KatexLike }> {
@@ -105,7 +105,14 @@ export async function renderMathPlaceholders(
     const delimited = source.display ? `$$${source.src}$$` : `$${source.src}$`;
     let html: string;
     try {
-      html = katex.renderToString(source.src, { throwOnError: false, displayMode: source.display });
+      // trust: false is KaTeX's own default, but this TeX can come from a
+      // collaborator on a shared document and the HTML below goes straight
+      // into the live preview *after* Preview.svelte's DOMPurify pass, not
+      // through it. With trust enabled, \href/\url/\includegraphics emit
+      // caller-controlled URLs and \htmlData/\htmlId emit caller-controlled
+      // attributes — pinning it explicitly means a future version changing
+      // its default can't silently turn that on.
+      html = katex.renderToString(source.src, { throwOnError: false, displayMode: source.display, trust: false });
     } catch {
       // katex itself failing to load/execute (not a LaTeX syntax error,
       // which throwOnError:false already handles inline) — fall back to

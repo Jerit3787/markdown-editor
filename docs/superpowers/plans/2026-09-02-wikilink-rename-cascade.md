@@ -1057,20 +1057,20 @@ git commit -m "feat: wire wikilink rename cascade into the rename UI"
 **Interfaces:**
 - Consumes: nothing new — exercises the full stack (Task 4's Worker endpoint, Task 5's orchestrator, Task 6's UI wiring) against a real running Worker.
 
-- [ ] **Step 1: Study the existing collab e2e setup**
+- [x] **Step 1: Study the existing collab e2e setup**
 
 Read `tests/scripts/e2e-collab.sh` and one existing spec in `tests/e2e/collab/` (e.g. the suggestion-mode one referenced in workspace-room test output, `tests/e2e/collab/suggestion-mode.spec.ts`) to find: how two browser contexts are set up as two different roles in the same shared workspace, how dev-login is used to sign each in, and how a document is opened/switched between contexts. Reuse those exact helpers.
 
-- [ ] **Step 2: Write the collab e2e spec**
+- [x] **Step 2: Write the collab e2e spec**
 
 Create `tests/e2e/collab/wikilink-rename-cascade.spec.ts` with one test: two connected browser contexts (both editors) joined to the same shared workspace, which has two documents — "Target" (open in context A) and "Linker" (containing `[[Target]]`, NOT open in context B — i.e. a background document from context B's perspective). Context A renames "Target" to "Renamed" via the toolbar title field. Assert that once context B switches to (opens) "Linker", its content shows `[[Renamed]]` — confirming the change reached it through the real Worker endpoint and Yjs sync, not merely context A's own local cache.
 
-- [ ] **Step 3: Run the collab e2e suite**
+- [x] **Step 3: Run the collab e2e suite**
 
 Run: `npm run test:e2e:collab`
 Expected: PASS (this new test plus every existing collab spec)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/e2e/collab/wikilink-rename-cascade.spec.ts

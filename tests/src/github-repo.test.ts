@@ -477,7 +477,12 @@ describe("handleRepoPush against a real fake GitHub server", () => {
     realFetch = globalThis.fetch.bind(globalThis);
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
-      const rewritten = url.startsWith("https://api.github.com") ? url.replace("https://api.github.com", fakeServer.baseUrl) : url;
+      // Checks the parsed host, not a string prefix — "https://api.github.com"
+      // is itself an offset into the URL, so a substring/startsWith check
+      // alone would also match a spoofing host like
+      // "https://api.github.com.evil.example/..." (flagged by CodeQL's
+      // js/incomplete-url-substring-sanitization, alert #18).
+      const rewritten = new URL(url).host === "api.github.com" ? url.replace("https://api.github.com", fakeServer.baseUrl) : url;
       return realFetch(rewritten, init);
     });
   });

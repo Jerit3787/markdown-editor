@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.42.1] - 2026-09-03
+
+### Fixed
+
+- **A test-only GitHub API fetch mock now checks the parsed host instead of a string prefix.** `tests/src/github-repo.test.ts`'s fake-GitHub-server harness redirected requests via `url.startsWith("https://api.github.com")`, which a URL like `https://api.github.com.evil.example/...` would also satisfy — flagged by CodeQL as an incomplete URL substring sanitization. No production code was affected (the check only exists in test infrastructure, redirecting URLs this test suite itself constructs), but the check now parses the URL and compares its `host` exactly.
+
 ## [1.42.0] - 2026-09-02
 
 ### Added

@@ -33,11 +33,15 @@
     if (!state) return;
     removeDocById(state.collidingDocId);
     commitName(state.pendingName);
+    void window.MDE.cascadeWikilinkRenameAndToast(state.docId, state.previousName, state.pendingName);
   }
 
   function saveAsSuffixed() {
-    if (!$renameCollision) return;
-    commitName(suggestedName);
+    const state = $renameCollision;
+    if (!state) return;
+    const finalName = suggestedName;
+    commitName(finalName);
+    void window.MDE.cascadeWikilinkRenameAndToast(state.docId, state.previousName, finalName);
   }
 
   function cancel() {

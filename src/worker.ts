@@ -15,6 +15,7 @@ const WORKSPACE_ACCESS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/access
 const WORKSPACE_DOCS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs$/;
 const WORKSPACE_DOC_VERSIONS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/versions(\/.*)?$/;
 const WORKSPACE_DOC_COMMENTS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/comments(\/.*)?$/;
+const WORKSPACE_DOC_WIKILINK_RENAME_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/wikilink-rename$/;
 const GIST_PATH = /^\/api\/gist\/([0-9a-f]+)$/i;
 const GIST_IMAGE_PATH = /^\/api\/gist\/([0-9a-f]+)\/image$/i;
 const REPO_TREE_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/tree$/;
@@ -48,6 +49,12 @@ export default {
     const workspaceDocCommentsMatch = url.pathname.match(WORKSPACE_DOC_COMMENTS_PATH);
     if (workspaceDocCommentsMatch) {
       const id = env.WORKSPACE_ROOM.idFromName(workspaceDocCommentsMatch[1]!);
+      return env.WORKSPACE_ROOM.get(id).fetch(request);
+    }
+
+    const workspaceWikilinkRenameMatch = url.pathname.match(WORKSPACE_DOC_WIKILINK_RENAME_PATH);
+    if (workspaceWikilinkRenameMatch) {
+      const id = env.WORKSPACE_ROOM.idFromName(workspaceWikilinkRenameMatch[1]!);
       return env.WORKSPACE_ROOM.get(id).fetch(request);
     }
 

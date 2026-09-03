@@ -197,6 +197,17 @@ export interface MDEBridge {
   // the renameCollision store if one is found. Same effect as blurring the
   // #docTitle toolbar input.
   commitActiveDocRename(previousName: string): void;
+  // Rewrites every exact [[oldName]] occurrence in the ACTIVE document's
+  // live editor buffer to [[newName]], as one CodeMirror transaction (one
+  // undo step). Returns whether anything was rewritten. Part of the
+  // wikilink rename cascade (wikilink-rename-cascade.ts) -- called only
+  // when the renamed document's own content self-references its old name.
+  applyWikilinkRenameToActiveDoc(oldName: string, newName: string): boolean;
+  // Runs the wikilink rename cascade for a just-committed rename and
+  // shows a toast if anything changed. Exposed on the bridge so
+  // RenameCollisionModal.svelte (which finalizes a rename outside
+  // commitActiveDocRename's own call site) can trigger the same cascade.
+  cascadeWikilinkRenameAndToast(docId: string, oldName: string, newName: string): Promise<void>;
   setDocMetadata(id: string, metadata: MetadataPair[]): void;
   onDocMetadataChanged: ((id: string, metadata: MetadataPair[]) => void) | null;
   setDocCitations(id: string, citations: { prefs: CitationPrefs; bibliography: BibEntry[] }): void;

@@ -553,6 +553,95 @@ describe("WorkspaceRoom.handleVersionRestoreContentRequest", () => {
   });
 });
 
+describe("WorkspaceRoom.handleWikilinkRenameRequest", () => {
+  it("rejects a request with no session on a restricted workspace", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    await room.loadDocRoom("docA");
+    const request = new Request("https://example.com/w/ws1/docs/docA/wikilink-rename", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName: "Old", newName: "New" }),
+    });
+    const res = await room.handleWikilinkRenameRequest(request, "docA");
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects a non-editor", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: "reviewer" }],
+    });
+    await room.loadDocRoom("docA");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "bob" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/wikilink-rename", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName: "Old", newName: "New" }),
+    });
+    const res = await room.handleWikilinkRenameRequest(request, "docA");
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects a request missing oldName or newName", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    await room.loadDocRoom("docA");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/wikilink-rename", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName: "Old" }),
+    });
+    const res = await room.handleWikilinkRenameRequest(request, "docA");
+    expect(res.status).toBe(400);
+  });
+
+  it("rewrites the room's live content and returns changed: true", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "See [[Old]] here"), "storage");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/wikilink-rename", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName: "Old", newName: "New" }),
+    });
+    const res = await room.handleWikilinkRenameRequest(request, "docA");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { changed: boolean };
+    expect(body.changed).toBe(true);
+    expect(docRoom.doc.getText("content").toString()).toBe("See [[New]] here");
+  });
+
+  it("returns changed: false and doesn't transact when the name isn't present", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "unrelated content"), "storage");
+    let updateFired = false;
+    docRoom.doc.on("update", () => {
+      updateFired = true;
+    });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/wikilink-rename", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName: "Old", newName: "New" }),
+    });
+    const res = await room.handleWikilinkRenameRequest(request, "docA");
+    const body = (await res.json()) as { changed: boolean };
+    expect(body.changed).toBe(false);
+    expect(docRoom.doc.getText("content").toString()).toBe("unrelated content");
+    expect(updateFired).toBe(false);
+  });
+});
+
 describe("WorkspaceRoom comment threads", () => {
   it("creates a thread and persists it under the doc's own storage key", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);

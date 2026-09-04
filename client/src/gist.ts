@@ -288,13 +288,25 @@ export async function fetchRaw(url: string) {
   return res.text();
 }
 
+// GitHub's own proxied errors (gist create/update/get) come back as JSON
+// with a "message" field, but this app's own validation errors (e.g.
+// gist-images.ts's 400s) are plain text — res.json() throws on those and
+// used to fall straight through to a bare "HTTP 400"/"HTTP 404", silently
+// discarding whatever specific reason the server actually gave. Reading
+// the body as text first (bodies can only be consumed once, so this can't
+// also try res.json() after) and attempting JSON.parse on it ourselves
+// gets the best of both: GitHub's "message" field when there is one, the
+// raw text otherwise, and only a bare "HTTP {status}" when the body is
+// truly empty.
 export async function errorMessage(res: Response) {
+  const text = await res.text();
   try {
-    const data = await res.json();
-    return data.message || `HTTP ${res.status}`;
+    const data = JSON.parse(text);
+    if (data && typeof data.message === "string" && data.message) return data.message;
   } catch (e) {
-    return `HTTP ${res.status}`;
+    // not JSON — fall through to the raw text below
   }
+  return text || `HTTP ${res.status}`;
 }
 
 export function parseGistId(raw: string) {

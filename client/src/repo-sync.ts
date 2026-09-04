@@ -84,6 +84,19 @@ function extFromDataUrl(dataUrl: string): string {
   return sub === "jpeg" ? "jpg" : sub;
 }
 
+// The inverse of extFromDataUrl, used when pulling: a repo asset has no
+// MIME type of its own, only a file extension, but downstream consumers
+// (gist.ts's image-push regex included) require a proper data URL with a
+// real `image/<subtype>` — "image/*" is a valid Accept-header wildcard but
+// not a real MIME type, and a data URL claiming it fails that regex, so an
+// image round-tripped through repo-sync used to silently drop out of any
+// later Gist publish instead of being pushed.
+function mimeFromAssetPath(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase() || "";
+  const subtype: Record<string, string> = { jpg: "jpeg", jpeg: "jpeg", svg: "svg+xml" };
+  return `image/${subtype[ext] || ext || "png"}`;
+}
+
 export function rewriteImagesForPush(
   content: string,
   docSlug: string,
@@ -225,7 +238,7 @@ export async function pullFromRepo(
       const assetRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/blob/${assetEntry.sha}`);
       if (!assetRes.ok) continue;
       const assetData = await assetRes.json();
-      blobs[assetPath] = `data:image/*;base64,${assetData.content.replace(/\n/g, "")}`;
+      blobs[assetPath] = `data:${mimeFromAssetPath(assetPath)};base64,${assetData.content.replace(/\n/g, "")}`;
     }
 
     const resolved = resolveImagesFromPull(rawContent, docSlug, blobs);

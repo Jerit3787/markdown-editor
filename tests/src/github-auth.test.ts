@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleMe, handleCallback } from "../../src/github-auth";
+import { handleLogin, handleMe, handleCallback } from "../../src/github-auth";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
 
-const fakeEnv = { SESSION_SECRET: "test-secret-at-least-32-bytes-long!!" } as unknown as Env;
+const fakeEnv = { SESSION_SECRET: "test-secret-at-least-32-bytes-long!!", GITHUB_CLIENT_ID: "fake-client-id" } as unknown as Env;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -13,6 +13,15 @@ async function sessionCookieHeader(token: string, username: string): Promise<str
   const session = await encryptSession(fakeEnv, { token, username });
   return `mde_gh_session=${session}`;
 }
+
+describe("handleLogin", () => {
+  it("requests both repo and gist scopes — dropping either breaks repo-sync or Gist publish for anyone who (re)authorizes", async () => {
+    const req = new Request("https://example.com/api/auth/github/login");
+    const res = await handleLogin(req, fakeEnv);
+    const location = new URL(res.headers.get("Location")!);
+    expect(location.searchParams.get("scope")?.split(" ").sort()).toEqual(["gist", "repo"]);
+  });
+});
 
 describe("handleMe", () => {
   it("reports granted scopes from GitHub's X-OAuth-Scopes header", async () => {

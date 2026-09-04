@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.42.2] - 2026-09-04
+
+### Fixed
+
+- **Publishing or updating a Gist could fail with a confusing "not-found" error.** The GitHub sign-in flow requested only the `repo` OAuth scope, which silently replaced the previously-granted `gist` scope for anyone who (re)authorized after that change — GitHub scopes aren't additive across separate authorize requests. Sign-in now requests both `repo` and `gist` together, and Gist publish now checks for the `gist` scope up front, prompting for a fresh sign-in with a clear explanation instead of surfacing GitHub's opaque 404.
+
 ## [1.42.1] - 2026-09-03
 
 ### Fixed

@@ -26,7 +26,15 @@ export async function handleLogin(request: Request, env: Env): Promise<Response>
   const authorizeUrl = new URL(AUTHORIZE_URL);
   authorizeUrl.searchParams.set("client_id", env.GITHUB_CLIENT_ID);
   authorizeUrl.searchParams.set("redirect_uri", `${url.origin}/api/auth/github/callback`);
-  authorizeUrl.searchParams.set("scope", "repo");
+  // "repo" and "gist" are independent OAuth scopes — requesting only one
+  // silently drops the other for anyone who (re)authorizes after a scope
+  // change, since GitHub's grant reflects whatever was last requested, not
+  // a union of every scope this app has ever asked for. This app relies on
+  // both: repo-sync needs "repo", Gist publish/update needs "gist". See
+  // repo-sync-ui.ts's hasRepoScope/requireRepoScope for the client-side
+  // check that catches a stale grant missing "repo"; gist.ts's
+  // hasGistScope/requireGistScope is the mirror for "gist".
+  authorizeUrl.searchParams.set("scope", "repo gist");
   authorizeUrl.searchParams.set("state", state);
 
   const headers = new Headers({ Location: authorizeUrl.toString() });

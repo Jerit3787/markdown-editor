@@ -41,24 +41,49 @@ export async function handleGistImageUpload(request: Request, env: Env, gistId: 
   const session = cookie ? await decryptSession(env, cookie) : null;
   if (!session) return new Response("Sign in with GitHub first.", { status: 401 });
 
-  let body: { filename?: unknown; contentBase64?: unknown };
+  let bodyText: string;
   try {
-    body = await request.json();
-  } catch (err) {
-    return new Response("Invalid JSON.", { status: 400 });
+    bodyText = await request.text();
+  } catch (err: any) {
+    return new Response(`Couldn't read the request body: ${err.message || "unknown error"}.`, { status: 400 });
   }
 
-  const filename = typeof body.filename === "string" ? sanitizeFilename(body.filename) : "";
-  const contentBase64 = typeof body.contentBase64 === "string" ? body.contentBase64 : "";
+  let body: { filename?: unknown; contentBase64?: unknown };
+  try {
+    body = JSON.parse(bodyText);
+  } catch (err: any) {
+    // A diagnostic-only detail, not a stable API contract: this endpoint
+    // has surfaced an unexplained 400 in production with no visibility
+    // into which of its checks tripped (only the status code reaches the
+    // Worker's own logs), so every 400 branch here reports specifics —
+    // length/prefix only, never the full payload, to stay clear of
+    // logging actual image bytes.
+    return new Response(`Invalid JSON (length ${bodyText.length}, starts with ${JSON.stringify(bodyText.slice(0, 40))}): ${err.message || "unknown error"}.`, {
+      status: 400,
+    });
+  }
+
+  const rawFilename = body.filename;
+  const rawContentBase64 = body.contentBase64;
+  const filename = typeof rawFilename === "string" ? sanitizeFilename(rawFilename) : "";
+  const contentBase64 = typeof rawContentBase64 === "string" ? rawContentBase64 : "";
   if (!filename || !contentBase64) {
-    return new Response("filename and contentBase64 are required.", { status: 400 });
+    return new Response(
+      `filename and contentBase64 are required (filename: ${JSON.stringify(rawFilename)}, contentBase64 type: ${typeof rawContentBase64}, length: ${
+        typeof rawContentBase64 === "string" ? rawContentBase64.length : "n/a"
+      }).`,
+      { status: 400 },
+    );
   }
 
   let bytes: Uint8Array;
   try {
     bytes = base64ToBytes(contentBase64);
-  } catch (err) {
-    return new Response("Invalid base64 content.", { status: 400 });
+  } catch (err: any) {
+    return new Response(
+      `Invalid base64 content (length ${contentBase64.length}, starts with ${JSON.stringify(contentBase64.slice(0, 20))}): ${err.message || "unknown error"}.`,
+      { status: 400 },
+    );
   }
 
   try {

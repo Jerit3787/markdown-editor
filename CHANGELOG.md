@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.42.3] - 2026-09-04
+
+### Fixed
+
+- **A pulled image asset's data URL used a fake `image/*` MIME type instead of the real one.** `repo-sync.ts`'s pull path built `data:image/*;base64,...` for every image asset fetched from a linked repo — `image/*` is a valid `Accept`-header wildcard but not a real MIME type, so it silently failed the regex Gist publish uses to recognize an image data URL. A document with an image round-tripped through repo-sync would fail to include that image when later published to a Gist, with no error — the image reference was simply dropped from the push. The pulled asset's actual file extension is now used to build a real `image/<subtype>` MIME type.
+
+### Changed
+
+- **The Gist image-upload endpoint's error responses now include diagnostic detail** (payload length/prefix, which field was missing or malformed) instead of a bare one-line message, to make a future occurrence of an unexplained failure self-diagnosing from the error toast alone.
+
 ## [1.42.2] - 2026-09-04
 
 ### Fixed

@@ -636,6 +636,26 @@ describe("linkWorkspaceAndSync", () => {
     expect(synced).toBeDefined();
     expect(synced!).toBeGreaterThanOrEqual(before);
   });
+
+  // A pulled image asset has no MIME type of its own on the wire — only a
+  // file extension — but resolveImagesFromPull's regex-based extraction
+  // (mirrored by gist.ts's image-push path) requires a real `image/<sub>`
+  // to recognize the data URL as an image at all. A wildcard "image/*"
+  // used to be hardcoded here, silently breaking any later re-publish of
+  // a repo-pulled image to a Gist.
+  it("gives a pulled image asset a real MIME type, not the image/* wildcard", async () => {
+    const ws = createWorkspace("Test Workspace 5");
+    backend.seedRepo("alice", "notes", "main", [
+      { path: "notes.md", content: "![a photo](assets/notes/photo.png)" },
+      { path: "assets/notes/photo.png", content: "fake-png-bytes" },
+    ]);
+
+    await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+
+    const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
+    const doc = docs.find((d) => d.repoPath === "notes.md")!;
+    expect(doc.images?.["photo.png"]).toMatch(/^data:image\/png;base64,/);
+  });
 });
 
 describe("pushToRepo", () => {

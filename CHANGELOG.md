@@ -8,11 +8,12 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **A failed Gist action always showed a useless "HTTP 400"/"HTTP 404" toast instead of the server's actual reason.** `gist.ts`'s shared `errorMessage()` helper only handled GitHub's own JSON-shaped proxy errors (`{"message": "..."}`) — this app's own validation errors (e.g. the Gist image-upload endpoint's 400s) are plain text, and `res.json()` throws on those, silently collapsing every one of them to a bare HTTP status with no indication of what actually went wrong. This is why an image-push failure's toast read "Gist published, but pushing images failed: HTTP 400" instead of a specific reason. `errorMessage()` now reads the body as text first and falls back to it whenever the response isn't JSON (or has no `message` field), so a validation error's real text reaches the toast.
 - **A pulled image asset's data URL used a fake `image/*` MIME type instead of the real one.** `repo-sync.ts`'s pull path built `data:image/*;base64,...` for every image asset fetched from a linked repo — `image/*` is a valid `Accept`-header wildcard but not a real MIME type, so it silently failed the regex Gist publish uses to recognize an image data URL. A document with an image round-tripped through repo-sync would fail to include that image when later published to a Gist, with no error — the image reference was simply dropped from the push. The pulled asset's actual file extension is now used to build a real `image/<subtype>` MIME type.
 
 ### Changed
 
-- **The Gist image-upload endpoint's error responses now include diagnostic detail** (payload length/prefix, which field was missing or malformed) instead of a bare one-line message, to make a future occurrence of an unexplained failure self-diagnosing from the error toast alone.
+- **The Gist image-upload endpoint's error responses now include diagnostic detail** (payload length/prefix, which field was missing or malformed) instead of a bare one-line message — this is what finally surfaced the `errorMessage()` bug above once its own fix let that detail reach the toast.
 
 ## [1.42.2] - 2026-09-04
 

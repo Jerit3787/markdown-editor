@@ -72,11 +72,35 @@ function render() {
   githubUsernameStore.set(connectedUsername);
 }
 
+// The "repo" scope this app now requests alongside "gist" (see
+// src/github-auth.ts) didn't exist on a grant made before that scope was
+// added — a user signed in under that older grant needs to re-authorize
+// to pick up "gist" before any Gist action will work. Checked fresh on
+// every action rather than cached, since the grant can also be revoked
+// entirely from GitHub's side at any time. Mirrors repo-sync-ui.ts's
+// hasRepoScope/requireRepoScope for the same reason on the "repo" side.
+async function hasGistScope(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/auth/github/me");
+    const data = await res.json();
+    return Array.isArray(data.scopes) && data.scopes.includes("gist");
+  } catch (err) {
+    return false;
+  }
+}
+
+async function requireGistScope(): Promise<boolean> {
+  if (await hasGistScope()) return true;
+  window.MDE.requireGithubSignIn("Publishing to Gist needs a fresh sign-in to grant Gist access. Sign in to continue.");
+  return false;
+}
+
 async function publish() {
   if (!connectedUsername) {
     window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue.");
     return;
   }
+  if (!(await requireGistScope())) return;
   const doc = getActiveDoc();
   if (!doc) return;
 

@@ -16,6 +16,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { get } from "svelte/store";
 import { keymap } from "@codemirror/view";
+import { Transaction } from "@codemirror/state";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
@@ -67,6 +68,15 @@ interface DocBinding {
   undoManager: Y.UndoManager | null;
   ydocUpdateHandler: (update: Uint8Array, origin: unknown) => void;
   role: string;
+  // False only for a binding created "blank" by createDocBinding for a
+  // docId the server already knows about (see joinWorkspace) — its ytext
+  // starts empty and only becomes correct once the server's own sync
+  // reply has been applied. A binding seeded locally (seedDocBindingFromEditor,
+  // seedNewDocBinding) already holds the right content the moment it's
+  // created and is marked synced immediately. bindActiveDoc awaits
+  // whenSynced before attaching yCollab: see markDocSynced for why.
+  synced: boolean;
+  whenSynced: Promise<void>;
 }
 
 const workspaceRoom = {
@@ -427,6 +437,7 @@ function seedDocBindingFromEditor(docId: string): void {
       if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
     }, "local");
   }
+  markDocSynced(docId);
 }
 
 // Introduces a document to an already-connected workspace room that never
@@ -448,6 +459,7 @@ function seedNewDocBinding(docId: string, doc: Doc, role: string): void {
     binding.metaMap.set("citations", JSON.stringify(doc.citations ?? EMPTY_CITATIONS));
     if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
   }, "local");
+  markDocSynced(docId);
   const encoder = encoding.createEncoder();
   encoding.writeVarUint(encoder, MESSAGE_SYNC);
   encoding.writeVarString(encoder, docId);
@@ -547,7 +559,23 @@ function createDocBinding(docId: string, role: string): DocBinding {
   };
   ydoc.on("update", ydocUpdateHandler);
 
-  const binding: DocBinding = { ydoc, ytext, imagesMap, metaMap, awareness, undoManager: null, ydocUpdateHandler, role };
+  let resolveSynced!: () => void;
+  const whenSynced = new Promise<void>((resolve) => {
+    resolveSynced = resolve;
+  });
+  const binding: DocBinding = {
+    ydoc,
+    ytext,
+    imagesMap,
+    metaMap,
+    awareness,
+    undoManager: null,
+    ydocUpdateHandler,
+    role,
+    synced: false,
+    whenSynced,
+  };
+  bindingSyncResolvers.set(docId, resolveSynced);
   workspaceRoom.docs.set(docId, binding);
   return binding;
 }
@@ -580,13 +608,80 @@ function registerDiscoveredDoc(docId: string, binding: DocBinding): void {
   ]);
 }
 
+// resolveSynced closures live here rather than on DocBinding itself,
+// since createDocBinding's own object-literal construction above can't
+// reference a method on the object it's still in the middle of building.
+const bindingSyncResolvers = new Map<string, () => void>();
+
+// Marks a binding as holding trustworthy content: either the server's own
+// sync reply has been applied to it (see handleServerMessage), or it was
+// populated locally, from content already known to be correct, at the
+// moment it was created (seedDocBindingFromEditor, seedNewDocBinding).
+// bindActiveDoc awaits this before attaching the yCollab CodeMirror
+// extension — attaching it any earlier risks the exact race that caused
+// live documents to duplicate their own content on every page refresh:
+// yCollab's ySync plugin never reconciles the CodeMirror view against
+// Y.Text on attach, it only forwards *future* Y.Text deltas into the view
+// as literal inserts/deletes (see node_modules/y-codemirror.next's
+// YSyncPluginValue) — so if the view already shows the document's
+// last-known content (loaded from localStorage before this rejoin even
+// started) and the binding's still-empty ytext then gets filled in by a
+// delayed server reply, that fill-in gets forwarded into the view as a
+// second, indistinguishable copy of content already there.
+function markDocSynced(docId: string): void {
+  const binding = workspaceRoom.docs.get(docId);
+  if (!binding || binding.synced) return;
+  binding.synced = true;
+  bindingSyncResolvers.get(docId)?.();
+  bindingSyncResolvers.delete(docId);
+}
+
+// The docId most recently passed to bindActiveDoc — used only to detect
+// that a call superseded by a later one (same workspace, quick doc
+// switch, no teardown/generation bump involved) should stop before
+// touching shared state once its own await below resolves.
+let lastRequestedActiveDocId: string | null = null;
+
 // Rebinds the editor to a different document already syncing within the
 // active workspace — no connection/reconnection involved, only which
-// Y.Doc CodeMirror's yCollab extension is attached to.
-function bindActiveDoc(docId: string): void {
+// Y.Doc CodeMirror's yCollab extension is attached to. Async: waits for
+// the binding's first real sync before wiring up yCollab (see
+// markDocSynced for why attaching any earlier corrupts the document).
+async function bindActiveDoc(docId: string): Promise<void> {
   const binding = workspaceRoom.docs.get(docId);
   if (!binding) return;
+  lastRequestedActiveDocId = docId;
+  const myGeneration = joinGeneration;
+  await binding.whenSynced;
+  // Bail if superseded while waiting: either the whole workspace was torn
+  // down and rejoined (generation bumped) or another doc switch already
+  // moved past this one within the same still-connected workspace.
+  if (joinGeneration !== myGeneration || lastRequestedActiveDocId !== docId) return;
+  if (workspaceRoom.docs.get(docId) !== binding) return;
   workspaceRoom.activeDocId = docId;
+
+  // yCollab's own sync plugin never reconciles the CodeMirror view against
+  // Y.Text when it's attached — it only forwards *future* Y.Text deltas
+  // into the view (see node_modules/y-codemirror.next's YSyncPluginValue).
+  // The view at this point holds whatever content this doc's own
+  // non-collab load path put there — usually already correct (the local
+  // copy this same content was persisted from), but not guaranteed: a
+  // collaborator joining a shared workspace for the very first time loads
+  // an initial snapshot fetched over plain HTTP (fetchRemoteDocContent),
+  // which can be a beat behind the room's actual live Y.Doc content by
+  // the time this binding finishes its own sync above. Force the view to
+  // exactly match the now-synced ytext before attaching yCollab: a no-op
+  // when they already agree (the common case), a real correction
+  // otherwise — either way, exactly one copy of the content ends up
+  // showing, never zero and never two.
+  const view = window.MDE.getEditor();
+  const syncedContent = binding.ytext.toString();
+  if (view.state.doc.toString() !== syncedContent) {
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: syncedContent },
+      annotations: Transaction.addToHistory.of(false),
+    });
+  }
 
   const undoManager = binding.undoManager || new Y.UndoManager(binding.ytext);
   binding.undoManager = undoManager;
@@ -740,9 +835,30 @@ function handleServerMessage(data: Uint8Array): void {
     // has to be measured from after it was written (see the identical
     // fix on the server side, src/workspace-room.ts).
     const baseLength = encoding.length(encoder);
-    syncProtocol.readSyncMessage(decoder, encoder, binding.ydoc, "server");
+    const syncMessageType = syncProtocol.readSyncMessage(decoder, encoder, binding.ydoc, "server");
     if (encoding.length(encoder) > baseLength) send(encoding.toUint8Array(encoder));
+    // A docId discovered just now is only ever introduced by a
+    // content-bearing broadcast (see discoverRemoteDocBinding's own
+    // comment) — never the room's own step1 greeting, which only ever
+    // targets docs already known at connection time — so this always
+    // has real content to import by the time it runs.
     if (isNewToUs) registerDiscoveredDoc(docId, binding);
+    // The room's DO always greets a freshly-opened socket with its OWN
+    // sync step1 for every doc it already knows about (see
+    // WorkspaceRoom.handleSession) — sent unconditionally, before it's
+    // even seen this client's own step1. That greeting is what a
+    // rejoining client's very first received MESSAGE_SYNC frame usually
+    // is: a step1 carries no content, readSyncMessage only writes a
+    // reply into `encoder` above (this client's own, still-empty, state)
+    // and never touches binding.ydoc. The room's actual content arrives
+    // one message later, as its reply to THIS client's own step1 (a
+    // step2) or, in principle, a plain update. Treating "any message
+    // received" as synced — rather than gating on the message actually
+    // being content-bearing — let bindActiveDoc attach yCollab before
+    // the real content had arrived, so that next, content-bearing
+    // message got forwarded into a CodeMirror view that already showed
+    // that same content locally, doubling it. See markDocSynced.
+    if (syncMessageType !== syncProtocol.messageYjsSyncStep1) markDocSynced(docId);
   } else if (messageType === MESSAGE_AWARENESS) {
     const update = decoding.readVarUint8Array(decoder);
     awarenessProtocol.applyAwarenessUpdate(binding.awareness, update, "server");

@@ -68,7 +68,9 @@ A change that ships anything **user-facing** bumps the **minor** version (`1.X.0
 
 1. `package.json` (+ `package-lock.json`) version bump
 2. A new `## [1.X.0] - YYYY-MM-DD` section at the top of `CHANGELOG.md` (Keep a Changelog format — `### Added`/`### Changed`/`### Fixed`)
-3. A new entry appended to `client/src/whats-new-entries.ts` (`WHATS_NEW_ENTRIES`, oldest-first) — `WhatsNew.svelte` warns in dev if the last entry's version doesn't match `__APP_VERSION__` (from `package.json` via Vite `define`), though a `screenshot` field pointing at a real asset is expected too
+3. A new entry appended to `client/src/whats-new-entries.ts` (`WHATS_NEW_ENTRIES`, oldest-first) — `WhatsNew.svelte` warns in dev if the last entry's version doesn't match `__APP_VERSION__` (from `package.json` via Vite `define`)
+
+**The `screenshot` field is not optional and its asset is not deferrable.** `WhatsNew.svelte` renders it as a plain `<img>` with no fallback — a missing file isn't a cosmetic gap, it's a broken-image icon shown to every real user who opens that entry. Capture a real screenshot (e.g. via a quick Playwright script against a locally-built/served client) and add it to `client/public/whats-new/` in the _same_ change that adds the entry, before considering the entry done — never ship the entry first and the image "later." This is distinct from never fabricating a fake/placeholder image (still correct) — the fix for "no real screenshot exists yet" is to go capture one, not to skip it.
 
 A change that's **purely behind-the-scenes** (internal refactor, dependency bump, a bugfix with no visible behavior change beyond "the bug is gone") bumps only the **patch** version (`1.0.X`) and gets a `CHANGELOG.md` entry (`### Fixed`/`### Changed`) but **no** `whats-new-entries.ts` entry. Tags trigger `.github/workflows/release.yml`, which pulls that tag's `CHANGELOG.md` section verbatim into the GitHub Release notes (`.github/scripts/release-helper.cjs`) — an untagged version bump with no changelog section produces an empty release note.
 

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.44.0] - 2026-09-05
+
+### Added
+
+- **A document created in a shared workspace now reaches every already-connected collaborator immediately, not just those who join afterward.** Previously, a document created (or first switched to) after a collaborator's connection was already established never appeared in their document list — no reload or rejoin fixed it short of leaving and re-joining the workspace entirely.
+
 ## [1.43.1] - 2026-09-05
 
 ### Fixed

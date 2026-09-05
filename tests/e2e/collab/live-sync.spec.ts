@@ -226,15 +226,11 @@ test("a document created after both collaborators are already connected appears 
   const secondDocId = await alice.evaluate(() => localStorage.getItem("mde:active"));
 
   await expect
-    .poll(() =>
-      bob.evaluate((id) => JSON.parse(localStorage.getItem("mde:docs") || "[]").some((d: { id: string }) => d.id === id), secondDocId),
-    )
+    .poll(() => bob.evaluate((id) => JSON.parse(localStorage.getItem("mde:docs") || "[]").some((d: { id: string }) => d.id === id), secondDocId))
     .toBe(true);
 
   await bob.evaluate((id) => window.MDE.switchDoc(id), secondDocId);
-  await expect
-    .poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""))
-    .toContain("second document content, created mid-session");
+  await expect.poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("second document content, created mid-session");
 
   await aliceCtx.close();
   await bobCtx.close();

@@ -19,7 +19,7 @@ import { keymap } from "@codemirror/view";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
-import { shareModalOpen, shareAccess, shareTargetName, sharePresence } from "./stores/share";
+import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified } from "./stores/share";
 import { showToast } from "./stores/toast";
 import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent } from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
@@ -187,6 +187,7 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
     }
     return;
   }
+  identityUnverified.set(isIdentityUnverified(access, username));
 
   if (localMatch) {
     // Already joined this remote workspace before — just switch to it.
@@ -229,6 +230,16 @@ function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): 
   if (!username) return null;
   const invited = access.invited.find((p) => p.username === username);
   return invited ? invited.role : null;
+}
+
+// True only in the one genuinely ambiguous case: there's no session at
+// all (not merely a session belonging to someone else), yet the access
+// record still grants a role via general access. Doesn't change what
+// role is granted (computeMyRole already does the right thing here) —
+// this only flags that the *reason* is unverifiable identity, not a
+// deliberate permissions decision, so the UI can say so.
+export function isIdentityUnverified(access: typeof DEFAULT_ACCESS, username: string | null): boolean {
+  return !username && access.owner !== null && access.generalAccess === "anyone";
 }
 
 // ---------- Room lifecycle ----------
@@ -275,6 +286,7 @@ async function rejoinKnownWorkspace(remoteId: string, docId: string) {
   if (myGeneration !== joinGeneration) return;
   const role = computeMyRole(access, window.MDE.githubUsername);
   if (!role) return;
+  identityUnverified.set(isIdentityUnverified(access, window.MDE.githubUsername));
   const joined = await joinWorkspace(remoteId, { role });
   if (joined !== joinGeneration) return;
   bindActiveDoc(docId);
@@ -528,6 +540,7 @@ function teardownWorkspace(): void {
   backgroundSyncDebounce.flush();
   remotePresenceByUsername.clear();
   workspacePresence.set(new Map());
+  identityUnverified.set(false);
   window.MDE.setReadOnly(false);
   unlockViewMode();
   window.MDE.exitCollabMode();

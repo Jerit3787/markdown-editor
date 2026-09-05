@@ -17,3 +17,11 @@ export const shareTargetName = writable("Untitled workspace");
 // Share.svelte's people list and collab.ts's own topbar avatar rendering,
 // so the two never drift out of sync with each other.
 export const sharePresence = writable<PresenceEntry[]>([]);
+// True only in the one genuinely ambiguous case: there's no session at
+// all (not merely a session belonging to someone else), yet the access
+// record still granted a role via general access — see
+// collab.ts's isIdentityUnverified(). Doesn't gate anything; purely
+// tells the UI the role shown might not be what this visitor would get
+// if they were recognized. Reset to false in collab.ts's
+// teardownWorkspace() so it never lingers into an unrelated document.
+export const identityUnverified = writable(false);

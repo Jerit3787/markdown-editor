@@ -9,6 +9,7 @@ All notable changes to this project are documented here. Format follows
 ### Fixed
 
 - **A shared document's content could double itself every time its page was refreshed, growing without bound.** Reopening or reloading a page showing an already-synced shared document raced the collaborative editor's attachment against the server's own sync handshake: the server's content, once it arrived, could get inserted into a CodeMirror view that already showed that same content locally, appending a second copy each time. Also fixed a related case where a collaborator joining a shared workspace for the very first time could see a stale initial snapshot instead of the room's live content.
+- **A signed-out visitor (or one whose GitHub session quietly expired) still fired a doomed request against a private repo's commit history** every time a repo-linked document's dates or version history were checked, 401ing with nothing useful to show for it. Both call sites now skip the request outright when there's no session at all.
 
 ## [1.43.0] - 2026-09-05
 

@@ -43,6 +43,14 @@ async function fetchCommitsPage(
 // throws) on any failure — no commits yet, a failed request, or an aborted
 // one — so callers can fall back to local timestamps unconditionally.
 export async function fetchRepoDocDates(owner: string, repo: string, branch: string, path: string, signal?: AbortSignal): Promise<RepoDocDates | undefined> {
+  // A signed-out visitor (or one whose session quietly expired) can't read
+  // a private repo's commit history — that request would just 401 with
+  // nothing useful to show for it. Skip it outright rather than firing a
+  // doomed request every time this is called; window.MDE.githubUsername
+  // is already known (githubSessionReady resolves once at app start), so
+  // this costs no extra network round trip.
+  await window.MDE.githubSessionReady;
+  if (!window.MDE.githubUsername) return undefined;
   try {
     const first = await fetchCommitsPage(owner, repo, branch, path, 1, signal);
     if (first.commits.length === 0) return undefined;

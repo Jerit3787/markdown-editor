@@ -158,6 +158,12 @@
     const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
     const repoLink = ws?.repoLink;
     if (!repoLink) return [];
+    // A signed-out visitor (or one whose session quietly expired) can't
+    // read a private repo's commit history — skip the doomed request
+    // rather than firing it and 401ing every time (see repo-doc-dates.ts's
+    // fetchRepoDocDates, which guards its own commits fetch the same way).
+    await window.MDE.githubSessionReady;
+    if (!window.MDE.githubUsername) return [];
     try {
       const encodedPath = doc.repoPath.split("/").map(encodeURIComponent).join("/");
       const res = await fetch(

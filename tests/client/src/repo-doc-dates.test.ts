@@ -1,5 +1,13 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+// @vitest-environment jsdom
+// Needs a real `window` for window.MDE (session-state check below) —
+// see collab.test.ts's own header comment for why the default node
+// environment doesn't provide one.
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { fetchRepoDocDates } from "../../../client/src/repo-doc-dates";
+
+beforeEach(() => {
+  window.MDE = { githubUsername: "alice", githubSessionReady: Promise.resolve() } as unknown as typeof window.MDE;
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -88,6 +96,20 @@ describe("fetchRepoDocDates", () => {
     );
     const result = await fetchRepoDocDates("alice", "notes", "main", "Notes.md");
     expect(result).toBeUndefined();
+  });
+
+  // Regression: a signed-out visitor (or one whose GitHub session quietly
+  // expired) previously still fired this request against a private repo,
+  // 401ing every time with nothing useful to show for it — the function
+  // already falls back to undefined on any failure, so the request was
+  // pure noise. No point even trying without a session.
+  it("skips the request entirely when there's no session at all", async () => {
+    window.MDE.githubUsername = null;
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const result = await fetchRepoDocDates("alice", "notes", "main", "Notes.md");
+    expect(result).toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("URL-encodes the path and passes branch and page through as query params", async () => {

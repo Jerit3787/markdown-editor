@@ -10,6 +10,10 @@
 // no-op registration — none of the tests below trigger it.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
+import * as Y from "yjs";
+import * as syncProtocol from "y-protocols/sync";
+import * as encoding from "lib0/encoding";
+import * as decoding from "lib0/decoding";
 import {
   decideShareTarget,
   decideJoinTarget,
@@ -22,6 +26,7 @@ import {
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
+import { workspaceAccessDenied } from "../../../client/src/stores/share";
 import { getSuggestionsMap } from "../../../client/src/suggestions";
 import type { Doc, Workspace } from "../../../client/src/types";
 
@@ -159,8 +164,39 @@ class MockWebSocket {
   constructor(url: string) {
     this.url = url;
     MockWebSocket.instances.push(this);
+    // Deferred, not synchronous: connectWorkspace() assigns onopen/onmessage
+    // right after `new WebSocket(...)` returns, in the same synchronous
+    // block this constructor runs in — opening before that assignment
+    // would silently drop the callback, same as a real socket never opens
+    // truly synchronously either.
+    queueMicrotask(() => {
+      this.readyState = MockWebSocket.OPEN;
+      this.onopen?.();
+    });
   }
-  send(_data: unknown) {}
+  // collab.ts's bindActiveDoc now waits for a binding's whenSynced before
+  // attaching yCollab (see the fix for content duplicating on refresh —
+  // a rejoining client must not act on a doc's Y.Text until it's had a
+  // real chance to hold the room's actual content). That promise only
+  // resolves once a content-bearing MESSAGE_SYNC frame comes back over
+  // this socket, so a mock that stayed a pure no-op would hang every
+  // caller of handleDocChanged/bindActiveDoc forever. Reply to any
+  // outgoing sync frame with an immediate step2 for the same docId —
+  // same shape as WorkspaceRoom.handleMessage's own reply to a client's
+  // step1 — using an empty Y.Doc, since these tests only care that the
+  // handshake completes, not about specific synced content.
+  send(data: Uint8Array) {
+    const decoder = decoding.createDecoder(data);
+    if (decoding.readVarUint(decoder) !== 0 /* MESSAGE_SYNC */) return;
+    const docId = decoding.readVarString(decoder);
+    queueMicrotask(() => {
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, 0 /* MESSAGE_SYNC */);
+      encoding.writeVarString(encoder, docId);
+      syncProtocol.writeSyncStep2(encoder, new Y.Doc());
+      this.onmessage?.({ data: encoding.toUint8Array(encoder).buffer as ArrayBuffer });
+    });
+  }
   close() {
     this.closed = true;
     this.readyState = 3;
@@ -243,8 +279,11 @@ describe("join-generation race (rapid doc switching in a shared workspace)", () 
     accessGate.resolve();
     // Flush the microtask queue enough times for both async chains
     // (githubSessionReady -> fetchWorkspaceAccess -> joinWorkspace ->
-    // fetchWorkspaceDocIds -> bindActiveDoc) to fully settle.
-    for (let i = 0; i < 10; i++) await Promise.resolve();
+    // fetchWorkspaceDocIds -> bindActiveDoc, the last of which now also
+    // waits on a binding's whenSynced — itself resolved via MockWebSocket's
+    // own queueMicrotask'd sync-step2 reply, a few more hops deep than a
+    // single join alone needs) to fully settle.
+    for (let i = 0; i < 40; i++) await Promise.resolve();
 
     // The superseded first attempt must never reach connectWorkspace() —
     // exactly one connection for the whole race, not one leaked per click.
@@ -254,6 +293,114 @@ describe("join-generation race (rapid doc switching in a shared workspace)", () 
     expect(workspaceRoom.activeDocId).toBe("docB");
     expect(workspaceRoom.workspaceId).toBe("remote-1");
     expect(workspaceRoom.docs.size).toBe(2);
+  });
+});
+
+describe("workspaceAccessDenied", () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="body"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    workspaceAccessDenied.set(null);
+  });
+
+  function stubDeniedFetch(access: Record<string, unknown>) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) return { ok: true, json: async () => access };
+        if (url.includes("/docs")) return { ok: true, json: async () => ["docA"] };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+  }
+
+  function stubMDE(username: string | null) {
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: username,
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+  }
+
+  function makeDoc(suffix: string) {
+    const ws = fakeSharedWorkspace({ id: `ws-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const doc = { id: `doc-${suffix}`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([doc]);
+    return doc;
+  }
+
+  it("sets 'no-session' and locks the view when rejoining with no session at all", async () => {
+    stubMDE(null);
+    stubDeniedFetch({ owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const doc = makeDoc("nosession");
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(workspaceAccessDenied)).toBe("no-session");
+    expect(window.MDE.setReadOnly).toHaveBeenLastCalledWith(true);
+    expect(get(viewModeLocked)).toBe(true);
+  });
+
+  it("sets 'no-access' when signed in but not granted a role", async () => {
+    stubMDE("carol");
+    stubDeniedFetch({
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: "editor" }],
+    });
+    const doc = makeDoc("noaccess");
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(workspaceAccessDenied)).toBe("no-access");
+    expect(window.MDE.setReadOnly).toHaveBeenLastCalledWith(true);
+  });
+
+  it("clears once a subsequent rejoin resolves a real role", async () => {
+    stubMDE(null);
+    stubDeniedFetch({ owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const doc = makeDoc("recover");
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(get(workspaceAccessDenied)).toBe("no-session");
+
+    stubMDE("alice");
+    stubDeniedFetch({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+
+    expect(get(workspaceAccessDenied)).toBeNull();
+  });
+
+  it("clears when switching away to an unrelated local doc", async () => {
+    stubMDE(null);
+    stubDeniedFetch({ owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const doc = makeDoc("switchaway");
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(get(workspaceAccessDenied)).toBe("no-session");
+
+    handleDocChanged({ id: "local-doc", name: "Local", content: "", updatedAt: 0, createdAt: 0, workspaceId: "some-other-ws" });
+
+    expect(get(workspaceAccessDenied)).toBeNull();
   });
 });
 
@@ -495,5 +642,136 @@ describe("suggestion-mode role wiring", () => {
     await Promise.resolve();
 
     expect(mde.updatePreview).toHaveBeenCalled();
+  });
+});
+
+// Regression coverage for the mid-session doc-discovery gap: an
+// already-connected collaborator previously had no way to learn about a
+// document another collaborator created after they joined — the server
+// already broadcasts every document's updates to every connected session
+// (see workspace-room.ts's handleDocUpdate), but the client silently
+// dropped any MESSAGE_SYNC/MESSAGE_AWARENESS frame for a docId it didn't
+// already have a binding for.
+describe("discovering a document created by another collaborator", () => {
+  // Mirrors collab.ts's own (unexported) MESSAGE_SYNC/MESSAGE_AWARENESS
+  // wire constants — these tests build raw frames by hand to exercise
+  // handleServerMessage's decoding path directly, the same way a real
+  // incoming WebSocket frame would.
+  const MESSAGE_SYNC = 0;
+  const MESSAGE_AWARENESS = 1;
+
+  // Distinct remoteId/workspace id per test isn't enough on its own —
+  // workspaceRoom.docs caches bindings by docId for the lifetime of the
+  // module (see "suggestion-mode role wiring" above for the same note),
+  // so this returns a fresh, uniquely-suffixed setup each time.
+  async function setup(suffix: string) {
+    document.body.innerHTML = '<div id="shareBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [`doc-${suffix}-a`] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-ws-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const doc = { id: `doc-${suffix}-a`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([doc]);
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    return { ws };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function sendRawSyncUpdate(docId: string, sourceDoc: Y.Doc) {
+    const update = Y.encodeStateAsUpdate(sourceDoc);
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    encoding.writeVarString(encoder, docId);
+    syncProtocol.writeUpdate(encoder, update);
+    const buffer = encoding.toUint8Array(encoder).buffer;
+    MockWebSocket.instances[0].onmessage!({ data: buffer } as MessageEvent);
+  }
+
+  function sendRawAwarenessFrame(docId: string) {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+    encoding.writeVarString(encoder, docId);
+    encoding.writeVarUint8Array(encoder, new Uint8Array([1, 2, 3]));
+    const buffer = encoding.toUint8Array(encoder).buffer;
+    MockWebSocket.instances[0].onmessage!({ data: buffer } as MessageEvent);
+  }
+
+  it("creates a local document the first time a MESSAGE_SYNC frame arrives for an unrecognized docId", async () => {
+    const { ws } = await setup("disc1");
+    const sourceDoc = new Y.Doc();
+    sourceDoc.getText("content").insert(0, "content from bob");
+    sourceDoc.getMap<string>("meta").set("name", "Bob's New Doc");
+
+    sendRawSyncUpdate("doc-disc1-b", sourceDoc);
+
+    expect(workspaceRoom.docs.has("doc-disc1-b")).toBe(true);
+    const localDoc = get(docsStore).find((d) => d.id === "doc-disc1-b");
+    expect(localDoc?.name).toBe("Bob's New Doc");
+    expect(localDoc?.content).toBe("content from bob");
+    expect(localDoc?.workspaceId).toBe(ws.id);
+  });
+
+  it("falls back to 'Untitled' when the first frame carries no name yet", async () => {
+    await setup("disc2");
+    const sourceDoc = new Y.Doc();
+    sourceDoc.getText("content").insert(0, "no name yet");
+
+    sendRawSyncUpdate("doc-disc2-b", sourceDoc);
+
+    const localDoc = get(docsStore).find((d) => d.id === "doc-disc2-b");
+    expect(localDoc?.name).toBe("Untitled");
+  });
+
+  it("does not create a binding or a local document for a bare MESSAGE_AWARENESS frame naming an unrecognized docId", async () => {
+    await setup("disc3");
+
+    sendRawAwarenessFrame("doc-disc3-b");
+
+    expect(workspaceRoom.docs.has("doc-disc3-b")).toBe(false);
+    expect(get(docsStore).find((d) => d.id === "doc-disc3-b")).toBeUndefined();
+  });
+
+  it("does not re-import a document that's already locally known", async () => {
+    const { ws } = await setup("disc4");
+    docsStore.update((docs) => [...docs, { id: "doc-disc4-b", name: "Already Here", content: "existing", updatedAt: 0, createdAt: 0, workspaceId: ws.id }]);
+    const countBefore = get(docsStore).length;
+
+    const sourceDoc = new Y.Doc();
+    sourceDoc.getText("content").insert(0, "server content");
+    sourceDoc.getMap<string>("meta").set("name", "Server Name");
+    sendRawSyncUpdate("doc-disc4-b", sourceDoc);
+
+    expect(get(docsStore).length).toBe(countBefore);
+    const localDoc = get(docsStore).find((d) => d.id === "doc-disc4-b");
+    expect(localDoc?.name).toBe("Already Here");
   });
 });

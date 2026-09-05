@@ -45,9 +45,15 @@ function init() {
     render();
   };
 
-  // Fired by app.ts's message listener once the sign-in popup reports
-  // success — re-check the session in place instead of reloading the page.
+  // collab.ts already claims onGithubAuthComplete too (its own init()
+  // runs first — main.ts imports ./collab before ./gist) — chain onto it
+  // the same way onActiveDocChanged is chained above, rather than
+  // clobbering its retry-after-signin hook. Fired by app.ts's message
+  // listener once the sign-in popup reports success — re-check the
+  // session in place instead of reloading the page.
+  const existingAuthComplete = window.MDE.onGithubAuthComplete;
   window.MDE.onGithubAuthComplete = () => {
+    existingAuthComplete?.();
     window.MDE.githubSessionReady = checkSession();
   };
 }

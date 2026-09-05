@@ -253,3 +253,131 @@ test("a viewer with no session at all sees the signed-out indicator and can sign
   await ownerCtx.close();
   await viewerCtx.close();
 });
+
+test("an already-joined shared workspace that stops granting access shows the access-denied banner and locks the editor", async ({ browser }) => {
+  const ownerCtx = await browser.newContext();
+  const viewerCtx = await browser.newContext();
+  const owner = await ownerCtx.newPage();
+  const viewer = await viewerCtx.newPage();
+
+  await signInAsDevUser(owner, "wad-owner-e2e");
+  await signInAsDevUser(viewer, "wad-viewer-e2e");
+
+  await owner.goto(BASE);
+  await owner.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await dismissWhatsNew(owner);
+  await createFirstWorkspaceAndDoc(owner);
+  await owner.click("#editor-mount .cm-content");
+  await owner.keyboard.type("owner content");
+
+  await owner.click('button:has-text("Share")');
+  const moveDialog = owner.locator('button:has-text("Continue")');
+  if (await moveDialog.isVisible({ timeout: 2000 }).catch(() => false)) await moveDialog.click();
+  const accessSelect = owner.locator('select[aria-label="General access"]');
+  await accessSelect.waitFor({ state: "visible" });
+  await Promise.all([
+    owner.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    accessSelect.selectOption({ label: "Anyone with the link" }),
+  ]);
+  await owner.keyboard.press("Escape").catch(() => {});
+
+  const shareState = await owner.evaluate(() => {
+    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
+    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+    const activeId = localStorage.getItem("mde:active");
+    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
+    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
+    return { activeDoc, ws };
+  });
+  const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
+
+  await viewer.goto(shareUrl);
+  await viewer.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  const joinModal = viewer.locator('text="Join shared workspace"');
+  if (await joinModal.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await viewer.click('button:has-text("Add as new workspace")');
+  }
+  await dismissWhatsNew(viewer);
+  await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("owner content");
+
+  // Owner turns general access back off — the viewer, who was never
+  // individually invited, now has no role at all.
+  await owner.click('button:has-text("Share")');
+  const accessSelect2 = owner.locator('select[aria-label="General access"]');
+  await accessSelect2.waitFor({ state: "visible" });
+  await Promise.all([
+    owner.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    accessSelect2.selectOption({ label: "Restricted" }),
+  ]);
+  await owner.keyboard.press("Escape").catch(() => {});
+
+  // Viewer reloads — this is the rejoin path, not a fresh visit.
+  await viewer.reload();
+  await viewer.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await dismissWhatsNew(viewer);
+
+  await expect(viewer.locator(".workspace-access-banner")).toBeVisible();
+  await expect(viewer.locator(".workspace-access-banner")).toContainText("no longer have access");
+  await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor().state.readOnly)).toBe(true);
+
+  await ownerCtx.close();
+  await viewerCtx.close();
+});
+
+test("a fresh visit to a share link with no accessible role shows the access-denied banner instead of a blocking alert", async ({ browser }) => {
+  const ownerCtx = await browser.newContext();
+  const strangerCtx = await browser.newContext();
+  const owner = await ownerCtx.newPage();
+  const stranger = await strangerCtx.newPage();
+
+  await signInAsDevUser(owner, "wad-fresh-owner-e2e");
+  await signInAsDevUser(stranger, "wad-fresh-stranger-e2e");
+
+  await owner.goto(BASE);
+  await owner.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await dismissWhatsNew(owner);
+  await createFirstWorkspaceAndDoc(owner);
+  await owner.click("#editor-mount .cm-content");
+  await owner.keyboard.type("restricted content");
+
+  await owner.click('button:has-text("Share")');
+  const moveDialog = owner.locator('button:has-text("Continue")');
+  if (await moveDialog.isVisible({ timeout: 2000 }).catch(() => false)) await moveDialog.click();
+  // Inviting a specific person (not "anyone") keeps general access
+  // restricted — a signed-in stranger who isn't that person gets no role.
+  const addInput = owner.locator('input[aria-label="Add people by GitHub username"]');
+  await addInput.waitFor({ state: "visible" });
+  await addInput.fill("someone-else-entirely");
+  await Promise.all([
+    owner.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    owner.keyboard.press("Enter"),
+  ]);
+
+  const shareState = await owner.evaluate(() => {
+    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
+    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+    const activeId = localStorage.getItem("mde:active");
+    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
+    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
+    return { activeDoc, ws };
+  });
+  const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
+  await owner.keyboard.press("Escape").catch(() => {});
+
+  const dialogMessages: string[] = [];
+  stranger.on("dialog", (d) => {
+    dialogMessages.push(d.message());
+    d.dismiss();
+  });
+
+  await stranger.goto(shareUrl);
+  await stranger.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await dismissWhatsNew(stranger);
+
+  await expect(stranger.locator(".workspace-access-banner")).toBeVisible();
+  await expect(stranger.locator(".workspace-access-banner")).toContainText("no longer have access");
+  expect(dialogMessages).toEqual([]);
+
+  await ownerCtx.close();
+  await strangerCtx.close();
+});

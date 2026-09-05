@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.44.0] - 2026-09-05
+
+### Added
+
+- **A document created in a shared workspace now reaches every already-connected collaborator immediately, not just those who join afterward.** Previously, a document created (or first switched to) after a collaborator's connection was already established never appeared in their document list — no reload or rejoin fixed it short of leaving and re-joining the workspace entirely.
+- **A shared workspace that can no longer be reached — an expired session, a revoked invite, or a share link nobody granted you access to — now says so clearly instead of silently dropping you into a disconnected, fully-editable local copy.** The editor locks to read-only Preview with a banner explaining why, and a Sign-in button when signing in again could restore access.
+
+### Fixed
+
+- **A shared document's content could double itself every time its page was refreshed, growing without bound.** Reopening or reloading a page showing an already-synced shared document raced the collaborative editor's attachment against the server's own sync handshake: the server's content, once it arrived, could get inserted into a CodeMirror view that already showed that same content locally, appending a second copy each time. Also fixed a related case where a collaborator joining a shared workspace for the very first time could see a stale initial snapshot instead of the room's live content.
+- **A signed-out visitor (or one whose GitHub session quietly expired) still fired a doomed request against a private repo's commit history** every time a repo-linked document's dates or version history were checked, 401ing with nothing useful to show for it. Both call sites now skip the request outright when there's no session at all.
+
 ## [1.43.0] - 2026-09-05
 
 ### Added

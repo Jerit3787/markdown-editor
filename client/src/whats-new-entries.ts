@@ -258,4 +258,19 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/signed-out-indicator.png",
     category: "Collaboration",
   },
+  {
+    version: "1.44.0",
+    title: "Live Documents, Live Everywhere",
+    description: "A document created in a shared workspace now shows up immediately for everyone already connected, not just collaborators who join afterward.",
+    screenshot: "/whats-new/live-mid-session-docs.png",
+    category: "Collaboration",
+  },
+  {
+    version: "1.44.0",
+    title: "Access-Denied Banner",
+    description:
+      "A shared workspace you can no longer reach — an expired session, a revoked invite, a link that never granted you access — now says so clearly with a banner and a Sign-in button, instead of silently dropping you into a disconnected local copy.",
+    screenshot: "/whats-new/workspace-access-denied.png",
+    category: "Collaboration",
+  },
 ];

@@ -76,6 +76,8 @@ A change that's **purely behind-the-scenes** (internal refactor, dependency bump
 
 ### Shipping a change: PR, merge — tag, release, and deploy all happen on their own
 
+**Don't bump the version while a feature/fix is still being implemented.** Land the code changes first; hold the `package.json`/`package-lock.json`/`CHANGELOG.md`/`whats-new-entries.ts` updates until told to actually ship it (e.g. "create a PR") — then do the bump as the last step before pushing, immediately followed by opening the PR. This is what keeps the "collapse orphaned version bumps" situation above rare instead of routine.
+
 Once a change (with its version/CHANGELOG/whats-new updates, per above) is ready:
 
 1. Push the branch and open a PR against `master` (`.github/workflows/test.yml` runs `npm test`, `npm run build`, `npm run typecheck`, `npm run format:check`, and the local Playwright e2e suite on every PR).

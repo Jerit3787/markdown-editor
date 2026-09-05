@@ -7,6 +7,10 @@ import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
 import { relocateAnchor } from "./anchor";
 import { redactAccessForOutsider } from "./access-visibility";
 import type { Env } from "./env";
+import { resolveRole } from "./access-role";
+import type { Role, InvitedPerson, AccessRecord } from "./access-role";
+
+export type { Role, InvitedPerson, AccessRecord };
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -54,24 +58,6 @@ export interface CommentThread {
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-}
-
-export type Role = "viewer" | "reviewer" | "editor";
-
-export interface InvitedPerson {
-  username: string;
-  role: Role;
-}
-
-export interface AccessRecord {
-  owner: string | null;
-  generalAccess: "restricted" | "anyone";
-  // Only meaningful when generalAccess is "anyone" — false (default)
-  // means a fully public link, no account needed; true means any signed
-  // -in GitHub account works without being individually invited.
-  requireAccount: boolean;
-  role: Role;
-  invited: InvitedPerson[];
 }
 
 // username is null for anonymous sessions — only possible when the room's
@@ -347,27 +333,14 @@ export class CollabRoom {
       // "the owner".)
       return { ok: false, status: 403, message: "This document hasn't been shared." };
     }
-    if (session && session.username === access.owner) {
-      return { ok: true, username: session.username, role: "editor" };
-    }
-    if (access.generalAccess === "anyone") {
-      if (access.requireAccount && (!session || !session.username)) {
+    const role = resolveRole(access, session?.username ?? null);
+    if (!role) {
+      if (!session || !session.username) {
         return { ok: false, status: 401, message: "Sign in with GitHub to join this document." };
       }
-      // A public link (requireAccount false) needs no account at all —
-      // session may be null here. Restricted (invite-only) rooms below
-      // this still require a real signed-in identity, since that's the
-      // only way to check the invited list.
-      return { ok: true, username: session ? session.username : null, role: access.role };
+      return { ok: false, status: 403, message: "You don't have access to this document." };
     }
-    if (!session || !session.username) {
-      return { ok: false, status: 401, message: "Sign in with GitHub to join this document." };
-    }
-    const invited = access.invited.find((p) => p.username === session.username);
-    if (invited) {
-      return { ok: true, username: session.username, role: invited.role };
-    }
-    return { ok: false, status: 403, message: "You don't have access to this document." };
+    return { ok: true, username: session?.username ?? null, role };
   }
 
   async handleAccessRequest(request: Request): Promise<Response> {

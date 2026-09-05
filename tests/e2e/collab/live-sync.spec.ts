@@ -154,3 +154,88 @@ test("reloading a shared document does not duplicate its content", async ({ brow
 
   await ctx.close();
 });
+
+test("a document created after both collaborators are already connected appears in the other's document list live", async ({ browser }) => {
+  const aliceCtx = await browser.newContext();
+  const bobCtx = await browser.newContext();
+  const alice = await aliceCtx.newPage();
+  const bob = await bobCtx.newPage();
+
+  await signInAsDevUser(alice, "alice-e2e-2");
+  await signInAsDevUser(bob, "bob-e2e-2");
+
+  await alice.goto(BASE);
+  await alice.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await dismissWhatsNew(alice);
+  await alice.click("#emptyNewWorkspaceBtn");
+  await alice.keyboard.press("Escape").catch(() => {});
+  await alice.evaluate(() => window.MDE.newDoc());
+  await alice.waitForSelector("#editor-mount .cm-content", { state: "visible" });
+  await alice.click("#editor-mount .cm-content");
+  await alice.keyboard.type("first document content");
+
+  await alice.click('button:has-text("Share")');
+  const moveDialog = alice.locator('button:has-text("Continue")');
+  if (await moveDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await moveDialog.click();
+  }
+  const accessSelect = alice.locator("select").first();
+  await accessSelect.waitFor({ state: "visible" });
+  await Promise.all([
+    alice.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    accessSelect.selectOption({ label: "Anyone with the link" }),
+  ]);
+
+  const shareState = await alice.evaluate(() => {
+    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
+    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+    const activeId = localStorage.getItem("mde:active");
+    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
+    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
+    return { activeDoc, ws };
+  });
+  expect(shareState.ws?.shared).toBe(true);
+  const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
+
+  const doneBtn = alice.locator('button:has-text("Done")');
+  if (await doneBtn.isVisible({ timeout: 2000 }).catch(() => false)) await doneBtn.click();
+  await alice.keyboard.press("Escape").catch(() => {});
+
+  // Bob joins and fully settles on the first document BEFORE Alice ever
+  // creates the second one — unlike an existing regression test
+  // (readonly-and-editing-mode.spec.ts) whose second document is created
+  // before its viewer ever joins, which already worked via joinWorkspace's
+  // own fetchWorkspaceDocIds picking it up at join time. This test is
+  // specifically the mid-session case that gap didn't cover.
+  await bob.goto(shareUrl);
+  await bob.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  const joinModal = bob.locator('text="Join shared workspace"');
+  if (await joinModal.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await bob.click('button:has-text("Add as new workspace")');
+  }
+  await dismissWhatsNew(bob);
+  await expect.poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("first document content");
+
+  // Only now, after Bob is fully connected and settled on the first
+  // document, does Alice create a second one in the same workspace.
+  await alice.evaluate(() => window.MDE.newDoc());
+  await alice.waitForSelector("#editor-mount .cm-content", { state: "visible" });
+  await alice.click("#editor-mount .cm-content");
+  await alice.keyboard.type("second document content, created mid-session");
+
+  const secondDocId = await alice.evaluate(() => localStorage.getItem("mde:active"));
+
+  await expect
+    .poll(() =>
+      bob.evaluate((id) => JSON.parse(localStorage.getItem("mde:docs") || "[]").some((d: { id: string }) => d.id === id), secondDocId),
+    )
+    .toBe(true);
+
+  await bob.evaluate((id) => window.MDE.switchDoc(id), secondDocId);
+  await expect
+    .poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""))
+    .toContain("second document content, created mid-session");
+
+  await aliceCtx.close();
+  await bobCtx.close();
+});

@@ -9,8 +9,7 @@ All notable changes to this project are documented here. Format follows
 ### Added
 
 - **A document created in a shared workspace now reaches every already-connected collaborator immediately, not just those who join afterward.** Previously, a document created (or first switched to) after a collaborator's connection was already established never appeared in their document list — no reload or rejoin fixed it short of leaving and re-joining the workspace entirely.
-
-## [1.43.1] - 2026-09-05
+- **A shared workspace that can no longer be reached — an expired session, a revoked invite, or a share link nobody granted you access to — now says so clearly instead of silently dropping you into a disconnected, fully-editable local copy.** The editor locks to read-only Preview with a banner explaining why, and a Sign-in button when signing in again could restore access.
 
 ### Fixed
 

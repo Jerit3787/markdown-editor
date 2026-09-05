@@ -41,6 +41,7 @@ import LinkModal from "./components/LinkModal.svelte";
 import ImagesModal from "./components/ImagesModal.svelte";
 import ShortcutsModal from "./components/ShortcutsModal.svelte";
 import SignedOutIndicator from "./components/SignedOutIndicator.svelte";
+import WorkspaceAccessBanner from "./components/WorkspaceAccessBanner.svelte";
 import AboutModal from "./components/AboutModal.svelte";
 import TermsModal from "./components/TermsModal.svelte";
 import PrivacyModal from "./components/PrivacyModal.svelte";
@@ -93,6 +94,7 @@ mount(DocList, { target: document.getElementById("doclist-mount")! });
 mount(WorkspaceSwitcher, { target: document.getElementById("workspace-switcher-mount")! });
 mount(Toast, { target: document.getElementById("toast-mount")! });
 mount(SignedOutIndicator, { target: document.getElementById("signed-out-indicator-mount")! });
+mount(WorkspaceAccessBanner, { target: document.getElementById("workspace-access-banner-mount")! });
 mount(MenuBar, { target: document.getElementById("menubar-mount")! });
 mount(Editor, { target: document.getElementById("editor-mount")! });
 // Preview.svelte's own onMount calls window.MDE.getEditor() synchronously

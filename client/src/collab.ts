@@ -20,7 +20,7 @@ import { Transaction } from "@codemirror/state";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
-import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified } from "./stores/share";
+import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified, workspaceAccessDenied } from "./stores/share";
 import { showToast } from "./stores/toast";
 import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent } from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
@@ -181,6 +181,16 @@ function init() {
   } else {
     handleDocChanged(getActiveDoc());
   }
+
+  // Retrying access after a Sign-in popup completes (see
+  // WorkspaceAccessBanner.svelte) is just re-running the same join logic
+  // that got the user into the denied state in the first place — no
+  // bespoke retry path, no extra state to keep in sync. client/src/main.ts
+  // imports ./collab before ./gist, so this module's init() always sets
+  // onGithubAuthComplete first; gist.ts's own init() chains onto it (the
+  // same pattern it already uses for onActiveDocChanged) rather than
+  // overwriting it.
+  window.MDE.onGithubAuthComplete = () => handleDocChanged(getActiveDoc());
 }
 
 async function joinSharedLink(workspaceId: string, landOnDocId: string) {
@@ -190,13 +200,12 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const username = window.MDE.githubUsername;
   const role = computeMyRole(access, username);
   if (!role) {
-    if (!username) {
-      window.MDE.requireGithubSignIn("Sign in with GitHub to open this shared workspace.");
-    } else {
-      alert("You don't have access to this workspace. Ask the owner to invite your GitHub username, or share a link with general access turned on.");
-    }
+    workspaceAccessDenied.set(username ? "no-access" : "no-session");
+    window.MDE.setReadOnly(true);
+    lockToPreviewOnly();
     return;
   }
+  workspaceAccessDenied.set(null);
   identityUnverified.set(isIdentityUnverified(access, username));
 
   if (localMatch) {
@@ -270,6 +279,7 @@ function handleDocChanged(doc: any) {
   if (!doc) {
     teardownWorkspace();
     identityUnverified.set(false);
+    workspaceAccessDenied.set(null);
     syncShareStores();
     return;
   }
@@ -322,6 +332,7 @@ function handleDocChanged(doc: any) {
   } else {
     teardownWorkspace();
     identityUnverified.set(false);
+    workspaceAccessDenied.set(null);
     syncShareStores();
   }
 }
@@ -337,7 +348,13 @@ async function rejoinKnownWorkspace(remoteId: string, docId: string) {
   const access = await fetchWorkspaceAccess(remoteId);
   if (myGeneration !== joinGeneration) return;
   const role = computeMyRole(access, window.MDE.githubUsername);
-  if (!role) return;
+  if (!role) {
+    workspaceAccessDenied.set(window.MDE.githubUsername ? "no-access" : "no-session");
+    window.MDE.setReadOnly(true);
+    lockToPreviewOnly();
+    return;
+  }
+  workspaceAccessDenied.set(null);
   identityUnverified.set(isIdentityUnverified(access, window.MDE.githubUsername));
   const joined = await joinWorkspace(remoteId, { role });
   if (joined !== joinGeneration) return;

@@ -29,6 +29,7 @@ import {
   isIdentityUnverified,
   DEFAULT_ACCESS,
   pushWorkspaceRename,
+  pushWorkspaceDocDelete,
 } from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
@@ -171,6 +172,70 @@ describe("pushWorkspaceRename", () => {
     pushWorkspaceRename("ws1", "New Name");
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("pushWorkspaceDocDelete", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("DELETEs the document from the workspace's room when the workspace is shared", () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal("fetch", fetchMock);
+    workspacesStore.set([fakeSharedWorkspace({ id: "ws1", remoteId: "remote-1" })]);
+
+    pushWorkspaceDocDelete("doc1", "ws1");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/workspace/remote-1/docs?docId=doc1", { method: "DELETE" });
+  });
+
+  it("does nothing for a workspace that was never shared", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    workspacesStore.set([fakeWorkspace({ id: "ws1" })]);
+
+    pushWorkspaceDocDelete("doc1", "ws1");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("also destroys this session's own Yjs binding for the deleted document immediately", async () => {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="shareDropdownBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { method?: string }) => {
+        if (url.includes("/access") && init?.method === "PUT") {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) return { ok: true, json: async () => [] };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "hello" } } })),
+      githubUsername: "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      setDocName: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+    handleDocChanged(undefined as unknown as Doc);
+    workspacesStore.set([fakeWorkspace({ id: "ws1", name: "WS" })]);
+    activeWorkspaceIdStore.set("ws1");
+    docsStore.set([{ id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1" }]);
+    activeIdStore.set("doc1");
+
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(workspaceRoom.docs.has("doc1")).toBe(true);
+
+    pushWorkspaceDocDelete("doc1", "ws1");
+
+    expect(workspaceRoom.docs.has("doc1")).toBe(false);
   });
 });
 

@@ -22,7 +22,7 @@ import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
 import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified, workspaceAccessDenied } from "./stores/share";
 import { showToast } from "./stores/toast";
-import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent, removeDocById } from "./stores/docs";
+import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent, removeDocById, docRemovalHook } from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
 import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
@@ -184,6 +184,7 @@ function init() {
     const binding = workspaceRoom.docs.get(docId);
     if (binding) binding.ydoc.transact(() => binding.metaMap.set("name", name || "Untitled"), "local");
   };
+  docRemovalHook.onRemoved = pushWorkspaceDocDelete;
 
   setupShareUI();
 
@@ -1054,6 +1055,19 @@ export function pushWorkspaceRename(workspaceId: string, name: string): void {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
+}
+
+export function pushWorkspaceDocDelete(docId: string, workspaceId: string): void {
+  const ws = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (!ws || !ws.shared || !ws.remoteId) return;
+  // Destroy this session's own binding immediately rather than waiting
+  // for the broadcast echo — the deleting session may not even be
+  // currently connected via WS (renaming/deleting works regardless, see
+  // this feature's "Why HTTP, not WS" design note), and stores/docs.ts's
+  // own removeDocById() already dropped the local Doc by the time any
+  // echo could arrive anyway.
+  destroyBinding(docId);
+  void fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}/docs?docId=${encodeURIComponent(docId)}`, { method: "DELETE" });
 }
 
 async function putWorkspaceAccess(workspaceId: string, body: unknown): Promise<AccessRecord | null> {

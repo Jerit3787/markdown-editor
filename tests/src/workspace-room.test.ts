@@ -759,7 +759,7 @@ describe("WorkspaceRoom document membership", () => {
     await room.handleDocsRequest(request);
 
     expect(sent).toHaveLength(1);
-    const decoder = decoding.createDecoder(new Uint8Array(sent[0]));
+    const decoder = decoding.createDecoder(new Uint8Array(sent[0]!));
     expect(decoding.readVarUint(decoder)).toBe(MESSAGE_WORKSPACE_META);
     decoding.readVarString(decoder); // name, irrelevant here
     const count = decoding.readVarUint(decoder);
@@ -815,7 +815,7 @@ describe("WorkspaceRoom.handleMetaRequest", () => {
     await room.handleMetaRequest(request);
 
     expect(sent).toHaveLength(1);
-    const decoder = decoding.createDecoder(new Uint8Array(sent[0]));
+    const decoder = decoding.createDecoder(new Uint8Array(sent[0]!));
     expect(decoding.readVarUint(decoder)).toBe(MESSAGE_WORKSPACE_META);
     expect(decoding.readVarString(decoder)).toBe("Renamed Workspace");
     const count = decoding.readVarUint(decoder);
@@ -841,7 +841,7 @@ describe("WorkspaceRoom.handleMetaRequest", () => {
     // a macrotask tick so it's guaranteed to have applied before asserting.
     await new Promise((resolve) => setTimeout(resolve, 0));
     const res = await room.handleAccessRequest(new Request("https://example.com/w/ws1/access"));
-    const body = await res.json();
+    const body = (await res.json()) as AccessRecord & { workspaceName: string };
     expect(body.workspaceName).toBe("My Shared Workspace");
   });
 
@@ -859,7 +859,7 @@ describe("WorkspaceRoom.handleMetaRequest", () => {
     room.handleSession(ws, "alice", "editor");
 
     // One sync-step1 frame for docA, then the meta greeting.
-    const metaFrame = sent[sent.length - 1];
+    const metaFrame = sent[sent.length - 1]!;
     const decoder = decoding.createDecoder(new Uint8Array(metaFrame));
     expect(decoding.readVarUint(decoder)).toBe(MESSAGE_WORKSPACE_META);
     expect(decoding.readVarString(decoder)).toBe("Greeted Workspace");

@@ -10,7 +10,15 @@
 // no-op registration — none of the tests below trigger it.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
-import { decideShareTarget, decideJoinTarget, handleDocChanged, workspaceRoom, setAccessMode } from "../../../client/src/collab";
+import {
+  decideShareTarget,
+  decideJoinTarget,
+  handleDocChanged,
+  workspaceRoom,
+  setAccessMode,
+  isIdentityUnverified,
+  DEFAULT_ACCESS,
+} from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
@@ -23,6 +31,35 @@ function fakeDoc(overrides: Partial<Doc>): Doc {
 function fakeWorkspace(overrides: Partial<Workspace>): Workspace {
   return { id: "w1", name: "Workspace", createdAt: 0, updatedAt: 0, ...overrides };
 }
+
+describe("isIdentityUnverified", () => {
+  it("is true when there's no session and general access is 'anyone', even with the owner visible", () => {
+    const access = { ...DEFAULT_ACCESS, owner: "alice", generalAccess: "anyone" as const };
+    expect(isIdentityUnverified(access, null)).toBe(true);
+  });
+
+  // The real shape a genuinely anonymous visitor's own fetched AccessRecord
+  // has: the server redacts `owner` to null for anyone authorize() doesn't
+  // already recognize (see access-visibility.ts's redactAccessForOutsider)
+  // — this is the actual case the function exists to catch, not an edge
+  // case, and must not be confused with "never configured" (DEFAULT_ACCESS
+  // itself has generalAccess: "restricted", so "anyone" here already
+  // implies a real owner exists server-side, redacted or not).
+  it("is true even when owner has been redacted to null, as long as general access is 'anyone'", () => {
+    const access = { ...DEFAULT_ACCESS, owner: null, generalAccess: "anyone" as const };
+    expect(isIdentityUnverified(access, null)).toBe(true);
+  });
+
+  it("is false when a session exists, even one that doesn't match the owner", () => {
+    const access = { ...DEFAULT_ACCESS, owner: "alice", generalAccess: "anyone" as const };
+    expect(isIdentityUnverified(access, "bob")).toBe(false);
+  });
+
+  it("is false when general access is restricted", () => {
+    const access = { ...DEFAULT_ACCESS, owner: "alice", generalAccess: "restricted" as const };
+    expect(isIdentityUnverified(access, null)).toBe(false);
+  });
+});
 
 describe("decideShareTarget", () => {
   it("shares directly when the workspace is already shared, even with siblings", () => {

@@ -38,5 +38,5 @@ test("adding a metadata field in Document Info round-trips through .md export", 
   const path = await download.path();
   const fs = await import("fs");
   const content = fs.readFileSync(path!, "utf-8");
-  expect(content).toBe("Title: Round Trip Test\n\n# Real content");
+  expect(content).toBe("<!--\nTitle: Round Trip Test\n-->\n\n# Real content");
 });

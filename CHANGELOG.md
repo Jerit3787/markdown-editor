@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.43.0] - 2026-09-05
+
+### Added
+
+- **A small status bar indicator now appears when your access to a shared workspace can't actually be verified** — e.g. your GitHub session quietly expired while you were the owner or an invited collaborator. Previously you'd just silently end up with whatever role the link's general access grants (often Preview-only), with nothing telling you why. Click the "Signed out" indicator to sign in again and restore your real access.
+
+### Changed
+
+- **`WorkspaceRoom` and `CollabRoom`'s identical role-resolution logic is now one shared function** (`src/access-role.ts`'s `resolveRole()`) instead of two copy-pasted copies — no behavior change, just one place to read and update it going forward.
+
+### Fixed
+
+- **A document's metadata (Title, Author, etc. — set via the Doc Info/Edit panel) showed up as ugly, fully visible plain text at the top of a published Gist, pushed repo file, or exported `.md`.** The serialized block is now wrapped in an HTML comment, which every CommonMark/GFM renderer (GitHub Gist, GitHub's own repo file viewer) already treats as invisible — it stays fully visible and editable in the raw `.md` source, just hidden from rendered views. Metadata already published under the old bare format is still read back correctly when reopened. A metadata field containing the literal sequence `-->` or `--!>` (both recognized by HTML's comment-parsing rules as closing sequences) is escaped so it can't break out of the wrapping comment early.
+- **Command palette rows (Ctrl/Cmd+Shift+P) had no left/right padding — labels sat flush against the left edge and category badges flush against the right.** Each row carries both `.command-palette-row` (its own `padding: 8px 10px`) and `.shortcuts-row` (reused for its label/badge layout, but whose own `padding: 6px 0` is meant for the already-padded Keyboard Shortcuts modal) — both single-class selectors, so plain import order in `style.scss` decided the winner. A combined `.command-palette-row.shortcuts-row` selector now restores the intended horizontal padding regardless of import order.
+- **Switching documents while viewing a shared workspace in a locked view mode (Preview-only viewer access, or Suggestion-mode) could silently break the whole toolbar.** `updateMainView()` runs on every document switch and unconditionally set `.style.display` on `.view-selector` — an element Toolbar.svelte only renders while view mode isn't locked. With it absent, the very next switch threw an uncaught exception straight out of that update, aborting it (and anything else queued in the same reactive pass) partway through, which is what actually made the toolbar disappear. That element's style is now only touched when it actually exists.
+
 ## [1.42.4] - 2026-09-05
 
 ### Fixed

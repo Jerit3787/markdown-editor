@@ -224,7 +224,7 @@ describe("planPush", () => {
     const docs = [fakeDoc({ id: "d1", name: "My Notes", repoPath: undefined, content: "# Body\n", metadata: [{ key: "Title", value: "Pushed Doc" }] })];
     const plan = await planPush(docs, [], false);
     expect(plan.changes).toHaveLength(1);
-    expect(plan.changes[0]!.content).toBe("Title: Pushed Doc\n\n# Body\n");
+    expect(plan.changes[0]!.content).toBe("<!--\nTitle: Pushed Doc\n-->\n\n# Body\n");
   });
 
   it("appends the document's structured citations as definition lines when pushing", async () => {

@@ -11,6 +11,10 @@ import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
 import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion } from "./suggestions";
 import type { ResolvedSuggestion } from "./suggestions";
 import type { Env } from "./env";
+import { resolveRole } from "./access-role";
+import type { Role, InvitedPerson, AccessRecord } from "./access-role";
+
+export type { Role, InvitedPerson, AccessRecord };
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -50,21 +54,6 @@ export interface CommentThread {
   orphaned: boolean;
   resolved: boolean;
   comments: CommentReply[];
-}
-
-export type Role = "viewer" | "reviewer" | "editor";
-
-export interface InvitedPerson {
-  username: string;
-  role: Role;
-}
-
-export interface AccessRecord {
-  owner: string | null;
-  generalAccess: "restricted" | "anyone";
-  requireAccount: boolean;
-  role: Role;
-  invited: InvitedPerson[];
 }
 
 export const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] };
@@ -325,23 +314,14 @@ export class WorkspaceRoom {
     if (!access.owner) {
       return { ok: false, status: 403, message: "This workspace hasn't been shared." };
     }
-    if (session && session.username === access.owner) {
-      return { ok: true, username: session.username, role: "editor" };
-    }
-    if (access.generalAccess === "anyone") {
-      if (access.requireAccount && (!session || !session.username)) {
+    const role = resolveRole(access, session?.username ?? null);
+    if (!role) {
+      if (!session || !session.username) {
         return { ok: false, status: 401, message: "Sign in with GitHub to join this workspace." };
       }
-      return { ok: true, username: session ? session.username : null, role: access.role };
+      return { ok: false, status: 403, message: "You don't have access to this workspace." };
     }
-    if (!session || !session.username) {
-      return { ok: false, status: 401, message: "Sign in with GitHub to join this workspace." };
-    }
-    const invited = access.invited.find((p) => p.username === session.username);
-    if (invited) {
-      return { ok: true, username: session.username, role: invited.role };
-    }
-    return { ok: false, status: 403, message: "You don't have access to this workspace." };
+    return { ok: true, username: session?.username ?? null, role };
   }
 
   async handleAccessRequest(request: Request): Promise<Response> {

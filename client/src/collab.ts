@@ -19,7 +19,7 @@ import { keymap } from "@codemirror/view";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
-import { shareModalOpen, shareAccess, shareTargetName, sharePresence } from "./stores/share";
+import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified } from "./stores/share";
 import { showToast } from "./stores/toast";
 import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent } from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
@@ -187,6 +187,7 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
     }
     return;
   }
+  identityUnverified.set(isIdentityUnverified(access, username));
 
   if (localMatch) {
     // Already joined this remote workspace before — just switch to it.
@@ -231,11 +232,34 @@ function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): 
   return invited ? invited.role : null;
 }
 
+// True only in the one genuinely ambiguous case: there's no session at
+// all (not merely a session belonging to someone else), yet the access
+// record still grants a role via general access. Doesn't change what
+// role is granted (computeMyRole already does the right thing here) —
+// this only flags that the *reason* is unverifiable identity, not a
+// deliberate permissions decision, so the UI can say so.
+//
+// Deliberately does NOT also check access.owner !== null: the server
+// redacts `owner` to null for exactly this caller (see
+// access-visibility.ts's redactAccessForOutsider, applied whenever
+// authorize() itself doesn't already recognize the requester) — an
+// anonymous visitor's own AccessRecord always has owner: null regardless
+// of whether one is actually configured, so that check was always false
+// for the real audience this function exists to catch. It's also
+// unnecessary: generalAccess only ever becomes "anyone" via a PUT that
+// simultaneously claims/keeps a real owner (see handleAccessRequest's PUT
+// handler), so a granted role via general access already implies an
+// owner exists, redacted or not.
+export function isIdentityUnverified(access: typeof DEFAULT_ACCESS, username: string | null): boolean {
+  return !username && access.generalAccess === "anyone";
+}
+
 // ---------- Room lifecycle ----------
 
 function handleDocChanged(doc: any) {
   if (!doc) {
     teardownWorkspace();
+    identityUnverified.set(false);
     syncShareStores();
     return;
   }
@@ -248,17 +272,46 @@ function handleDocChanged(doc: any) {
     // reconnecting on every doc switch would defeat that and cause a
     // visible flicker/reconnect for every collaborator's presence too.
     if (workspaceRoom.workspaceId === ws.remoteId) {
+      // A document created (or otherwise switched to for the first time)
+      // while the workspace is already connected has no binding yet —
+      // bindActiveDoc only rebinds a doc already syncing, so introduce it
+      // first. The docId-multiplexed wire protocol already supports this
+      // (see workspace-room.ts's isNewDoc handling); nothing on the
+      // client ever triggered it for a doc created after the initial
+      // join, so it silently never reached the server or any other
+      // collaborator at all.
+      if (!workspaceRoom.docs.has(doc.id)) {
+        const role = workspaceRoom.docs.get(workspaceRoom.activeDocId ?? "")?.role ?? "editor";
+        seedNewDocBinding(doc.id, doc, role);
+      }
       bindActiveDoc(doc.id);
       syncShareStores();
       return;
     }
+    // Deliberately doesn't reset identityUnverified here (unlike the two
+    // branches below that leave shared context for good) — this branch
+    // immediately re-joins the same or another shared workspace via
+    // rejoinKnownWorkspace, which sets its own correct value once it
+    // resolves. The initial adopt-and-switch sequence for a freshly
+    // joined workspace can fire this branch more than once in quick
+    // succession (switching workspace and switching doc are separate
+    // reactive triggers) before the winning rejoin's awaits settle;
+    // zeroing identityUnverified on every one of those redundant
+    // teardowns — including ones that fire after the real rejoin already
+    // set it correctly — was leaving it stuck at false. Only the branches
+    // where nothing is coming to set it back need to reset it themselves.
     teardownWorkspace();
     rejoinKnownWorkspace(ws.remoteId, doc.id);
   } else if (doc.shared) {
+    // Also intentionally not reset here — migrateLegacyDoc() ends by
+    // adopting the migrated workspace, which triggers this same function
+    // again with ws.shared && ws.remoteId now true, landing in the branch
+    // above and setting the correct value there.
     teardownWorkspace();
     migrateLegacyDoc(doc.id);
   } else {
     teardownWorkspace();
+    identityUnverified.set(false);
     syncShareStores();
   }
 }
@@ -275,6 +328,7 @@ async function rejoinKnownWorkspace(remoteId: string, docId: string) {
   if (myGeneration !== joinGeneration) return;
   const role = computeMyRole(access, window.MDE.githubUsername);
   if (!role) return;
+  identityUnverified.set(isIdentityUnverified(access, window.MDE.githubUsername));
   const joined = await joinWorkspace(remoteId, { role });
   if (joined !== joinGeneration) return;
   bindActiveDoc(docId);
@@ -373,6 +427,32 @@ function seedDocBindingFromEditor(docId: string): void {
       if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
     }, "local");
   }
+}
+
+// Introduces a document to an already-connected workspace room that never
+// went through joinWorkspace()'s own initial seeding (e.g. one created,
+// or switched to for the first time, after the connection was already
+// established) — same idea as seedDocBindingFromEditor, but sourced from
+// the plain Doc record instead of the live editor, since this doc isn't
+// necessarily the one currently loaded into CodeMirror yet. Explicitly
+// sends this binding's own initial sync step1 afterward: the server only
+// ever learns of a docId when a message naming it arrives (see
+// workspace-room.ts's isNewDoc handling), and nothing else would trigger
+// that round trip for a doc introduced this way.
+function seedNewDocBinding(docId: string, doc: Doc, role: string): void {
+  const binding = createDocBinding(docId, role);
+  binding.ydoc.transact(() => {
+    if (doc.content) binding.ytext.insert(0, doc.content);
+    binding.metaMap.set("name", doc.name || "Untitled");
+    binding.metaMap.set("metadata", JSON.stringify(doc.metadata ?? []));
+    binding.metaMap.set("citations", JSON.stringify(doc.citations ?? EMPTY_CITATIONS));
+    if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
+  }, "local");
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, MESSAGE_SYNC);
+  encoding.writeVarString(encoder, docId);
+  syncProtocol.writeSyncStep1(encoder, binding.ydoc);
+  send(encoding.toUint8Array(encoder));
 }
 
 function createDocBinding(docId: string, role: string): DocBinding {

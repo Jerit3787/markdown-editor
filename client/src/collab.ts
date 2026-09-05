@@ -171,6 +171,16 @@ function init() {
   } else {
     handleDocChanged(getActiveDoc());
   }
+
+  // Retrying access after a Sign-in popup completes (see
+  // WorkspaceAccessBanner.svelte) is just re-running the same join logic
+  // that got the user into the denied state in the first place — no
+  // bespoke retry path, no extra state to keep in sync. client/src/main.ts
+  // imports ./collab before ./gist, so this module's init() always sets
+  // onGithubAuthComplete first; gist.ts's own init() chains onto it (the
+  // same pattern it already uses for onActiveDocChanged) rather than
+  // overwriting it.
+  window.MDE.onGithubAuthComplete = () => handleDocChanged(getActiveDoc());
 }
 
 async function joinSharedLink(workspaceId: string, landOnDocId: string) {

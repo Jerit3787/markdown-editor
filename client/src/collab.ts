@@ -1263,6 +1263,13 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
   if ((wantAnyone || access.invited.length > 0) && !workspaceRoom.workspaceId) {
     await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
     bindActiveDoc(doc.id);
+    // joinWorkspace only seeds seedDocId (the active document, from the
+    // live editor) — this room never existed before this call, so every
+    // other local document already in the workspace has to be introduced
+    // here too, or it's silently left unsynced and never reaches anyone
+    // who joins the link afterward.
+    const siblings = get(docsStore).filter((d) => d.workspaceId === doc.workspaceId && d.id !== doc.id);
+    for (const sibling of siblings) seedNewDocBinding(sibling.id, sibling, "editor");
   }
   if (!wantAnyone && access.invited.length === 0) teardownWorkspace();
   syncShareStores();

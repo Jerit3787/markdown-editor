@@ -524,6 +524,25 @@ describe("shared document name sync", () => {
 
     expect(window.MDE.setDocCitations).toHaveBeenCalledWith("doc1", remote);
   });
+
+  // Regression test: sharing a workspace for the first time only ever
+  // seeded the currently active document into the newly-created room —
+  // any sibling document already in that local workspace was silently
+  // left unsynced, so a collaborator joining afterward only ever saw the
+  // one document the sharer happened to have open at share time.
+  it("also seeds every other local document already in the workspace when sharing for the first time", async () => {
+    docsStore.set([
+      { id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+      { id: "doc2", name: "Sibling Doc", content: "sibling content", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+    ]);
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const sibling = workspaceRoom.docs.get("doc2");
+    expect(sibling).toBeDefined();
+    expect(sibling?.ytext.toString()).toBe("sibling content");
+    expect(sibling?.metaMap.get("name")).toBe("Sibling Doc");
+  });
 });
 
 describe("suggestion-mode role wiring", () => {

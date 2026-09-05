@@ -103,6 +103,7 @@
   });
 </script>
 
+{#if !$viewModeLocked}
 <div id="toolbar">
   <div class="toolbar-buttons" bind:this={toolbarButtonsEl}>
     <!-- Always present now (a real toggle with an active/inactive state,
@@ -173,8 +174,10 @@
      its own grid column, aligned above the comment sidenav — see
      #body's grid-template-areas in style.css. #toolbar-mount's
      display:contents makes both this and #toolbar direct grid children
-     of #body, despite both being rendered by this one component. -->
-{#if !$viewModeLocked}
+     of #body, despite both being rendered by this one component.
+     Gated by the same condition as #toolbar above (see that {#if}) —
+     there's no edit surface at all while locked, so neither has anything
+     left to control. -->
   <div class="view-selector" role="group" aria-label="View mode">
     <button type="button" class:active={editorOn} title="Toggle editor pane" aria-label="Toggle editor pane" aria-pressed={editorOn} onclick={toggleEditorPane}>
       <svg class="icon"><use href="#icon-panel-left"></use></svg>

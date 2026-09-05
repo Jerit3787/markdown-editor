@@ -72,6 +72,8 @@ A change that ships anything **user-facing** bumps the **minor** version (`1.X.0
 
 A change that's **purely behind-the-scenes** (internal refactor, dependency bump, a bugfix with no visible behavior change beyond "the bug is gone") bumps only the **patch** version (`1.0.X`) and gets a `CHANGELOG.md` entry (`### Fixed`/`### Changed`) but **no** `whats-new-entries.ts` entry. Tags trigger `.github/workflows/release.yml`, which pulls that tag's `CHANGELOG.md` section verbatim into the GitHub Release notes (`.github/scripts/release-helper.cjs`) — an untagged version bump with no changelog section produces an empty release note.
 
+**A branch that bumped the version more than once before it's ever merged should collapse those bumps into one before opening/updating its PR.** If an earlier bump on the same unmerged branch never actually shipped (its exact `package.json` version was never on a commit that reached `master`), fold that earlier `CHANGELOG.md` section's entries into the final version's section and delete the orphaned heading — don't leave two consecutive version headings for a version that will never exist in history. (`release-helper.cjs`'s `extractChangelog` does this same fold automatically, but only after the fact, walking backward from a tag that did ship — do it by hand up front instead of relying on that safety net.)
+
 ### Shipping a change: PR, merge — tag, release, and deploy all happen on their own
 
 Once a change (with its version/CHANGELOG/whats-new updates, per above) is ready:

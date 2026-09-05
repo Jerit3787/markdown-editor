@@ -14,8 +14,6 @@ All notable changes to this project are documented here. Format follows
 
 - **`WorkspaceRoom` and `CollabRoom`'s identical role-resolution logic is now one shared function** (`src/access-role.ts`'s `resolveRole()`) instead of two copy-pasted copies — no behavior change, just one place to read and update it going forward.
 
-## [1.42.5] - 2026-09-05
-
 ### Fixed
 
 - **A document's metadata (Title, Author, etc. — set via the Doc Info/Edit panel) showed up as ugly, fully visible plain text at the top of a published Gist, pushed repo file, or exported `.md`.** The serialized block is now wrapped in an HTML comment, which every CommonMark/GFM renderer (GitHub Gist, GitHub's own repo file viewer) already treats as invisible — it stays fully visible and editable in the raw `.md` source, just hidden from rendered views. Metadata already published under the old bare format is still read back correctly when reopened.

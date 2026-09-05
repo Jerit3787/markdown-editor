@@ -238,8 +238,20 @@ function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): 
 // role is granted (computeMyRole already does the right thing here) —
 // this only flags that the *reason* is unverifiable identity, not a
 // deliberate permissions decision, so the UI can say so.
+//
+// Deliberately does NOT also check access.owner !== null: the server
+// redacts `owner` to null for exactly this caller (see
+// access-visibility.ts's redactAccessForOutsider, applied whenever
+// authorize() itself doesn't already recognize the requester) — an
+// anonymous visitor's own AccessRecord always has owner: null regardless
+// of whether one is actually configured, so that check was always false
+// for the real audience this function exists to catch. It's also
+// unnecessary: generalAccess only ever becomes "anyone" via a PUT that
+// simultaneously claims/keeps a real owner (see handleAccessRequest's PUT
+// handler), so a granted role via general access already implies an
+// owner exists, redacted or not.
 export function isIdentityUnverified(access: typeof DEFAULT_ACCESS, username: string | null): boolean {
-  return !username && access.owner !== null && access.generalAccess === "anyone";
+  return !username && access.generalAccess === "anyone";
 }
 
 // ---------- Room lifecycle ----------
@@ -247,6 +259,7 @@ export function isIdentityUnverified(access: typeof DEFAULT_ACCESS, username: st
 function handleDocChanged(doc: any) {
   if (!doc) {
     teardownWorkspace();
+    identityUnverified.set(false);
     syncShareStores();
     return;
   }
@@ -263,13 +276,30 @@ function handleDocChanged(doc: any) {
       syncShareStores();
       return;
     }
+    // Deliberately doesn't reset identityUnverified here (unlike the two
+    // branches below that leave shared context for good) — this branch
+    // immediately re-joins the same or another shared workspace via
+    // rejoinKnownWorkspace, which sets its own correct value once it
+    // resolves. The initial adopt-and-switch sequence for a freshly
+    // joined workspace can fire this branch more than once in quick
+    // succession (switching workspace and switching doc are separate
+    // reactive triggers) before the winning rejoin's awaits settle;
+    // zeroing identityUnverified on every one of those redundant
+    // teardowns — including ones that fire after the real rejoin already
+    // set it correctly — was leaving it stuck at false. Only the branches
+    // where nothing is coming to set it back need to reset it themselves.
     teardownWorkspace();
     rejoinKnownWorkspace(ws.remoteId, doc.id);
   } else if (doc.shared) {
+    // Also intentionally not reset here — migrateLegacyDoc() ends by
+    // adopting the migrated workspace, which triggers this same function
+    // again with ws.shared && ws.remoteId now true, landing in the branch
+    // above and setting the correct value there.
     teardownWorkspace();
     migrateLegacyDoc(doc.id);
   } else {
     teardownWorkspace();
+    identityUnverified.set(false);
     syncShareStores();
   }
 }
@@ -540,7 +570,6 @@ function teardownWorkspace(): void {
   backgroundSyncDebounce.flush();
   remotePresenceByUsername.clear();
   workspacePresence.set(new Map());
-  identityUnverified.set(false);
   window.MDE.setReadOnly(false);
   unlockViewMode();
   window.MDE.exitCollabMode();

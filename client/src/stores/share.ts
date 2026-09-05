@@ -23,5 +23,9 @@ export const sharePresence = writable<PresenceEntry[]>([]);
 // collab.ts's isIdentityUnverified(). Doesn't gate anything; purely
 // tells the UI the role shown might not be what this visitor would get
 // if they were recognized. Reset to false in collab.ts's
-// teardownWorkspace() so it never lingers into an unrelated document.
+// handleDocChanged(), specifically only in the branches that leave
+// shared context for good (not the generic teardownWorkspace() helper,
+// which also runs right before an immediate rejoin — resetting there too
+// raced the rejoin's own correct value on every redundant reactive
+// teardown+rejoin cycle a fresh join can trigger).
 export const identityUnverified = writable(false);

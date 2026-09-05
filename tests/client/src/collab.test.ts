@@ -33,8 +33,20 @@ function fakeWorkspace(overrides: Partial<Workspace>): Workspace {
 }
 
 describe("isIdentityUnverified", () => {
-  it("is true only when there's no session, an owner is set, and general access is 'anyone'", () => {
+  it("is true when there's no session and general access is 'anyone', even with the owner visible", () => {
     const access = { ...DEFAULT_ACCESS, owner: "alice", generalAccess: "anyone" as const };
+    expect(isIdentityUnverified(access, null)).toBe(true);
+  });
+
+  // The real shape a genuinely anonymous visitor's own fetched AccessRecord
+  // has: the server redacts `owner` to null for anyone authorize() doesn't
+  // already recognize (see access-visibility.ts's redactAccessForOutsider)
+  // — this is the actual case the function exists to catch, not an edge
+  // case, and must not be confused with "never configured" (DEFAULT_ACCESS
+  // itself has generalAccess: "restricted", so "anyone" here already
+  // implies a real owner exists server-side, redacted or not).
+  it("is true even when owner has been redacted to null, as long as general access is 'anyone'", () => {
+    const access = { ...DEFAULT_ACCESS, owner: null, generalAccess: "anyone" as const };
     expect(isIdentityUnverified(access, null)).toBe(true);
   });
 
@@ -45,11 +57,6 @@ describe("isIdentityUnverified", () => {
 
   it("is false when general access is restricted", () => {
     const access = { ...DEFAULT_ACCESS, owner: "alice", generalAccess: "restricted" as const };
-    expect(isIdentityUnverified(access, null)).toBe(false);
-  });
-
-  it("is false when there's no owner at all", () => {
-    const access = { ...DEFAULT_ACCESS, owner: null, generalAccess: "anyone" as const };
     expect(isIdentityUnverified(access, null)).toBe(false);
   });
 });

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.42.4] - 2026-09-05
+
+### Fixed
+
+- **A document that merely mentioned this app's own image-embed syntax as a documentation example (e.g. explaining that a pasted image looks like `![alt](data:image/png;base64,...)` in prose) had that example treated as a real image on Gist publish.** `gist.ts`'s image-push regex accepted any trailing text after `;base64,` as "content", so a literal `...` placeholder was extracted and sent to the server as if it were real image data — a real request the server correctly rejected, surfacing as "Gist published, but pushing images failed: Invalid base64 content..." (the exact bug the previous release's diagnostic-detail fix let this be seen for the first time). The regex now requires the actual base64 alphabet for that group, matching the stricter check already used when opening a gist — a non-match is now correctly skipped like any other non-image markdown link, with no request sent at all.
+
 ## [1.42.3] - 2026-09-04
 
 ### Fixed

@@ -217,7 +217,7 @@ function gistImageFilename(ref: string, ext: string): string {
 // Pushed one at a time — parallel pushes to the same gist repo could race
 // against each other. Returns null if there was nothing to push, so the
 // caller can skip the follow-up PATCH entirely.
-async function pushImagesAndRewrite(
+export async function pushImagesAndRewrite(
   gistId: string,
   rawContent: string,
   images: Record<string, string> | undefined,
@@ -242,7 +242,14 @@ async function pushImagesAndRewrite(
     const message = `Publishing images (${done}/${sources.size})…`;
     gistBusyLabel.set(message);
     onProgress?.(message);
-    const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.*)$/);
+    // The base64 group requires the real base64 alphabet (mirrors
+    // extractInlineImages's INLINE_IMAGE_RE) rather than accepting any
+    // trailing text — a doc that merely *mentions* this app's image-embed
+    // syntax as an example (e.g. "...references it as
+    // `![alt](data:image/png;base64,...)`" in a README) would otherwise
+    // match here too, with "..." as the "content" to push: a real request
+    // that fails validation server-side, not a skippable non-match.
+    const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/]+=*)$/);
     if (!match) continue;
     const [, mime, contentBase64] = match;
     const filename = src.startsWith("data:") ? `image-${++counter}.${extFromMime(mime)}` : gistImageFilename(src, extFromMime(mime));
@@ -255,6 +262,12 @@ async function pushImagesAndRewrite(
     const data = await res.json();
     urlBySource[src] = data.url;
   }
+
+  // Every candidate source could still have been skipped above as not
+  // actually valid base64 (see the regex's own comment) — in which case
+  // nothing was pushed and there's nothing to rewrite either, same as the
+  // sources.size === 0 case above.
+  if (Object.keys(urlBySource).length === 0) return null;
 
   return rawContent.replace(MARKDOWN_IMAGE_RE, (match, alt, src) => {
     const url = urlBySource[src];

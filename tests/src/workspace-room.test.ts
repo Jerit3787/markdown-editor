@@ -12,6 +12,7 @@ import { getSuggestionsMap, recordInsertSuggestion, listResolvedSuggestions } fr
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
+const MESSAGE_WORKSPACE_META = 3;
 
 // Minimal in-memory stand-in for DurableObjectState — same pattern as
 // src/collab-room.test.ts's fakeState(), WorkspaceRoom only ever touches
@@ -711,6 +712,103 @@ describe("WorkspaceRoom document membership", () => {
     const res = await room.handleDocsRequest(request);
     expect(res.status).toBe(204);
     expect(room.docIds).toEqual(["docB"]);
+  });
+});
+
+describe("WorkspaceRoom.handleMetaRequest", () => {
+  it("a non-editor's PUT is rejected without persisting or broadcasting", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    const request = new Request("https://example.com/w/ws1/meta", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "New Name" }),
+    });
+    const res = await room.handleMetaRequest(request);
+    expect(res.status).toBe(403);
+    expect(room.name).toBe("");
+  });
+
+  it("an editor's PUT persists the name, returns it, and it survives a storage reload", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/meta", {
+      method: "PUT",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Renamed Workspace" }),
+    });
+    const res = await room.handleMetaRequest(request);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ name: "Renamed Workspace" });
+    expect(room.name).toBe("Renamed Workspace");
+    expect(await room.state.storage.get("name")).toBe("Renamed Workspace");
+  });
+
+  it("broadcasts the new name and current docOrder to other connected sessions", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    room.docIds = ["docA", "docB"];
+    const sent: ArrayBuffer[] = [];
+    const ws = { send: (m: ArrayBuffer) => sent.push(m) } as unknown as WebSocket;
+    (room as any).sessions.set(ws, { username: "bob", role: "viewer", viewingDocId: null });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/meta", {
+      method: "PUT",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Renamed Workspace" }),
+    });
+    await room.handleMetaRequest(request);
+
+    expect(sent).toHaveLength(1);
+    const decoder = decoding.createDecoder(new Uint8Array(sent[0]));
+    expect(decoding.readVarUint(decoder)).toBe(MESSAGE_WORKSPACE_META);
+    expect(decoding.readVarString(decoder)).toBe("Renamed Workspace");
+    const count = decoding.readVarUint(decoder);
+    const ids: string[] = [];
+    for (let i = 0; i < count; i++) ids.push(decoding.readVarString(decoder));
+    expect(ids).toEqual(["docA", "docB"]);
+  });
+
+  it("rejects a non-PUT method", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const res = await room.handleMetaRequest(new Request("https://example.com/w/ws1/meta"));
+    expect(res.status).toBe(405);
+  });
+
+  it("GET /access includes the current workspaceName", async () => {
+    const state = fakeState();
+    await state.storage.put("name", "My Shared Workspace");
+    const room = new WorkspaceRoom(state, fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    // The constructor's own blockConcurrencyWhile load of "name" is
+    // fire-and-forget from the fakeState() stub (unlike a real Durable
+    // Object, it doesn't actually block requests until it settles) — wait
+    // a macrotask tick so it's guaranteed to have applied before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const res = await room.handleAccessRequest(new Request("https://example.com/w/ws1/access"));
+    const body = await res.json();
+    expect(body.workspaceName).toBe("My Shared Workspace");
+  });
+
+  it("a freshly-connected session is greeted with the current workspace meta", async () => {
+    const state = fakeState();
+    await state.storage.put("name", "Greeted Workspace");
+    await state.storage.put("docs", ["docA"]);
+    const room = new WorkspaceRoom(state, fakeEnvWithSecret);
+    // Same settling wait as above — the constructor also needs to finish
+    // loading docA's DocRoom before handleSession can greet it.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const sent: ArrayBuffer[] = [];
+    const ws = { send: (m: ArrayBuffer) => sent.push(m), accept: () => {}, addEventListener: () => {} } as unknown as WebSocket;
+
+    room.handleSession(ws, "alice", "editor");
+
+    // One sync-step1 frame for docA, then the meta greeting.
+    const metaFrame = sent[sent.length - 1];
+    const decoder = decoding.createDecoder(new Uint8Array(metaFrame));
+    expect(decoding.readVarUint(decoder)).toBe(MESSAGE_WORKSPACE_META);
+    expect(decoding.readVarString(decoder)).toBe("Greeted Workspace");
   });
 });
 

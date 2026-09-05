@@ -178,3 +178,60 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
   await ownerCtx.close();
   await viewerCtx.close();
 });
+
+test("a viewer with no session at all sees the signed-out indicator and can sign in from it", async ({ browser }) => {
+  const ownerCtx = await browser.newContext();
+  const viewerCtx = await browser.newContext();
+  const owner = await ownerCtx.newPage();
+  const viewer = await viewerCtx.newPage();
+
+  await signInAsDevUser(owner, "sig-owner-e2e");
+  // Deliberately no signInAsDevUser(viewer, ...) — this viewer has no
+  // session at all, the exact case isIdentityUnverified() flags.
+
+  await owner.goto(BASE);
+  await owner.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await dismissWhatsNew(owner);
+  await createFirstWorkspaceAndDoc(owner);
+  await owner.click("#editor-mount .cm-content");
+  await owner.keyboard.type("owner-authored content");
+
+  await owner.click('button:has-text("Share")');
+  const moveDialog = owner.locator('button:has-text("Continue")');
+  if (await moveDialog.isVisible({ timeout: 2000 }).catch(() => false)) await moveDialog.click();
+  const accessSelect = owner.locator('select[aria-label="General access"]');
+  await accessSelect.waitFor({ state: "visible" });
+  await Promise.all([
+    owner.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    accessSelect.selectOption({ label: "Anyone with the link" }),
+  ]);
+
+  const shareState = await owner.evaluate(() => {
+    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
+    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+    const activeId = localStorage.getItem("mde:active");
+    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
+    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
+    return { activeDoc, ws };
+  });
+  const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
+
+  await viewer.goto(shareUrl);
+  await viewer.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  const joinModal = viewer.locator('text="Join shared workspace"');
+  if (await joinModal.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await viewer.click('button:has-text("Add as new workspace")');
+  }
+  await dismissWhatsNew(viewer);
+
+  await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("owner-authored content");
+
+  const indicator = viewer.locator('button.signed-out-indicator:has-text("Signed out")');
+  await expect(indicator).toBeVisible();
+
+  await indicator.click();
+  await expect(viewer.locator('text="Sign in required"')).toBeVisible();
+
+  await ownerCtx.close();
+  await viewerCtx.close();
+});

@@ -8,6 +8,12 @@
 // runs during these tests: DOMContentLoaded has already fired on jsdom's
 // document by the time this module's listener is attached, so it's just a
 // no-op registration — none of the tests below trigger it.
+//
+// applyWorkspaceMeta's document-removal path (see the "incoming workspace
+// meta sync" describe block below) goes through stores/docs.ts's
+// removeDocById(), which fire-and-forgets a deleteHistory() call that
+// opens a real IndexedDB database — unmocked by default under jsdom.
+import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
 import * as Y from "yjs";
@@ -860,5 +866,93 @@ describe("discovering a document created by another collaborator", () => {
     expect(get(docsStore).length).toBe(countBefore);
     const localDoc = get(docsStore).find((d) => d.id === "doc-disc4-b");
     expect(localDoc?.name).toBe("Already Here");
+  });
+});
+
+describe("incoming workspace meta sync (rename + document removal)", () => {
+  const MESSAGE_WORKSPACE_META = 3;
+
+  function sendWorkspaceMeta(name: string, docOrder: string[]) {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_WORKSPACE_META);
+    encoding.writeVarString(encoder, name);
+    encoding.writeVarUint(encoder, docOrder.length);
+    for (const id of docOrder) encoding.writeVarString(encoder, id);
+    const buffer = encoding.toUint8Array(encoder).buffer;
+    MockWebSocket.instances[0].onmessage!({ data: buffer } as MessageEvent);
+  }
+
+  async function setup(suffix: string) {
+    document.body.innerHTML = '<div id="shareBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [`doc-${suffix}-a`, `doc-${suffix}-b`] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-ws-${suffix}`, remoteId: `remote-${suffix}`, name: "Old Name" });
+    workspacesStore.set([ws]);
+    const docA = { id: `doc-${suffix}-a`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    const docB = { id: `doc-${suffix}-b`, name: "B", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([docA, docB]);
+
+    handleDocChanged(docA);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    return { ws, docA, docB };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("updates the local workspace's name when a non-empty name arrives", async () => {
+    const { ws, docA, docB } = await setup("meta1");
+    sendWorkspaceMeta("Renamed By Owner", [docA.id, docB.id]);
+
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.name).toBe("Renamed By Owner");
+  });
+
+  it("leaves the local workspace's name alone when the incoming name is empty", async () => {
+    const { ws } = await setup("meta2");
+    sendWorkspaceMeta("", [`doc-meta2-a`, `doc-meta2-b`]);
+
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.name).toBe("Old Name");
+  });
+
+  it("removes a local document whose id is missing from the incoming docOrder, tearing down its binding", async () => {
+    const { docB } = await setup("meta3");
+    sendWorkspaceMeta("Old Name", [`doc-meta3-a`]);
+
+    expect(get(docsStore).find((d) => d.id === docB.id)).toBeUndefined();
+    expect(workspaceRoom.docs.has(docB.id)).toBe(false);
+  });
+
+  it("leaves a document alone whose id is still present in docOrder", async () => {
+    const { docA, docB } = await setup("meta4");
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id]);
+
+    expect(get(docsStore).find((d) => d.id === docA.id)).toBeDefined();
+    expect(get(docsStore).find((d) => d.id === docB.id)).toBeDefined();
+    expect(workspaceRoom.docs.has(docB.id)).toBe(true);
   });
 });

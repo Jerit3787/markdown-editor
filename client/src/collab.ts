@@ -22,11 +22,11 @@ import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
 import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified, workspaceAccessDenied } from "./stores/share";
 import { showToast } from "./stores/toast";
-import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent } from "./stores/docs";
+import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent, removeDocById } from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
 import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
-import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace, previewSharedWorkspace } from "./stores/workspaces";
+import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace, previewSharedWorkspace, renameWorkspace } from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";
@@ -45,6 +45,7 @@ import { SHARE_PATH } from "./router";
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 const MESSAGE_PRESENCE = 2;
+const MESSAGE_WORKSPACE_META = 3;
 
 const COLORS = ["#e64980", "#f76707", "#f59f00", "#40c057", "#12b886", "#228be6", "#7950f2", "#e8590c"];
 export const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
@@ -751,6 +752,21 @@ async function bindActiveDoc(docId: string): Promise<void> {
   sendPresence(docId);
 }
 
+// Tears down one document's Yjs/awareness state and drops it from
+// workspaceRoom.docs — the same cleanup teardownWorkspace() already does
+// per-binding when leaving a workspace entirely, extracted so
+// applyWorkspaceMeta() can do it for a single removed document without
+// tearing down the whole connection.
+function destroyBinding(docId: string): void {
+  const binding = workspaceRoom.docs.get(docId);
+  if (!binding) return;
+  binding.awareness.destroy();
+  binding.ydoc.off("update", binding.ydocUpdateHandler);
+  if (binding.undoManager) binding.undoManager.destroy();
+  binding.ydoc.destroy();
+  workspaceRoom.docs.delete(docId);
+}
+
 function teardownWorkspace(): void {
   joinGeneration++;
   // Cancels any pending debounce timer and runs the flush immediately —
@@ -772,12 +788,7 @@ function teardownWorkspace(): void {
   // closing the socket — send() only transmits while the socket is OPEN, so
   // closing first silently drops that broadcast almost every time, leaving
   // a phantom presence entry the server never learns to remove.
-  for (const binding of workspaceRoom.docs.values()) {
-    binding.awareness.destroy();
-    binding.ydoc.off("update", binding.ydocUpdateHandler);
-    if (binding.undoManager) binding.undoManager.destroy();
-    binding.ydoc.destroy();
-  }
+  for (const docId of Array.from(workspaceRoom.docs.keys())) destroyBinding(docId);
   if (workspaceRoom.ws) {
     workspaceRoom.ws.onclose = null;
     workspaceRoom.ws.onerror = null;
@@ -787,12 +798,32 @@ function teardownWorkspace(): void {
       /* already closed */
     }
   }
-  workspaceRoom.docs.clear();
   workspaceRoom.workspaceId = null;
   workspaceRoom.ws = null;
   workspaceRoom.activeDocId = null;
   workspaceRoom.role = null;
   workspaceRoom.reconnectDelay = 1000;
+}
+
+// Applies an incoming MESSAGE_WORKSPACE_META frame: mirrors the sharer's
+// real workspace name onto our local copy (matched by remoteId), and
+// removes any local document whose id is no longer in the room's
+// docOrder — the workspace-level counterpart to how a document's own
+// name/content already sync. Runs on every frame, including the one-time
+// greeting a freshly-opened connection gets (see WorkspaceRoom.handleSession),
+// so a stale local cache never has more than the same brief window every
+// other synced field already tolerates before the first real frame lands.
+function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: string[]): void {
+  const local = get(workspacesStore).find((w) => w.remoteId === remoteWorkspaceId);
+  if (!local) return;
+  if (name) renameWorkspace(local.id, name);
+  const orderSet = new Set(docOrder);
+  for (const doc of get(docsStore).filter((d) => d.workspaceId === local.id)) {
+    if (!orderSet.has(doc.id)) {
+      destroyBinding(doc.id);
+      removeDocById(doc.id);
+    }
+  }
 }
 
 // ---------- WebSocket transport (Yjs sync + awareness protocol) ----------
@@ -838,6 +869,15 @@ function handleServerMessage(data: Uint8Array): void {
     const username = decoding.readVarString(decoder);
     const docId = decoding.readVarString(decoder);
     handleRemotePresence(username, docId);
+    return;
+  }
+
+  if (messageType === MESSAGE_WORKSPACE_META) {
+    const name = decoding.readVarString(decoder);
+    const count = decoding.readVarUint(decoder);
+    const docOrder: string[] = [];
+    for (let i = 0; i < count; i++) docOrder.push(decoding.readVarString(decoder));
+    if (workspaceRoom.workspaceId) applyWorkspaceMeta(workspaceRoom.workspaceId, name, docOrder);
     return;
   }
 

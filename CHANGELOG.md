@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.43.1] - 2026-09-05
+
+### Fixed
+
+- **A shared document's content could double itself every time its page was refreshed, growing without bound.** Reopening or reloading a page showing an already-synced shared document raced the collaborative editor's attachment against the server's own sync handshake: the server's content, once it arrived, could get inserted into a CodeMirror view that already showed that same content locally, appending a second copy each time. Also fixed a related case where a collaborator joining a shared workspace for the very first time could see a stale initial snapshot instead of the room's live content.
+
 ## [1.43.0] - 2026-09-05
 
 ### Added

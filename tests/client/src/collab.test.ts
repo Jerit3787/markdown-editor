@@ -10,7 +10,15 @@
 // no-op registration — none of the tests below trigger it.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
-import { decideShareTarget, decideJoinTarget, handleDocChanged, workspaceRoom, setAccessMode, isIdentityUnverified, DEFAULT_ACCESS } from "../../../client/src/collab";
+import {
+  decideShareTarget,
+  decideJoinTarget,
+  handleDocChanged,
+  workspaceRoom,
+  setAccessMode,
+  isIdentityUnverified,
+  DEFAULT_ACCESS,
+} from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { viewMode, viewModeLocked } from "../../../client/src/stores/view";

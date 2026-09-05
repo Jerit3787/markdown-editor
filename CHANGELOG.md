@@ -4,10 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
-## [1.44.1] - 2026-09-05
+## [1.45.0] - 2026-09-05
+
+### Added
+
+- **A shared workspace now mirrors the sharer's side one-to-one, the way a shared folder does.** Its real name reaches every collaborator — joining (or already being connected to) a multi-document shared workspace no longer shows the placeholder "Shared workspace" — and renaming it afterward propagates live to everyone still connected, with no reload needed.
+- **Deleting a document from a shared workspace now removes it for every collaborator, live**, instead of leaving a silently-orphaned local copy behind for everyone but the person who deleted it.
 
 ### Fixed
 
+- **A deleted shared document's stored content, snapshots, and comments were never actually cleaned up server-side**, left indefinitely in Durable Object storage even though the document itself was gone from the workspace's document list.
 - **Sharing a workspace for the first time only ever pushed the currently active document into the newly-created room.** Every sibling document already in that local workspace was silently left unsynced, so a collaborator opening the link only ever saw the one document the sharer happened to have open at share time. Every other local document in the workspace is now seeded into the room too.
 - **A locked viewer (no edit surface at all) still saw an empty toolbar bar** — hiding only the formatting buttons within it left `#toolbar`'s own padding/border/background and overflow control visible. The whole toolbar now disappears along with the view-selector it already disappeared alongside, and a related unconditional `.style` write on every document switch (which could throw once the toolbar could be entirely absent from the DOM) now guards against that the same way the view-selector's own write already did.
 - **A shared-workspace viewer could occasionally get an unlocked, editor-looking surface for a document switched to mid-session**, even though their real, server-granted role was still "viewer" (the server's own write check still correctly dropped any resulting edits — this was a client-side display bug, not a permissions gap). The role for a not-yet-bound document was being derived by reading some other, already-bound document's own role, which silently fell back to a hardcoded "editor" default whenever that lookup came up empty — a real possibility once binding the active document became asynchronous. This session's actual resolved role is now tracked once, directly, and reused for every document introduced afterward.

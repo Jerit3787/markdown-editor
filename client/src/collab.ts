@@ -22,11 +22,30 @@ import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
 import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified, workspaceAccessDenied } from "./stores/share";
 import { showToast } from "./stores/toast";
-import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent, removeDocById, docRemovalHook } from "./stores/docs";
+import {
+  getActiveDoc,
+  switchDoc,
+  docsStore,
+  moveDocToWorkspace,
+  findDocById,
+  persistDocs,
+  importRemoteDocs,
+  syncRemoteDocContent,
+  removeDocById,
+  docRemovalHook,
+} from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
 import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
-import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace, previewSharedWorkspace, renameWorkspace } from "./stores/workspaces";
+import {
+  workspacesStore,
+  switchWorkspace,
+  createWorkspace,
+  persistWorkspaces,
+  adoptSharedWorkspace,
+  previewSharedWorkspace,
+  renameWorkspace,
+} from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";

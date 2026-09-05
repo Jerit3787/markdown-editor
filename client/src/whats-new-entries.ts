@@ -273,4 +273,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/workspace-access-denied.png",
     category: "Collaboration",
   },
+  {
+    version: "1.45.0",
+    title: "Live Workspace Sync",
+    description:
+      "A shared workspace now mirrors the sharer's side completely, not just its documents' own content and names: the workspace's real name reaches every collaborator and updates live if it's renamed, and deleting a document removes it for everyone instead of leaving an orphaned copy behind.",
+    screenshot: "/whats-new/live-workspace-sync.png",
+    category: "Collaboration",
+  },
 ];

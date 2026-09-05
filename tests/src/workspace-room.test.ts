@@ -25,6 +25,12 @@ function fakeState() {
       put: async (key: string, value: unknown) => {
         store.set(key, value);
       },
+      delete: async (keyOrKeys: string | string[]) => {
+        const keys = Array.isArray(keyOrKeys) ? keyOrKeys : [keyOrKeys];
+        let count = 0;
+        for (const k of keys) if (store.delete(k)) count++;
+        return count;
+      },
       setAlarm: async () => {},
     },
     blockConcurrencyWhile: async (fn: () => Promise<void>) => {
@@ -712,6 +718,54 @@ describe("WorkspaceRoom document membership", () => {
     const res = await room.handleDocsRequest(request);
     expect(res.status).toBe(204);
     expect(room.docIds).toEqual(["docB"]);
+  });
+
+  it("removing a doc also deletes its stored content, snapshots, and comments", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    await room.state.storage.put("docs", ["docA"]);
+    room.docIds = ["docA"];
+    await room.state.storage.put("doc:docA:update", new ArrayBuffer(4));
+    await room.state.storage.put("doc:docA:snapshots", [{ id: "s1", timestamp: 1, content: "x" }]);
+    await room.state.storage.put("doc:docA:comments", [{ id: "c1" }]);
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs?docId=docA", {
+      method: "DELETE",
+      headers: { Cookie: `mde_gh_session=${cookie}` },
+    });
+
+    const res = await room.handleDocsRequest(request);
+
+    expect(res.status).toBe(204);
+    expect(await room.state.storage.get("doc:docA:update")).toBeUndefined();
+    expect(await room.state.storage.get("doc:docA:snapshots")).toBeUndefined();
+    expect(await room.state.storage.get("doc:docA:comments")).toBeUndefined();
+  });
+
+  it("removing a doc broadcasts the updated docOrder to other connected sessions", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    await room.state.storage.put("docs", ["docA", "docB"]);
+    room.docIds = ["docA", "docB"];
+    const sent: ArrayBuffer[] = [];
+    const ws = { send: (m: ArrayBuffer) => sent.push(m) } as unknown as WebSocket;
+    (room as any).sessions.set(ws, { username: "bob", role: "viewer", viewingDocId: null });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs?docId=docA", {
+      method: "DELETE",
+      headers: { Cookie: `mde_gh_session=${cookie}` },
+    });
+
+    await room.handleDocsRequest(request);
+
+    expect(sent).toHaveLength(1);
+    const decoder = decoding.createDecoder(new Uint8Array(sent[0]));
+    expect(decoding.readVarUint(decoder)).toBe(MESSAGE_WORKSPACE_META);
+    decoding.readVarString(decoder); // name, irrelevant here
+    const count = decoding.readVarUint(decoder);
+    const ids: string[] = [];
+    for (let i = 0; i < count; i++) ids.push(decoding.readVarString(decoder));
+    expect(ids).toEqual(["docB"]);
   });
 });
 

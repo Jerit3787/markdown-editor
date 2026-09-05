@@ -952,6 +952,8 @@ export class WorkspaceRoom {
       this.docIds = this.docIds.filter((id) => id !== docId);
       await this.state.storage.put("docs", this.docIds);
       this.docs.delete(docId);
+      await this.state.storage.delete([docStorageKey(docId, "update"), docStorageKey(docId, "snapshots"), docStorageKey(docId, "comments")]);
+      this.broadcastWorkspaceMeta();
       return new Response(null, { status: 204 });
     }
 

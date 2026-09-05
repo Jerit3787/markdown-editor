@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="client/public/logo.svg" alt="Markdown Editor logo" width="96" height="96">
+</p>
+
 # Markdown Editor
 
 A fast markdown editor with live preview, multiple documents organized

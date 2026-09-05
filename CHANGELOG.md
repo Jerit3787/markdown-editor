@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.44.0] - 2026-09-05
+
+### Added
+
+- **A shared workspace that can no longer be reached — an expired session, a revoked invite, or a share link nobody granted you access to — now says so clearly instead of silently dropping you into a disconnected, fully-editable local copy.** The editor locks to read-only Preview with a banner explaining why, and a Sign-in button when signing in again could restore access.
+
 ## [1.43.0] - 2026-09-05
 
 ### Added

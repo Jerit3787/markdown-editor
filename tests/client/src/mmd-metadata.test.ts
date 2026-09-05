@@ -51,6 +51,12 @@ describe("parseMetadataBlock", () => {
     expect(body).toBe("Body.\n");
   });
 
+  it("unescapes a value's escaped '--!>' when parsing the wrapped format", () => {
+    const { metadata, body } = parseMetadataBlock("<!--\nNote: see a--!\u200B>b for details\n-->\n\nBody.\n");
+    expect(metadata).toEqual([{ key: "Note", value: "see a--!>b for details" }]);
+    expect(body).toBe("Body.\n");
+  });
+
   it("leaves the document untouched when a leading HTML comment never closes", () => {
     const input = "<!--\nTitle: My Doc\n# Heading\n";
     const { metadata, body } = parseMetadataBlock(input);
@@ -90,6 +96,18 @@ describe("serializeMetadataBlock", () => {
     expect(body).toBe("Body.\n");
   });
 
+  // HTML's comment-parsing state machine also treats "--!>" as a closing
+  // sequence ("comment end bang state"), a legacy compatibility quirk from
+  // pre-HTML5 markup — a value containing it would leak the rest of the
+  // comment just as surely as a literal "-->" would if left unescaped.
+  it("escapes a value containing '--!>' so the wrapping comment can't be closed early", () => {
+    const serialized = serializeMetadataBlock([{ key: "Note", value: "see a--!>b for details" }], "Body.\n");
+    expect(serialized).not.toMatch(/see a--!>b/);
+    const { metadata, body } = parseMetadataBlock(serialized);
+    expect(metadata).toEqual([{ key: "Note", value: "see a--!>b for details" }]);
+    expect(body).toBe("Body.\n");
+  });
+
   it("escapes '-->' found in a key so it can't prematurely close the wrapping comment", () => {
     const serialized = serializeMetadataBlock(
       [
@@ -104,7 +122,7 @@ describe("serializeMetadataBlock", () => {
     // comment as visible text.
     expect(serialized.endsWith("-->\n\nBody.\n")).toBe(true);
     const closeAt = serialized.indexOf("-->\n\nBody.\n");
-    expect(serialized.slice(0, closeAt)).not.toMatch(/-->/);
+    expect(serialized.slice(0, closeAt)).not.toMatch(/--!?>/);
   });
 
   it("upgrades a legacy bare-format document to the wrapped format when re-serialized", () => {

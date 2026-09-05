@@ -7,25 +7,32 @@ const METADATA_LINE_RE = /^([A-Za-z][\w \t-]*):[ \t]+(.*)$/;
 const CONTINUATION_LINE_RE = /^[ \t]+(.*)$/;
 const COMMENT_OPEN = "<!--";
 const COMMENT_CLOSE = "-->";
+// HTML's comment-parsing state machine recognizes a second, legacy closing
+// sequence too ("comment end bang state", kept for pre-HTML5 compatibility)
+// — a value containing "--!>" would leak the comment open just as surely
+// as one containing "-->" if only the latter were escaped.
+const COMMENT_CLOSE_BANG = "--!>";
 
 // Key and value are both free text with no character restrictions (see the
 // Doc Info/Edit UI) — either could legitimately contain the literal
-// substring "-->", which would otherwise close the wrapping HTML comment
-// early and leak everything after it (including the rest of the metadata
-// and the real body) as visible text. Splitting the two dashes from the
-// bracket with a zero-width space neutralizes this invisibly, in both
-// directions, without rejecting or visibly mangling the field's content.
-// A key that needed escaping will no longer match METADATA_LINE_RE's own
-// character class on the way back in and so won't round-trip as a parsed
-// field — an acceptable loss, since such a key was never a well-formed
-// metadata key to begin with; what matters is that the comment itself
-// never breaks open.
+// substring "-->" or "--!>", either of which would otherwise close the
+// wrapping HTML comment early and leak everything after it (including the
+// rest of the metadata and the real body) as visible text. Splitting the
+// dashes from the rest of each sequence with a zero-width space
+// neutralizes both invisibly, in both directions, without rejecting or
+// visibly mangling the field's content. A key that needed escaping will no
+// longer match METADATA_LINE_RE's own character class on the way back in
+// and so won't round-trip as a parsed field — an acceptable loss, since
+// such a key was never a well-formed metadata key to begin with; what
+// matters is that the comment itself never breaks open. The two escaped
+// forms can't appear as substrings of one another, so escaping/unescaping
+// them in either order is safe.
 const ZERO_WIDTH_SPACE = "\u200B";
 function escapeCommentClose(text: string): string {
-  return text.split(COMMENT_CLOSE).join(`--${ZERO_WIDTH_SPACE}>`);
+  return text.split(COMMENT_CLOSE).join(`--${ZERO_WIDTH_SPACE}>`).split(COMMENT_CLOSE_BANG).join(`--!${ZERO_WIDTH_SPACE}>`);
 }
 function unescapeCommentClose(text: string): string {
-  return text.split(`--${ZERO_WIDTH_SPACE}>`).join(COMMENT_CLOSE);
+  return text.split(`--!${ZERO_WIDTH_SPACE}>`).join(COMMENT_CLOSE_BANG).split(`--${ZERO_WIDTH_SPACE}>`).join(COMMENT_CLOSE);
 }
 
 // Shared by both the new wrapped format and the legacy bare format: a run

@@ -145,6 +145,16 @@ describe("decideJoinTarget", () => {
     const result = decideJoinTarget([], 0);
     expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Shared workspace" });
   });
+
+  it("uses the real remote workspace name for a multi-document permanent landing when provided", () => {
+    const result = decideJoinTarget([{ name: "A" }, { name: "B" }], 0, "Team Docs");
+    expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Team Docs" });
+  });
+
+  it("falls back to the 'Shared workspace' placeholder when no remote workspace name is provided", () => {
+    const result = decideJoinTarget([{ name: "A" }, { name: "B" }], 0);
+    expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Shared workspace" });
+  });
 });
 
 describe("pushWorkspaceRename", () => {

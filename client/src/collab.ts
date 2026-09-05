@@ -235,7 +235,7 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const docs = await Promise.all(docIds.map((id) => fetchRemoteDocContent(workspaceId, id)));
   const validDocs = docs.filter((d): d is NonNullable<typeof d> => !!d);
 
-  const decision = decideJoinTarget(validDocs, get(workspacesStore).length);
+  const decision = decideJoinTarget(validDocs, get(workspacesStore).length, access.workspaceName);
   if (decision.kind === "auto-permanent") {
     const ws = adoptSharedWorkspace(workspaceId, decision.workspaceName);
     importRemoteDocs(ws.id, validDocs);
@@ -251,7 +251,7 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
     return;
   }
 
-  pendingJoin.set({ remoteId: workspaceId, workspaceName: "Shared workspace", docs: validDocs, landOnDocId });
+  pendingJoin.set({ remoteId: workspaceId, workspaceName: access.workspaceName || "Shared workspace", docs: validDocs, landOnDocId });
 }
 
 function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): string | null {
@@ -1265,9 +1265,10 @@ export type JoinDecision = { kind: "auto-permanent"; workspaceName: string } | {
 // (including a Preview option — see JoinWorkspaceModal.svelte), except for
 // a receiver with zero workspaces, who has nothing to choose between
 // either and lands permanently the same way as the single-doc case.
-export function decideJoinTarget(validDocs: { name: string }[], existingWorkspaceCount: number): JoinDecision {
+export function decideJoinTarget(validDocs: { name: string }[], existingWorkspaceCount: number, remoteWorkspaceName?: string): JoinDecision {
+  const multiDocName = remoteWorkspaceName || "Shared workspace";
   if (existingWorkspaceCount === 0) {
-    return { kind: "auto-permanent", workspaceName: validDocs.length === 1 ? validDocs[0]!.name || "Untitled" : "Shared workspace" };
+    return { kind: "auto-permanent", workspaceName: validDocs.length === 1 ? validDocs[0]!.name || "Untitled" : multiDocName };
   }
   if (validDocs.length === 1) return { kind: "auto-preview", workspaceName: validDocs[0]!.name || "Untitled" };
   return { kind: "choice" };

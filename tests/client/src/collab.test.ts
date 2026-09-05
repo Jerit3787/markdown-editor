@@ -10,6 +10,9 @@
 // no-op registration — none of the tests below trigger it.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
+import * as Y from "yjs";
+import * as syncProtocol from "y-protocols/sync";
+import * as encoding from "lib0/encoding";
 import {
   decideShareTarget,
   decideJoinTarget,
@@ -495,5 +498,136 @@ describe("suggestion-mode role wiring", () => {
     await Promise.resolve();
 
     expect(mde.updatePreview).toHaveBeenCalled();
+  });
+});
+
+// Regression coverage for the mid-session doc-discovery gap: an
+// already-connected collaborator previously had no way to learn about a
+// document another collaborator created after they joined — the server
+// already broadcasts every document's updates to every connected session
+// (see workspace-room.ts's handleDocUpdate), but the client silently
+// dropped any MESSAGE_SYNC/MESSAGE_AWARENESS frame for a docId it didn't
+// already have a binding for.
+describe("discovering a document created by another collaborator", () => {
+  // Mirrors collab.ts's own (unexported) MESSAGE_SYNC/MESSAGE_AWARENESS
+  // wire constants — these tests build raw frames by hand to exercise
+  // handleServerMessage's decoding path directly, the same way a real
+  // incoming WebSocket frame would.
+  const MESSAGE_SYNC = 0;
+  const MESSAGE_AWARENESS = 1;
+
+  // Distinct remoteId/workspace id per test isn't enough on its own —
+  // workspaceRoom.docs caches bindings by docId for the lifetime of the
+  // module (see "suggestion-mode role wiring" above for the same note),
+  // so this returns a fresh, uniquely-suffixed setup each time.
+  async function setup(suffix: string) {
+    document.body.innerHTML = '<div id="shareBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [`doc-${suffix}-a`] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-ws-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const doc = { id: `doc-${suffix}-a`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([doc]);
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    return { ws };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function sendRawSyncUpdate(docId: string, sourceDoc: Y.Doc) {
+    const update = Y.encodeStateAsUpdate(sourceDoc);
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    encoding.writeVarString(encoder, docId);
+    syncProtocol.writeUpdate(encoder, update);
+    const buffer = encoding.toUint8Array(encoder).buffer;
+    MockWebSocket.instances[0].onmessage!({ data: buffer } as MessageEvent);
+  }
+
+  function sendRawAwarenessFrame(docId: string) {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+    encoding.writeVarString(encoder, docId);
+    encoding.writeVarUint8Array(encoder, new Uint8Array([1, 2, 3]));
+    const buffer = encoding.toUint8Array(encoder).buffer;
+    MockWebSocket.instances[0].onmessage!({ data: buffer } as MessageEvent);
+  }
+
+  it("creates a local document the first time a MESSAGE_SYNC frame arrives for an unrecognized docId", async () => {
+    const { ws } = await setup("disc1");
+    const sourceDoc = new Y.Doc();
+    sourceDoc.getText("content").insert(0, "content from bob");
+    sourceDoc.getMap<string>("meta").set("name", "Bob's New Doc");
+
+    sendRawSyncUpdate("doc-disc1-b", sourceDoc);
+
+    expect(workspaceRoom.docs.has("doc-disc1-b")).toBe(true);
+    const localDoc = get(docsStore).find((d) => d.id === "doc-disc1-b");
+    expect(localDoc?.name).toBe("Bob's New Doc");
+    expect(localDoc?.content).toBe("content from bob");
+    expect(localDoc?.workspaceId).toBe(ws.id);
+  });
+
+  it("falls back to 'Untitled' when the first frame carries no name yet", async () => {
+    await setup("disc2");
+    const sourceDoc = new Y.Doc();
+    sourceDoc.getText("content").insert(0, "no name yet");
+
+    sendRawSyncUpdate("doc-disc2-b", sourceDoc);
+
+    const localDoc = get(docsStore).find((d) => d.id === "doc-disc2-b");
+    expect(localDoc?.name).toBe("Untitled");
+  });
+
+  it("does not create a binding or a local document for a bare MESSAGE_AWARENESS frame naming an unrecognized docId", async () => {
+    await setup("disc3");
+
+    sendRawAwarenessFrame("doc-disc3-b");
+
+    expect(workspaceRoom.docs.has("doc-disc3-b")).toBe(false);
+    expect(get(docsStore).find((d) => d.id === "doc-disc3-b")).toBeUndefined();
+  });
+
+  it("does not re-import a document that's already locally known", async () => {
+    const { ws } = await setup("disc4");
+    docsStore.update((docs) => [...docs, { id: "doc-disc4-b", name: "Already Here", content: "existing", updatedAt: 0, createdAt: 0, workspaceId: ws.id }]);
+    const countBefore = get(docsStore).length;
+
+    const sourceDoc = new Y.Doc();
+    sourceDoc.getText("content").insert(0, "server content");
+    sourceDoc.getMap<string>("meta").set("name", "Server Name");
+    sendRawSyncUpdate("doc-disc4-b", sourceDoc);
+
+    expect(get(docsStore).length).toBe(countBefore);
+    const localDoc = get(docsStore).find((d) => d.id === "doc-disc4-b");
+    expect(localDoc?.name).toBe("Already Here");
   });
 });

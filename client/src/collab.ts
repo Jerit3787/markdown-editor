@@ -552,6 +552,34 @@ function createDocBinding(docId: string, role: string): DocBinding {
   return binding;
 }
 
+// A document another collaborator created (or first switched to) after
+// this session already joined the workspace arrives here as an ordinary
+// MESSAGE_SYNC frame for a docId never seen before — the server
+// broadcasts every document's updates to every connected session the
+// same way regardless of whether the recipient already knew about that
+// document (see handleDocUpdate in workspace-room.ts). Role is per
+// connection, not per document (see access-role.ts's resolveRole()), so
+// any existing binding's role is this session's own role too.
+function discoverRemoteDocBinding(docId: string): DocBinding {
+  const role = workspaceRoom.docs.get(workspaceRoom.activeDocId ?? "")?.role ?? "editor";
+  return createDocBinding(docId, role);
+}
+
+// Called once, immediately after the first incoming sync message has
+// been applied into a freshly-discovered binding — turns it into a real
+// local document so it shows up in the sidebar/doc list like any other,
+// via the same import path used for every document already known when
+// this session joined (see joinWorkspace's own importRemoteDocs call).
+function registerDiscoveredDoc(docId: string, binding: DocBinding): void {
+  if (findDocById(docId)) return;
+  const localWorkspace = get(workspacesStore).find((w) => w.remoteId === workspaceRoom.workspaceId);
+  if (!localWorkspace) return;
+  const now = Date.now();
+  importRemoteDocs(localWorkspace.id, [
+    { id: docId, name: binding.metaMap.get("name") || "Untitled", content: binding.ytext.toString(), updatedAt: now, createdAt: now },
+  ]);
+}
+
 // Rebinds the editor to a different document already syncing within the
 // active workspace — no connection/reconnection involved, only which
 // Y.Doc CodeMirror's yCollab extension is attached to.
@@ -689,7 +717,18 @@ function handleServerMessage(data: Uint8Array): void {
   }
 
   const docId = decoding.readVarString(decoder);
-  const binding = workspaceRoom.docs.get(docId);
+  // A MESSAGE_SYNC frame for a docId we've never seen before means
+  // another collaborator created (or first switched to) that document
+  // after this session already joined the workspace — see
+  // discoverRemoteDocBinding's own comment for why the server always
+  // broadcasts this regardless of recipient awareness. A bare
+  // MESSAGE_AWARENESS frame for an unrecognized docId is still dropped
+  // below: awareness carries no document content to seed a binding
+  // with, and the real MESSAGE_SYNC frame introducing the document
+  // always arrives too (from that same broadcast), so nothing is lost
+  // by waiting for it.
+  const isNewToUs = messageType === MESSAGE_SYNC && !workspaceRoom.docs.has(docId);
+  const binding = isNewToUs ? discoverRemoteDocBinding(docId) : workspaceRoom.docs.get(docId);
   if (!binding) return;
 
   if (messageType === MESSAGE_SYNC) {
@@ -703,6 +742,7 @@ function handleServerMessage(data: Uint8Array): void {
     const baseLength = encoding.length(encoder);
     syncProtocol.readSyncMessage(decoder, encoder, binding.ydoc, "server");
     if (encoding.length(encoder) > baseLength) send(encoding.toUint8Array(encoder));
+    if (isNewToUs) registerDiscoveredDoc(docId, binding);
   } else if (messageType === MESSAGE_AWARENESS) {
     const update = decoding.readVarUint8Array(decoder);
     awarenessProtocol.applyAwarenessUpdate(binding.awareness, update, "server");

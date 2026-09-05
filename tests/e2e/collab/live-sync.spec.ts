@@ -95,3 +95,62 @@ test("a live edit from one collaborator appears in another's browser with no rel
   await aliceCtx.close();
   await bobCtx.close();
 });
+
+test("reloading a shared document does not duplicate its content", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+
+  await signInAsDevUser(page, "refresh-dup-e2e");
+
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await dismissWhatsNew(page);
+  await page.click("#emptyNewWorkspaceBtn");
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.evaluate(() => window.MDE.newDoc());
+  await page.waitForSelector("#editor-mount .cm-content", { state: "visible" });
+  await page.click("#editor-mount .cm-content");
+  const marker = "REFRESH-DUP-MARKER";
+  await page.keyboard.type(marker);
+
+  await page.click('button:has-text("Share")');
+  const moveDialog = page.locator('button:has-text("Continue")');
+  if (await moveDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await moveDialog.click();
+  }
+  const accessSelect = page.locator("select").first();
+  await accessSelect.waitFor({ state: "visible" });
+  await Promise.all([
+    page.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    accessSelect.selectOption({ label: "Anyone with the link" }),
+  ]);
+  const doneBtn = page.locator('button:has-text("Done")');
+  if (await doneBtn.isVisible({ timeout: 2000 }).catch(() => false)) await doneBtn.click();
+  await page.keyboard.press("Escape").catch(() => {});
+
+  // Give the initial share sync a moment to actually round-trip to the
+  // server — refreshing before that reply lands is exactly the race this
+  // test is meant to catch (see collab.ts's markDocSynced/whenSynced).
+  await page.waitForTimeout(1500);
+
+  // Reload three times, same as a user hitting refresh repeatedly on a
+  // live document tab. Each reload re-triggers the client's rejoin path
+  // (joinSharedLink -> joinWorkspace -> bindActiveDoc) while the editor
+  // already shows the document's last-known content locally — if
+  // bindActiveDoc attaches the collaborative editing extension before
+  // the server's own sync reply lands, that reply gets forwarded into
+  // the already-populated editor as a second, indistinguishable copy.
+  for (let i = 0; i < 3; i++) {
+    await page.reload();
+    await page.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+    await dismissWhatsNew(page);
+    // No fixed condition to poll for "sync settled" from outside the
+    // app — wait long enough for the join/sync round trip to complete,
+    // matching the window the underlying race actually occurs in.
+    await page.waitForTimeout(2000);
+    const content = await page.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "");
+    expect(content.split(marker).length - 1, `after reload #${i + 1}, content was: ${JSON.stringify(content)}`).toBe(1);
+  }
+
+  await ctx.close();
+});

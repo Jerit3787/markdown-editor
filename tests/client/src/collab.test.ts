@@ -10,6 +10,10 @@
 // no-op registration — none of the tests below trigger it.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
+import * as Y from "yjs";
+import * as syncProtocol from "y-protocols/sync";
+import * as encoding from "lib0/encoding";
+import * as decoding from "lib0/decoding";
 import {
   decideShareTarget,
   decideJoinTarget,
@@ -159,8 +163,39 @@ class MockWebSocket {
   constructor(url: string) {
     this.url = url;
     MockWebSocket.instances.push(this);
+    // Deferred, not synchronous: connectWorkspace() assigns onopen/onmessage
+    // right after `new WebSocket(...)` returns, in the same synchronous
+    // block this constructor runs in — opening before that assignment
+    // would silently drop the callback, same as a real socket never opens
+    // truly synchronously either.
+    queueMicrotask(() => {
+      this.readyState = MockWebSocket.OPEN;
+      this.onopen?.();
+    });
   }
-  send(_data: unknown) {}
+  // collab.ts's bindActiveDoc now waits for a binding's whenSynced before
+  // attaching yCollab (see the fix for content duplicating on refresh —
+  // a rejoining client must not act on a doc's Y.Text until it's had a
+  // real chance to hold the room's actual content). That promise only
+  // resolves once a content-bearing MESSAGE_SYNC frame comes back over
+  // this socket, so a mock that stayed a pure no-op would hang every
+  // caller of handleDocChanged/bindActiveDoc forever. Reply to any
+  // outgoing sync frame with an immediate step2 for the same docId —
+  // same shape as WorkspaceRoom.handleMessage's own reply to a client's
+  // step1 — using an empty Y.Doc, since these tests only care that the
+  // handshake completes, not about specific synced content.
+  send(data: Uint8Array) {
+    const decoder = decoding.createDecoder(data);
+    if (decoding.readVarUint(decoder) !== 0 /* MESSAGE_SYNC */) return;
+    const docId = decoding.readVarString(decoder);
+    queueMicrotask(() => {
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, 0 /* MESSAGE_SYNC */);
+      encoding.writeVarString(encoder, docId);
+      syncProtocol.writeSyncStep2(encoder, new Y.Doc());
+      this.onmessage?.({ data: encoding.toUint8Array(encoder).buffer as ArrayBuffer });
+    });
+  }
   close() {
     this.closed = true;
     this.readyState = 3;
@@ -243,8 +278,11 @@ describe("join-generation race (rapid doc switching in a shared workspace)", () 
     accessGate.resolve();
     // Flush the microtask queue enough times for both async chains
     // (githubSessionReady -> fetchWorkspaceAccess -> joinWorkspace ->
-    // fetchWorkspaceDocIds -> bindActiveDoc) to fully settle.
-    for (let i = 0; i < 10; i++) await Promise.resolve();
+    // fetchWorkspaceDocIds -> bindActiveDoc, the last of which now also
+    // waits on a binding's whenSynced — itself resolved via MockWebSocket's
+    // own queueMicrotask'd sync-step2 reply, a few more hops deep than a
+    // single join alone needs) to fully settle.
+    for (let i = 0; i < 40; i++) await Promise.resolve();
 
     // The superseded first attempt must never reach connectWorkspace() —
     // exactly one connection for the whole race, not one leaked per click.

@@ -76,7 +76,7 @@ A change that's **purely behind-the-scenes** (internal refactor, dependency bump
 
 ### Shipping a change: PR, merge — tag, release, and deploy all happen on their own
 
-**Don't bump the version while a feature/fix is still being implemented.** Land the code changes first; hold the `package.json`/`package-lock.json`/`CHANGELOG.md`/`whats-new-entries.ts` updates until told to actually ship it (e.g. "create a PR") — then do the bump as the last step before pushing, immediately followed by opening the PR. This is what keeps the "collapse orphaned version bumps" situation above rare instead of routine.
+**Don't bump the version number while a feature/fix is still being implemented.** `CHANGELOG.md` itself can be edited along the way — add/adjust an entry under a provisional next-version heading as each fix lands, and if more fixes arrive before shipping, merge them into that same section and adjust the heading rather than stacking separate version sections. But hold the actual `package.json`/`package-lock.json` bump (and the `whats-new-entries.ts` entry) until told to actually ship (e.g. "create a PR") — do those as the last step before pushing, immediately followed by opening the PR. This is what keeps the "collapse orphaned version bumps" situation above rare instead of routine.
 
 Once a change (with its version/CHANGELOG/whats-new updates, per above) is ready:
 

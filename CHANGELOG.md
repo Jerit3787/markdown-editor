@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.43.0] - 2026-09-05
+
+### Added
+
+- **A small status bar indicator now appears when your access to a shared workspace can't actually be verified** — e.g. your GitHub session quietly expired while you were the owner or an invited collaborator. Previously you'd just silently end up with whatever role the link's general access grants (often Preview-only), with nothing telling you why. Click the "Signed out" indicator to sign in again and restore your real access.
+
+### Changed
+
+- **`WorkspaceRoom` and `CollabRoom`'s identical role-resolution logic is now one shared function** (`src/access-role.ts`'s `resolveRole()`) instead of two copy-pasted copies — no behavior change, just one place to read and update it going forward.
+
 ## [1.42.5] - 2026-09-05
 
 ### Fixed

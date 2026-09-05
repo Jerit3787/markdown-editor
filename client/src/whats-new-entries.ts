@@ -250,4 +250,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/wikilink-rename-cascade.png",
     category: "Organization & Navigation",
   },
+  {
+    version: "1.43.0",
+    title: "Signed-Out Indicator",
+    description:
+      "If your GitHub session expires while you're the owner or an invited collaborator on a shared workspace, you'll now see a status bar indicator instead of silently landing in whatever role the link's general access grants. Click it to sign in again.",
+    screenshot: "/whats-new/signed-out-indicator.png",
+    category: "Collaboration",
+  },
 ];

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.42.5] - 2026-09-05
+
+### Fixed
+
+- **A document's metadata (Title, Author, etc. — set via the Doc Info/Edit panel) showed up as ugly, fully visible plain text at the top of a published Gist, pushed repo file, or exported `.md`.** The serialized block is now wrapped in an HTML comment, which every CommonMark/GFM renderer (GitHub Gist, GitHub's own repo file viewer) already treats as invisible — it stays fully visible and editable in the raw `.md` source, just hidden from rendered views. Metadata already published under the old bare format is still read back correctly when reopened.
+
 ## [1.42.4] - 2026-09-05
 
 ### Fixed

@@ -19,7 +19,7 @@ import { keymap } from "@codemirror/view";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
-import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified } from "./stores/share";
+import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified, workspaceAccessDenied } from "./stores/share";
 import { showToast } from "./stores/toast";
 import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent } from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
@@ -180,13 +180,12 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const username = window.MDE.githubUsername;
   const role = computeMyRole(access, username);
   if (!role) {
-    if (!username) {
-      window.MDE.requireGithubSignIn("Sign in with GitHub to open this shared workspace.");
-    } else {
-      alert("You don't have access to this workspace. Ask the owner to invite your GitHub username, or share a link with general access turned on.");
-    }
+    workspaceAccessDenied.set(username ? "no-access" : "no-session");
+    window.MDE.setReadOnly(true);
+    lockToPreviewOnly();
     return;
   }
+  workspaceAccessDenied.set(null);
   identityUnverified.set(isIdentityUnverified(access, username));
 
   if (localMatch) {
@@ -260,6 +259,7 @@ function handleDocChanged(doc: any) {
   if (!doc) {
     teardownWorkspace();
     identityUnverified.set(false);
+    workspaceAccessDenied.set(null);
     syncShareStores();
     return;
   }
@@ -312,6 +312,7 @@ function handleDocChanged(doc: any) {
   } else {
     teardownWorkspace();
     identityUnverified.set(false);
+    workspaceAccessDenied.set(null);
     syncShareStores();
   }
 }
@@ -327,7 +328,13 @@ async function rejoinKnownWorkspace(remoteId: string, docId: string) {
   const access = await fetchWorkspaceAccess(remoteId);
   if (myGeneration !== joinGeneration) return;
   const role = computeMyRole(access, window.MDE.githubUsername);
-  if (!role) return;
+  if (!role) {
+    workspaceAccessDenied.set(window.MDE.githubUsername ? "no-access" : "no-session");
+    window.MDE.setReadOnly(true);
+    lockToPreviewOnly();
+    return;
+  }
+  workspaceAccessDenied.set(null);
   identityUnverified.set(isIdentityUnverified(access, window.MDE.githubUsername));
   const joined = await joinWorkspace(remoteId, { role });
   if (joined !== joinGeneration) return;

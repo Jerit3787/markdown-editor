@@ -22,6 +22,7 @@ import {
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
+import { workspaceAccessDenied } from "../../../client/src/stores/share";
 import { getSuggestionsMap } from "../../../client/src/suggestions";
 import type { Doc, Workspace } from "../../../client/src/types";
 
@@ -254,6 +255,114 @@ describe("join-generation race (rapid doc switching in a shared workspace)", () 
     expect(workspaceRoom.activeDocId).toBe("docB");
     expect(workspaceRoom.workspaceId).toBe("remote-1");
     expect(workspaceRoom.docs.size).toBe(2);
+  });
+});
+
+describe("workspaceAccessDenied", () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="body"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    workspaceAccessDenied.set(null);
+  });
+
+  function stubDeniedFetch(access: Record<string, unknown>) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) return { ok: true, json: async () => access };
+        if (url.includes("/docs")) return { ok: true, json: async () => ["docA"] };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+  }
+
+  function stubMDE(username: string | null) {
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: username,
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+  }
+
+  function makeDoc(suffix: string) {
+    const ws = fakeSharedWorkspace({ id: `ws-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const doc = { id: `doc-${suffix}`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([doc]);
+    return doc;
+  }
+
+  it("sets 'no-session' and locks the view when rejoining with no session at all", async () => {
+    stubMDE(null);
+    stubDeniedFetch({ owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const doc = makeDoc("nosession");
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(workspaceAccessDenied)).toBe("no-session");
+    expect(window.MDE.setReadOnly).toHaveBeenLastCalledWith(true);
+    expect(get(viewModeLocked)).toBe(true);
+  });
+
+  it("sets 'no-access' when signed in but not granted a role", async () => {
+    stubMDE("carol");
+    stubDeniedFetch({
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: "editor" }],
+    });
+    const doc = makeDoc("noaccess");
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(workspaceAccessDenied)).toBe("no-access");
+    expect(window.MDE.setReadOnly).toHaveBeenLastCalledWith(true);
+  });
+
+  it("clears once a subsequent rejoin resolves a real role", async () => {
+    stubMDE(null);
+    stubDeniedFetch({ owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const doc = makeDoc("recover");
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(get(workspaceAccessDenied)).toBe("no-session");
+
+    stubMDE("alice");
+    stubDeniedFetch({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+
+    expect(get(workspaceAccessDenied)).toBeNull();
+  });
+
+  it("clears when switching away to an unrelated local doc", async () => {
+    stubMDE(null);
+    stubDeniedFetch({ owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const doc = makeDoc("switchaway");
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(get(workspaceAccessDenied)).toBe("no-session");
+
+    handleDocChanged({ id: "local-doc", name: "Local", content: "", updatedAt: 0, createdAt: 0, workspaceId: "some-other-ws" });
+
+    expect(get(workspaceAccessDenied)).toBeNull();
   });
 });
 

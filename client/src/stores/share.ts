@@ -29,3 +29,19 @@ export const sharePresence = writable<PresenceEntry[]>([]);
 // raced the rejoin's own correct value on every redundant reactive
 // teardown+rejoin cycle a fresh join can trigger).
 export const identityUnverified = writable(false);
+// Set (instead of identityUnverified) when computeMyRole() resolves no
+// role at all — a session that's expired, an invite that's gone, or a
+// fresh share-link visit nobody granted access to. Distinct from
+// identityUnverified, which means a role WAS granted but the visitor's
+// identity can't be verified (soft warning, editor stays functional);
+// this means no role was granted at all (hard block — see
+// WorkspaceAccessBanner.svelte). "no-session": there's no GitHub
+// username at all, so signing in again is the actionable fix.
+// "no-access": a username exists but still no role — signing in again
+// as the same account won't help. Reset to null in the same places
+// identityUnverified resets to false in collab.ts's handleDocChanged
+// (see that store's own comment for why teardownWorkspace() itself is
+// the wrong place), plus right after a role successfully resolves in
+// joinSharedLink/rejoinKnownWorkspace.
+export type WorkspaceAccessDeniedReason = "no-session" | "no-access";
+export const workspaceAccessDenied = writable<WorkspaceAccessDeniedReason | null>(null);

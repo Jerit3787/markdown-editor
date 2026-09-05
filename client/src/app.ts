@@ -384,7 +384,16 @@ import katexCss from "katex/dist/katex.min.css?raw";
     (document.getElementById("previewPane") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("divider") as HTMLElement).style.display = empty ? "none" : "";
     (document.getElementById("toolbar") as HTMLElement).style.display = empty ? "none" : "";
-    (document.querySelector(".view-selector") as HTMLElement).style.display = empty ? "none" : "";
+    // Unlike the elements above, .view-selector (Toolbar.svelte) only
+    // renders while view mode isn't locked ({#if !$viewModeLocked}) — a
+    // shared workspace opened in a locked mode (Preview-only, Suggestion
+    // reviewer/viewer) removes it from the DOM entirely. Every later doc
+    // switch calls this function again regardless, so a plain
+    // querySelector().style write here threw on any such workspace,
+    // aborting this whole reactive update (and everything queued after
+    // it in the same store-notification pass) part-way through.
+    const viewSelector = document.querySelector(".view-selector") as HTMLElement | null;
+    if (viewSelector) viewSelector.style.display = empty ? "none" : "";
 
     // On mobile the sidebar is a full-height overlay (see css) — if it was
     // open (e.g. the user just deleted the last doc from the doc list),

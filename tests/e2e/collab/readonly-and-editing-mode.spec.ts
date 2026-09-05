@@ -144,6 +144,37 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
   await viewer.keyboard.type("this should not appear");
   await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe(beforeAttempt);
 
+  // Regression: app.ts's updateMainView() runs on every doc switch and
+  // used to unconditionally set .style.display on .view-selector — an
+  // element Toolbar.svelte only renders while view mode isn't locked (see
+  // the .toHaveCount(0) assertion above). A locked viewer switching to a
+  // second document threw straight out of that update, aborting whatever
+  // else was queued in the same reactive pass. A second document, created
+  // by the owner after sharing, syncs to the viewer via the same
+  // WorkspaceRoom; switching to it here is the exact repro.
+  const pageErrors: string[] = [];
+  viewer.on("pageerror", (err) => pageErrors.push(err.message));
+
+  await owner.evaluate(() => window.MDE.newDoc());
+  await owner.click("#editor-mount .cm-content");
+  await owner.keyboard.type("second document content");
+  const secondDocId = await owner.evaluate(() => localStorage.getItem("mde:active"));
+  expect(secondDocId).not.toBe(shareState.activeDoc.id);
+
+  await expect
+    .poll(() => viewer.evaluate((id) => JSON.parse(localStorage.getItem("mde:docs") || "[]").some((d: { id: string }) => d.id === id), secondDocId))
+    .toBe(true);
+  await viewer.evaluate((id) => window.MDE.switchDoc(id), secondDocId);
+  await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("second document content");
+
+  // The crash aborted this same update, so re-verifying it here would
+  // otherwise silently pass on stale state — the pageerror check above is
+  // what actually catches the regression.
+  await expect(viewer.locator("#editor-mount")).toBeHidden();
+  await expect(viewer.locator("#preview")).toBeVisible();
+  await expect(viewer.locator(".view-selector")).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
+
   await ownerCtx.close();
   await viewerCtx.close();
 });

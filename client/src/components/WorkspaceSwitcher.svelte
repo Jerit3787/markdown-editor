@@ -11,6 +11,7 @@
   } from "../stores/workspaces";
   import { docsStore, removeDocById, ensureActiveDocInWorkspace, persistDocs } from "../stores/docs";
   import { confirmAction } from "../stores/confirmDialog";
+  import { pushWorkspaceRename } from "../collab";
 
   let open = $state(false);
   let renamingId = $state<string | null>(null);
@@ -57,7 +58,10 @@
   }
 
   function commitRename() {
-    if (renamingId) renameWorkspace(renamingId, renameValue.trim());
+    if (renamingId) {
+      renameWorkspace(renamingId, renameValue.trim());
+      pushWorkspaceRename(renamingId, renameValue.trim());
+    }
     renamingId = null;
   }
 

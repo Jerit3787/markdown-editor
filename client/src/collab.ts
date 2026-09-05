@@ -1046,6 +1046,16 @@ async function fetchWorkspaceAccess(workspaceId: string): Promise<AccessRecord> 
   }
 }
 
+export function pushWorkspaceRename(workspaceId: string, name: string): void {
+  const ws = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (!ws || !ws.shared || !ws.remoteId) return;
+  void fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}/meta`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
 async function putWorkspaceAccess(workspaceId: string, body: unknown): Promise<AccessRecord | null> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/access`, {

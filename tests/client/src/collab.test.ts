@@ -28,6 +28,7 @@ import {
   setAccessMode,
   isIdentityUnverified,
   DEFAULT_ACCESS,
+  pushWorkspaceRename,
 } from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
@@ -142,6 +143,34 @@ describe("decideJoinTarget", () => {
   it("treats zero valid documents as a multi-document share (no single doc to auto-land)", () => {
     const result = decideJoinTarget([], 0);
     expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Shared workspace" });
+  });
+});
+
+describe("pushWorkspaceRename", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("PUTs the new name to the workspace's room when the workspace is shared", () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal("fetch", fetchMock);
+    workspacesStore.set([fakeSharedWorkspace({ id: "ws1", remoteId: "remote-1" })]);
+
+    pushWorkspaceRename("ws1", "New Name");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/workspace/remote-1/meta", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "New Name" }),
+    });
+  });
+
+  it("does nothing for a workspace that was never shared", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    workspacesStore.set([fakeWorkspace({ id: "ws1" })]);
+
+    pushWorkspaceRename("ws1", "New Name");
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

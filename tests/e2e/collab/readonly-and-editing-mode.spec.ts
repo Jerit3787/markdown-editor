@@ -106,6 +106,29 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
     owner.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
     roleSelect.selectOption({ label: "Viewer" }),
   ]);
+  // Unlike the "Anyone with the link" flow above (which has its own "Done"
+  // button check further down), this test never closes the Share modal —
+  // its backdrop was left blocking every later click on the owner's page,
+  // including the second-document click much further below.
+  await owner.keyboard.press("Escape").catch(() => {});
+
+  const firstDocId = await owner.evaluate(() => localStorage.getItem("mde:active"));
+
+  // Create the second document now, before the viewer ever joins, rather
+  // than after — a viewer's own initial join (fetchWorkspaceDocIds, see
+  // collab.ts's joinSharedLink) picks up every document the workspace
+  // room already knows about at that moment, but there's no mechanism
+  // for an *already*-connected client to discover one introduced later
+  // (no server push, no polling) — a separate, larger gap than this test
+  // is about. Creating it up front sidesteps that gap while still fully
+  // exercising the actual regression below: a locked viewer switching
+  // between two documents it already has.
+  await owner.evaluate(() => window.MDE.newDoc());
+  await owner.click("#editor-mount .cm-content");
+  await owner.keyboard.type("second document content");
+  const secondDocId = await owner.evaluate(() => localStorage.getItem("mde:active"));
+  expect(secondDocId).not.toBe(firstDocId);
+  await owner.evaluate((id) => window.MDE.switchDoc(id), firstDocId);
 
   const shareState = await owner.evaluate(() => {
     const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
@@ -116,6 +139,7 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
     return { activeDoc, ws };
   });
   expect(shareState.ws?.shared).toBe(true);
+  expect(shareState.activeDoc.id).toBe(firstDocId);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
 
   await viewer.goto(shareUrl);
@@ -149,17 +173,11 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
   // element Toolbar.svelte only renders while view mode isn't locked (see
   // the .toHaveCount(0) assertion above). A locked viewer switching to a
   // second document threw straight out of that update, aborting whatever
-  // else was queued in the same reactive pass. A second document, created
-  // by the owner after sharing, syncs to the viewer via the same
-  // WorkspaceRoom; switching to it here is the exact repro.
+  // else was queued in the same reactive pass. The second document
+  // (created above, before the viewer joined) is already part of the
+  // viewer's own initial join — switching to it here is the exact repro.
   const pageErrors: string[] = [];
   viewer.on("pageerror", (err) => pageErrors.push(err.message));
-
-  await owner.evaluate(() => window.MDE.newDoc());
-  await owner.click("#editor-mount .cm-content");
-  await owner.keyboard.type("second document content");
-  const secondDocId = await owner.evaluate(() => localStorage.getItem("mde:active"));
-  expect(secondDocId).not.toBe(shareState.activeDoc.id);
 
   await expect
     .poll(() => viewer.evaluate((id) => JSON.parse(localStorage.getItem("mde:docs") || "[]").some((d: { id: string }) => d.id === id), secondDocId))

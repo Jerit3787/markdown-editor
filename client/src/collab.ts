@@ -272,6 +272,18 @@ function handleDocChanged(doc: any) {
     // reconnecting on every doc switch would defeat that and cause a
     // visible flicker/reconnect for every collaborator's presence too.
     if (workspaceRoom.workspaceId === ws.remoteId) {
+      // A document created (or otherwise switched to for the first time)
+      // while the workspace is already connected has no binding yet —
+      // bindActiveDoc only rebinds a doc already syncing, so introduce it
+      // first. The docId-multiplexed wire protocol already supports this
+      // (see workspace-room.ts's isNewDoc handling); nothing on the
+      // client ever triggered it for a doc created after the initial
+      // join, so it silently never reached the server or any other
+      // collaborator at all.
+      if (!workspaceRoom.docs.has(doc.id)) {
+        const role = workspaceRoom.docs.get(workspaceRoom.activeDocId ?? "")?.role ?? "editor";
+        seedNewDocBinding(doc.id, doc, role);
+      }
       bindActiveDoc(doc.id);
       syncShareStores();
       return;
@@ -415,6 +427,32 @@ function seedDocBindingFromEditor(docId: string): void {
       if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
     }, "local");
   }
+}
+
+// Introduces a document to an already-connected workspace room that never
+// went through joinWorkspace()'s own initial seeding (e.g. one created,
+// or switched to for the first time, after the connection was already
+// established) — same idea as seedDocBindingFromEditor, but sourced from
+// the plain Doc record instead of the live editor, since this doc isn't
+// necessarily the one currently loaded into CodeMirror yet. Explicitly
+// sends this binding's own initial sync step1 afterward: the server only
+// ever learns of a docId when a message naming it arrives (see
+// workspace-room.ts's isNewDoc handling), and nothing else would trigger
+// that round trip for a doc introduced this way.
+function seedNewDocBinding(docId: string, doc: Doc, role: string): void {
+  const binding = createDocBinding(docId, role);
+  binding.ydoc.transact(() => {
+    if (doc.content) binding.ytext.insert(0, doc.content);
+    binding.metaMap.set("name", doc.name || "Untitled");
+    binding.metaMap.set("metadata", JSON.stringify(doc.metadata ?? []));
+    binding.metaMap.set("citations", JSON.stringify(doc.citations ?? EMPTY_CITATIONS));
+    if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
+  }, "local");
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, MESSAGE_SYNC);
+  encoding.writeVarString(encoder, docId);
+  syncProtocol.writeSyncStep1(encoder, binding.ydoc);
+  send(encoding.toUint8Array(encoder));
 }
 
 function createDocBinding(docId: string, role: string): DocBinding {

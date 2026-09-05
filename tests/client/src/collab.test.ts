@@ -664,6 +664,74 @@ describe("suggestion-mode role wiring", () => {
   });
 });
 
+// Regression coverage: a not-yet-bound document introduced while a
+// workspace is already connected used to derive its role by reading
+// *some other* binding's own .role (falling back to "editor" the moment
+// that lookup came up empty) instead of using this session's own
+// resolved connection role — a real bug, not just theoretical, since
+// bindActiveDoc's own whenSynced await means workspaceRoom.activeDocId
+// can still be null well after the session's real role is already known.
+describe("connection-level role fallback (not derived from another binding)", () => {
+  function setupViewerWithOneDoc(suffix: string) {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="body"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [`doc-${suffix}-a`] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: "bob",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+      updatePreview: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-ws-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const docA = { id: `doc-${suffix}-a`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    const docB = { id: `doc-${suffix}-b`, name: "B", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([docA, docB]);
+    return { docA, docB };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("still resolves a viewer's own role for a second document even when activeDocId is null", async () => {
+    const { docA, docB } = setupViewerWithOneDoc("rolefix");
+    handleDocChanged(docA);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(workspaceRoom.role).toBe("viewer");
+    // Forces the exact race this test guards against: bindActiveDoc only
+    // sets activeDocId after its own whenSynced await settles, so there's
+    // a real window where it's still null despite the session's role
+    // already being fully known.
+    workspaceRoom.activeDocId = null;
+
+    handleDocChanged(docB);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get(docB.id);
+    expect(binding?.role).toBe("viewer");
+  });
+});
+
 // Regression coverage for the mid-session doc-discovery gap: an
 // already-connected collaborator previously had no way to learn about a
 // document another collaborator created after they joined — the server

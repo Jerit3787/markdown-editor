@@ -84,6 +84,18 @@ const workspaceRoom = {
   ws: null as WebSocket | null,
   docs: new Map<string, DocBinding>(),
   activeDocId: null as string | null,
+  // This session's own resolved role for the whole connection (set once
+  // in joinWorkspace, from computeMyRole's result) — role is per
+  // connection, not per document (see access-role.ts's resolveRole()),
+  // so this is the one correct source for "what am I allowed to do
+  // here," independent of which documents happen to be bound yet. Never
+  // derive a fallback role by reading some OTHER binding's own .role:
+  // if no binding exists yet (or activeDocId is still null, e.g. while
+  // bindActiveDoc's whenSynced await is still pending), that reads as
+  // "not found" and silently defaulted to "editor" — handing a viewer
+  // an editor-looking binding for a document their real role never
+  // granted them write access to.
+  role: null as string | null,
   reconnectTimer: null as ReturnType<typeof setTimeout> | null,
   reconnectDelay: 1000,
 };
@@ -301,8 +313,7 @@ function handleDocChanged(doc: any) {
       // join, so it silently never reached the server or any other
       // collaborator at all.
       if (!workspaceRoom.docs.has(doc.id)) {
-        const role = workspaceRoom.docs.get(workspaceRoom.activeDocId ?? "")?.role ?? "editor";
-        seedNewDocBinding(doc.id, doc, role);
+        seedNewDocBinding(doc.id, doc, workspaceRoom.role ?? "editor");
       }
       bindActiveDoc(doc.id);
       syncShareStores();
@@ -420,6 +431,7 @@ async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: s
   teardownWorkspace();
   const myGeneration = joinGeneration;
   workspaceRoom.workspaceId = workspaceId;
+  workspaceRoom.role = role;
 
   const docIds = await fetchWorkspaceDocIds(workspaceId);
   if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-fetch — leave workspaceRoom to the newer attempt
@@ -603,11 +615,11 @@ function createDocBinding(docId: string, role: string): DocBinding {
 // broadcasts every document's updates to every connected session the
 // same way regardless of whether the recipient already knew about that
 // document (see handleDocUpdate in workspace-room.ts). Role is per
-// connection, not per document (see access-role.ts's resolveRole()), so
-// any existing binding's role is this session's own role too.
+// connection, not per document (see access-role.ts's resolveRole() and
+// workspaceRoom.role's own comment), so this session's own resolved role
+// applies to this newly-discovered document too.
 function discoverRemoteDocBinding(docId: string): DocBinding {
-  const role = workspaceRoom.docs.get(workspaceRoom.activeDocId ?? "")?.role ?? "editor";
-  return createDocBinding(docId, role);
+  return createDocBinding(docId, workspaceRoom.role ?? "editor");
 }
 
 // Called once, immediately after the first incoming sync message has
@@ -779,6 +791,7 @@ function teardownWorkspace(): void {
   workspaceRoom.workspaceId = null;
   workspaceRoom.ws = null;
   workspaceRoom.activeDocId = null;
+  workspaceRoom.role = null;
   workspaceRoom.reconnectDelay = 1000;
 }
 

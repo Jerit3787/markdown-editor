@@ -50,6 +50,16 @@
   cursor: pointer;
   font-family: inherit;
 }
+// This row also carries .shortcuts-row (reused for its label/kbd
+// space-between layout — see CommandPalette.svelte's markup), whose own
+// `padding: 6px 0` (_modals.scss, meant for the Shortcuts modal's already-
+// padded body) otherwise wins this property purely by @use order in
+// style.scss — both selectors are a single class, so source order alone
+// decides, not markup class order. The combined selector's higher
+// specificity restores this row's own horizontal padding regardless.
+.command-palette-row.shortcuts-row {
+  padding: 8px 10px;
+}
 .command-palette-row.active {
   background: var(--accent-dim);
   color: var(--accent);

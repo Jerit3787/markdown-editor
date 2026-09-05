@@ -653,6 +653,42 @@ describe("shared document name sync", () => {
     expect(sibling?.ytext.toString()).toBe("sibling content");
     expect(sibling?.metaMap.get("name")).toBe("Sibling Doc");
   });
+
+  // Regression test: a brand-new room's very first connection is greeted
+  // with its current docIds synchronously, at accept time — before this
+  // client has sent anything of its own over the socket (its own
+  // sync-step1 burst only goes out once the socket's own onopen fires,
+  // strictly later). Without registering every document via POST /docs
+  // first, that first greeting's docOrder would still be empty, and this
+  // same client's own applyWorkspaceMeta (see the "incoming workspace
+  // meta sync" describe block) would read that as every document —
+  // including the one just being seeded here — having just been deleted.
+  it("registers the active document and every sibling with the room via POST /docs before sharing connects", async () => {
+    docsStore.set([
+      { id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+      { id: "doc2", name: "Sibling Doc", content: "sibling content", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+    ]);
+    const fetchCalls: { url: string; method?: string; body?: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+        fetchCalls.push({ url, method: init?.method, body: init?.body });
+        if (url.includes("/access") && init?.method === "PUT") {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const postedIds = fetchCalls.filter((c) => c.method === "POST" && c.url.includes("/docs")).map((c) => JSON.parse(c.body ?? "{}").docId);
+    expect(postedIds).toEqual(expect.arrayContaining(["doc1", "doc2"]));
+  });
 });
 
 describe("suggestion-mode role wiring", () => {

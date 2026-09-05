@@ -1094,6 +1094,30 @@ async function fetchWorkspaceDocIds(workspaceId: string): Promise<string[]> {
   }
 }
 
+// Registers a docId with the room over plain HTTP, ahead of ever opening
+// the WebSocket. A brand-new room's very first connection is greeted with
+// its current docIds synchronously, at accept time — before this client
+// has had any chance to introduce itself over the socket at all (its own
+// sync-step1 burst only goes out once the socket's own onopen fires,
+// which is strictly later). Without this, that first greeting's docOrder
+// would still be missing every document that's about to be shared, and
+// this same client's own incoming MESSAGE_WORKSPACE_META handling
+// (applyWorkspaceMeta) would read that as every one of them having just
+// been deleted. Best-effort: on failure, the doc's own step1 sync frame
+// still registers it once the socket opens — just without this guard
+// against that first-greeting race.
+async function registerDocWithRoom(workspaceId: string, docId: string): Promise<void> {
+  try {
+    await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ docId }),
+    });
+  } catch (err) {
+    /* best-effort, see comment above */
+  }
+}
+
 type RemoteDocPreview = { id: string; name: string; content: string; updatedAt: number; createdAt: number };
 
 // Fetches a document's current text via a throwaway sync handshake over a
@@ -1339,14 +1363,18 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
   );
   persistWorkspaces();
   if ((wantAnyone || access.invited.length > 0) && !workspaceRoom.workspaceId) {
-    await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
-    bindActiveDoc(doc.id);
     // joinWorkspace only seeds seedDocId (the active document, from the
     // live editor) — this room never existed before this call, so every
     // other local document already in the workspace has to be introduced
     // here too, or it's silently left unsynced and never reaches anyone
     // who joins the link afterward.
     const siblings = get(docsStore).filter((d) => d.workspaceId === doc.workspaceId && d.id !== doc.id);
+    // Register every one of them (including the active doc) with the
+    // room before connecting at all — see registerDocWithRoom's own
+    // comment for why this has to happen before the socket opens.
+    await Promise.all([doc.id, ...siblings.map((d) => d.id)].map((docId) => registerDocWithRoom(doc.workspaceId, docId)));
+    await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
+    bindActiveDoc(doc.id);
     for (const sibling of siblings) seedNewDocBinding(sibling.id, sibling, "editor");
   }
   if (!wantAnyone && access.invited.length === 0) teardownWorkspace();

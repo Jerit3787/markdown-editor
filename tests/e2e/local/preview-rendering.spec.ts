@@ -1,4 +1,14 @@
 import { test, expect } from "./support/fixtures";
+import type { Page } from "@playwright/test";
+
+// Replace the whole document in one dispatch — verbatim, so newlines and
+// indentation survive (unlike page.keyboard.type through the editor).
+async function setPreviewDoc(page: Page, md: string) {
+  await page.evaluate((md) => {
+    const v = window.MDE.getEditor();
+    v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: md } });
+  }, md);
+}
 
 test("live rendering: heading, mermaid, math, footnote", async ({ page }) => {
   await page.click("#editor-mount .cm-content");
@@ -65,15 +75,8 @@ test("theme toggle re-renders mermaid diagrams", async ({ page }) => {
 });
 
 test.describe("preview rendering fidelity", () => {
-  async function type(page: import("@playwright/test").Page, md: string) {
-    await page.evaluate((md) => {
-      const v = window.MDE.getEditor();
-      v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: md } });
-    }, md);
-  }
-
   test("PREV-01: headings, lists, nested lists, tables, blockquote, hr, inline styles", async ({ page }) => {
-    await type(
+    await setPreviewDoc(
       page,
       [
         "## Sub",
@@ -109,7 +112,7 @@ test.describe("preview rendering fidelity", () => {
   });
 
   test("PREV-04: GFM task list items render as checkboxes", async ({ page }) => {
-    await type(page, "- [ ] todo\n- [x] done");
+    await setPreviewDoc(page, "- [ ] todo\n- [x] done");
     const boxes = page.locator('#preview li input[type="checkbox"]');
     await expect(boxes).toHaveCount(2);
     expect(await boxes.nth(0).isChecked()).toBe(false);
@@ -117,7 +120,7 @@ test.describe("preview rendering fidelity", () => {
   });
 
   test("PREV-05: a non-mermaid fenced code block renders as language-tagged <code>", async ({ page }) => {
-    await type(page, "```js\nconst x = 1;\n```");
+    await setPreviewDoc(page, "```js\nconst x = 1;\n```");
     const code = page.locator("#preview pre code");
     await expect(code).toContainText("const x = 1;");
     await expect(code).toHaveClass(/language-js/);
@@ -125,14 +128,14 @@ test.describe("preview rendering fidelity", () => {
   });
 
   test("PREV-06: a footnote reference is a superscript link with a back-link and an sr-only heading", async ({ page }) => {
-    await type(page, "Claim.[^1]\n\n[^1]: The source.");
+    await setPreviewDoc(page, "Claim.[^1]\n\n[^1]: The source.");
     await expect(page.locator("#preview sup a").first()).toBeVisible();
     await expect(page.locator('#preview .footnotes a[href^="#"]')).not.toHaveCount(0);
     await expect(page.locator("#preview .footnotes .sr-only")).toHaveCount(1);
   });
 
   test("PREV-07: inline math renders inline (keeping its surrounding prose); block math renders as a display block", async ({ page }) => {
-    await type(page, "inline $a+b$ here\n\n$$\nc+d\n$$");
+    await setPreviewDoc(page, "inline $a+b$ here\n\n$$\nc+d\n$$");
     // Block math is wrapped in .katex-display; inline math is not.
     await expect(page.locator("#preview .katex-display")).toHaveCount(1);
     const total = await page.locator("#preview .katex").count();
@@ -143,5 +146,38 @@ test.describe("preview rendering fidelity", () => {
     await expect(inlinePara.locator(".katex")).toHaveCount(1);
     await expect(inlinePara).toContainText("inline");
     await expect(inlinePara).toContainText("here");
+  });
+});
+
+test.describe("preview sanitization & safety", () => {
+  test("PREV-02: raw <script>, an onerror attribute, and a javascript: href are stripped", async ({ page }) => {
+    await setPreviewDoc(
+      page,
+      ["<script>window.__pwned = 1<\/script>", '<img src=x onerror="window.__pwned = 1">', "[click](javascript:void(window.__pwned=1))"].join("\n\n"),
+    );
+    await expect(page.locator("#preview")).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned ?? 0)).toBe(0);
+    await expect(page.locator("#preview script")).toHaveCount(0);
+    for (const img of await page.locator("#preview img").all()) {
+      expect(await img.getAttribute("onerror")).toBeNull();
+    }
+    const link = page.locator("#preview a", { hasText: "click" });
+    if (await link.count()) {
+      const href = await link.getAttribute("href");
+      expect(href === null || !href.toLowerCase().startsWith("javascript:")).toBe(true);
+    }
+  });
+
+  test("PREV-03: a normal external link keeps its href", async ({ page }) => {
+    await setPreviewDoc(page, "[Anthropic](https://www.anthropic.com)");
+    await expect(page.locator("#preview a", { hasText: "Anthropic" })).toHaveAttribute("href", "https://www.anthropic.com");
+  });
+
+  test("PREV-08: a malformed math expression renders an error inline without crashing the preview", async ({ page }) => {
+    await setPreviewDoc(page, "before $\\frac{1}{$ after\n\n## still rendering");
+    await expect(page.locator("#preview .katex-error")).toHaveCount(1);
+    await expect(page.locator("#preview h2")).toHaveText("still rendering");
+    // The surrounding prose is intact (same fix as PREV-07).
+    await expect(page.locator('#preview p:has-text("before")')).toContainText("after");
   });
 });

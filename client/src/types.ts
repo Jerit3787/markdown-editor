@@ -251,7 +251,7 @@ export interface MDEBridge {
   // image-marker field and upload logic there. app.ts's
   // initImageUploads() (the #imageFileInput file-picker path) is the
   // only caller.
-  insertImageWithUpload?(file: File, pos?: number): void;
+  insertImageWithUpload?(file: File, pos?: number, onError?: (message: string) => void): void;
   // Assigned by Editor.svelte's onMount, same reasoning — Phase B moved
   // commentMarkerField there. CommentsPanel.svelte is the only caller.
   setCommentMarkers?(entries: { id: string; from: number; to: number }[]): void;

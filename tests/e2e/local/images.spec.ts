@@ -25,6 +25,22 @@ test("an oversized image shows the inline error instead of uploading", async ({ 
   await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toContain("big.png: image too large, 2MB max");
 });
 
+test("insertImageWithUpload with an onError callback reports oversize and writes no marker", async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const before = window.MDE.getEditor().state.doc.toString();
+    const bigFile = new File([new Uint8Array(3 * 1024 * 1024)], "over.png", { type: "image/png" });
+    let reported: string | null = null;
+    window.MDE.insertImageWithUpload!(bigFile, undefined, (msg: string) => {
+      reported = msg;
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    return { reported, after: window.MDE.getEditor().state.doc.toString(), before };
+  });
+  expect(result.reported).toBe("over.png is over the 2 MB limit");
+  expect(result.after).toBe(result.before);
+  expect(result.after).not.toContain("image too large");
+});
+
 test("clicking the toolbar Insert image button opens the Images modal", async ({ page }) => {
   await page.click('button[title="Image"]');
   await expect(page.getByText("Images in this document")).toBeVisible();

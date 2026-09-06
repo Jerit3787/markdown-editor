@@ -89,14 +89,44 @@ test.describe("formatting commands via the toolbar", () => {
     await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("\n---\n");
   });
 
-  test("math and footnote snippets", async ({ page }) => {
+  test("math snippet inserts $$\\n\\n$$ with the caret on the interior blank line", async ({ page }) => {
     await clearContent(page);
     await page.click('button[title="Math"]');
     await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("$$\n\n$$");
+    // Caret sits after "$$\n" (offset 3), ready to type the LaTeX source.
+    expect(await page.evaluate(() => window.MDE.getEditor().state.selection.main.head)).toBe(3);
+    await page.keyboard.type("x^2");
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("$$\nx^2\n$$");
+  });
 
+  test("footnote snippet: first is [^1], the next numbers past it, a named [^note] is ignored", async ({ page }) => {
     await clearContent(page);
     await page.click('button[title="Footnote"]');
     await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("[^1]\n\n[^1]: ");
+
+    // Caret back to the start, insert another — it must number past [^1].
+    await page.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 0 } }));
+    await page.click('button[title="Footnote"]');
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("[^2][^1]\n\n[^1]: \n\n[^2]: ");
+
+    // A hand-written named footnote doesn't collide with the numbering.
+    await clearContent(page);
+    await page.evaluate(() => {
+      const v = window.MDE.getEditor();
+      v.dispatch({ changes: { from: 0, insert: "text[^note]\n\n[^note]: hi" }, selection: { anchor: 4 } });
+    });
+    await page.click('button[title="Footnote"]');
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("text[^1][^note]\n\n[^note]: hi\n\n[^1]: ");
+  });
+
+  test("footnote snippet is a single undo step", async ({ page }) => {
+    await clearContent(page);
+    await page.click("#editor-mount .cm-content");
+    await page.click('button[title="Footnote"]');
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("[^1]\n\n[^1]: ");
+    await page.evaluate(() => window.MDE.getEditor().focus());
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("");
   });
 
   test("link opens the link modal with the selection prefilled", async ({ page }) => {

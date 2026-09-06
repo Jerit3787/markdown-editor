@@ -36,4 +36,21 @@ test.describe("keybinding modes", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator("#keybindingMode")).toBeHidden();
   });
+
+  test("the vim status indicator tracks NORMAL / INSERT / VISUAL", async ({ page }) => {
+    await page.click("#settingsBtn");
+    await page.click('button:has-text("Vim")');
+    await page.keyboard.press("Escape"); // close Settings
+    await page.click("#editor-mount .cm-content");
+    const indicator = page.locator("#keybindingMode");
+    await expect(indicator).toHaveText("NORMAL");
+    await page.keyboard.press("i");
+    await expect(indicator).toHaveText("INSERT");
+    await page.keyboard.press("Escape");
+    await expect(indicator).toHaveText("NORMAL");
+    await page.keyboard.press("v");
+    await expect(indicator).toHaveText("VISUAL");
+    await page.keyboard.press("Escape");
+    await expect(indicator).toHaveText("NORMAL");
+  });
 });

@@ -30,6 +30,45 @@ messages.
 
 ---
 
+## Baseline (v1.45.2, 2026-09-06)
+
+First pass — status set by reading each subsystem's source and its
+existing tests directly. This is the "before" number the
+maintenance-phase work (one PR per subsystem, closing the `gap` and
+`partial` rows) moves.
+
+Line coverage from `npm run test:coverage` (Vitest `unit` + `components`
+projects; Playwright suites not included): **45.9% lines, 42.4%
+branches, 37.2% functions** (808 tests across 67 files).
+
+| Subsystem                          | Covered |  Partial |  Gap | Total |
+| ---------------------------------- | ------: | ------: | ---: | ----: |
+| 1. Editor core & formatting        |      12 |       4 |    9 |    25 |
+| 2. Preview, scroll-sync & rendering |     10 |       5 |    8 |    23 |
+| 3. Markdown dialects               |      18 |       0 |    7 |    25 |
+| 4. Documents, workspaces & multi-tab |    15 |       2 |    7 |    24 |
+| 5. Images                          |       6 |       2 |    7 |    15 |
+| 6. Export & print                  |       6 |       2 |    4 |    12 |
+| 7. Find & replace / search         |      11 |       0 |    5 |    16 |
+| 8. Version history & diff view     |      11 |       0 |    8 |    19 |
+| 9. Comments                        |      11 |       1 |    7 |    19 |
+| 10. Workspace collab               |      36 |       4 |    6 |    46 |
+| 11. GitHub auth & Gist             |       9 |       5 |    9 |    23 |
+| 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
+| 13. Mobile                         |       8 |       1 |    6 |    15 |
+| 14. App shell                      |      10 |       3 |    8 |    21 |
+| **Total**                          | **181** |  **30** | **96** | **307** |
+
+~59% of enumerated scenarios have a test asserting their outcome, ~10%
+are partial, ~31% are gaps. The pure-logic layers (stores, CRDT/room
+servers, markdown transforms, diff/version model, repo-sync planners)
+are strongly covered; the gaps cluster in UI-orchestration paths
+(modals, menus, the Command Palette, DiagramEditor), the `.md` export
+branch, and a handful of documented past bugs that never got a
+regression test.
+
+---
+
 ## 1. Editor core & formatting
 
 _Source: `client/src/app.ts`, `client/src/formatting-commands.ts`, `client/src/components/Editor.svelte`, `client/src/components/Toolbar.svelte`_

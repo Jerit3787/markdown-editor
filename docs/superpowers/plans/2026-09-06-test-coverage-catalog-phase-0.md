@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- **Versioning:** Phase 0 is behind-the-scenes. Patch bump only: `package.json` `1.45.0` → `1.45.1`, and both `version` fields in `package-lock.json` (lines ~3 and ~9) hand-edited to match. No full `npm install --package-lock-only`.
-- **CHANGELOG:** one new `## [1.45.1] - <today>` section, `### Added` ("Test coverage catalog (`docs/TEST-COVERAGE.md`) and `npm run test:coverage` instrumentation"). Keep a Changelog format.
+- **Versioning:** Phase 0 is behind-the-scenes. Patch bump only: `package.json` `1.45.0` → `1.45.2`, and both `version` fields in `package-lock.json` (lines ~3 and ~9) hand-edited to match. No full `npm install --package-lock-only`.
+- **CHANGELOG:** one new `## [1.45.2] - <today>` section, `### Added` ("Test coverage catalog (`docs/TEST-COVERAGE.md`) and `npm run test:coverage` instrumentation"). Keep a Changelog format.
 - **No `client/src/whats-new-entries.ts` entry** — behind-the-scenes changes never get one.
 - **No hard coverage threshold.** No `thresholds` block in the coverage config, no failing CI on coverage regression this round.
 - **Do not modify application code** in Phase 0. Only: `package.json`, `package-lock.json`, `vitest.config.ts`, `.gitignore`, `.github/workflows/test.yml`, `CHANGELOG.md`, and new files under `docs/`.
@@ -595,7 +595,7 @@ Expected: no output (no duplicate IDs). Then eyeball that every `Level` cell is 
 
 - [ ] **Step 3: Tally and record the baseline**
 
-Add a short `## Baseline (v1.45.1)` section just under "How to read this": total scenarios, and the `covered` / `partial` / `gap` counts per subsystem as a table. Paste the `npm run test:coverage` `text-summary` numbers (overall % lines / % branches) into that section as the coverage baseline.
+Add a short `## Baseline (v1.45.2)` section just under "How to read this": total scenarios, and the `covered` / `partial` / `gap` counts per subsystem as a table. Paste the `npm run test:coverage` `text-summary` numbers (overall % lines / % branches) into that section as the coverage baseline.
 
 Run:
 ```bash
@@ -604,14 +604,14 @@ npm run test:coverage
 
 - [ ] **Step 4: Version bump**
 
-In `package.json`: `"version": "1.45.0"` → `"version": "1.45.1"`.
-In `package-lock.json`: both `"version": "1.45.0"` occurrences (lines ~3 and ~9) → `"1.45.1"`.
+In `package.json`: `"version": "1.45.0"` → `"version": "1.45.2"`.
+In `package-lock.json`: both `"version": "1.45.0"` occurrences (lines ~3 and ~9) → `"1.45.2"`.
 
 - [ ] **Step 5: Changelog**
 
 In `CHANGELOG.md`, add directly under the title block, above `## [1.45.0]`:
 ```markdown
-## [1.45.1] - <today's date>
+## [1.45.2] - <today's date>
 
 ### Added
 
@@ -631,7 +631,7 @@ Expected: all pass. (`format:check` will fail if Step-earlier `npm run format` w
 ```bash
 npm run format
 git add docs/TEST-COVERAGE.md package.json package-lock.json CHANGELOG.md
-git commit -m "docs: complete test coverage catalog + v1.45.1 baseline"
+git commit -m "docs: complete test coverage catalog + v1.45.2 baseline"
 ```
 
 - [ ] **Step 8: Push and open the PR**
@@ -642,8 +642,8 @@ gh pr create --base master --title "Test coverage catalog + coverage instrumenta
 Phase 0 of the maintenance-phase test effort — see `docs/superpowers/specs/2026-09-06-test-coverage-catalog-design.md`.
 
 - Adds `@vitest/coverage-v8`, `npm run test:coverage`, and a non-blocking CI coverage summary + html artifact.
-- Adds `docs/TEST-COVERAGE.md`: every user-facing scenario per subsystem, its intended test level, and its current status (covered / partial / gap), with a v1.45.1 baseline tally.
-- No application code changes. Patch bump to v1.45.1.
+- Adds `docs/TEST-COVERAGE.md`: every user-facing scenario per subsystem, its intended test level, and its current status (covered / partial / gap), with a v1.45.2 baseline tally.
+- No application code changes. Patch bump to v1.45.2.
 
 Phases 1–13 (one per subsystem) each get their own short plan written from the finished catalog.
 

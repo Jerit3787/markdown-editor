@@ -44,24 +44,6 @@
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 
-  function insertExisting(key: string) {
-    const view = window.MDE.getEditor();
-    const alt = key.replace(/\.[^.]+$/, "") || "image";
-    view.dispatch({ changes: { from: view.state.selection.main.head, insert: `![${alt}](${key})` } });
-    view.focus();
-    close();
-  }
-
-  let uploadInputEl: HTMLInputElement | undefined = $state();
-
-  function onUploadChange(e: Event) {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    (e.target as HTMLInputElement).value = "";
-    if (!file) return;
-    close();
-    window.MDE.insertImageWithUpload?.(file);
-  }
-
   async function removeImage(key: string) {
     if (!(await confirmAction(`Delete "${key}"?`, "Any reference to it in the text will show as a broken image."))) return;
     deleteDocImage(key);
@@ -108,34 +90,18 @@
     {#snippet quickAction()}
       <Toggletip>Images are stored inside this document, not uploaded anywhere, unless you publish it to a Gist.</Toggletip>
     {/snippet}
-    <div class="images-modal-upload-row">
-      <button type="button" class="secondary-btn" onclick={() => uploadInputEl?.click()}>
-        <svg class="icon"><use href="#icon-upload"></use></svg> Upload new image
-      </button>
-      <input id="imagesUploadInput" type="file" accept="image/*" hidden bind:this={uploadInputEl} onchange={onUploadChange} />
-      <input id="imagesReplaceInput" type="file" accept="image/*" hidden bind:this={replaceInputEl} onchange={onReplaceChange} />
-    </div>
+    <input id="imagesReplaceInput" type="file" accept="image/*" hidden bind:this={replaceInputEl} onchange={onReplaceChange} />
     {#if images.length === 0}
       <div class="empty-state">
         <svg class="empty-state-icon"><use href="#icon-images"></use></svg>
         <div class="empty-state-title">No images yet</div>
-        <div class="empty-state-desc">Upload one above, or paste/drop it into the document.</div>
+        <div class="empty-state-desc">Add images from the Image picker, or paste/drop them into the document.</div>
       </div>
     {:else}
       <div class="images-list">
         {#each images as img (img.key)}
           <div class="image-item" class:unused={!img.used}>
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
-            <img
-              src={img.dataUrl}
-              alt=""
-              role="button"
-              tabindex="0"
-              class="image-item-thumb"
-              title="Click to insert"
-              onclick={() => insertExisting(img.key)}
-            />
+            <img src={img.dataUrl} alt="" class="image-item-thumb" />
             <div class="image-meta">
               <div class="image-name">{img.key}{#if !img.used} <span class="image-unused-label">(not used in this document)</span>{/if}</div>
               <div class="image-size">{formatBytes(img.dataUrl.length)}</div>

@@ -44,3 +44,20 @@ test("IMG-12: deleting an image row removes it from the doc's image map and the 
   expect(get(docsStore)[0].images).toHaveProperty("b.png");
   await expect.poll(() => screen.container.querySelectorAll(".image-item").length).toBe(1);
 });
+
+test("the thumbnail is not interactive — no insert-on-click", async () => {
+  const screen = await render(ManageImagesModal);
+  const thumb = screen.container.querySelector(".image-item-thumb") as HTMLElement;
+  expect(thumb.tagName).toBe("IMG");
+  expect(thumb.getAttribute("role")).toBeNull();
+  expect(thumb).not.toHaveAttribute("tabindex");
+  thumb.click();
+  expect(get(manageImagesModalOpen)).toBe(true);
+});
+
+test("there is no 'Upload new image' button", async () => {
+  const screen = await render(ManageImagesModal);
+  expect(screen.container.querySelector("#imagesUploadInput")).toBeNull();
+  const labels = Array.from(screen.container.querySelectorAll("button")).map((b) => b.textContent?.trim());
+  expect(labels.some((l) => /upload new image/i.test(l || ""))).toBe(false);
+});

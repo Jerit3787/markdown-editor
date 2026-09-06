@@ -38,6 +38,18 @@ const launchOptions = existsSync(SANDBOX_CHROMIUM) ? { executablePath: SANDBOX_C
 // pick up the same file.
 export default defineConfig({
   test: {
+    coverage: {
+      // V8 — the engine both projects already run on (jsdom-on-Node for
+      // "unit", real Chromium for "components"); no Istanbul source
+      // instrumentation pass needed.
+      provider: "v8",
+      reporter: ["text-summary", "html", "json"],
+      reportsDirectory: "coverage",
+      include: ["client/src/**", "src/**"],
+      exclude: ["**/*.d.ts", "client/src/vite-env.d.ts", "client/src/main.ts", "**/test-support/**"],
+      // No `thresholds` — Phase 0 measures only. A floor is a
+      // deliberate follow-up once the real baseline number exists.
+    },
     projects: [
       {
         test: {

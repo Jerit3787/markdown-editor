@@ -10,6 +10,7 @@ client/dist/
 recovered_images/
 test-results/
 playwright-report/
+coverage/
 blob-report/
 __screenshots__/
 .vitest-attachments/

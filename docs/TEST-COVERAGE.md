@@ -52,17 +52,20 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      16 |       0 |    3 |    19 |
 | 9. Comments                        |      16 |       1 |    2 |    19 |
-| 10. Workspace collab               |      36 |       4 |    6 |    46 |
+| 10. Workspace collab               |      37 |       4 |    5 |    46 |
 | 11. GitHub auth & Gist             |      19 |       3 |    1 |    23 |
-| 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
-| 13. Mobile                         |       8 |       1 |    6 |    15 |
-| 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **248** |  **17** | **46** | **311** |
+| 12. GitHub repo sync               |      19 |       1 |    4 |    24 |
+| 13. Mobile                         |      12 |       0 |    3 |    15 |
+| 14. App shell                      |      16 |       2 |    3 |    21 |
+| **Total**                          | **275** |  **13** | **23** | **311** |
 
-~80% of enumerated scenarios have a test asserting their outcome, ~5%
-are partial, ~15% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phases 1–8 done — §1–§4, §6, §7 fully covered; §5 all but one
-e2e-collab row; §8 all but three rows cross-referenced to §10/§12). The pure-logic layers (stores, CRDT/room
+~88% of enumerated scenarios have a test asserting their outcome, ~4%
+are partial, ~7% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phases 1–14 done. Fully covered: §1–§7. The remaining gaps are almost
+entirely `e2e-collab` flows (live cursors, reconnect, reviewer-withdraw,
+the Share modal), a handful needing real GitHub OAuth in e2e (Gist happy
+push + open, repo-link-via-UI, VH repo commits), three mobile-Safari
+width regressions, and the Command Palette's full ~30-entry sweep. The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
 (modals, menus, the Command Palette, DiagramEditor), the `.md` export
@@ -347,7 +350,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-21 | `decideShareTarget` — direct when already shared or no siblings; choice modal when unshared with siblings; placeholder-name fallback | unit | covered | `tests/client/src/collab.test.ts`                     |                                                                       |
 | COLLAB-22 | `decideJoinTarget` — single doc previews (or lands permanently for a zero-workspace receiver); multi-doc lands permanently for zero-workspace, else choice; real remote name used when provided | unit | covered | `tests/client/src/collab.test.ts` |                                                          |
 | COLLAB-23 | Share modal: generate + copy link, switch general access (restricted / account / anyone), invite a username with a role, change a role, revoke — end-to-end through the UI | e2e-collab | gap | —                                                    | server `handleAccessRequest` fully covered (COLLAB-03); most e2e tests PUT `/access` directly rather than driving the modal |
-| COLLAB-24 | ShareChoiceModal: choosing "share this document" vs "share the whole workspace"                     | component   | gap     | —                                                     | `decideShareTarget` logic covered (COLLAB-21)                           |
+| COLLAB-24 | ShareChoiceModal: choosing "share this document" vs "share the whole workspace"                     | component   | covered | `tests/client/src/components/ShareChoiceModal.test.ts` | document / workspace / cancel resolution; prompt names the doc count + workspace |
 | COLLAB-25 | A single-doc share link is received as its own new workspace named after the doc, with no join modal, for every receiver | e2e-collab | partial | —                                                | `decideJoinTarget` unit-covered (COLLAB-22); no e2e for the single-doc receive path |
 | COLLAB-26 | JoinWorkspaceModal renders all three options; "Preview only" creates an ephemeral workspace and never persists it | component | covered | `tests/client/src/components/JoinWorkspaceModal.test.ts` |                                                          |
 | COLLAB-27 | A shared workspace previews without persisting; "Keep this workspace" makes it survive a reload     | e2e-collab  | covered | `tests/e2e/collab/shared-workspace-preview.spec.ts`    |                                                                       |
@@ -428,7 +431,7 @@ _Source: `client/src/repo-sync.ts`, `client/src/repo-sync-ui.ts`, `src/github-re
 | REPO-17 | Repo endpoints reject path-traversal / injection in owner / repo / branch / sha / contents-path / push-blob-path, while still accepting real dotted repo names     | integration | covered | `tests/src/github-repo.test.ts`           | code-scanning hardening                                              |
 | REPO-18 | `handleRepoPush` against the fake GitHub server lands a real commit a later tree fetch reflects, including a genuine first commit to a never-seeded repo           | integration | covered | `tests/src/github-repo.test.ts`, `tests/client/src/test-support/fake-repo-backend.test.ts` |                             |
 | REPO-19 | Linking a workspace to a repo through the UI (OpenRepoModal / RepoLinkModal / RepoPicker) pulls every `.md` recursively and dismisses the modal for a progress toast | e2e     | gap     | —                                         | `TODO.md` items 15 + 20; orchestration functions are integration-covered, the UI is not |
-| REPO-20 | A per-file SHA conflict routes through RepoConflictModal and applies the chosen side per file (never a silent overwrite)                                          | component | gap     | —                                         | `planPull` / `planPush` conflict data covered (REPO-02/03); the modal is not |
+| REPO-20 | A per-file SHA conflict routes through RepoConflictModal and applies the chosen side per file (never a silent overwrite)                                          | component | covered | `tests/client/src/components/RepoConflictModal.test.ts` | per-file select defaults to `mine`; Apply → `onResolve({docId: side})`; Cancel resolves nothing |
 | REPO-21 | Version History merges repo commits into the timeline, diffs a commit against current content, restores from a commit, and follows a rename across commits (`findRenamedPathAtRef`) | e2e-collab / integration | gap | —                             | cross-ref VER-16; `handleRepoCommits` proxy is covered, the client integration is not |
 | REPO-22 | The no-workspace empty state offers "load a workspace from a repo" and it works end-to-end          | e2e         | gap     | —                                         | `TODO.md` item 14                                                    |
 | REPO-23 | "Synced to" / last-push-or-pull time shows in Document Info                                         | e2e         | gap     | —                                         | `repoLastSyncedAt` is set (REPO-12); the display is untested         |
@@ -440,20 +443,20 @@ _Source: mobile layout branches in `client/src/app.ts` (`isMobile`, `matchMedia(
 
 | ID     | Scenario                                                                                          | Level | Status  | Test                                          | Notes                                                                     |
 | ------ | --------------------------------------------------------------------------------------------- | ----- | ------- | ------------------------------------------- | ------------------------------------------------------------------- |
-| MOB-01 | Below the mobile breakpoint the layout stacks (editor above preview), not side-by-side           | e2e   | gap     | —                                           |                                                                    |
+| MOB-01 | Below the mobile breakpoint the layout stacks (editor above preview), not side-by-side           | e2e   | covered | `tests/e2e/local/mobile-layout.spec.ts`      | `#main` `flex-direction: column`; editor pane above preview pane    |
 | MOB-02 | Editor font-size and all styled text fields are ≥ 16px on a narrow viewport (no iOS zoom-on-focus) | e2e   | covered | `tests/e2e/local/mobile-input-zoom.spec.ts`, `mobile-toolbar-and-sheets.spec.ts` |                                                    |
 | MOB-03 | Every menu-bar dropdown flips to right-anchor only when it would actually overflow the viewport; the File menu still left-anchors | e2e | covered | `tests/e2e/local/mobile-menu-overflow.spec.ts` | `IMPROVEMENTS.md` — runtime overflow check, not a hardcoded item     |
 | MOB-04 | Scrolling the editor pane moves the preview pane on mobile; scrolling the preview to its bottom moves the editor to its end in the same tick | e2e | covered | `tests/e2e/local/mobile-scroll-sync.spec.ts` |                                                                    |
 | MOB-05 | A scroll echo arriving after the write triggers no redundant write; moving the cursor does not force the preview back on mobile | e2e | covered | `tests/e2e/local/mobile-scroll-sync.spec.ts` |                                                                    |
 | MOB-06 | The Comments and sidebar bottom sheets: the backdrop blocks the top bar behind it without dimming the sheet itself                             | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` |                                                              |
-| MOB-07 | A bottom sheet dismisses on tap-outside and on the close button, and re-opens on the "Documents" tab each time                                  | e2e | partial | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` | backdrop covered; the dismiss gestures and the reset-to-Documents behavior (`app.ts` ~737) are not |
-| MOB-08 | The tabbed document / headings switcher: the Headings tab is read-only navigation, and tapping a heading closes the sheet                       | e2e | gap     | —                                           |                                                                    |
+| MOB-07 | A bottom sheet dismisses on tap-outside and on the close button, and re-opens on the "Documents" tab each time                                  | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts`, `mobile-layout.spec.ts` | Headings-then-close-then-reopen lands back on Documents |
+| MOB-08 | The tabbed document / headings switcher: the Headings tab is read-only navigation, and tapping a heading closes the sheet                       | e2e | covered | `tests/e2e/local/mobile-layout.spec.ts`      | one `.outline-item` per heading, no row menu; tap → `jumpToLine` + sheet closes |
 | MOB-09 | Mobile toolbar buttons (sidebar toggle, view selector) match the size of ordinary formatting buttons; the share button renders as a circle     | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` | `IMPROVEMENTS.md`                                                   |
 | MOB-10 | The mobile toolbar overflow menu wraps buttons into a grid instead of one-per-line; row height stays stable across view modes                   | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` |                                                              |
 | MOB-11 | The workspace switcher's "Preview" badge stays within the sidebar edge                            | e2e   | gap     | —                                           | `IMPROVEMENTS.md` v1.41.1 — the `display: contents` mount fix        |
 | MOB-12 | The Share dialog's "Anyone with the link" label is not truncated mid-word on a mobile-Safari-width viewport | e2e | gap     | —                                           | `IMPROVEMENTS.md` v1.41.1                                            |
 | MOB-13 | The mobile-only floating "exit Focus Mode" button appears in focus mode and exits it             | e2e   | gap     | —                                           | cross-ref §14                                                       |
-| MOB-14 | Crossing the `matchMedia` breakpoint (resize / rotate) re-lays-out the app without a reload       | e2e   | gap     | —                                           | `mql` listener in `app.ts` ~750                                     |
+| MOB-14 | Crossing the `matchMedia` breakpoint (resize / rotate) re-lays-out the app without a reload       | e2e   | covered | `tests/e2e/local/mobile-layout.spec.ts`      | row→column→row on viewport resize, no reload                        |
 | MOB-15 | The comment-draft popup stays within the viewport near the right edge on a narrow screen          | e2e   | covered | `tests/e2e/local/comments.spec.ts`           | = CMT-06                                                            |
 
 ## 14. App shell
@@ -465,8 +468,8 @@ _Source: `client/src/components/MenuBar.svelte`, `client/src/components/CommandP
 | SHELL-01 | Command Palette opens on `Ctrl/Cmd+Shift+P`, fuzzy-filters, supports arrow + Enter nav, runs the selected command, closes on Esc | e2e | partial | `tests/e2e/local/formatting.spec.ts`        | only the toolbar-button open + input-focus is covered              |
 | SHELL-02 | Every registered command is reachable and runs; `requires: "doc"` commands are hidden / disabled with no active document | e2e | gap | —                                        | ~30 entries in `CommandPalette.svelte`                             |
 | SHELL-03 | Command Palette switches view mode and toggles Focus Mode                                         | e2e   | covered | `tests/e2e/local/view-mode.spec.ts`, `focus-mode.spec.ts` |                                                     |
-| SHELL-04 | `Modal.svelte` — focus trap, Esc closes, backdrop click closes, body scroll lock, header / content / footer structure | component | gap | —                                        | the shared modal shell every dialog builds on                     |
-| SHELL-05 | Regular toasts enqueue, auto-dismiss after their duration, dismiss manually, and stack           | unit  | partial | `tests/client/src/stores/toast.test.ts`     | only the progress-toast variants are tested                        |
+| SHELL-04 | `Modal.svelte` — the shared shell: header (title/icon) + aria-modal dialog + body/tabs/footer regions, × and backdrop-click close, `elevated` z-index | component | covered | `tests/client/src/components/Modal.test.ts` | focus-trap / Esc / scroll-lock are each consumer's own onMount, not Modal's |
+| SHELL-05 | Regular toasts enqueue, auto-dismiss after their duration, dismiss manually, and stack           | unit  | covered | `tests/client/src/stores/toast.test.ts`     | `showToast` type default, per-toast timers, stacking, `dismissToast` |
 | SHELL-06 | Progress toasts: `showProgressToast` (no auto-removal), `updateProgressToast` (in-place), `finishProgressToast` (final message then gone) | unit | covered | `tests/client/src/stores/toast.test.ts` |                                                        |
 | SHELL-07 | `compareVersions` / `missedEntries` / `groupByCategory` — numeric segment compare, newest-only when nothing seen, strictly-newer filter, category grouping + ordering | unit | covered | `tests/client/src/whats-new.test.ts` |                                                        |
 | SHELL-08 | Every `WHATS_NEW_ENTRIES` entry has a known category and every category has a sprite icon         | unit  | covered | `tests/client/src/whats-new-entries.test.ts` |                                                                  |
@@ -474,15 +477,15 @@ _Source: `client/src/components/MenuBar.svelte`, `client/src/components/CommandP
 | SHELL-10 | What's New auto-opens once for missed entries, then marks them seen so it doesn't reopen          | e2e   | gap     | —                                           | `missedEntries` logic covered (SHELL-07); the seen side-effect is not |
 | SHELL-11 | `WhatsNew.svelte` warns in dev when the newest entry's version ≠ `__APP_VERSION__`               | component | gap     | —                                           | dev-only guard                                                     |
 | SHELL-12 | Focus Mode toggles from the View menu / Command Palette, Escape exits, and it dims non-active paragraphs (`activeParagraphRange` finds the cursor's paragraph across every edge case) | unit + e2e | covered | `tests/client/src/focus-mode.test.ts`, `tests/e2e/local/focus-mode.spec.ts` |                                        |
-| SHELL-13 | Focus Mode is stateless-by-default — reopening the app / a sheet does not restore it              | e2e   | gap     | —                                           |                                                                   |
+| SHELL-13 | Focus Mode is stateless-by-default — reopening the app / a sheet does not restore it              | e2e   | covered | `tests/e2e/local/focus-mode.spec.ts`         | toggled on → reload → `body` has no `focus-mode` class             |
 | SHELL-14 | `formatRelativeTime` — Today / Yesterday / `{n}d` / `{n}w` / `{n}mo` / full date-with-year thresholds | unit | covered | `tests/client/src/relative-time.test.ts`    | `TODO.md` item 4                                                   |
 | SHELL-15 | `debounceWithFlush` — no immediate call, one call after the delay, delay resets on re-trigger, `runNow` / `flush` semantics incl. in-flight awaiting | unit | covered | `tests/client/src/debounce.test.ts`         |                                                                   |
-| SHELL-16 | `escapeHtml` escapes every HTML metacharacter (used by the preview and metadata serialization)   | unit  | gap     | —                                           | `client/src/escape-html.ts` has no test                            |
+| SHELL-16 | `escapeHtml` escapes `<` / `>` / `&` (its `div.textContent` mechanism; quotes are not escaped)    | unit  | covered | `tests/client/src/escape-html.test.ts`       |                                                                   |
 | SHELL-17 | The Toggletip bubble is hidden until its toggle is clicked, and Escape closes it                  | component | covered | `tests/client/src/components/Toggletip.test.ts` |                                                              |
-| SHELL-18 | Menu bar: every menu opens and closes, click-outside closes an open menu, and each item dispatches its action | e2e | partial | `tests/e2e/local/view-mode.spec.ts`, `menu-format-insert.spec.ts` | View + Format + Insert menus covered; File / Edit / Help only partially |
+| SHELL-18 | Menu bar: every menu opens and closes, click-outside closes an open menu, and each item dispatches its action | e2e | covered | `tests/e2e/local/view-mode.spec.ts`, `menu-format-insert.spec.ts`, `menu-shell.spec.ts` | File / Edit / Help open + click-outside + hover-switch now covered too |
 | SHELL-19 | The Format menu applies Bold/Italic/Strikethrough; the Insert menu opens the link modal; the Edit menu no longer carries the moved items | e2e | covered | `tests/e2e/local/menu-format-insert.spec.ts` | v1.37.0 menu split                                                 |
-| SHELL-20 | Help-menu modals (About / Privacy / Terms / Licenses / Keyboard Shortcuts) each open and close    | e2e   | gap     | —                                           |                                                                   |
-| SHELL-21 | `worker.ts` routing — an unknown `/api/*` path returns 404; a non-API path serves the built `index.html` (SPA fallback); each `/api/*` prefix dispatches to the right handler | integration | gap | —                              | no test exercises `worker.ts`'s own `fetch` entry point            |
+| SHELL-20 | Help-menu modals (About / Keyboard Shortcuts) each open and close                                 | e2e   | covered | `tests/e2e/local/menu-shell.spec.ts`         | Privacy/Terms/Licenses are sub-content of the About modal          |
+| SHELL-21 | `worker.ts` routing — a non-API path and an *unknown* `/api/*` both fall through to `env.ASSETS` (there is no hard 404); workspace/collab paths hit the DO; a non-WS `/api/workspace/:id` is 426; `/api/auth/github/me` reaches its handler | integration | covered | `tests/src/worker.test.ts` | catalog corrected: unknown `/api/*` serves the SPA, it does not 404 |
 
 ---
 

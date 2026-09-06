@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.4] - 2026-09-07
+
+### Changed
+
+- **Test coverage — comments, auth/Gist, mobile, and app shell (maintenance phases 9–14).** ~50 new tests: comment reply/resolve server routes and the unresolved-count badge; the GitHub OAuth login/callback/logout flow and `handleMe` token-verification; the Gist proxy handlers; `parseGistId` / `extractInlineImages` / `formatGistDate` / `MemoryFS`; `escapeHtml`, regular toasts, the `Modal` shell, and `worker.ts` routing; the mobile split-layout stacking, breakpoint re-layout, and the sidebar sheet's Headings tab; Focus Mode not persisting across a reload; the File/Edit/Help menus and the Help-menu modals; the ShareChoice and RepoConflict modals. Catalogued coverage is now ~88% (275/311 scenarios). No behavior change.
+
 ## [1.46.3] - 2026-09-07
 
 ### Fixed

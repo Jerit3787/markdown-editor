@@ -214,3 +214,34 @@ test.describe("autosave", () => {
     await expect.poll(() => doc(page)).toBe("persist this across reload");
   });
 });
+
+test.describe("toolbar overflow (desktop, narrow)", () => {
+  test.use({ viewport: { width: 900, height: 800 } });
+  const overflowToggle = (page: Page) => page.locator('.toolbar-overflow button[aria-label="More formatting options"]');
+
+  test("buttons that don't fit move into the overflow menu and still run", async ({ page }) => {
+    await expect(overflowToggle(page)).toBeVisible();
+
+    await setDoc(page, "");
+    await overflowToggle(page).click();
+    const menu = page.locator(".toolbar-overflow-menu");
+    await expect(menu).toBeVisible();
+    // Use whatever the overflow menu actually holds — the last button is
+    // the reliable overflow victim (Command Palette is pushed out first).
+    const overflowed = menu.locator("button").last();
+    const title = await overflowed.getAttribute("title");
+    await overflowed.click();
+    // Command Palette opens a dialog; a formatting command mutates the doc.
+    if (title?.startsWith("Command Palette")) {
+      await expect(page.locator(".command-palette")).toBeVisible();
+    } else {
+      await expect.poll(() => doc(page)).not.toBe("");
+    }
+  });
+
+  test("widening past the toolbar width hides the overflow toggle again", async ({ page }) => {
+    await expect(overflowToggle(page)).toBeVisible();
+    await page.setViewportSize({ width: 1600, height: 800 });
+    await expect(overflowToggle(page)).toBeHidden();
+  });
+});

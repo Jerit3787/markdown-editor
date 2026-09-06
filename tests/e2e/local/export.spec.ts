@@ -85,3 +85,62 @@ test.describe("markdown export", () => {
     expect(reimported.metadata).toEqual([{ key: "Author", value: "Ada" }]);
   });
 });
+
+test.describe("txt and html export content", () => {
+  async function readExport(page: import("@playwright/test").Page, fmt: "txt" | "html") {
+    const [download] = await Promise.all([page.waitForEvent("download"), page.evaluate((f) => window.MDE.exportAs(f), fmt)]);
+    const p = await download.path();
+    const fs = await import("node:fs/promises");
+    return p ? await fs.readFile(p, "utf-8") : "";
+  }
+
+  test("EXP-03: .txt export is the rendered text — no markdown syntax", async ({ page }) => {
+    await page.evaluate(() => {
+      const v = window.MDE.getEditor();
+      v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: "# Big Heading\n\nSome **bold** and _italic_ words." } });
+    });
+    const txt = await readExport(page, "txt");
+    expect(txt).toContain("Big Heading");
+    expect(txt).toContain("bold");
+    expect(txt).not.toMatch(/^#\s/m);
+    expect(txt).not.toContain("**");
+    expect(txt).not.toContain("_italic_");
+  });
+
+  test("EXP-05: .html export inlines the stylesheet, and KaTeX CSS when the doc has math", async ({ page }) => {
+    await page.evaluate(() => {
+      const v = window.MDE.getEditor();
+      v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: "text $x^2$ more" } });
+    });
+    await expect(page.locator("#preview .katex")).toBeVisible();
+    const html = await readExport(page, "html");
+    expect(html).toMatch(/<style>[\s\S]*body\s*\{/);
+    expect(html.toLowerCase()).toContain(".katex");
+  });
+
+  test("EXP-06: the exported .html can't be broken out of — safe <title>, and a </style> in custom CSS is neutralized", async ({ page }) => {
+    // currentFileBase() strips \ / : * ? " < > | before the title is ever
+    // built, and buildStandaloneHtml() also escapeHtml()s it — either way
+    // the <title> never carries markup.
+    await page.fill("#docTitle", "<script>alert(1)</script>");
+    await page.keyboard.press("Enter");
+    await page.evaluate(() => {
+      const v = window.MDE.getEditor();
+      v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: "body" } });
+      localStorage.setItem("mde:customExportCss", "body{}</style><script>window.__x=1</script>");
+    });
+    const html = await readExport(page, "html");
+    expect(html).toMatch(/<title>[^<>]*<\/title>/);
+    expect(html).not.toContain("<title><script>");
+    // The custom-CSS </style> is escaped so it can't close the tag early.
+    expect(html).toContain("<\\/style><script>");
+    expect(html).not.toMatch(/<style>[^]*<\/style><script>window\.__x/);
+  });
+});
+
+test("EXP-08: the export filename derives from the sanitized document name", async ({ page }) => {
+  await page.fill("#docTitle", "Quarterly: Report? <v2>");
+  await page.keyboard.press("Enter");
+  const [download] = await Promise.all([page.waitForEvent("download"), page.evaluate(() => window.MDE.exportAs("md"))]);
+  expect(download.suggestedFilename()).toBe("Quarterly- Report- -v2-.md");
+});

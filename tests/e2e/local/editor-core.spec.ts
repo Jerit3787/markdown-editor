@@ -38,3 +38,33 @@ test.describe("wrap commands with no selection", () => {
     expect((await sel(page)).text).toBe("code");
   });
 });
+
+test.describe("line-prefix commands toggle", () => {
+  test("Heading 1 on a line that already starts with '# ' removes the prefix", async ({ page }) => {
+    await setDoc(page, "# hello");
+    await page.evaluate(() => {
+      const v = window.MDE.getEditor();
+      v.dispatch({ selection: { anchor: v.state.doc.length } });
+    });
+    await page.click('button[title="Heading 1"]');
+    await expect.poll(() => doc(page)).toBe("hello");
+  });
+
+  test("Bullet list toggles the '- ' prefix off and back on", async ({ page }) => {
+    await setDoc(page, "item");
+    await page.click('button[title="Bullet list"]');
+    await expect.poll(() => doc(page)).toBe("- item");
+    await page.click('button[title="Bullet list"]');
+    await expect.poll(() => doc(page)).toBe("item");
+  });
+
+  test("Blockquote toggle off only strips the exact '> ' prefix", async ({ page }) => {
+    await setDoc(page, "> quoted");
+    await page.evaluate(() => {
+      const v = window.MDE.getEditor();
+      v.dispatch({ selection: { anchor: 3 } });
+    });
+    await page.click('button[title="Blockquote"]');
+    await expect.poll(() => doc(page)).toBe("quoted");
+  });
+});

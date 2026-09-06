@@ -512,7 +512,16 @@ describe("planPush", () => {
   });
 
   it("does not delete an assets/<slug>/ folder still owned by a live doc, even if its path was queued", async () => {
-    const docs = [fakeDoc({ id: "d1", repoPath: "a.md", repoSha: "s1", content: "" })];
+    const docs = [
+      fakeDoc({
+        id: "d1",
+        name: "a",
+        repoPath: "a.md",
+        repoSha: "s1",
+        content: "![still here](img-1.png)",
+        images: { "img-1.png": "data:image/png;base64,aGk=" },
+      }),
+    ];
     const entries: TreeEntry[] = [
       { path: "a.md", sha: "s1", type: "blob" },
       { path: "assets/a/img-1.png", sha: "a1", type: "blob" },
@@ -527,6 +536,59 @@ describe("planPush", () => {
       { path: "assets/pre-existing/img-1.png", sha: "a1", type: "blob" },
     ];
     const plan = await planPush([], entries, false);
+    expect(plan.deletions).toEqual([]);
+  });
+
+  it("prunes an assets/<slug>/ blob a still-linked doc no longer references", async () => {
+    const docs = [
+      fakeDoc({
+        id: "d1",
+        name: "notes",
+        repoPath: "notes.md",
+        repoSha: "s1",
+        content: "![keep](a.png)",
+        images: { "a.png": "data:image/png;base64,aGk=" },
+      }),
+    ];
+    const entries: TreeEntry[] = [
+      { path: "notes.md", sha: "s1", type: "blob" },
+      { path: "assets/notes/a.png", sha: "aa", type: "blob" },
+      { path: "assets/notes/b.png", sha: "bb", type: "blob" }, // orphan — no ref left in content
+    ];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.deletions).toEqual(["assets/notes/b.png"]);
+  });
+
+  it("keeps every assets/<slug>/ blob the doc still references", async () => {
+    const docs = [
+      fakeDoc({
+        id: "d1",
+        name: "notes",
+        repoPath: "notes.md",
+        repoSha: "s1",
+        content: "![one](a.png) ![two](b.png)",
+        images: { "a.png": "data:image/png;base64,aGk=", "b.png": "data:image/png;base64,aGk=" },
+      }),
+    ];
+    const entries: TreeEntry[] = [
+      { path: "notes.md", sha: "s1", type: "blob" },
+      { path: "assets/notes/a.png", sha: "aa", type: "blob" },
+      { path: "assets/notes/b.png", sha: "bb", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.deletions).toEqual([]);
+  });
+
+  it("does not prune assets under a slug owned by a brand-new (never-pushed) doc", async () => {
+    // A doc with no repoPath adopts `notes.md` by name-match; the repo's
+    // existing assets/notes/* were never pulled in, so we can't know they're
+    // orphans — leave them alone (mirrors the pendingRepoDeletions guard).
+    const docs = [fakeDoc({ id: "d1", name: "notes", content: "hello", images: {} })];
+    const entries: TreeEntry[] = [
+      { path: "notes.md", sha: "s1", type: "blob" },
+      { path: "assets/notes/pre-existing.png", sha: "aa", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, true);
     expect(plan.deletions).toEqual([]);
   });
 });

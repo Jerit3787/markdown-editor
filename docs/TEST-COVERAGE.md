@@ -51,7 +51,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 6. Export & print                  |      12 |       0 |    0 |    12 |
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      16 |       0 |    3 |    19 |
-| 9. Comments                        |      11 |       1 |    7 |    19 |
+| 9. Comments                        |      16 |       1 |    2 |    19 |
 | 10. Workspace collab               |      36 |       4 |    6 |    46 |
 | 11. GitHub auth & Gist             |       9 |       5 |    9 |    23 |
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
@@ -307,14 +307,14 @@ _Source: `client/src/comments.ts`, `client/src/anchor.ts` (+ `src/anchor.ts`), `
 | CMT-09 | A comment thread is created and persisted under the doc's own storage key; docA / docB threads stay independent | integration | covered | `tests/src/workspace-room.test.ts` |                                                                              |
 | CMT-10 | Only the thread's author or the workspace owner can delete a thread                               | integration | covered | `tests/src/workspace-room.test.ts`         |                                                                              |
 | CMT-11 | A viewer cannot add a comment or a reply (403)                                                    | integration | covered | `tests/src/workspace-room.test.ts`         |                                                                              |
-| CMT-12 | A reviewer / editor can post a reply, and it appends to the thread and broadcasts                 | integration + e2e-collab | gap | —                              | success path of `handleCommentReplyRequest` is untested                       |
-| CMT-13 | Resolving a thread marks it resolved; reopening un-resolves it                                    | integration + e2e-collab | gap | —                              | `handleCommentResolveRequest` has no test — see `## Deferred` (open bug)       |
+| CMT-12 | A reviewer / editor can post a reply, and it appends to the thread and broadcasts                 | integration | covered | `tests/src/workspace-room.test.ts` | e2e-collab broadcast half deferred to §10                                     |
+| CMT-13 | Resolving a thread marks it resolved; reopening un-resolves it                                    | integration | covered | `tests/src/workspace-room.test.ts` | server route confirmed sound; the "broken in practice" report is client-side — chase in §10 e2e-collab |
 | CMT-14 | A comment anchor follows edits made above / inside its range and greys out when its text is deleted, in the live editor | e2e-collab | gap | —                              | `relocateAnchor` logic covered (CMT-02); the editor integration is not        |
 | CMT-15 | Adding / resolving / deleting a comment on a shared doc propagates live to another collaborator   | e2e-collab | gap     | —                                         |                                                                              |
-| CMT-16 | The unresolved-comment count badge shows on the topbar Comments icon and the File-menu entry      | component  | gap     | —                                         | count logic covered by CMT-01 (v1.30.0)                                       |
-| CMT-17 | Clicking a comment row in the panel scrolls the editor to its anchor                              | e2e        | gap     | —                                         |                                                                              |
-| CMT-18 | An empty / whitespace-only comment or reply is rejected                                           | integration | partial | `tests/src/workspace-room.test.ts`        | `Invalid comment` / `Invalid reply` 400 branches — verify both are asserted   |
-| CMT-19 | The Comments panel collapses fully on close with no leftover sliver, matching the workspace panel  | e2e        | gap     | —                                         | `TODO.md` item 9 (regressed once already)                                     |
+| CMT-16 | The unresolved-comment count badge shows on the topbar Comments icon and the File-menu entry      | component  | covered | `tests/client/src/components/MenuBar.test.ts` | File-menu `.menu-badge` (3 / none / 99+); topbar `#commentsBadge` is the same store |
+| CMT-17 | Clicking a comment row in the panel scrolls the editor to its anchor                              | e2e        | covered | `tests/e2e/local/comments.spec.ts`         | `.comment-entry-quote` click → editor selection back at [from,to]             |
+| CMT-18 | An empty / whitespace-only comment or reply is rejected                                           | integration | covered | `tests/src/workspace-room.test.ts`        | both `Invalid comment.` and `Invalid reply.` 400s asserted via the real handlers |
+| CMT-19 | The Comments panel collapses fully on close with no leftover sliver, matching the workspace panel  | e2e        | partial | `tests/e2e/local/comments.spec.ts`        | close re-adds `.collapsed` + a real translateX slide + no h-scroll; the exact off-screen pixel math is viewport-sensitive and not asserted |
 
 ## 10. Workspace collab
 
@@ -498,3 +498,5 @@ pointing at real bugs awaiting a fix branch.
 | VER-08 | Restoring a **shared** document's version (`restoreSharedVersion` / `restoreSharedVersionContent`) | `e2e-collab`, deferred to the §10 phase — needs a live shared workspace with an authenticated editor role. The local restore path is covered by VER-06 (store) + VER-07 (UI). |
 | VER-16 | Version History merges local session groups and GitHub repo commits into one timeline, following renames across commits | Integration / `e2e-collab`, deferred to the §12 phase — `fetchAndMergeRepoHistory` orchestration needs a real (or fully faked) repo backend with a rename across commits. The building blocks (`mergeSnapshotsFromRepo` VER-10, `findRenamedPathAtRef`) are unit-covered. |
 | VER-19 | A normalized image-reference format does not surface as a spurious diff | Deferred to the §12 phase — the root cause is repo-sync pull-ref determinism (`resolveImagesFromPull` must round-trip a pushed ref to the exact same text), a repo-sync serialization property rather than a diff-model one. `computeDiffRows` treating identical image lines as `same` is already covered by VER-11. |
+| CMT-14 | A comment anchor follows edits above / inside its range and greys out when its text is deleted, in the live editor | `e2e-collab`, deferred to the §10 phase — `relocateAnchor` is unit-covered (CMT-02); the CodeMirror integration needs a live shared editor. |
+| CMT-15 | Adding / resolving / deleting a comment on a shared doc propagates live to another collaborator | `e2e-collab`, deferred to the §10 phase. The server routes (create/reply/resolve/delete) are all integration-covered (CMT-09..13). |

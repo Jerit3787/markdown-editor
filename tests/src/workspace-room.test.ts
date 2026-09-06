@@ -675,6 +675,107 @@ describe("WorkspaceRoom comment threads", () => {
     expect(room.deleteThread(docRoom, thread.id, "bob", false)).toBe("forbidden");
     expect(room.deleteThread(docRoom, thread.id, "alice", false)).toBe("deleted");
   });
+
+  async function roomWithThread(invitedRole: "editor" | "reviewer" | "viewer") {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: invitedRole }],
+    });
+    const docRoom = await room.loadDocRoom("docA");
+    const thread = room.createThread("docA", docRoom, 0, 5, "quote", "alice", "the first comment");
+    return { room, thread };
+  }
+
+  async function req(username: string, path: string, body: unknown) {
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username });
+    return new Request(`https://example.com/w/ws1${path}`, {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("CMT-12: an editor's reply appends to the thread and returns it", async () => {
+    const { room, thread } = await roomWithThread("editor");
+    const res = await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/${thread.id}/reply`, { body: "good point" }), "docA", thread.id);
+    expect(res.status).toBe(200);
+    const updated = (await res.json()) as { comments: { author: string; body: string }[] };
+    expect(updated.comments).toHaveLength(2);
+    expect(updated.comments[1]).toMatchObject({ author: "bob", body: "good point" });
+  });
+
+  it("CMT-12: a reviewer can also reply", async () => {
+    const { room, thread } = await roomWithThread("reviewer");
+    const res = await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/${thread.id}/reply`, { body: "hm" }), "docA", thread.id);
+    expect(res.status).toBe(200);
+  });
+
+  it("CMT-11/CMT-18: a viewer's reply is 403; an empty reply is 400", async () => {
+    const { room, thread } = await roomWithThread("viewer");
+    const viewerRes = await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/${thread.id}/reply`, { body: "nope" }), "docA", thread.id);
+    expect(viewerRes.status).toBe(403);
+
+    const editorRoom = await roomWithThread("editor");
+    const emptyRes = await editorRoom.room.handleCommentReplyRequest(
+      await req("bob", `/docs/docA/comments/${editorRoom.thread.id}/reply`, { body: "   " }),
+      "docA",
+      editorRoom.thread.id,
+    );
+    expect(emptyRes.status).toBe(400);
+    expect(await emptyRes.text()).toBe("Invalid reply.");
+  });
+
+  it("CMT-12: replying to an unknown thread is 404", async () => {
+    const { room } = await roomWithThread("editor");
+    const res = await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/nope/reply`, { body: "x" }), "docA", "nope");
+    expect(res.status).toBe(404);
+  });
+
+  it("CMT-13: resolving marks the thread resolved; {resolved:false} reopens it", async () => {
+    const { room, thread } = await roomWithThread("editor");
+    const resolveRes = await room.handleCommentResolveRequest(await req("bob", `/docs/docA/comments/${thread.id}/resolve`, {}), "docA", thread.id);
+    expect(resolveRes.status).toBe(200);
+    expect(((await resolveRes.json()) as { resolved: boolean }).resolved).toBe(true);
+
+    const reopenRes = await room.handleCommentResolveRequest(
+      await req("bob", `/docs/docA/comments/${thread.id}/resolve`, { resolved: false }),
+      "docA",
+      thread.id,
+    );
+    expect(((await reopenRes.json()) as { resolved: boolean }).resolved).toBe(false);
+  });
+
+  it("CMT-13: a viewer can't resolve (403); an unknown thread is 404", async () => {
+    const viewer = await roomWithThread("viewer");
+    const vRes = await viewer.room.handleCommentResolveRequest(
+      await req("bob", `/docs/docA/comments/${viewer.thread.id}/resolve`, {}),
+      "docA",
+      viewer.thread.id,
+    );
+    expect(vRes.status).toBe(403);
+
+    const editor = await roomWithThread("editor");
+    const nfRes = await editor.room.handleCommentResolveRequest(await req("bob", `/docs/docA/comments/nope/resolve`, {}), "docA", "nope");
+    expect(nfRes.status).toBe(404);
+  });
+
+  it("CMT-18: a whitespace-only new comment is rejected 400 Invalid comment.", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: "editor" }],
+    });
+    const res = await room.handleCommentsRequest(await req("bob", `/docs/docA/comments`, { from: 0, to: 3, quote: "abc", body: "   " }), "docA");
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("Invalid comment.");
+  });
 });
 
 describe("WorkspaceRoom document membership", () => {

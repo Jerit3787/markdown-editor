@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.7] - 2026-09-06
+
+### Changed
+
+- Expanded automated test coverage for images (`docs/TEST-COVERAGE.md` §5): dropping images onto the editor (embed, oversized rejection, non-image filter), a document switch mid-encode dropping the pending image, the Images modal's delete and per-row size display, the absence of content-hash deduplication, and preview resolution of `![](key)` references to their data URI.
+
 ## [1.45.6] - 2026-09-06
 
 ### Changed

@@ -41,4 +41,14 @@ describe("imageKey", () => {
   it("falls back to a default base name for an empty filename", () => {
     expect(imageKey("", {})).toBe("image.png");
   });
+
+  it("gives the same filename a fresh suffixed key each time — there is no content-hash dedup", () => {
+    const images: Record<string, string> = {};
+    const k1 = imageKey("photo.png", images);
+    images[k1] = "data:image/png;base64,AAAA";
+    const k2 = imageKey("photo.png", images);
+    images[k2] = "data:image/png;base64,AAAA"; // byte-identical content
+    const k3 = imageKey("photo.png", images);
+    expect([k1, k2, k3]).toEqual(["photo.png", "photo-2.png", "photo-3.png"]);
+  });
 });

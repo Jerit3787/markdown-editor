@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.12] - 2026-09-07
+
+### Fixed
+
+- **Deleting a document that had images left its uploaded image files behind in a linked GitHub repo.** A repo push removed a deleted (or renamed-away) document's Markdown file and its `.mde/history/` companion, but never the `assets/<slug>/` folder holding that document's images — orphaning every uploaded image in the repo. The push now also sweeps out asset blobs whose slug belongs to a document being deleted, unless another document has since reclaimed that name.
+
 ## [1.45.11] - 2026-09-07
 
 ### Fixed

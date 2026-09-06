@@ -490,6 +490,45 @@ describe("planPush", () => {
     const plan = await planPush([], entries, false, ["gone.md"]);
     expect(plan.deletions).toEqual(expect.arrayContaining(["gone.md", ".mde/history/gone.json"]));
   });
+
+  it("deletes a removed doc's orphaned assets/<slug>/ image blobs via pendingRepoDeletions", async () => {
+    const entries: TreeEntry[] = [
+      { path: "gone.md", sha: "s1", type: "blob" },
+      { path: "assets/gone/img-1.png", sha: "a1", type: "blob" },
+      { path: "assets/gone/img-2.png", sha: "a2", type: "blob" },
+    ];
+    const plan = await planPush([], entries, false, ["gone.md"]);
+    expect(plan.deletions).toEqual(expect.arrayContaining(["gone.md", "assets/gone/img-1.png", "assets/gone/img-2.png"]));
+  });
+
+  it("deletes a renamed doc's old assets/<old-slug>/ folder alongside its old content path", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "New Name", repoPath: "old-name.md", repoSha: "s1", content: "hi" })];
+    const entries: TreeEntry[] = [
+      { path: "old-name.md", sha: "s1", type: "blob" },
+      { path: "assets/old-name/img-1.png", sha: "a1", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.deletions).toEqual(expect.arrayContaining(["old-name.md", "assets/old-name/img-1.png"]));
+  });
+
+  it("does not delete an assets/<slug>/ folder still owned by a live doc, even if its path was queued", async () => {
+    const docs = [fakeDoc({ id: "d1", repoPath: "a.md", repoSha: "s1", content: "" })];
+    const entries: TreeEntry[] = [
+      { path: "a.md", sha: "s1", type: "blob" },
+      { path: "assets/a/img-1.png", sha: "a1", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, false, ["a.md"]);
+    expect(plan.deletions).toEqual([]);
+  });
+
+  it("leaves assets/<slug>/ folders untouched when nothing was deleted", async () => {
+    const entries: TreeEntry[] = [
+      { path: "pre-existing.md", sha: "s1", type: "blob" },
+      { path: "assets/pre-existing/img-1.png", sha: "a1", type: "blob" },
+    ];
+    const plan = await planPush([], entries, false);
+    expect(plan.deletions).toEqual([]);
+  });
 });
 
 describe("planCreateWorkspaceFromRepo", () => {

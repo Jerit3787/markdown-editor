@@ -462,6 +462,22 @@ export async function planPush(
     }
   }
 
+  // A deleted or renamed-away doc also orphans its assets/<slug>/ image
+  // folder — sweep every asset blob whose slug we're deleting and that no
+  // live doc still claims (rewriteImagesForPush is where assets/<slug>/ is
+  // written; same slug scheme as historyPathFor). Guards against a name
+  // being reclaimed by another doc this same push.
+  const deletedSlugs = new Set(plan.deletions.map(slugFromRepoPath));
+  const liveSlugs = new Set([...claimedPaths].map(slugFromRepoPath));
+  for (const path of treeShaByPath.keys()) {
+    const match = /^assets\/([^/]+)\//.exec(path);
+    if (!match) continue;
+    const slug = match[1];
+    if (deletedSlugs.has(slug) && !liveSlugs.has(slug) && !plan.deletions.includes(path)) {
+      plan.deletions.push(path);
+    }
+  }
+
   return plan;
 }
 

@@ -195,3 +195,22 @@ test.describe("Edit menu clipboard commands", () => {
     await expect.poll(() => doc(page)).toBe("untouched");
   });
 });
+
+test.describe("autosave", () => {
+  test("typed content is debounce-saved to localStorage and survives a reload", async ({ page }) => {
+    await page.click("#editor-mount .cm-content");
+    await page.keyboard.type("persist this across reload");
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+          return docs.find((d: { id: string }) => d.id === "e2e-doc-1")?.content ?? "";
+        }),
+      )
+      .toBe("persist this across reload");
+
+    await page.reload();
+    await page.waitForSelector("#editor-mount .cm-content", { state: "visible" });
+    await expect.poll(() => doc(page)).toBe("persist this across reload");
+  });
+});

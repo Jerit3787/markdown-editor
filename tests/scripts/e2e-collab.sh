@@ -37,4 +37,13 @@ if [ -z "$ready" ]; then
   exit 1
 fi
 
-npx playwright test --project=collab
+# --workers=1: every collab test drives the SAME `wrangler dev` on :8787
+# (one workerd, shared Durable Object storage) — there is no per-test
+# backend isolation, so running them in parallel is pure contention, not
+# speed. On GitHub Actions' shared runners that contention starved the
+# room's Yjs sync / MESSAGE_WORKSPACE_META broadcasts past the tests' own
+# poll windows, failing the sync-heavy specs (doc-created-mid-session,
+# second-doc-content, suggestion round-trip) on 3 consecutive PRs that
+# never touched collab code, each green on a plain rerun. Serial is both
+# correct (shared mutable backend) and stable.
+npx playwright test --project=collab --workers=1

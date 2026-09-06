@@ -212,7 +212,12 @@ test("a document created after both collaborators are already connected appears 
   const secondDocId = await alice.evaluate(() => localStorage.getItem("mde:active"));
 
   await expect
-    .poll(() => bob.evaluate((id) => JSON.parse(localStorage.getItem("mde:docs") || "[]").some((d: { id: string }) => d.id === id), secondDocId))
+    .poll(() => bob.evaluate((id) => JSON.parse(localStorage.getItem("mde:docs") || "[]").some((d: { id: string }) => d.id === id), secondDocId), {
+      // The mid-session doc-list push is one MESSAGE_WORKSPACE_META
+      // round-trip through the room — headroom for a cold Worker on a
+      // slow CI runner (the content poll right below already allows 15s).
+      timeout: 15000,
+    })
     .toBe(true);
 
   await expect

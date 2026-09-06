@@ -57,6 +57,12 @@ export default defineConfig({
       // wrangler dev is started separately by tests/scripts/e2e-collab.sh
       // (Task 11), after applying the dev-login patch — outside
       // Playwright's own webServer lifecycle entirely.
+      //
+      // Runs serially: e2e-collab.sh passes `--workers=1`. Every test here
+      // shares that one wrangler dev + its Durable Object storage, so
+      // parallelism buys no isolation, only contention — which starved the
+      // sync-heavy specs on CI's shared runners. See that script's comment.
+      fullyParallel: false,
     },
   ],
 });

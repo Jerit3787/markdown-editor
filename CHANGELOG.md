@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.9] - 2026-09-07
+
+### Changed
+
+- Expanded automated test coverage for find & replace (`docs/TEST-COVERAGE.md` §7, now fully covered): match navigation and wrap-around, replace-one versus replace-all, regex capture-group substitution, the whole-word toggle, and the query resetting when the bar is reopened.
+
 ## [1.45.8] - 2026-09-06
 
 ### Changed

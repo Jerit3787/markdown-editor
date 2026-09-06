@@ -591,6 +591,61 @@ describe("planPush", () => {
     const plan = await planPush(docs, entries, true);
     expect(plan.deletions).toEqual([]);
   });
+
+  it("on a workspace-owned repo, sweeps an assets/<slug>/ folder whose doc no longer exists at all", async () => {
+    const docs = [
+      fakeDoc({
+        id: "d1",
+        name: "README",
+        repoPath: "README.md",
+        repoSha: "s1",
+        content: "![p](pic.png)",
+        images: { "pic.png": "data:image/png;base64,aGk=" },
+      }),
+    ];
+    const entries: TreeEntry[] = [
+      { path: "README.md", sha: "s1", type: "blob" },
+      { path: "assets/README/pic.png", sha: "aa", type: "blob" }, // live doc still references this
+      { path: "assets/readme/old.png", sha: "bb", type: "blob" }, // dead slug — no readme.md, no live doc
+      { path: "assets/readme-2/a.png", sha: "cc", type: "blob" },
+      { path: "assets/readme-2/b.png", sha: "dd", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, true);
+    expect(plan.deletions).toEqual(expect.arrayContaining(["assets/readme/old.png", "assets/readme-2/a.png", "assets/readme-2/b.png"]));
+    expect(plan.deletions).not.toContain("assets/README/pic.png");
+  });
+
+  it("also sweeps a dead slug's leftover .mde/history/<slug>.json", async () => {
+    const entries: TreeEntry[] = [
+      { path: "kept.md", sha: "s1", type: "blob" },
+      { path: "assets/gone/x.png", sha: "aa", type: "blob" },
+      { path: ".mde/history/gone.json", sha: "hh", type: "blob" },
+    ];
+    const docs = [fakeDoc({ id: "d1", name: "kept", repoPath: "kept.md", repoSha: "s1", content: "hi" })];
+    const plan = await planPush(docs, entries, true);
+    expect(plan.deletions).toEqual(expect.arrayContaining(["assets/gone/x.png", ".mde/history/gone.json"]));
+  });
+
+  it("does NOT sweep a dead-looking assets/<slug>/ folder on a first link (not a workspace-owned repo)", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "mine", repoPath: "mine.md", repoSha: "s1", content: "hi" })];
+    const entries: TreeEntry[] = [
+      { path: "mine.md", sha: "s1", type: "blob" },
+      { path: "assets/theirs/pic.png", sha: "aa", type: "blob" }, // pre-existing repo content, never pulled
+    ];
+    const plan = await planPush(docs, entries, false);
+    expect(plan.deletions).toEqual([]);
+  });
+
+  it("does NOT sweep assets/<slug>/ when a matching <slug>.md exists in the tree (pre-existing, not yet pulled)", async () => {
+    const docs = [fakeDoc({ id: "d1", name: "mine", repoPath: "mine.md", repoSha: "s1", content: "hi" })];
+    const entries: TreeEntry[] = [
+      { path: "mine.md", sha: "s1", type: "blob" },
+      { path: "guide.md", sha: "g1", type: "blob" }, // a doc that exists but hasn't been pulled into this workspace
+      { path: "assets/guide/pic.png", sha: "aa", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, true);
+    expect(plan.deletions).toEqual([]);
+  });
 });
 
 describe("planCreateWorkspaceFromRepo", () => {

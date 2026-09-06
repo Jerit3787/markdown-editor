@@ -16,7 +16,6 @@ test("toolbar groups insert-type buttons with separators, Command Palette set ap
   expect(items.slice(tailStart)).toEqual([
     "Link (Ctrl+K)",
     "Image",
-    "Manage images",
     "sep",
     "Table",
     "Horizontal rule",

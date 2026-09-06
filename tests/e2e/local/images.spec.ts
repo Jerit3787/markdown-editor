@@ -41,12 +41,14 @@ test("insertImageWithUpload with an onError callback reports oversize and writes
   expect(result.after).not.toContain("image too large");
 });
 
-test("clicking the toolbar Insert image button opens the Images modal", async ({ page }) => {
+test("the toolbar Image button opens the tabbed picker", async ({ page }) => {
   await page.click('button[title="Image"]');
-  await expect(page.getByText("Images in this document")).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Upload" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Existing/ })).toBeVisible();
 });
 
-test("clicking a thumbnail in the Images modal inserts a reference and closes the modal", async ({ page }) => {
+test("picking an existing image from the picker inserts a reference and closes", async ({ page }) => {
   await page.evaluate(async (b64) => {
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     const file = new File([bytes], "pixel.png", { type: "image/png" });
@@ -60,24 +62,24 @@ test("clicking a thumbnail in the Images modal inserts a reference and closes th
   });
 
   await page.click('button[title="Image"]');
-  await expect(page.getByText("Images in this document")).toBeVisible();
-  await page.click(".image-item img");
+  await page.getByRole("tab", { name: /Existing/ }).click();
+  await page.click(".image-picker-item");
 
-  await expect(page.getByText("Images in this document")).not.toBeVisible();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("![pixel](pixel.png)![pixel](pixel.png)");
 });
 
-test("Upload new image button inside the modal inserts a new image and closes the modal", async ({ page }) => {
+test("uploading via the picker's Upload tab inserts a new image and closes", async ({ page }) => {
   await page.click('button[title="Image"]');
-  await expect(page.getByText("Images in this document")).toBeVisible();
+  await page.getByRole("tab", { name: "Upload" }).click();
 
-  await page.locator("#imagesUploadInput").setInputFiles({
+  await page.locator('#image-picker-modal-mount input[type="file"]').setInputFiles({
     name: "pixel.png",
     mimeType: "image/png",
     buffer: Buffer.from(PIXEL_PNG_BASE64, "base64"),
   });
 
-  await expect(page.getByText("Images in this document")).not.toBeVisible();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toMatch(/!\[pixel\]\(pixel\.png\)/);
 });
 
@@ -90,8 +92,8 @@ test("Replace on a row overwrites the same key without changing the document tex
   await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toMatch(/!\[pixel\]\(pixel\.png\)/);
   const originalText = await page.evaluate(() => window.MDE.getEditor().state.doc.toString());
 
-  await page.click('button[title="Image"]');
-  await expect(page.getByText("Images in this document")).toBeVisible();
+  await page.evaluate(() => window.MDE.openManageImages());
+  await expect(page.getByRole("heading", { name: "Manage images" })).toBeVisible();
   await page.click('button[aria-label="Replace pixel.png"]');
 
   const RED_PIXEL_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -101,7 +103,7 @@ test("Replace on a row overwrites the same key without changing the document tex
     buffer: Buffer.from(RED_PIXEL_PNG_BASE64, "base64"),
   });
 
-  await expect(page.getByText("Images in this document")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Manage images" })).toBeVisible();
 
   const finalText = await page.evaluate(() => window.MDE.getEditor().state.doc.toString());
   expect(finalText).toBe(originalText);
@@ -126,8 +128,8 @@ test("Replacing with an oversized file shows an error and leaves the original im
     return docs[0]?.images ?? {};
   });
 
-  await page.click('button[title="Image"]');
-  await expect(page.getByText("Images in this document")).toBeVisible();
+  await page.evaluate(() => window.MDE.openManageImages());
+  await expect(page.getByRole("heading", { name: "Manage images" })).toBeVisible();
   await page.click('button[aria-label="Replace pixel.png"]');
 
   await page.locator("#imagesReplaceInput").setInputFiles({
@@ -142,6 +144,32 @@ test("Replacing with an oversized file shows an error and leaves the original im
     return docs[0]?.images ?? {};
   });
   expect(imagesAfter["pixel.png"]).toBe(originalImages["pixel.png"]);
+});
+
+test("the toolbar has exactly one image button and no separate manage button", async ({ page }) => {
+  await expect(page.locator('button[title="Image"]')).toHaveCount(1);
+  await expect(page.locator("#imagesManagerBtn")).toHaveCount(0);
+});
+
+test("the Insert menu has both 'Image...' and 'Manage Images...'", async ({ page }) => {
+  await page.click("#insertMenuBtn");
+  await expect(page.locator("#menuImage")).toHaveText(/Image\.\.\./);
+  await expect(page.locator("#menuManageImages")).toHaveText(/Manage Images\.\.\./);
+});
+
+test("dropping an oversized image on the picker drop zone shows an inline error and writes no marker", async ({ page }) => {
+  const before = await page.evaluate(() => window.MDE.getEditor().state.doc.toString());
+  await page.click('button[title="Image"]');
+  await page.getByRole("tab", { name: "Upload" }).click();
+  await page.evaluate(() => {
+    const dz = document.querySelector(".image-dropzone")!;
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array(3 * 1024 * 1024)], "huge.png", { type: "image/png" }));
+    dz.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
+  });
+  await expect(page.getByRole("alert")).toContainText("over the 2 MB limit");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe(before);
 });
 
 async function dropFile(page: import("@playwright/test").Page, name: string, type: string, bytes: number[] | number) {

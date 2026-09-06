@@ -48,7 +48,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 3. Markdown dialects               |      25 |       0 |    0 |    25 |
 | 4. Documents, workspaces & multi-tab |    24 |       0 |    0 |    24 |
 | 5. Images                          |      14 |       0 |    1 |    15 |
-| 6. Export & print                  |       6 |       2 |    4 |    12 |
+| 6. Export & print                  |      12 |       0 |    0 |    12 |
 | 7. Find & replace / search         |      11 |       0 |    5 |    16 |
 | 8. Version history & diff view     |      11 |       0 |    8 |    19 |
 | 9. Comments                        |      11 |       1 |    7 |    19 |
@@ -57,11 +57,11 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
 | 13. Mobile                         |       8 |       1 |    6 |    15 |
 | 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **228** |  **19** | **60** | **307** |
+| **Total**                          | **234** |  **17** | **56** | **307** |
 
-~74% of enumerated scenarios have a test asserting their outcome, ~6%
-are partial, ~20% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phases 1–5 done — §1–§4 fully covered, §5 images all but the one
+~76% of enumerated scenarios have a test asserting their outcome, ~6%
+are partial, ~18% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phases 1–6 done — §1–§4 and §6 fully covered, §5 all but one
 e2e-collab row). The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
@@ -224,14 +224,14 @@ _Source: export / print logic in `client/src/app.ts` (`exportAs`, `exportPdf`, `
 
 | ID     | Scenario                                                                                          | Level | Status  | Test                                | Notes                                                                                    |
 | ------ | --------------------------------------------------------------------------------------------- | ----- | ------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
-| EXP-01 | `.md` export resolves diagram refs to their source and image refs to data URIs, then re-serializes the metadata and citations blocks | e2e | gap | —                                 | the entire `md` branch of `exportAs` is untested; fidelity-critical                     |
-| EXP-02 | `.md` export → import round-trip preserves metadata, citations, images, and diagrams             | e2e   | gap     | —                                  | cross-ref MDX-22                                                                        |
-| EXP-03 | `.txt` export downloads `<base>.txt` containing the preview's rendered text (no markdown syntax)  | e2e   | partial | `tests/e2e/local/export.spec.ts`    | filename asserted; text-content shape not                                               |
+| EXP-01 | `.md` export resolves diagram refs to their source and image refs to data URIs, then re-serializes the metadata and citations blocks | e2e | covered | `tests/e2e/local/export.spec.ts` | diagram source (not ref key), image → data URI, metadata + citation blocks all present |
+| EXP-02 | `.md` export → import round-trip preserves metadata, citations, images, and diagrams             | e2e | covered | `tests/e2e/local/export.spec.ts` | exported .md → createDoc → body + metadata match |
+| EXP-03 | `.txt` export downloads `<base>.txt` containing the preview's rendered text (no markdown syntax)  | e2e | covered | `tests/e2e/local/export.spec.ts` | rendered text present, no `# ` / `**` / `_x_` markdown |
 | EXP-04 | `.html` export downloads a standalone document with the rendered diagram SVG, not the raw fence   | e2e   | covered | `tests/e2e/local/export.spec.ts`    |                                                                                        |
-| EXP-05 | `.html` export inlines the stylesheet (incl. KaTeX CSS) so the file renders correctly opened alone | e2e  | partial | `tests/e2e/local/export.spec.ts`    | `<svg>` presence only; not that styles are inlined                                      |
-| EXP-06 | `.html` export escapes the document body so it can't inject markup into the exported file        | unit  | gap     | —                                  | `buildStandaloneHtml` escaping                                                          |
+| EXP-05 | `.html` export inlines the stylesheet (incl. KaTeX CSS) so the file renders correctly opened alone | e2e | covered | `tests/e2e/local/export.spec.ts` | `<style>…body{` inlined; `.katex` CSS present when the doc has math |
+| EXP-06 | `.html` export escapes the document body so it can't inject markup into the exported file        | e2e | covered | `tests/e2e/local/export.spec.ts` | `<title>` markup-free (currentFileBase + escapeHtml); a `</style>` in custom export CSS is escaped |
 | EXP-07 | `.pdf` export downloads `<base>.pdf`                                                              | e2e   | covered | `tests/e2e/local/export.spec.ts`    |                                                                                        |
-| EXP-08 | Export filename derives from the document name, sanitized (`currentFileBase`)                     | e2e   | gap     | —                                  | tests only assert the extension, never the base name                                    |
+| EXP-08 | Export filename derives from the document name, sanitized (`currentFileBase`)                     | e2e | covered | `tests/e2e/local/export.spec.ts` | `currentFileBase` collapses each run of `\ / : * ? " < > |` to one `-`, keeps spaces |
 | EXP-09 | txt / html / pdf export awaits `flushPreviewRenders` so a just-pasted diagram / formula isn't exported as raw source | e2e | covered | `tests/e2e/local/export.spec.ts` | the "not `\`\`\`mermaid`" assertion in EXP-04                                            |
 | EXP-10 | Print media hides all app chrome and shows the preview regardless of the current view mode        | e2e   | covered | `tests/e2e/local/print.spec.ts`     |                                                                                        |
 | EXP-11 | The printed page shows the document title as a heading that is hidden on screen                   | e2e   | covered | `tests/e2e/local/print.spec.ts`     |                                                                                        |

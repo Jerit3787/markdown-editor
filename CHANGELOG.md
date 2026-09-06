@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.0] - 2026-09-07
+
+### Added
+
+- **A tabbed image picker.** The toolbar "Image" button and the Insert menu's "Image..." now open a dedicated picker with an **Upload** tab (drop files onto the modal or pick from your device, several at once) and an **Existing** tab (re-insert an image already in the document with one click). Oversized files are flagged inline in the modal instead of leaving a "too large" marker in your text.
+
+### Changed
+
+- **The image toolbar/menu is consolidated.** The redundant "Manage images" toolbar button is removed — image management (Replace, Delete, storage size, "not used in this document") now lives in its own **Manage Images...** modal, reached from the Insert menu. The toolbar keeps a single "Image" button.
+
 ## [1.45.12] - 2026-09-07
 
 ### Fixed

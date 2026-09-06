@@ -47,7 +47,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 2. Preview, scroll-sync & rendering |     22 |       1 |    0 |    23 |
 | 3. Markdown dialects               |      25 |       0 |    0 |    25 |
 | 4. Documents, workspaces & multi-tab |    24 |       0 |    0 |    24 |
-| 5. Images                          |      14 |       0 |    1 |    15 |
+| 5. Images                          |      18 |       0 |    1 |    19 |
 | 6. Export & print                  |      12 |       0 |    0 |    12 |
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      11 |       0 |    8 |    19 |
@@ -57,7 +57,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
 | 13. Mobile                         |       8 |       1 |    6 |    15 |
 | 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **239** |  **17** | **51** | **307** |
+| **Total**                          | **243** |  **17** | **51** | **311** |
 
 ~78% of enumerated scenarios have a test asserting their outcome, ~6%
 are partial, ~17% are gaps (was 59/10/31 at the v1.45.2 first pass;
@@ -198,7 +198,7 @@ _Source: `client/src/stores/docs.ts`, `client/src/stores/workspaces.ts`, `client
 
 ## 5. Images
 
-_Source: image paste/drop/pick paths in `client/src/app.ts`, `client/src/components/Editor.svelte` (`insertImageWithUpload`, `MAX_IMAGE_BYTES`, paste/drop handlers), `client/src/image-key.ts`, `client/src/components/ImagesModal.svelte`_
+_Source: image paste/drop/pick paths in `client/src/app.ts`, `client/src/components/Editor.svelte` (`insertImageWithUpload`, `MAX_IMAGE_BYTES`, paste/drop handlers), `client/src/image-key.ts`, `client/src/components/ImagePickerModal.svelte`, `client/src/components/ManageImagesModal.svelte`_
 
 | ID     | Scenario                                                                                          | Level | Status  | Test                                    | Notes                                                                            |
 | ------ | --------------------------------------------------------------------------------------------- | ----- | ------- | -------------------------------------- | ---------------------------------------------------------------------------- |
@@ -209,14 +209,18 @@ _Source: image paste/drop/pick paths in `client/src/app.ts`, `client/src/compone
 | IMG-05 | A non-image paste / drop payload is ignored (the `image/` type filter)                            | e2e | covered | `tests/e2e/local/images.spec.ts` | a dropped `text/plain` file is ignored — no marker, no ref |
 | IMG-06 | The `![Encoding name…]()` placeholder is replaced in place once the `FileReader` resolves, its position tracked across concurrent edits | e2e-collab | gap | —                                | deferred to §10 — needs a live shared doc; see ## Deferred |
 | IMG-07 | Switching documents mid-encode drops the pending image instead of writing it to the wrong doc    | e2e | covered | `tests/e2e/local/images.spec.ts` | switchDoc before the ~500KB read resolves → image lands in neither doc, no stray placeholder |
-| IMG-08 | Toolbar / Insert-menu image button opens the Images modal                                         | e2e   | covered | `tests/e2e/local/images.spec.ts`        |                                                                            |
-| IMG-09 | Clicking a thumbnail in the Images modal inserts `![alt](key)` and closes the modal              | e2e   | covered | `tests/e2e/local/images.spec.ts`        |                                                                            |
-| IMG-10 | "Upload new image" inside the modal inserts a new image and closes the modal                      | e2e   | covered | `tests/e2e/local/images.spec.ts`        |                                                                            |
-| IMG-11 | "Replace" on a row overwrites the same key without changing the document text; an oversized replacement errors and leaves the original untouched | e2e | covered | `tests/e2e/local/images.spec.ts` | in-place image replacement (v1.32.0)                                        |
-| IMG-12 | Deleting an image from the Images modal removes it from the doc's image map and refreshes the list | component | covered | `tests/client/src/components/ImagesModal.test.ts` | delete row → removed from `doc.images` + the list (confirmAction mocked) |
-| IMG-13 | The Images modal shows each image's size (`formatBytes`)                                          | component | covered | `tests/client/src/components/ImagesModal.test.ts` | `.image-size` shows `formatBytes` output per row |
+| IMG-08 | Toolbar "Image" button / Insert-menu "Image..." opens the tabbed picker (Upload + Existing tabs)   | e2e   | covered | `tests/e2e/local/images.spec.ts`        | picker opens with both tabs; toolbar has exactly one image button          |
+| IMG-09 | Picking a thumbnail on the picker's Existing tab inserts `![alt](key)` and closes the modal        | e2e   | covered | `tests/e2e/local/images.spec.ts`, `tests/client/src/components/ImagePickerModal.test.ts` |                                        |
+| IMG-10 | The picker's Upload tab inserts a new image (device pick or in-modal drop) and closes; several files at once | e2e | covered | `tests/e2e/local/images.spec.ts`, `tests/client/src/components/ImagePickerModal.test.ts` | hidden `input[type=file] multiple` + `.image-dropzone` drop      |
+| IMG-11 | "Replace" on a Manage Images row overwrites the same key without changing the document text; an oversized replacement errors and leaves the original untouched | e2e | covered | `tests/e2e/local/images.spec.ts` | reached via `openManageImages()`; in-place image replacement (v1.32.0)     |
+| IMG-12 | Deleting an image from Manage Images removes it from the doc's image map and refreshes the list   | component | covered | `tests/client/src/components/ManageImagesModal.test.ts` | delete row → removed from `doc.images` + the list (confirmAction mocked) |
+| IMG-13 | Manage Images shows each image's size (`formatBytes`)                                             | component | covered | `tests/client/src/components/ManageImagesModal.test.ts` | `.image-size` shows `formatBytes` output per row |
 | IMG-14 | Pasting the same file twice creates two distinct keys (`name` then `name-2`) — there is no content-hash dedup | unit | covered | `tests/client/src/image-key.test.ts` | same filename → `photo.png` / `photo-2.png` / `photo-3.png`, no content dedup |
 | IMG-15 | `![](key)` references resolve to their data URI in the rendered preview                           | e2e | covered | `tests/e2e/local/images.spec.ts` | `#preview img[alt]` has `src` = the resolved `data:` URI |
+| IMG-16 | The picker's default tab is Existing when the doc already has images, Upload when it has none — recomputed on every open | component | covered | `tests/client/src/components/ImagePickerModal.test.ts` | no persisted tab state |
+| IMG-17 | An oversized file in the picker's Upload tab shows an inline `role="alert"` error, keeps the modal open, and writes no `![… too large]()` marker | e2e, component | covered | `tests/e2e/local/images.spec.ts`, `tests/client/src/components/ImagePickerModal.test.ts` | `insertImageWithUpload`'s `onError` path |
+| IMG-18 | A non-image file in the picker's Upload tab is rejected inline and never reaches `insertImageWithUpload` | component | covered | `tests/client/src/components/ImagePickerModal.test.ts` | `file.type.startsWith("image/")` filter |
+| IMG-19 | The picker's Existing empty state links back to the Upload tab; Manage Images thumbnails are non-interactive and it has no upload button | e2e, component | covered | `tests/client/src/components/ImagePickerModal.test.ts`, `tests/client/src/components/ManageImagesModal.test.ts`, `tests/e2e/local/images.spec.ts` | Insert menu carries both "Image..." and "Manage Images..." |
 
 ## 6. Export & print
 

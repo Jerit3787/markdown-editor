@@ -38,7 +38,15 @@ test.describe("markdown export", () => {
   }
 
   test("EXP-01: resolves a diagram ref to its source, an image ref to a data URI, and re-serializes metadata + citations", async ({ page }) => {
+    // Insert the image first and wait for the FileReader to land it in
+    // the doc's image map, so nothing async is still in flight at export.
     await page.evaluate(async (b64) => {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      await window.MDE.insertImageWithUpload!(new File([bytes], "pic.png", { type: "image/png" }));
+    }, PIXEL);
+    await expect.poll(() => page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem("mde:docs") || "[]")[0]?.images ?? {}))).toContain("pic.png");
+
+    await page.evaluate(async () => {
       const { setDocDiagram, setActiveDocMetadata, setActiveDocCitations } = await import("/src/stores/docs.ts");
       setDocDiagram("dkey", "flowchart TD\n  A --> B");
       setActiveDocMetadata([{ key: "Title", value: "Exported" }]);
@@ -46,10 +54,6 @@ test.describe("markdown export", () => {
         prefs: { markerStyle: "pandoc", bibliographySource: "structured", displayStyle: "numbered" },
         bibliography: [{ key: "S1", author: "Smith", year: "2020", text: "A Title." }],
       });
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-      await window.MDE.insertImageWithUpload!(new File([bytes], "pic.png", { type: "image/png" }));
-    }, PIXEL);
-    await page.evaluate(() => {
       const v = window.MDE.getEditor();
       v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: "See [@S1].\n\n![pic](pic.png)\n\n```mermaid\ndkey\n```" } });
     });

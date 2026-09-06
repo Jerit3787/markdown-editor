@@ -47,7 +47,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 2. Preview, scroll-sync & rendering |     22 |       1 |    0 |    23 |
 | 3. Markdown dialects               |      25 |       0 |    0 |    25 |
 | 4. Documents, workspaces & multi-tab |    24 |       0 |    0 |    24 |
-| 5. Images                          |       6 |       2 |    7 |    15 |
+| 5. Images                          |      14 |       0 |    1 |    15 |
 | 6. Export & print                  |       6 |       2 |    4 |    12 |
 | 7. Find & replace / search         |      11 |       0 |    5 |    16 |
 | 8. Version history & diff view     |      11 |       0 |    8 |    19 |
@@ -57,12 +57,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
 | 13. Mobile                         |       8 |       1 |    6 |    15 |
 | 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **220** |  **21** | **66** | **307** |
+| **Total**                          | **228** |  **19** | **60** | **307** |
 
-~72% of enumerated scenarios have a test asserting their outcome, ~7%
-are partial, ~21% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phases 1–4 closed §1–§4 — editor, preview, dialects, and
-documents/workspaces are each now fully covered). The pure-logic layers (stores, CRDT/room
+~74% of enumerated scenarios have a test asserting their outcome, ~6%
+are partial, ~20% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phases 1–5 done — §1–§4 fully covered, §5 images all but the one
+e2e-collab row). The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
 (modals, menus, the Command Palette, DiagramEditor), the `.md` export
@@ -204,19 +204,19 @@ _Source: image paste/drop/pick paths in `client/src/app.ts`, `client/src/compone
 | ------ | --------------------------------------------------------------------------------------------- | ----- | ------- | -------------------------------------- | ---------------------------------------------------------------------------- |
 | IMG-01 | `imageKey` sanitizes the filename (spaces → hyphens, unsafe chars stripped, periods kept), suffixes `-2` on collision, falls back to a default base/extension | unit | covered | `tests/client/src/image-key.test.ts` | a filename-sanitization bug (not a rendering bug) was why images "couldn't be imported" |
 | IMG-02 | Pasting an image embeds it as a `![](key)` ref resolving to a data URI                            | e2e   | covered | `tests/e2e/local/images.spec.ts`        |                                                                            |
-| IMG-03 | Dropping an image file onto the editor embeds it at the drop position                             | e2e   | gap     | —                                       | `drop` handler in `Editor.svelte`; only paste is tested                     |
-| IMG-04 | An oversized (>2 MB) image inserts the `image too large, 2MB max` marker instead of uploading — on both paste and drop | e2e | partial | `tests/e2e/local/images.spec.ts` | paste path covered; drop path not                                           |
-| IMG-05 | A non-image paste / drop payload is ignored (the `image/` type filter)                            | e2e   | gap     | —                                       |                                                                            |
-| IMG-06 | The `![Encoding name…]()` placeholder is replaced in place once the `FileReader` resolves, its position tracked across concurrent edits | e2e-collab | gap | —                                | live-tracked range in `Editor.svelte`                                       |
-| IMG-07 | Switching documents mid-encode drops the pending image instead of writing it to the wrong doc    | e2e   | gap     | —                                       | `if (!range) return` in `Editor.svelte`                                     |
+| IMG-03 | Dropping an image file onto the editor embeds it at the drop position                             | e2e | covered | `tests/e2e/local/images.spec.ts` | real `drop` DragEvent embeds the image |
+| IMG-04 | An oversized (>2 MB) image inserts the `image too large, 2MB max` marker instead of uploading — on both paste and drop | e2e | covered | `tests/e2e/local/images.spec.ts` | oversized on drop → too-large marker (paste path already covered) |
+| IMG-05 | A non-image paste / drop payload is ignored (the `image/` type filter)                            | e2e | covered | `tests/e2e/local/images.spec.ts` | a dropped `text/plain` file is ignored — no marker, no ref |
+| IMG-06 | The `![Encoding name…]()` placeholder is replaced in place once the `FileReader` resolves, its position tracked across concurrent edits | e2e-collab | gap | —                                | deferred to §10 — needs a live shared doc; see ## Deferred |
+| IMG-07 | Switching documents mid-encode drops the pending image instead of writing it to the wrong doc    | e2e | covered | `tests/e2e/local/images.spec.ts` | switchDoc before the ~500KB read resolves → image lands in neither doc, no stray placeholder |
 | IMG-08 | Toolbar / Insert-menu image button opens the Images modal                                         | e2e   | covered | `tests/e2e/local/images.spec.ts`        |                                                                            |
 | IMG-09 | Clicking a thumbnail in the Images modal inserts `![alt](key)` and closes the modal              | e2e   | covered | `tests/e2e/local/images.spec.ts`        |                                                                            |
 | IMG-10 | "Upload new image" inside the modal inserts a new image and closes the modal                      | e2e   | covered | `tests/e2e/local/images.spec.ts`        |                                                                            |
 | IMG-11 | "Replace" on a row overwrites the same key without changing the document text; an oversized replacement errors and leaves the original untouched | e2e | covered | `tests/e2e/local/images.spec.ts` | in-place image replacement (v1.32.0)                                        |
-| IMG-12 | Deleting an image from the Images modal removes it from the doc's image map and refreshes the list | component | gap  | —                                       | `deleteDocImage`                                                            |
-| IMG-13 | The Images modal shows each image's size (`formatBytes`)                                          | component | gap     | —                                       |                                                                            |
-| IMG-14 | Pasting the same file twice creates two distinct keys (`name` then `name-2`) — there is no content-hash dedup | unit | gap  | —                                       | pins actual behavior; `imageKey` is filename-based                          |
-| IMG-15 | `![](key)` references resolve to their data URI in the rendered preview                           | e2e   | partial | `tests/e2e/local/images.spec.ts`        | implied by IMG-02's data-URI assertion; not a dedicated check              |
+| IMG-12 | Deleting an image from the Images modal removes it from the doc's image map and refreshes the list | component | covered | `tests/client/src/components/ImagesModal.test.ts` | delete row → removed from `doc.images` + the list (confirmAction mocked) |
+| IMG-13 | The Images modal shows each image's size (`formatBytes`)                                          | component | covered | `tests/client/src/components/ImagesModal.test.ts` | `.image-size` shows `formatBytes` output per row |
+| IMG-14 | Pasting the same file twice creates two distinct keys (`name` then `name-2`) — there is no content-hash dedup | unit | covered | `tests/client/src/image-key.test.ts` | same filename → `photo.png` / `photo-2.png` / `photo-3.png`, no content dedup |
+| IMG-15 | `![](key)` references resolve to their data URI in the rendered preview                           | e2e | covered | `tests/e2e/local/images.spec.ts` | `#preview img[alt]` has `src` = the resolved `data:` URI |
 
 ## 6. Export & print
 
@@ -490,3 +490,4 @@ pointing at real bugs awaiting a fix branch.
 | ID     | Scenario                                                                 | Why deferred                                                                                                                                                                              |
 | ------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | CMT-13 | Reply-to / resolve a comment thread is "broken in practice" (`IMPROVEMENTS.md` Phase 1, confirmed 2026-08-13) | Server routes have passing tests; no repro found by code review. Needs an `e2e-collab` test with two GitHub-authenticated roles (reviewer + editor) exercising reply + resolve on a real shared doc to either reproduce or close it. Write that test in the §10 phase; if it fails, it becomes a bug-fix branch of its own. |
+| IMG-06 | The `![Encoding name…]()` placeholder tracks its position as a collaborator's concurrent edits land during the `FileReader` window | `e2e-collab`, deferred to the §10 phase — needs a second live editor making edits while the file reads. The single-editor half (a doc switch mid-read drops the pending image, `if (!range) return`) is covered by IMG-07. |

@@ -462,6 +462,17 @@ async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: s
   if (seedDocId && !docIds.includes(seedDocId)) {
     createDocBinding(seedDocId, role);
     seedDocBindingFromEditor(seedDocId);
+    // Registered with the room only now — after the check above already
+    // decided to seed, and before connectWorkspace() opens the socket.
+    // Registering any earlier would make the check above see this docId
+    // as already-known and skip seeding it entirely (a real regression:
+    // see setAccessMode's own comment). Registering any later would leave
+    // a window where the room's very first (synchronous, at-accept-time)
+    // greeting back to this same connection reports a docOrder without
+    // this docId yet — which applyWorkspaceMeta would read as "removed
+    // elsewhere" and delete the binding this line just seeded.
+    await registerDocWithRoom(workspaceId, seedDocId);
+    if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-register
   }
 
   connectWorkspace();
@@ -1388,10 +1399,18 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
     // here too, or it's silently left unsynced and never reaches anyone
     // who joins the link afterward.
     const siblings = get(docsStore).filter((d) => d.workspaceId === doc.workspaceId && d.id !== doc.id);
-    // Register every one of them (including the active doc) with the
-    // room before connecting at all — see registerDocWithRoom's own
-    // comment for why this has to happen before the socket opens.
-    await Promise.all([doc.id, ...siblings.map((d) => d.id)].map((docId) => registerDocWithRoom(doc.workspaceId, docId)));
+    // Register every sibling with the room before connecting at all — see
+    // registerDocWithRoom's own comment for why this has to happen before
+    // the socket opens. The active doc is deliberately NOT pre-registered
+    // here: joinWorkspace's own seedDocId handling only pushes this
+    // session's live, not-yet-synced editor content via
+    // seedDocBindingFromEditor when the room doesn't already know this
+    // docId (see its own comment) — pre-registering it here made that
+    // check see the docId as already-known and silently skip seeding it,
+    // leaving the room with an empty Y.Doc for the very document being
+    // shared (confirmed live: every collaborator who joined afterward saw
+    // completely empty content).
+    await Promise.all(siblings.map((d) => registerDocWithRoom(doc.workspaceId, d.id)));
     await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
     bindActiveDoc(doc.id);
     for (const sibling of siblings) seedNewDocBinding(sibling.id, sibling, "editor");

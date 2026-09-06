@@ -125,3 +125,33 @@ test.describe("status bar", () => {
     await expect(page.locator("#cursorPos")).toHaveText("Ln 2, Col 3");
   });
 });
+
+test.describe("link modal insertion", () => {
+  const insertBtn = (page: Page) => page.locator("#link-modal-mount button.primary-btn");
+
+  test("Insert writes [text](url) at the selection", async ({ page }) => {
+    await setDoc(page, "");
+    await page.click('button[title^="Link"]');
+    await page.fill('input[placeholder="Link text"]', "Anthropic");
+    await page.fill('input[placeholder="https://example.com"]', "https://anthropic.com");
+    await insertBtn(page).click();
+    await expect.poll(() => doc(page)).toBe("[Anthropic](https://anthropic.com)");
+  });
+
+  test("empty fields fall back to 'link text' and 'https://'", async ({ page }) => {
+    await setDoc(page, "");
+    await page.click('button[title^="Link"]');
+    await insertBtn(page).click();
+    await expect.poll(() => doc(page)).toBe("[link text](https://)");
+  });
+
+  test("a selected word prefills the Link text field", async ({ page }) => {
+    await setDoc(page, "click here");
+    await page.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 6, head: 10 } })); // "here"
+    await page.click('button[title^="Link"]');
+    await expect(page.locator('input[placeholder="Link text"]')).toHaveValue("here");
+    await page.fill('input[placeholder="https://example.com"]', "https://x.com");
+    await insertBtn(page).click();
+    await expect.poll(() => doc(page)).toBe("click [here](https://x.com)");
+  });
+});

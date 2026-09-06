@@ -516,6 +516,27 @@ export async function planPush(
     }
   }
 
+  // Dead-slug sweep — only on a repo this workspace actually owns (its
+  // .mde/workspace.json identifies us; see checkWorkspaceMarker). An
+  // assets/<slug>/ folder or a .mde/history/<slug>.json with NO matching
+  // <slug>.md anywhere in the tree and no live doc is a leftover from a
+  // document deleted long ago — before this sweep existed, or with its
+  // pendingRepoDeletions entry already consumed. On a first link to a repo
+  // we don't own we can't tell such a folder from content we simply
+  // haven't pulled yet, so this stays gated on sameWorkspace.
+  if (sameWorkspace) {
+    const mdSlugs = new Set(filterMarkdownEntries(mdEntries).map((e) => slugFromRepoPath(e.path)));
+    for (const path of treeShaByPath.keys()) {
+      const assetMatch = /^assets\/([^/]+)\//.exec(path);
+      const historyMatch = /^\.mde\/history\/([^/]+)\.json$/.exec(path);
+      const slug = assetMatch ? assetMatch[1]! : historyMatch ? historyMatch[1]! : null;
+      if (slug === null) continue;
+      if (!mdSlugs.has(slug) && !liveSlugs.has(slug) && !plan.deletions.includes(path)) {
+        plan.deletions.push(path);
+      }
+    }
+  }
+
   return plan;
 }
 

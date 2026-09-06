@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.3] - 2026-09-07
+
+### Fixed
+
+- **`assets/<slug>/` folders for long-deleted documents never got cleaned out of a linked repo.** The earlier sweeps only fired for a document being deleted or renamed _in that same push_ (#146) or one still alive that dropped an image reference (v1.46.2) — a folder left behind by a document deleted before those fixes existed had no cleanup path. A push to a repo this workspace owns (identified by its `.mde/workspace.json`) now also removes an `assets/<slug>/` folder — and any leftover `.mde/history/<slug>.json` — when no document, live or in the repo, matches that slug. First links to a repo you don't own are left untouched, since there a stray folder is indistinguishable from content you haven't pulled yet.
+
 ## [1.46.2] - 2026-09-07
 
 ### Fixed

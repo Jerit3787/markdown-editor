@@ -97,3 +97,31 @@ test.describe("Tab indentation", () => {
     await expect.poll(() => doc(page)).toBe("x");
   });
 });
+
+test.describe("status bar", () => {
+  test("word and character counts update as the document changes", async ({ page }) => {
+    await setDoc(page, "");
+    await expect(page.locator("#charCount")).toHaveText("0 characters");
+    await expect(page.locator("#wordCount")).toHaveText("0 words");
+
+    await page.click("#editor-mount .cm-content");
+    await page.keyboard.type("hello world");
+    await expect(page.locator("#wordCount")).toHaveText("2 words");
+    await expect(page.locator("#charCount")).toHaveText("11 characters");
+
+    // Singular form for exactly one.
+    await setDoc(page, "x");
+    await page.keyboard.type(" "); // nudge a docChanged so updateCounts runs
+    await page.keyboard.press("Backspace");
+    await expect(page.locator("#charCount")).toHaveText("1 character");
+    await expect(page.locator("#wordCount")).toHaveText("1 word");
+  });
+
+  test("cursor position reflects the caret's line and column", async ({ page }) => {
+    await setDoc(page, "abc\ndefgh");
+    await page.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 0 } }));
+    await expect(page.locator("#cursorPos")).toHaveText("Ln 1, Col 1");
+    await page.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 6 } })); // 2 chars into line 2
+    await expect(page.locator("#cursorPos")).toHaveText("Ln 2, Col 3");
+  });
+});

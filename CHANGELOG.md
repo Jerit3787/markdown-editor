@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.8] - 2026-09-06
+
+### Changed
+
+- Expanded automated test coverage for export (`docs/TEST-COVERAGE.md` §6, now fully covered): `.md` export fidelity (diagram source, image data URIs, metadata and citation blocks) and its re-import round-trip, `.txt` rendered-text content, `.html` stylesheet inlining, break-out safety (title and custom-CSS escaping), and export filename sanitization.
+
 ## [1.45.7] - 2026-09-06
 
 ### Changed

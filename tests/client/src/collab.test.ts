@@ -739,6 +739,37 @@ describe("shared document name sync", () => {
     expect(sibling?.ytext.toString()).toBe("sibling content");
     expect(sibling?.metaMap.get("name")).toBe("Sibling Doc");
   });
+
+  // Regression: bindActiveDoc reconciles the editor against a freshly-
+  // seeded (empty) ytext right after awaiting whenSynced but BEFORE
+  // yCollab attaches. Content typed into the editor during that window
+  // used to be wiped by the reconcile and never reached the Y.Doc, so a
+  // collaborator saw an empty document. A locally-seeded binding whose
+  // ytext is still empty must instead push the editor's content INTO
+  // ytext.
+  it("keeps content typed into a just-created shared doc before its binding attaches", async () => {
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    // A brand-new doc: its stored content is "", so seedNewDocBinding
+    // seeds an empty ytext. The user then types into the editor before
+    // bindActiveDoc's async reconcile runs — model that by having the
+    // editor mock report the typed content.
+    let editorContent = "";
+    (window.MDE.getEditor as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      state: { doc: { toString: () => editorContent }, readOnly: false },
+      dispatch: vi.fn(),
+    }));
+    docsStore.update((docs) => [...docs, { id: "doc-race", name: "Raced", content: "", updatedAt: 0, createdAt: 0, workspaceId: "ws1" }]);
+    activeIdStore.set("doc-race");
+    editorContent = "typed before the binding attached";
+    handleDocChanged({ id: "doc-race", name: "Raced", content: "", updatedAt: 0, createdAt: 0, workspaceId: "ws1" });
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+
+    const raced = workspaceRoom.docs.get("doc-race");
+    expect(raced).toBeDefined();
+    expect(raced?.ytext.toString()).toBe("typed before the binding attached");
+  });
 });
 
 describe("suggestion-mode role wiring", () => {

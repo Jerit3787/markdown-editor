@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.11] - 2026-09-07
+
+### Fixed
+
+- **Text typed into a brand-new shared document immediately after creating it could be lost.** `bindActiveDoc` reconciles the editor against the document's freshly-seeded (empty) collaborative text right before attaching the live-sync binding; anything typed in that sub-50ms window was overwritten by the reconcile and never reached collaborators. A locally-seeded document whose collaborative text is still empty now has the editor's content pushed _into_ it instead.
+
 ## [1.45.10] - 2026-09-07
 
 ### Fixed

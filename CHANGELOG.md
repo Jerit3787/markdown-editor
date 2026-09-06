@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.5] - 2026-09-06
+
+### Changed
+
+- Expanded automated test coverage for markdown dialects (`docs/TEST-COVERAGE.md` §3, now fully covered): the backlinks panel, wikilink and slash menu keyboard navigation, metadata staying out of the rendered preview, citation display-style (numbered vs author-year) and marker-style (`[@key]` vs `[#key]`) switching, and MultiMarkdown syntax surviving a `.md` export round-trip.
+
 ## [1.45.4] - 2026-09-06
 
 ### Fixed

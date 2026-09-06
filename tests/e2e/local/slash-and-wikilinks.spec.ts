@@ -17,6 +17,19 @@ test.describe("slash commands", () => {
     await expect(page.locator('text="Table"')).toBeHidden();
     await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("/tab");
   });
+
+  test("MDX-25: ArrowDown + Enter runs the highlighted command", async ({ page }) => {
+    await page.click("#editor-mount .cm-content");
+    await page.keyboard.type("/");
+    const menu = page.locator(".slash-menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.locator("button, li")).not.toHaveCount(0);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(menu).toBeHidden();
+    // A command ran — the "/" trigger is gone from the document.
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).not.toBe("/");
+  });
 });
 
 test.describe("wikilink autocomplete", () => {
@@ -47,6 +60,18 @@ test.describe("wikilink autocomplete", () => {
     await page.keyboard.type("[[Oth");
     await page.keyboard.press("Escape");
     await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("[[Oth");
+  });
+
+  test("MDX-05: ArrowDown + Enter inserts the highlighted doc name", async ({ page }) => {
+    await page.click("#editor-mount .cm-content");
+    await page.keyboard.type("[[");
+    const menu = page.locator(".slash-menu");
+    await expect(menu).toBeVisible();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(menu).toBeHidden();
+    // A complete "[[Name]]" was inserted (non-empty name, closing brackets).
+    await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toMatch(/\[\[[^\]]+\]\]/);
   });
 
   test("clicking an existing wikilink in the preview navigates to it", async ({ page }) => {

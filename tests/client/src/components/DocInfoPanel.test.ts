@@ -5,9 +5,12 @@ import DocInfoPanel from "../../../../client/src/components/DocInfoPanel.svelte"
 import { docInfoPanelOpen } from "../../../../client/src/stores/docInfoPanel";
 import { docEditModalOpen } from "../../../../client/src/stores/docEditModalOpen";
 import { docsStore, activeIdStore } from "../../../../client/src/stores/docs";
+import { workspacesStore, activeWorkspaceIdStore } from "../../../../client/src/stores/workspaces";
 
 beforeEach(() => {
   window.MDE = { formatRelativeTime: () => "just now", updatePreview: vi.fn() } as unknown as typeof window.MDE;
+  workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0 }]);
+  activeWorkspaceIdStore.set("w1");
   docsStore.set([{ id: "d1", name: "Test", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1", metadata: [{ key: "Title", value: "Existing" }] }]);
   activeIdStore.set("d1");
   docInfoPanelOpen.set(true);
@@ -42,4 +45,27 @@ test("shows a metadata empty state when there is no metadata", async () => {
   docsStore.set([{ id: "d1", name: "Test", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1" }]);
   const screen = await render(DocInfoPanel);
   await expect.element(screen.getByText("No metadata", { exact: true })).toBeVisible();
+});
+
+test("MDX-03: lists documents that link to this one, and clicking a row switches to that doc", async () => {
+  docsStore.set([
+    { id: "d1", name: "Test", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1" },
+    { id: "d2", name: "Linker", content: "see [[Test]] here", updatedAt: 0, createdAt: 0, workspaceId: "w1" },
+  ]);
+  activeIdStore.set("d1");
+  const screen = await render(DocInfoPanel);
+
+  const row = screen.getByRole("button", { name: "Linker" });
+  await expect.element(row).toBeVisible();
+  await row.click();
+
+  expect(get(activeIdStore)).toBe("d2");
+  expect(get(docInfoPanelOpen)).toBe(false);
+});
+
+test("MDX-03: shows the 'No backlinks' empty state when nothing links here", async () => {
+  docsStore.set([{ id: "d1", name: "Test", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1" }]);
+  activeIdStore.set("d1");
+  const screen = await render(DocInfoPanel);
+  await expect.element(screen.getByText("No backlinks", { exact: true })).toBeVisible();
 });

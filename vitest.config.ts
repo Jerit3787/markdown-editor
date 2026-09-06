@@ -67,7 +67,7 @@ export default defineConfig({
         test: {
           name: "components",
           include: ["tests/client/src/components/**/*.test.ts"],
-          setupFiles: ["vitest-browser-svelte"],
+          setupFiles: ["vitest-browser-svelte", "./vitest.setup.browser.ts"],
           browser: {
             enabled: true,
             // Vitest only defaults to headless under CI — headed needs an

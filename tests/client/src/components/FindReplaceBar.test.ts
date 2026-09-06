@@ -126,3 +126,41 @@ test("SRCH-08: the whole-word toggle restricts matches to word boundaries", asyn
   await screen.getByLabelText("Whole word").click();
   await expect.element(screen.getByText("1 of 2")).toBeVisible();
 });
+
+test("SRCH-06: Replace replaces just the current match, not all", async () => {
+  mountEditor("cat cat cat");
+  findBarMode.set("replace");
+  const screen = await render(FindReplaceBar);
+  const replace = screen.getByRole("button", { name: "Replace", exact: true });
+  await screen.getByLabelText("Find").fill("cat");
+  await screen.getByLabelText("Replace", { exact: true }).fill("dog");
+
+  // CodeMirror's replaceNext: the first click just selects the match at
+  // the cursor; the next click replaces it and advances.
+  await replace.click();
+  await replace.click();
+  expect(view.state.doc.toString()).toBe("dog cat cat"); // exactly one replaced
+});
+
+test("SRCH-07: regex Replace All applies $1 capture-group substitutions", async () => {
+  mountEditor("Ada Lovelace, Alan Turing");
+  findBarMode.set("replace");
+  const screen = await render(FindReplaceBar);
+  await screen.getByLabelText("Use regular expression").click();
+  await screen.getByLabelText("Find").fill("(\\w+) (\\w+)");
+  await screen.getByLabelText("Replace", { exact: true }).fill("$2, $1");
+  await screen.getByRole("button", { name: "Replace All" }).click();
+  expect(view.state.doc.toString()).toBe("Lovelace, Ada, Turing, Alan");
+});
+
+test("SRCH-15: the Find query is not retained across a close then reopen", async () => {
+  mountEditor("cat cat");
+  const first = await render(FindReplaceBar);
+  await first.getByLabelText("Find").fill("cat");
+  await expect.element(first.getByText("1 of 2")).toBeVisible();
+
+  closeFindBar();
+  findBarOpen.set(true);
+  const second = await render(FindReplaceBar);
+  await expect.element(second.getByLabelText("Find").last()).toHaveValue("");
+});

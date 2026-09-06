@@ -81,27 +81,31 @@ export async function renderMathPlaceholders(
   if (sources.size === 0) return;
 
   const walker = document.createTreeWalker(container as Node, NodeFilter.SHOW_TEXT);
-  const matches: { node: Text; key: string }[] = [];
-  const markerRe = /§(MATH\d+)§/;
+  // Every text node that carries at least one §MATH<id>§ marker. A single
+  // node can hold several ("a $x$ and $y$" is one text node), and the
+  // prose around each marker in that node has to survive — so this
+  // splices the node's own text instead of replacing the whole node
+  // (which dropped everything else in "The value is $x$ today").
+  const markerRe = /§MATH\d+§/;
+  const splitRe = /§(MATH\d+)§/g;
+  const nodes: Text[] = [];
   let node: Node | null;
   while ((node = walker.nextNode())) {
-    const text = node.textContent ?? "";
-    const match = markerRe.exec(text);
-    if (match) matches.push({ node: node as Text, key: match[1] });
+    if (markerRe.test(node.textContent ?? "")) nodes.push(node as Text);
   }
-  if (matches.length === 0) return;
+  if (nodes.length === 0) return;
 
   const katex = (await loadKatex()).default;
-  for (const { node, key } of matches) {
+
+  // One marker's replacement: a rendered-KaTeX DocumentFragment, or a
+  // plain text Node for the fallbacks (missing source, or katex itself
+  // failing to load/execute).
+  const renderMarker = (key: string): Node => {
     const source = sources.get(key);
     // Lazy-load failure or a stale marker from a since-superseded render
-    // pass — leave the original $...$/$$...$$ source visible rather than
-    // the internal §MATH<id>§ marker, which would otherwise leak into
-    // the visible preview.
-    if (!source) {
-      node.textContent = (node.textContent ?? "").replace(`§${key}§`, "");
-      continue;
-    }
+    // pass — drop the marker rather than leaking the internal §MATH<id>§
+    // token into the visible preview.
+    if (!source) return document.createTextNode("");
     const delimited = source.display ? `$$${source.src}$$` : `$${source.src}$`;
     let html: string;
     try {
@@ -117,11 +121,25 @@ export async function renderMathPlaceholders(
       // katex itself failing to load/execute (not a LaTeX syntax error,
       // which throwOnError:false already handles inline) — fall back to
       // the literal source rather than losing the marker's replacement.
-      node.textContent = (node.textContent ?? "").replace(`§${key}§`, delimited);
-      continue;
+      return document.createTextNode(delimited);
     }
     const template = document.createElement("template");
     template.innerHTML = html;
-    node.replaceWith(template.content);
+    return template.content;
+  };
+
+  for (const textNode of nodes) {
+    const text = textNode.textContent ?? "";
+    const frag = document.createDocumentFragment();
+    let lastIndex = 0;
+    for (const m of text.matchAll(splitRe)) {
+      const before = text.slice(lastIndex, m.index);
+      if (before) frag.appendChild(document.createTextNode(before));
+      frag.appendChild(renderMarker(m[1]));
+      lastIndex = m.index + m[0].length;
+    }
+    const after = text.slice(lastIndex);
+    if (after) frag.appendChild(document.createTextNode(after));
+    textNode.replaceWith(frag);
   }
 }

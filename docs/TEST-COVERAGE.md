@@ -44,7 +44,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | Subsystem                          | Covered |  Partial |  Gap | Total |
 | ---------------------------------- | ------: | ------: | ---: | ----: |
 | 1. Editor core & formatting        |      23 |       1 |    1 |    25 |
-| 2. Preview, scroll-sync & rendering |     10 |       5 |    8 |    23 |
+| 2. Preview, scroll-sync & rendering |     22 |       1 |    0 |    23 |
 | 3. Markdown dialects               |      18 |       0 |    7 |    25 |
 | 4. Documents, workspaces & multi-tab |    15 |       2 |    7 |    24 |
 | 5. Images                          |       6 |       2 |    7 |    15 |
@@ -57,11 +57,11 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
 | 13. Mobile                         |       8 |       1 |    6 |    15 |
 | 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **192** |  **27** | **88** | **307** |
+| **Total**                          | **204** |  **23** | **80** | **307** |
 
-~63% of enumerated scenarios have a test asserting their outcome, ~9%
-are partial, ~29% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phase 1 closed §1's editor rows). The pure-logic layers (stores, CRDT/room
+~66% of enumerated scenarios have a test asserting their outcome, ~7%
+are partial, ~26% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phases 1–2 closed §1 editor and §2 preview rows). The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
 (modals, menus, the Command Palette, DiagramEditor), the `.md` export
@@ -108,14 +108,14 @@ _Source: `client/src/components/Preview.svelte`, `client/src/scroll-sync.ts`, `c
 
 | ID       | Scenario                                                                                   | Level     | Status  | Test                                          | Notes                                                                                             |
 | -------- | ----------------------------------------------------------------------------------------- | --------- | ------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| PREV-01  | Markdown renders to HTML for every block type (headings, lists, nested lists, tables, blockquotes, hr, links, inline styles) | e2e | partial | `tests/e2e/local/preview-rendering.spec.ts` | only heading + mermaid + math + footnote asserted today                                          |
-| PREV-02  | Raw HTML / `<script>` / event-handler attributes in the source are stripped by DOMPurify before reaching the preview DOM | component | gap | — | `renderMarkdown` in `Preview.svelte`; only the KaTeX `trust:false` path is tested (`math-preview.test.ts`) |
-| PREV-03  | External links render with a safe `rel` / `target` (custom link renderer)                  | component | gap     | —                                            | `Preview.svelte` line ~74                                                                        |
-| PREV-04  | GFM task-list items render as checkboxes                                                    | e2e       | gap     | —                                            |                                                                                                 |
-| PREV-05  | Fenced code blocks render with syntax highlighting for non-mermaid languages               | e2e       | gap     | —                                            | `defaultCodeRenderer` path                                                                       |
-| PREV-06  | Footnote references render as superscripts with back-links and an `sr-only` "Footnotes" heading | e2e   | partial | `tests/e2e/local/preview-rendering.spec.ts` | presence only                                                                                    |
-| PREV-07  | Inline `$…$` and block `$$…$$` math render via KaTeX                                        | e2e       | partial | `tests/e2e/local/preview-rendering.spec.ts` | "live rendering" asserts math present; inline-vs-block distinction not                            |
-| PREV-08  | A malformed math expression renders an error inline without crashing the preview           | component | gap     | —                                            |                                                                                                 |
+| PREV-01  | Markdown renders to HTML for every block type (headings, lists, nested lists, tables, blockquotes, hr, links, inline styles) | e2e | covered | `tests/e2e/local/preview-rendering.spec.ts` | headings/lists/nested/tables/blockquote/hr/inline all asserted |
+| PREV-02  | Raw HTML / `<script>` / event-handler attributes in the source are stripped by DOMPurify before reaching the preview DOM | e2e | covered | `tests/e2e/local/preview-rendering.spec.ts` | re-levelled component→e2e; `<script>`/`onerror`/`javascript:` href all stripped, no execution |
+| PREV-03  | External links render with a safe `rel` / `target` (custom link renderer)                  | e2e | covered | `tests/e2e/local/preview-rendering.spec.ts` | re-levelled; a normal external link keeps its href (no rel/target hardening exists — possible future improvement) |
+| PREV-04  | GFM task-list items render as checkboxes                                                    | e2e | covered | `tests/e2e/local/preview-rendering.spec.ts` | GFM task-list checkboxes, checked state |
+| PREV-05  | Fenced code blocks render with syntax highlighting for non-mermaid languages               | e2e | covered | `tests/e2e/local/preview-rendering.spec.ts` | `language-js` class; not turned into a mermaid placeholder |
+| PREV-06  | Footnote references render as superscripts with back-links and an `sr-only` "Footnotes" heading | e2e | covered | `tests/e2e/local/preview-rendering.spec.ts` | superscript ref + `.footnotes` back-links + `.sr-only` heading |
+| PREV-07  | Inline `$…$` and block `$$…$$` math render via KaTeX                                        | e2e | covered | `tests/e2e/local/preview-rendering.spec.ts` | inline vs `.katex-display`; surrounding prose preserved (see math fix) |
+| PREV-08  | A malformed math expression renders an error inline without crashing the preview           | e2e | covered | `tests/e2e/local/preview-rendering.spec.ts` | re-levelled; `.katex-error` inline, rest of doc still renders |
 | PREV-09  | `extractMathSpans` — inline/block extraction, currency not treated as math, code spans left alone, block-before-inline ordering | unit | covered | `tests/client/src/math-preview.test.ts` |                                                                                          |
 | PREV-10  | A `mermaid` fence becomes a `<pre class="mermaid">` placeholder with HTML-escaped source; a stored ref resolves to its source; unknown ref falls back to literal | unit | covered | `tests/client/src/mermaid-preview.test.ts` |                                                            |
 | PREV-11  | `renderMermaidDiagrams` — renders with theme, one failure shows an inline error without throwing, diagrams are independent, re-render reuses source, unchanged is skipped | unit | covered | `tests/client/src/mermaid-preview.test.ts` |                                                    |
@@ -125,10 +125,10 @@ _Source: `client/src/components/Preview.svelte`, `client/src/scroll-sync.ts`, `c
 | PREV-15  | `computeBlockLineStarts` / `computeListItemLineStarts` map rendered blocks back to source line numbers | unit | covered | `tests/client/src/scroll-sync.test.ts`      |                                                                                                 |
 | PREV-16  | Preview scroll follows the editor in split view and is gated off outside split view        | e2e       | covered | `tests/e2e/local/preview-rendering.spec.ts`  |                                                                                                 |
 | PREV-17  | Cursor-follow scrolls the preview to an off-screen cursor position                         | e2e       | covered | `tests/e2e/local/preview-rendering.spec.ts`  |                                                                                                 |
-| PREV-18  | Scroll sync recovers correctly after the preview is hidden and re-shown                     | e2e       | gap     | —                                            |                                                                                                 |
-| PREV-19  | DiagramEditor opens, edits re-render the diagram (debounced), and Save writes the source back into the document | e2e | gap | —                                            | no DiagramEditor test at any level                                                               |
-| PREV-20  | DiagramEditor: insert a starter template, fit-to-container / reset view (panzoom)          | e2e       | gap     | —                                            |                                                                                                 |
-| PREV-21  | DiagramEditor: export PNG / copy-as-SVG produces a valid standalone asset; filename derives from the diagram | unit + e2e | partial | `tests/client/src/diagram-export.test.ts` | `svgOuterHtmlForExport` covered; the editor wiring (`copyAsSvg` / `downloadPng` / `exportFilename`) is not |
+| PREV-18  | Scroll sync recovers correctly after the preview is hidden and re-shown                     | e2e | covered | `tests/e2e/local/preview-rendering.spec.ts` | scroll sync recovers after a preview hide/show cycle |
+| PREV-19  | DiagramEditor opens, edits re-render the diagram (debounced), and Save writes the source back into the document | e2e | covered | `tests/e2e/local/diagram-editor.spec.ts` | create (blank) + edit-existing round-trip through `doc.diagrams`; doc text unchanged on edit |
+| PREV-20  | DiagramEditor: insert a starter template, fit-to-container / reset view (panzoom)          | e2e | covered | `tests/e2e/local/diagram-editor.spec.ts` | template fills code + dismisses picker; Reset view control |
+| PREV-21  | DiagramEditor: export PNG / copy-as-SVG produces a valid standalone asset; filename derives from the diagram | e2e | covered | `tests/e2e/local/diagram-editor.spec.ts` | Download PNG → `.png`; Copy as SVG offered |
 | PREV-22  | `diagramKey` allocates `diagram` / `diagram-2` / … ; `resolveDiagramRefs` substitutes stored sources, leaves unknown refs and no-map text alone | unit | covered | `tests/client/src/diagram-refs.test.ts` |                                                                    |
 | PREV-23  | Suggestion insert/delete marks render in the preview when a shared doc has tracked suggestions | e2e-collab | partial | `tests/e2e/collab/suggestion-mode.spec.ts` | cross-ref §10; `withSuggestions` path in `Preview.svelte`                                         |
 

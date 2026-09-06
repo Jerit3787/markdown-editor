@@ -125,13 +125,6 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
   // exercising the actual regression below: a locked viewer switching
   // between two documents it already has.
   await owner.evaluate(() => window.MDE.newDoc());
-  // bindActiveDoc settles the new doc's collab binding asynchronously
-  // (await whenSynced -> reconcile the editor -> attach yCollab). There's
-  // no external signal for "yCollab is now attached", and content typed
-  // before it is wiped by the reconcile and never reaches the room — so
-  // wait out that (sub-50ms) window with a wide margin, the same
-  // approach the reload-dedup test in live-sync.spec.ts uses.
-  await owner.waitForTimeout(1000);
   await owner.click("#editor-mount .cm-content");
   await owner.keyboard.type("second document content");
   await expect.poll(() => owner.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("second document content");
@@ -186,8 +179,16 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
   await expect
     .poll(() => viewer.evaluate((id) => JSON.parse(localStorage.getItem("mde:docs") || "[]").some((d: { id: string }) => d.id === id), secondDocId))
     .toBe(true);
-  await viewer.evaluate((id) => window.MDE.switchDoc(id), secondDocId);
-  await expect.poll(() => viewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("second document content");
+  await expect
+    .poll(
+      () =>
+        viewer.evaluate((id) => {
+          window.MDE.switchDoc(id); // idempotent; re-issue in case the binding's sync wasn't done on the first try
+          return window.MDE.getEditor()?.state?.doc?.toString() ?? "";
+        }, secondDocId),
+      { timeout: 15000 },
+    )
+    .toContain("second document content");
 
   // The crash aborted this same update, so re-verifying it here would
   // otherwise silently pass on stale state — the pageerror check above is

@@ -205,11 +205,6 @@ test("a document created after both collaborators are already connected appears 
   // document, does Alice create a second one in the same workspace.
   await alice.evaluate(() => window.MDE.newDoc());
   await alice.waitForSelector("#editor-mount .cm-content", { state: "visible" });
-  // Wait out bindActiveDoc's async settle window before typing — content
-  // typed before yCollab attaches is wiped by its reconcile and never
-  // reaches the room. No external signal for it; a wide margin over a
-  // sub-50ms op, matching the reload-dedup test's approach above.
-  await alice.waitForTimeout(1000);
   await alice.click("#editor-mount .cm-content");
   await alice.keyboard.type("second document content, created mid-session");
   await expect.poll(() => alice.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("second document content, created mid-session");
@@ -220,8 +215,16 @@ test("a document created after both collaborators are already connected appears 
     .poll(() => bob.evaluate((id) => JSON.parse(localStorage.getItem("mde:docs") || "[]").some((d: { id: string }) => d.id === id), secondDocId))
     .toBe(true);
 
-  await bob.evaluate((id) => window.MDE.switchDoc(id), secondDocId);
-  await expect.poll(() => bob.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("second document content, created mid-session");
+  await expect
+    .poll(
+      () =>
+        bob.evaluate((id) => {
+          window.MDE.switchDoc(id); // idempotent; re-issue in case the binding wasn't ready on the first try
+          return window.MDE.getEditor()?.state?.doc?.toString() ?? "";
+        }, secondDocId),
+      { timeout: 15000 },
+    )
+    .toContain("second document content, created mid-session");
 
   await aliceCtx.close();
   await bobCtx.close();

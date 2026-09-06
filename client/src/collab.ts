@@ -737,6 +737,13 @@ async function bindActiveDoc(docId: string): Promise<void> {
   if (!binding) return;
   lastRequestedActiveDocId = docId;
   const myGeneration = joinGeneration;
+  // Captured BEFORE the await: true means this binding was seeded from
+  // local content (seedDocBindingFromEditor / seedNewDocBinding both
+  // markDocSynced synchronously), so the editor — not ytext — holds the
+  // authoritative copy. False means a "blank" binding whose content only
+  // becomes correct once the server's own sync reply lands, which is the
+  // one case the ytext-wins reconcile below is actually for.
+  const wasLocallySeeded = binding.synced;
   await binding.whenSynced;
   // Bail if superseded while waiting: either the whole workspace was torn
   // down and rejoined (generation bumped) or another doc switch already
@@ -760,12 +767,23 @@ async function bindActiveDoc(docId: string): Promise<void> {
   // otherwise — either way, exactly one copy of the content ends up
   // showing, never zero and never two.
   const view = window.MDE.getEditor();
+  const viewContent = view.state.doc.toString();
   const syncedContent = binding.ytext.toString();
-  if (view.state.doc.toString() !== syncedContent) {
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: syncedContent },
-      annotations: Transaction.addToHistory.of(false),
-    });
+  if (viewContent !== syncedContent) {
+    if (wasLocallySeeded && syncedContent === "" && viewContent !== "") {
+      // A locally-seeded doc (usually a brand-new one seeded from an empty
+      // store record) that the user typed into after the seed but before
+      // this bind ran — the editor holds the truth and ytext never got
+      // it. Push it in, so it reaches the room instead of being wiped.
+      binding.ydoc.transact(() => binding.ytext.insert(0, viewContent), "local");
+    } else {
+      // The blank-binding / stale-HTTP-snapshot case: the now-synced
+      // ytext is authoritative, force the view to match it.
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: syncedContent },
+        annotations: Transaction.addToHistory.of(false),
+      });
+    }
   }
 
   const undoManager = binding.undoManager || new Y.UndoManager(binding.ytext);

@@ -59,6 +59,6 @@ describe("worker routing", () => {
     const { env } = fakeEnv();
     const res = await worker.fetch(new Request("https://app.example.com/api/auth/github/me"), env);
     expect(res.status).toBe(200);
-    expect((await res.json()).connected).toBe(false);
+    expect(((await res.json()) as { connected: boolean }).connected).toBe(false);
   });
 });

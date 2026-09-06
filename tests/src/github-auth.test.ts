@@ -74,7 +74,7 @@ describe("handleMe token-verification (AUTH-07)", () => {
     );
     const req = new Request("https://example.com/api/auth/github/me", { headers: { Cookie: await sessionCookieHeader("stale", "alice") } });
     const res = await handleMe(req, fakeEnv);
-    expect((await res.json()).connected).toBe(false);
+    expect(((await res.json()) as { connected: boolean }).connected).toBe(false);
     expect(res.headers.get("Set-Cookie")).toMatch(/mde_gh_session=;?.*Max-Age=0/);
   });
 
@@ -133,6 +133,7 @@ describe("Gist proxy handlers (GIST-01/02/03)", () => {
   async function signedInReq(url: string, init?: RequestInit): Promise<Request> {
     return new Request(url, { ...init, headers: { ...(init?.headers ?? {}), Cookie: await sessionCookieHeader("gho_tok", "alice") } });
   }
+  const fetchCall = (mock: ReturnType<typeof vi.fn>, i = 0): [string, RequestInit] => mock.mock.calls[i] as unknown as [string, RequestInit];
 
   it("all four reject with 401 when there is no session", async () => {
     const noCookie = () => new Request("https://example.com/api/gist");
@@ -145,10 +146,13 @@ describe("Gist proxy handlers (GIST-01/02/03)", () => {
   it("GIST-01: create forwards the request body (Public/Secret choice included) to POST /gists and proxies the result", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "new-gist", html_url: "x" }), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
-    const req = await signedInReq("https://example.com/api/gist", { method: "POST", body: JSON.stringify({ public: false, files: { "a.md": { content: "hi" } } }) });
+    const req = await signedInReq("https://example.com/api/gist", {
+      method: "POST",
+      body: JSON.stringify({ public: false, files: { "a.md": { content: "hi" } } }),
+    });
     const res = await handleGistCreate(req, fakeEnv);
     expect(res.status).toBe(201);
-    const [url, opts] = fetchMock.mock.calls[0]!;
+    const [url, opts] = fetchCall(fetchMock);
     expect(String(url)).toBe("https://api.github.com/gists");
     expect(opts.method).toBe("POST");
     expect(JSON.parse(opts.body as string)).toMatchObject({ public: false });
@@ -158,10 +162,13 @@ describe("Gist proxy handlers (GIST-01/02/03)", () => {
   it("GIST-02: update PATCHes /gists/:id with the forwarded body", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "g1" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
-    const req = await signedInReq("https://example.com/api/gist/g1", { method: "PATCH", body: JSON.stringify({ files: { "notes.md": { content: "updated" } } }) });
+    const req = await signedInReq("https://example.com/api/gist/g1", {
+      method: "PATCH",
+      body: JSON.stringify({ files: { "notes.md": { content: "updated" } } }),
+    });
     const res = await handleGistUpdate(req, fakeEnv, "g1");
     expect(res.status).toBe(200);
-    const [url, opts] = fetchMock.mock.calls[0]!;
+    const [url, opts] = fetchCall(fetchMock);
     expect(String(url)).toBe("https://api.github.com/gists/g1");
     expect(opts.method).toBe("PATCH");
   });
@@ -170,11 +177,11 @@ describe("Gist proxy handlers (GIST-01/02/03)", () => {
     const fetchMock = vi.fn(async () => new Response("[]", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await handleGistList(await signedInReq("https://example.com/api/gist"), fakeEnv);
-    expect(String(fetchMock.mock.calls[0]![0])).toBe("https://api.github.com/gists?per_page=100");
+    expect(String(fetchCall(fetchMock)[0])).toBe("https://api.github.com/gists?per_page=100");
 
     fetchMock.mockClear();
     await handleGistGet(new Request("https://example.com/api/gist/abc"), fakeEnv, "abc");
-    expect(String(fetchMock.mock.calls[0]![0])).toBe("https://api.github.com/gists/abc");
+    expect(String(fetchCall(fetchMock)[0])).toBe("https://api.github.com/gists/abc");
   });
 });
 

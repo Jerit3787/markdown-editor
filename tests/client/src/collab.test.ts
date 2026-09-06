@@ -30,6 +30,7 @@ import {
   DEFAULT_ACCESS,
   pushWorkspaceRename,
   pushWorkspaceDocDelete,
+  addPerson,
 } from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
@@ -688,6 +689,55 @@ describe("shared document name sync", () => {
 
     const postedIds = fetchCalls.filter((c) => c.method === "POST" && c.url.includes("/docs")).map((c) => JSON.parse(c.body ?? "{}").docId);
     expect(postedIds).toEqual(expect.arrayContaining(["doc1", "doc2"]));
+  });
+
+  // Regression test: the same first-share seeding, but reached via
+  // addPerson (inviting someone by username) instead of setAccessMode
+  // (flipping on "anyone with the link"). addPerson had its own,
+  // narrower first-share block that only seeded the active document —
+  // so inviting a collaborator into a multi-document workspace left
+  // every sibling unregistered, and the room's first workspace-meta
+  // greeting (docOrder = [active doc only]) made this same client's
+  // applyWorkspaceMeta delete every sibling document locally. Data loss.
+  it("also seeds every sibling document when the workspace is first shared by inviting a person", async () => {
+    docsStore.set([
+      { id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+      { id: "doc2", name: "Sibling Doc", content: "sibling content", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+    ]);
+    const fetchCalls: { url: string; method?: string; body?: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+        fetchCalls.push({ url, method: init?.method, body: init?.body });
+        if (url.includes("/access") && init?.method === "PUT") {
+          return {
+            ok: true,
+            json: async () => ({
+              owner: "alice",
+              generalAccess: "restricted",
+              requireAccount: false,
+              role: "viewer",
+              invited: [{ username: "bob", role: "editor" }],
+            }),
+          };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+
+    await addPerson("bob");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const postedIds = fetchCalls.filter((c) => c.method === "POST" && c.url.includes("/docs")).map((c) => JSON.parse(c.body ?? "{}").docId);
+    expect(postedIds).toEqual(expect.arrayContaining(["doc1", "doc2"]));
+
+    const sibling = workspaceRoom.docs.get("doc2");
+    expect(sibling).toBeDefined();
+    expect(sibling?.ytext.toString()).toBe("sibling content");
+    expect(sibling?.metaMap.get("name")).toBe("Sibling Doc");
   });
 });
 

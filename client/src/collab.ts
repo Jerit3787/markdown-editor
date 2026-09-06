@@ -528,6 +528,30 @@ function seedNewDocBinding(docId: string, doc: Doc, role: string): void {
   send(encoding.toUint8Array(encoder));
 }
 
+// Seeds a brand-new room the first time a workspace is shared — whether
+// that's triggered by opening general access (setAccessMode) or by
+// inviting the first person (addPerson). Both paths need the SAME thing
+// and used to hand-roll it separately; addPerson's copy only ever seeded
+// the active document, so inviting someone into a multi-document
+// workspace silently left every sibling unregistered — and since the
+// room's first workspace-meta greeting then omits those siblings from
+// docOrder, this same client's applyWorkspaceMeta would read that as
+// each sibling having been deleted elsewhere and remove it locally
+// (real data loss). Keep this the one place that logic lives.
+//
+// The active doc is deliberately NOT pre-registered via registerDocWithRoom
+// here: joinWorkspace's own seedDocId path only pushes this session's
+// live, not-yet-synced editor content when the room doesn't already know
+// the id, so pre-registering it would make that check skip the seed and
+// leave the room with an empty Y.Doc for the very document being shared.
+async function seedWorkspaceForFirstShare(activeDoc: Doc): Promise<void> {
+  const siblings = get(docsStore).filter((d) => d.workspaceId === activeDoc.workspaceId && d.id !== activeDoc.id);
+  await Promise.all(siblings.map((d) => registerDocWithRoom(activeDoc.workspaceId, d.id)));
+  await joinWorkspace(activeDoc.workspaceId, { role: "editor", seedDocId: activeDoc.id });
+  bindActiveDoc(activeDoc.id);
+  for (const sibling of siblings) seedNewDocBinding(sibling.id, sibling, "editor");
+}
+
 function createDocBinding(docId: string, role: string): DocBinding {
   const existing = workspaceRoom.docs.get(docId);
   if (existing) return existing;
@@ -1393,27 +1417,9 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
   );
   persistWorkspaces();
   if ((wantAnyone || access.invited.length > 0) && !workspaceRoom.workspaceId) {
-    // joinWorkspace only seeds seedDocId (the active document, from the
-    // live editor) — this room never existed before this call, so every
-    // other local document already in the workspace has to be introduced
-    // here too, or it's silently left unsynced and never reaches anyone
-    // who joins the link afterward.
-    const siblings = get(docsStore).filter((d) => d.workspaceId === doc.workspaceId && d.id !== doc.id);
-    // Register every sibling with the room before connecting at all — see
-    // registerDocWithRoom's own comment for why this has to happen before
-    // the socket opens. The active doc is deliberately NOT pre-registered
-    // here: joinWorkspace's own seedDocId handling only pushes this
-    // session's live, not-yet-synced editor content via
-    // seedDocBindingFromEditor when the room doesn't already know this
-    // docId (see its own comment) — pre-registering it here made that
-    // check see the docId as already-known and silently skip seeding it,
-    // leaving the room with an empty Y.Doc for the very document being
-    // shared (confirmed live: every collaborator who joined afterward saw
-    // completely empty content).
-    await Promise.all(siblings.map((d) => registerDocWithRoom(doc.workspaceId, d.id)));
-    await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
-    bindActiveDoc(doc.id);
-    for (const sibling of siblings) seedNewDocBinding(sibling.id, sibling, "editor");
+    // First share of this workspace — seed the new room with every
+    // document in it, not just the active one. See the helper's comment.
+    await seedWorkspaceForFirstShare(doc);
   }
   if (!wantAnyone && access.invited.length === 0) teardownWorkspace();
   syncShareStores();
@@ -1479,10 +1485,10 @@ export async function addPerson(rawUsername: string) {
     // invited person could join and authorize successfully but find the
     // workspace's docs completely empty, since the owner's content was
     // never seeded into it. First invite on a still-unconnected workspace
-    // needs to seed it, same as opening general access does.
+    // needs to seed it, same as opening general access does — and the
+    // same way: every document in the workspace, not just the active one.
     if (!workspaceRoom.workspaceId) {
-      await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
-      bindActiveDoc(doc.id);
+      await seedWorkspaceForFirstShare(doc);
     }
     syncShareStores();
     showToast(`Invited @${username}`, "success");

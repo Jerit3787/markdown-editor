@@ -157,34 +157,46 @@ test("CMT-17: clicking a comment row scrolls the editor to its anchor", async ({
   expect(sel).toEqual({ from: 0, to: 5 });
 });
 
-test("CMT-19: closing the Comments panel toggles .collapsed and slides it out via transform", async ({ page }) => {
-  // The regression this guards (TODO.md item 9, regressed once) is the
-  // panel not fully leaving view on close. The exact off-screen pixel math
-  // is layout/viewport-sensitive; what must hold is that closing re-adds
-  // .collapsed AND that .collapsed carries a real translateX slide (not
-  // transform:none — the class silently not matching its CSS rule was one
-  // earlier failure mode), and that the page never gains a horizontal
-  // scrollbar.
+test("CMT-19: the Comments panel collapses fully on close — column reclaimed, panel off-screen, no sliver", async ({ page }) => {
+  // TODO.md item 9 (regressed once): closing the panel must leave NO
+  // visible sliver at the right edge. The mechanism (see _comments.scss /
+  // _layout.scss): .collapsed applies `margin-right: -320px`, which
+  // shrinks the auto-sized "comments" grid track to 0 so #main reclaims
+  // the space, plus `transform: translateX(100%)` which slides the panel's
+  // own 320px box entirely past the (now right-edge) viewport boundary.
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.click("#commentsBtn");
   await expect(page.locator(".comments-panel:not(.collapsed)")).toBeVisible();
+  await page.waitForTimeout(300); // let the open slide + grid reflow settle before clicking Close
 
-  await page.locator(".comments-panel-header").getByRole("button", { name: "Close" }).click();
+  await page.evaluate(async () => {
+    const { commentsPanelOpen } = await import("/src/stores/commentsPanel.ts");
+    commentsPanelOpen.set(false);
+  });
   await expect(page.locator(".comments-panel.collapsed")).toBeAttached();
 
+  // Poll until the 150ms slide + the grid reflow have settled.
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const t = getComputedStyle(document.querySelector(".comments-panel")!).transform;
-        // matrix(1, 0, 0, 1, <tx>, 0) — tx must be a real positive slide
-        const m = t.match(/matrix\(1, 0, 0, 1, ([\d.]+), 0\)/);
-        return m ? Number(m[1]) : 0;
+        const panel = document.querySelector(".comments-panel") as HTMLElement;
+        const row = document.getElementById("content-row")!;
+        const main = document.getElementById("main")!;
+        const cols = getComputedStyle(row).gridTemplateColumns.split(/\s+/);
+        return {
+          panelLeft: Math.round(panel.getBoundingClientRect().left),
+          commentsTrack: cols[cols.length - 1], // the 3rd "comments" track
+          mainRight: Math.round(main.getBoundingClientRect().right),
+          innerWidth: window.innerWidth,
+          docWidth: document.documentElement.scrollWidth,
+        };
       }),
     )
-    .toBeGreaterThan(0);
-
-  const { innerWidth, docWidth } = await page.evaluate(() => ({
-    innerWidth: window.innerWidth,
-    docWidth: document.documentElement.scrollWidth,
-  }));
-  expect(docWidth).toBeLessThanOrEqual(innerWidth + 1);
+    .toEqual({
+      panelLeft: 1600, // 320px past the 1280 right edge — fully off-screen, not a sliver
+      commentsTrack: "0px", // the grid column collapsed
+      mainRight: 1280, // #main reclaimed the vacated space
+      innerWidth: 1280,
+      docWidth: 1280, // no horizontal scrollbar
+    });
 });

@@ -131,16 +131,17 @@ test.describe("preview rendering fidelity", () => {
     await expect(page.locator("#preview .footnotes .sr-only")).toHaveCount(1);
   });
 
-  test("PREV-07: inline math renders inline, block math renders as a display block", async ({ page }) => {
+  test("PREV-07: inline math renders inline (keeping its surrounding prose); block math renders as a display block", async ({ page }) => {
     await type(page, "inline $a+b$ here\n\n$$\nc+d\n$$");
     // Block math is wrapped in .katex-display; inline math is not.
     await expect(page.locator("#preview .katex-display")).toHaveCount(1);
     const total = await page.locator("#preview .katex").count();
     const display = await page.locator("#preview .katex-display .katex").count();
     expect(total - display).toBe(1); // exactly one inline .katex, outside any display wrapper
-    // NOTE: the prose around inline math ("inline"/"here") is currently
-    // dropped by renderMathPlaceholders — see docs/TEST-COVERAGE.md
-    // Deferred (PREV-BUG-1). Assert only the inline/display distinction
-    // here; a regression test for the surrounding text lands with the fix.
+    // The prose either side of the inline math is preserved.
+    const inlinePara = page.locator('#preview p:has-text("inline")');
+    await expect(inlinePara.locator(".katex")).toHaveCount(1);
+    await expect(inlinePara).toContainText("inline");
+    await expect(inlinePara).toContainText("here");
   });
 });

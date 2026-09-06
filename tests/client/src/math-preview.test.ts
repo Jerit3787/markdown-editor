@@ -92,4 +92,36 @@ describe("renderMathPlaceholders", () => {
     });
     expect(container.querySelector(".katex")).not.toBeNull();
   });
+
+  it("keeps the text surrounding an inline math marker in the same node", async () => {
+    const container = document.createElement("div");
+    const p = document.createElement("p");
+    p.textContent = "The value is §MATH0§ today";
+    container.appendChild(p);
+    const katex: KatexLike = { renderToString: vi.fn().mockReturnValue('<span class="katex">x</span>') };
+
+    await renderMathPlaceholders(container, new Map([["MATH0", { src: "x", display: false }]]), async () => ({ default: katex }));
+
+    expect(container.querySelector(".katex")).not.toBeNull();
+    expect(container.textContent).toBe("The value is x today");
+  });
+
+  it("handles two inline markers in one text node", async () => {
+    const container = document.createElement("div");
+    container.textContent = "a §MATH0§ b §MATH1§ c";
+    const katex: KatexLike = {
+      renderToString: vi.fn((src: string) => `<span class="katex">${src}</span>`),
+    };
+
+    await renderMathPlaceholders(
+      container,
+      new Map([
+        ["MATH0", { src: "1", display: false }],
+        ["MATH1", { src: "2", display: false }],
+      ]),
+      async () => ({ default: katex }),
+    );
+
+    expect(container.textContent).toBe("a 1 b 2 c");
+  });
 });

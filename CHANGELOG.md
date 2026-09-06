@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.2] - 2026-09-07
+
+### Fixed
+
+- **Images removed from a document kept piling up in a linked GitHub repo.** A repo push only ever _added_ image files — it never checked the repo's existing `assets/<slug>/` folder against what the document still references. So every image you deleted a reference to (a removed line, a Manage Images delete, a version restore that dropped it) stayed in the repo forever, since a pull never re-imports an unreferenced asset. A push now also removes `assets/<slug>/` files a still-linked document no longer points at. Brand-new and conflicted documents are left alone (their existing repo assets were never pulled in, so they can't be judged orphans).
+
 ## [1.46.1] - 2026-09-07
 
 ### Changed

@@ -357,6 +357,15 @@ export async function planPush(
   // outright (unlike pendingRepoDeletions, there's no "never pulled in"
   // ambiguity: the doc that owned this path still exists right now).
   const renameOldPaths: string[] = [];
+  // slug -> the assets/<slug>/ blob paths its doc STILL references this
+  // push. Only populated for docs that already tracked this exact repoPath
+  // (not new, not a rename, not a by-name adopt, not conflicted) — those
+  // are the ones whose assets/<slug>/ contents we can trust ourselves to
+  // prune. Any blob under such a slug that isn't in the set is an orphan
+  // left behind by an image the doc no longer references (deleted line,
+  // Manage Images delete, a version restore that dropped it) and is swept
+  // below, the same way a deleted doc's whole folder is.
+  const referencedSlugAssets = new Map<string, Set<string>>();
 
   for (const doc of docs) {
     let repoPath = doc.repoPath;
@@ -434,6 +443,22 @@ export async function planPush(
     claimedPaths.add(repoPath);
     if (!contentUnchanged) plan.changes.push({ docId: doc.id, repoPath, content, assets });
 
+    // Record which assets/<slug>/ blobs this doc still points at, so the
+    // orphan sweep below can delete the ones it doesn't. Skipped for a
+    // never-pushed doc that just adopted an existing filename by name
+    // match (matchedExistingFile) and for a rename into a new path
+    // (isNewPath) — same "we never pulled these in, can't call them
+    // orphans" caution the pendingRepoDeletions guard uses.
+    if (!isNewPath && !matchedExistingFile) {
+      const slug = slugFromRepoPath(repoPath);
+      let refd = referencedSlugAssets.get(slug);
+      if (!refd) {
+        refd = new Set<string>();
+        referencedSlugAssets.set(slug, refd);
+      }
+      for (const asset of assets) refd.add(asset.path);
+    }
+
     const history = localHistory.get(doc.id);
     if (history && (history.snapshots.length > 0 || history.notes.length > 0)) {
       const historyPath = historyPathFor(repoPath);
@@ -475,6 +500,19 @@ export async function planPush(
     const slug = match[1];
     if (deletedSlugs.has(slug) && !liveSlugs.has(slug) && !plan.deletions.includes(path)) {
       plan.deletions.push(path);
+    }
+  }
+
+  // Orphan sweep for STILL-LINKED docs: a blob under assets/<slug>/ whose
+  // doc no longer references it (see referencedSlugAssets above) is dead
+  // weight — pull never re-imports an unreferenced asset, so it just
+  // accumulates in the repo push after push. Delete it.
+  for (const [slug, refd] of referencedSlugAssets) {
+    const assetPrefix = `assets/${slug}/`;
+    for (const path of treeShaByPath.keys()) {
+      if (path.startsWith(assetPrefix) && !refd.has(path) && !plan.deletions.includes(path)) {
+        plan.deletions.push(path);
+      }
     }
   }
 

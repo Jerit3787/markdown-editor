@@ -75,3 +75,34 @@ test("PREV-19b: editing an existing diagram overwrites its stored source, leavin
   expect(after.text).toBe(before.text); // document text (just the ref) unchanged
   expect(after.diagrams[key]).toContain("flowchart LR");
 });
+
+test("PREV-20: picking a template fills the code editor and dismisses the picker", async ({ page }) => {
+  await openNew(page);
+  await page.click('.diagram-template-picker button:has-text("Sequence")');
+  await expect(page.locator(".diagram-template-picker")).toBeHidden();
+  await expect(codeContent(page)).toContainText("sequenceDiagram");
+  await expect(page.locator(".diagram-editor-preview svg")).toBeVisible({ timeout: 5000 });
+});
+
+test("PREV-20b: Reset view is available once a diagram is rendered", async ({ page }) => {
+  await openNew(page);
+  await page.click('.diagram-template-picker button:has-text("Flowchart")');
+  await expect(page.locator(".diagram-editor-preview svg")).toBeVisible({ timeout: 5000 });
+  const reset = page.locator(".diagram-preview-reset");
+  await expect(reset).toBeVisible();
+  await reset.click(); // no-throw; view returns to fit
+});
+
+test("PREV-21: Download PNG produces a .png download; Copy as SVG is offered", async ({ page }) => {
+  await openNew(page);
+  await page.click('.diagram-template-picker button:has-text("Pie")');
+  await expect(page.locator(".diagram-editor-preview svg")).toBeVisible({ timeout: 5000 });
+
+  await page.click('.diagram-editor-header button:has-text("Export")');
+  const menu = page.locator(".diagram-editor-header .dropdown-menu.open");
+  await expect(menu.locator('button:has-text("Copy as SVG")')).toBeVisible();
+
+  const [download] = await Promise.all([page.waitForEvent("download"), menu.locator('button:has-text("Download PNG")').click()]);
+  // New (unsaved) diagram has no ref yet — filename falls back to "diagram.png".
+  expect(download.suggestedFilename()).toMatch(/^(diagram|[a-z0-9-]+)\.png$/);
+});

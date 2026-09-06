@@ -164,3 +164,43 @@ test("IMG-05: dropping a non-image file is ignored (no marker, no ref)", async (
   expect(doc).not.toContain("notes.txt");
   expect(doc).not.toContain("Encoding");
 });
+
+test("IMG-07: switching documents before the FileReader resolves drops the pending image", async ({ page }) => {
+  await page.evaluate(async () => {
+    const { createDoc, switchDoc } = await import("/src/stores/docs.ts");
+    createDoc({ id: "imgother", name: "Img Other" });
+    switchDoc("e2e-doc-1");
+  });
+  // ~500KB (< 2MB) so the read genuinely outlasts the synchronous switchDoc.
+  await page.evaluate(() => {
+    const file = new File([new Uint8Array(500 * 1024)], "raced.png", { type: "image/png" });
+    window.MDE.insertImageWithUpload!(file);
+    window.MDE.switchDoc("imgother");
+  });
+  await page.waitForTimeout(400);
+
+  const state = await page.evaluate(() => {
+    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+    return {
+      other: docs.find((d: { id: string }) => d.id === "imgother"),
+      orig: docs.find((d: { id: string }) => d.id === "e2e-doc-1"),
+      editor: window.MDE.getEditor().state.doc.toString(),
+    };
+  });
+  expect(Object.keys(state.other?.images ?? {})).not.toContain("raced.png");
+  expect(Object.keys(state.orig?.images ?? {})).not.toContain("raced.png");
+  expect(state.other?.content ?? "").not.toContain("Encoding");
+  expect(state.editor).not.toContain("Encoding");
+});
+
+test("IMG-15: a ![](key) reference renders as an <img> with the resolved data URI in the preview", async ({ page }) => {
+  await page.evaluate(async (b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    await window.MDE.insertImageWithUpload!(new File([bytes], "shown.png", { type: "image/png" }));
+  }, PIXEL_PNG_BASE64);
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toMatch(/!\[shown\]\(shown\.png\)/);
+
+  const img = page.locator('#preview img[alt="shown"]');
+  await expect(img).toBeVisible();
+  await expect(img).toHaveAttribute("src", /^data:image\/png;base64,/);
+});

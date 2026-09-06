@@ -9,6 +9,9 @@ import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 
 let errorMessage: typeof import("../../../client/src/gist").errorMessage;
 let pushImagesAndRewrite: typeof import("../../../client/src/gist").pushImagesAndRewrite;
+let parseGistId: typeof import("../../../client/src/gist").parseGistId;
+let formatGistDate: typeof import("../../../client/src/gist").formatGistDate;
+let extractInlineImages: typeof import("../../../client/src/gist").extractInlineImages;
 
 beforeAll(async () => {
   (window as any).MDE = {};
@@ -16,7 +19,7 @@ beforeAll(async () => {
     "fetch",
     vi.fn(async () => new Response(JSON.stringify({ connected: false }), { status: 200 })),
   );
-  ({ errorMessage, pushImagesAndRewrite } = await import("../../../client/src/gist"));
+  ({ errorMessage, pushImagesAndRewrite, parseGistId, formatGistDate, extractInlineImages } = await import("../../../client/src/gist"));
   vi.unstubAllGlobals();
 });
 
@@ -90,5 +93,62 @@ describe("pushImagesAndRewrite", () => {
     const content = "![alt](photo.png)";
     const result = await pushImagesAndRewrite("gist123", content, { "photo.png": "data:image/png;base64,aGVsbG8=" });
     expect(result).toBe("![alt](https://gist.githubusercontent.com/x/raw/photo.png)");
+  });
+});
+
+describe("parseGistId (GIST-08)", () => {
+  it("accepts a bare gist id", () => {
+    expect(parseGistId("aa11bb22cc33dd44ee55ff66")).toBe("aa11bb22cc33dd44ee55ff66");
+  });
+
+  it("extracts the id from a full gist URL", () => {
+    expect(parseGistId("https://gist.github.com/octocat/aa11bb22cc33dd44ee55ff66")).toBe("aa11bb22cc33dd44ee55ff66");
+  });
+
+  it("extracts the id from a URL carrying a #file-… fragment", () => {
+    expect(parseGistId("https://gist.github.com/octocat/aa11bb22cc33dd44ee55ff66#file-notes-md")).toBe("aa11bb22cc33dd44ee55ff66");
+  });
+
+  it("returns null when there is no id-shaped hex run", () => {
+    expect(parseGistId("https://example.com/not-a-gist")).toBeNull();
+  });
+});
+
+describe("formatGistDate (GIST-10)", () => {
+  it("renders an ISO timestamp as a short localized date", () => {
+    // Locale-independent assertion: the year is always present with the
+    // { year: "numeric", month: "short", day: "numeric" } options.
+    const out = formatGistDate("2026-03-14T09:30:00Z");
+    expect(out).toMatch(/2026/);
+    expect(out.length).toBeGreaterThan(0);
+  });
+
+  it("does not throw on a malformed value (falls through to the platform's Invalid Date string)", () => {
+    // The try/catch only guards a genuine throw; `new Date("nope")` yields
+    // an Invalid Date rather than throwing, so the output is "Invalid Date".
+    // Gist timestamps always come from GitHub's API as valid ISO, so this
+    // path is defensive only.
+    expect(() => formatGistDate("not a date")).not.toThrow();
+  });
+});
+
+describe("extractInlineImages (GIST-09)", () => {
+  it("converts an inline base64 image in an opened gist into a local ref", () => {
+    const { content, images } = extractInlineImages("intro\n\n![a pic](data:image/png;base64,aGVsbG8=)\n\nend");
+    const refs = Object.keys(images);
+    expect(refs).toHaveLength(1);
+    expect(images[refs[0]!]).toBe("data:image/png;base64,aGVsbG8=");
+    expect(content).toBe(`intro\n\n![a pic](${refs[0]})\n\nend`);
+  });
+
+  it("leaves a plain markdown image link untouched", () => {
+    const { content, images } = extractInlineImages("![x](https://example.com/x.png)");
+    expect(content).toBe("![x](https://example.com/x.png)");
+    expect(images).toEqual({});
+  });
+
+  it("gives each inline image its own distinct ref", () => {
+    const { images } = extractInlineImages("![a](data:image/png;base64,aGk=) ![b](data:image/gif;base64,aGk=)");
+    expect(Object.keys(images)).toHaveLength(2);
   });
 });

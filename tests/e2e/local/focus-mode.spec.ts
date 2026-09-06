@@ -22,6 +22,16 @@ test("Escape exits Focus Mode", async ({ page }) => {
   await expect(page.locator("body")).not.toHaveClass(/focus-mode/);
 });
 
+test("SHELL-13: Focus Mode does not persist across a reload", async ({ page }) => {
+  await page.click("#viewMenuBtn");
+  await page.click('text="Focus Mode"');
+  await expect(page.locator("body")).toHaveClass(/focus-mode/);
+
+  await page.reload();
+  await page.waitForSelector("#editor-mount .cm-content", { state: "visible" });
+  await expect(page.locator("body")).not.toHaveClass(/focus-mode/);
+});
+
 test("undo and redo round-trip an edit", async ({ page }) => {
   await page.click("#editor-mount .cm-content");
   await page.keyboard.type("hello");

@@ -136,3 +136,55 @@ test("deleting a comment via the panel removes its highlight", async ({ page }) 
   await page.click(".comment-delete-btn");
   await expect(page.locator(".cm-comment-marker")).toHaveCount(0);
 });
+
+test("CMT-17: clicking a comment row scrolls the editor to its anchor", async ({ page }) => {
+  await seedComment(page);
+  await page.click("#commentsBtn");
+  await expect(page.locator(".comment-entry-quote")).toBeVisible();
+
+  // Move the selection well past the anchored range first.
+  await page.evaluate(() => {
+    const v = window.MDE.getEditor();
+    v.dispatch({ selection: { anchor: v.state.doc.length } });
+  });
+
+  await page.click(".comment-entry-quote");
+
+  const sel = await page.evaluate(() => {
+    const m = window.MDE.getEditor().state.selection.main;
+    return { from: m.from, to: m.to };
+  });
+  expect(sel).toEqual({ from: 0, to: 5 });
+});
+
+test("CMT-19: closing the Comments panel toggles .collapsed and slides it out via transform", async ({ page }) => {
+  // The regression this guards (TODO.md item 9, regressed once) is the
+  // panel not fully leaving view on close. The exact off-screen pixel math
+  // is layout/viewport-sensitive; what must hold is that closing re-adds
+  // .collapsed AND that .collapsed carries a real translateX slide (not
+  // transform:none — the class silently not matching its CSS rule was one
+  // earlier failure mode), and that the page never gains a horizontal
+  // scrollbar.
+  await page.click("#commentsBtn");
+  await expect(page.locator(".comments-panel:not(.collapsed)")).toBeVisible();
+
+  await page.locator(".comments-panel-header").getByRole("button", { name: "Close" }).click();
+  await expect(page.locator(".comments-panel.collapsed")).toBeAttached();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const t = getComputedStyle(document.querySelector(".comments-panel")!).transform;
+        // matrix(1, 0, 0, 1, <tx>, 0) — tx must be a real positive slide
+        const m = t.match(/matrix\(1, 0, 0, 1, ([\d.]+), 0\)/);
+        return m ? Number(m[1]) : 0;
+      }),
+    )
+    .toBeGreaterThan(0);
+
+  const { innerWidth, docWidth } = await page.evaluate(() => ({
+    innerWidth: window.innerWidth,
+    docWidth: document.documentElement.scrollWidth,
+  }));
+  expect(docWidth).toBeLessThanOrEqual(innerWidth + 1);
+});

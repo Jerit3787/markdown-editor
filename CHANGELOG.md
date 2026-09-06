@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.1] - 2026-09-06
+
+### Fixed
+
+- **Sharing a multi-document workspace by inviting someone silently deleted every other document in it from the sharer's own browser.** The "invite a person" path only ever seeded the currently-open document into the new room, so the room's first structure-sync greeting listed just that one document — which the sharer's own client then read as "every other document was removed" and dropped locally. Both ways of first sharing a workspace (opening general access, or inviting a person) now seed every document in it, through one shared code path so they can't drift apart again.
+
 ## [1.45.0] - 2026-09-05
 
 ### Added

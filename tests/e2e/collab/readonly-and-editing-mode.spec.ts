@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInAsDevUser } from "./support/dev-login";
+import { readSharedState } from "./support/share";
 
 const BASE = "http://localhost:8787";
 
@@ -124,21 +125,21 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
   // exercising the actual regression below: a locked viewer switching
   // between two documents it already has.
   await owner.evaluate(() => window.MDE.newDoc());
+  // bindActiveDoc settles the new doc's collab binding asynchronously
+  // (await whenSynced -> reconcile the editor -> attach yCollab). There's
+  // no external signal for "yCollab is now attached", and content typed
+  // before it is wiped by the reconcile and never reaches the room — so
+  // wait out that (sub-50ms) window with a wide margin, the same
+  // approach the reload-dedup test in live-sync.spec.ts uses.
+  await owner.waitForTimeout(1000);
   await owner.click("#editor-mount .cm-content");
   await owner.keyboard.type("second document content");
+  await expect.poll(() => owner.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("second document content");
   const secondDocId = await owner.evaluate(() => localStorage.getItem("mde:active"));
   expect(secondDocId).not.toBe(firstDocId);
   await owner.evaluate((id) => window.MDE.switchDoc(id), firstDocId);
 
-  const shareState = await owner.evaluate(() => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeId = localStorage.getItem("mde:active");
-    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { activeDoc, ws };
-  });
-  expect(shareState.ws?.shared).toBe(true);
+  const shareState = await readSharedState(owner);
   expect(shareState.activeDoc.id).toBe(firstDocId);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
 
@@ -227,14 +228,7 @@ test("a viewer with no session at all sees the signed-out indicator and can sign
     accessSelect.selectOption({ label: "Anyone with the link" }),
   ]);
 
-  const shareState = await owner.evaluate(() => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeId = localStorage.getItem("mde:active");
-    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { activeDoc, ws };
-  });
+  const shareState = await readSharedState(owner);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
 
   await viewer.goto(shareUrl);
@@ -284,14 +278,7 @@ test("an already-joined shared workspace that stops granting access shows the ac
   ]);
   await owner.keyboard.press("Escape").catch(() => {});
 
-  const shareState = await owner.evaluate(() => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeId = localStorage.getItem("mde:active");
-    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { activeDoc, ws };
-  });
+  const shareState = await readSharedState(owner);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
 
   await viewer.goto(shareUrl);
@@ -356,14 +343,7 @@ test("a fresh visit to a share link with no accessible role shows the access-den
     owner.keyboard.press("Enter"),
   ]);
 
-  const shareState = await owner.evaluate(() => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeId = localStorage.getItem("mde:active");
-    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { activeDoc, ws };
-  });
+  const shareState = await readSharedState(owner);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
   await owner.keyboard.press("Escape").catch(() => {});
 

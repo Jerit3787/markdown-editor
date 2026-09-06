@@ -19,7 +19,7 @@ test("styled text fields stay at 16px on a narrow (mobile) viewport", async ({ p
   await page.locator(".modal-box-v2", { hasText: "Document info" }).getByRole("button", { name: "Close" }).click();
 
   await page.click("#editor-mount .cm-content");
-  await page.keyboard.press("Control+k");
+  await page.keyboard.press("ControlOrMeta+k"); // Mod-k — Cmd on macOS, Ctrl elsewhere
   await page.waitForSelector(".modal-box-v2", { state: "visible" });
   const linkFontSize = await page.locator('input[placeholder="Link text"]').evaluate((el) => getComputedStyle(el).fontSize);
   expect(linkFontSize).toBe("16px");

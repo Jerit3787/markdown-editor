@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInAsDevUser } from "./support/dev-login";
+import { readSharedState } from "./support/share";
 
 const BASE = "http://localhost:8787";
 
@@ -61,15 +62,7 @@ test("a live edit from one collaborator appears in another's browser with no rel
     accessSelect.selectOption({ label: "Anyone with the link" }),
   ]);
 
-  const shareState = await alice.evaluate(() => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeId = localStorage.getItem("mde:active");
-    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { activeDoc, ws };
-  });
-  expect(shareState.ws?.shared).toBe(true);
+  const shareState = await readSharedState(alice);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
 
   const doneBtn = alice.locator('button:has-text("Done")');
@@ -186,15 +179,7 @@ test("a document created after both collaborators are already connected appears 
     accessSelect.selectOption({ label: "Anyone with the link" }),
   ]);
 
-  const shareState = await alice.evaluate(() => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeId = localStorage.getItem("mde:active");
-    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { activeDoc, ws };
-  });
-  expect(shareState.ws?.shared).toBe(true);
+  const shareState = await readSharedState(alice);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
 
   const doneBtn = alice.locator('button:has-text("Done")');
@@ -220,8 +205,14 @@ test("a document created after both collaborators are already connected appears 
   // document, does Alice create a second one in the same workspace.
   await alice.evaluate(() => window.MDE.newDoc());
   await alice.waitForSelector("#editor-mount .cm-content", { state: "visible" });
+  // Wait out bindActiveDoc's async settle window before typing — content
+  // typed before yCollab attaches is wiped by its reconcile and never
+  // reaches the room. No external signal for it; a wide margin over a
+  // sub-50ms op, matching the reload-dedup test's approach above.
+  await alice.waitForTimeout(1000);
   await alice.click("#editor-mount .cm-content");
   await alice.keyboard.type("second document content, created mid-session");
+  await expect.poll(() => alice.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("second document content, created mid-session");
 
   const secondDocId = await alice.evaluate(() => localStorage.getItem("mde:active"));
 

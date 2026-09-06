@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.5] - 2026-09-07
+
+### Fixed
+
+- **The `e2e-collab` CI suite is no longer flaky.** All of its tests drive one shared `wrangler dev` backend with no per-test isolation, so running them in parallel was pure contention — on GitHub Actions' shared runners it starved the collaboration room's sync/broadcast round-trips past the tests' own poll windows, failing the sync-heavy specs on three consecutive PRs that never touched collaboration code (each green on a plain rerun). The suite now runs serially, and the mid-session document-list poll gets the same cold-Worker headroom the content poll beside it already had.
+
 ## [1.46.4] - 2026-09-07
 
 ### Changed

@@ -16,6 +16,7 @@ import {
   type TreeEntry,
 } from "../../../client/src/repo-sync";
 import "fake-indexeddb/auto";
+import { computeDiffRows } from "../../../client/src/diff-lines";
 import { maybeSnapshotVersion } from "../../../client/src/history";
 import { docsStore } from "../../../client/src/stores/docs";
 import { createWorkspace, workspacesStore } from "../../../client/src/stores/workspaces";
@@ -160,6 +161,20 @@ describe("resolveImagesFromPull", () => {
     const pushed = rewriteImagesForPush(pulled.content, "my-notes", pulled.images, undefined);
     expect(pushed.content).toBe(original);
     expect(pushed.assets).toEqual([{ path: "assets/my-notes/foo.png", dataUrl }]);
+  });
+
+  it("VER-19: a local image line survives a full push → pull round trip byte-identical (no spurious diff)", () => {
+    const localContent = "intro\n\n![a photo](photo.png)\n\nend";
+    const images = { "photo.png": "data:image/png;base64,aGk=" };
+
+    const pushed = rewriteImagesForPush(localContent, "notes", images, undefined);
+    const blobs = Object.fromEntries(pushed.assets.map((a) => [a.path, a.dataUrl]));
+    const pulled = resolveImagesFromPull(pushed.content, "notes", blobs);
+
+    expect(pulled.content).toBe(localContent);
+    // and the diff model sees no change
+    const rows = computeDiffRows(localContent + "\n", pulled.content + "\n");
+    expect(rows.every((r) => r.type === "same")).toBe(true);
   });
 
   it("reuses the same internal ref for the same image referenced twice in one doc — mirrors rewriteImagesForPush's own reuse", () => {

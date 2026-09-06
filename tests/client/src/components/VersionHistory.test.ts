@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { test, expect, beforeEach } from "vitest";
+import { test, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
 import { render } from "vitest-browser-svelte";
 import VersionHistory from "../../../../client/src/components/VersionHistory.svelte";
@@ -147,4 +147,27 @@ test("VER-07: restoring an older local entry replaces the editor content and toa
   expect(get(toasts).some((t) => t.message === "Version restored" && t.type === "success")).toBe(true);
   // restore() calls close() on success
   await expect.poll(() => get(versionHistoryOpen)).toBe(false);
+});
+
+test("REPO-24: a signed-out viewer never fires the /commits request for a repo-linked workspace", async () => {
+  workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0, repoLink: { owner: "octocat", repo: "notes", branch: "main" } }]);
+  docsStore.set([{ id: DOC_ID, name: "Test", content: "v1", updatedAt: 0, createdAt: 0, workspaceId: "w1", repoPath: "Test.md" }]);
+  activeIdStore.set(DOC_ID);
+  await maybeSnapshotVersion(DOC_ID, "v0", 1_000);
+
+  const fetchSpy = vi.fn(async () => new Response("[]", { status: 200 }));
+  window.MDE = {
+    getEditor: () => ({ state: { readOnly: false } }),
+    formatRelativeTime: () => "just now",
+    githubSessionReady: Promise.resolve(),
+    githubUsername: null, // signed out
+  } as unknown as typeof window.MDE;
+  vi.stubGlobal("fetch", fetchSpy);
+
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText(/1970/)).toBeVisible(); // local history loaded
+
+  expect((fetchSpy.mock.calls as unknown as string[][]).some((c) => String(c[0]).includes("/commits"))).toBe(false);
+  vi.unstubAllGlobals();
 });

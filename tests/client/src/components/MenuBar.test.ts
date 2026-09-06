@@ -36,3 +36,40 @@ test("CMT-16: the badge caps at 99+", async () => {
   const screen = await render(MenuBar);
   await expect.poll(() => screen.container.querySelector("#menuComments .menu-badge")?.textContent?.trim()).toBe("99+");
 });
+
+test("REPO-23: the File > Repo submenu shows the repo link and last-synced relative time", async () => {
+  workspacesStore.set([
+    { id: "w1", name: "WS", createdAt: 0, updatedAt: 0, repoLink: { owner: "octocat", repo: "notes", branch: "main" }, repoLastSyncedAt: 1_700_000_000_000 },
+  ]);
+  activeWorkspaceIdStore.set("w1");
+  const screen = await render(MenuBar);
+
+  const labels = Array.from(screen.container.querySelectorAll(".menu-section-label")).map((el) => el.textContent?.trim());
+  expect(labels).toContain("octocat/notes");
+  expect(labels).toContain("Synced just now"); // formatRelativeTime stub
+});
+
+test("REPO-23: no last-synced label when repoLastSyncedAt is unset", async () => {
+  workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0, repoLink: { owner: "octocat", repo: "notes", branch: "main" } }]);
+  activeWorkspaceIdStore.set("w1");
+  const screen = await render(MenuBar);
+  const labels = Array.from(screen.container.querySelectorAll(".menu-section-label")).map((el) => el.textContent?.trim());
+  expect(labels.some((l) => l?.startsWith("Synced "))).toBe(false);
+});
+
+test("GIST-13: signed out — the plain Publish button is shown, the submenu is hidden", async () => {
+  const { githubUsername } = await import("../../../../client/src/stores/github");
+  githubUsername.set(null);
+  const screen = await render(MenuBar);
+  expect(screen.container.querySelector("#menuPublishSignedOut")!.hasAttribute("hidden")).toBe(false);
+  expect(screen.container.querySelector("#publishSubmenu")!.hasAttribute("hidden")).toBe(true);
+});
+
+test("GIST-13: signed in — the submenu is shown, the plain button hidden", async () => {
+  const { githubUsername } = await import("../../../../client/src/stores/github");
+  githubUsername.set("octocat");
+  const screen = await render(MenuBar);
+  expect(screen.container.querySelector("#publishSubmenu")!.hasAttribute("hidden")).toBe(false);
+  expect(screen.container.querySelector("#menuPublishSignedOut")!.hasAttribute("hidden")).toBe(true);
+  githubUsername.set(null);
+});

@@ -40,8 +40,9 @@ test("IMG-12: deleting an image row removes it from the doc's image map and the 
 
   await screen.getByRole("button", { name: "Delete a.png" }).click();
 
-  expect(get(docsStore)[0].images).not.toHaveProperty("a.png");
-  expect(get(docsStore)[0].images).toHaveProperty("b.png");
+  // removeImage() is async (awaits confirmAction) — poll for the delete to
+  // land rather than reading the store synchronously after the click.
+  await expect.poll(() => Object.keys(get(docsStore).find((d) => d.id === "d1")?.images ?? {})).toEqual(["b.png"]);
   await expect.poll(() => screen.container.querySelectorAll(".image-item").length).toBe(1);
 });
 

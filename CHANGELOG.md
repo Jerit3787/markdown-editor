@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.2] - 2026-09-06
+
+### Added
+
+- **A test coverage catalog (`docs/TEST-COVERAGE.md`)** enumerating every user-facing scenario per subsystem and its current automated-test status (covered / partial / gap), with a baseline tally, plus `npm run test:coverage` (V8 coverage instrumentation) and a non-blocking CI coverage summary. Groundwork for a maintenance-phase pass that closes the catalogued gaps subsystem by subsystem.
+
 ## [1.45.1] - 2026-09-06
 
 ### Fixed

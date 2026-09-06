@@ -36,6 +36,23 @@ jobs:
       - name: Run tests
         run: npm test
 
+      # Non-blocking: `npm test` above is the gate. This re-runs the
+      # suite with V8 coverage only to publish the summary + html
+      # report as a build artifact. `continue-on-error` so a coverage
+      # tooling hiccup never blocks a PR — there is no threshold yet.
+      - name: Coverage report
+        run: npm run test:coverage
+        continue-on-error: true
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Upload component test screenshots
         if: failure()
         uses: actions/upload-artifact@v7

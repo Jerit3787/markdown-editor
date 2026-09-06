@@ -247,10 +247,29 @@ _Source: `client/src/version-grouping.ts`, `client/src/history.ts`, `client/src/
 
 ## 9. Comments
 
-_Source: `client/src/comments.ts`, `client/src/components/CommentsPanel.svelte`, `client/src/stores/commentsPanel.ts`, `client/src/stores/commentDraft.ts`, comment routes in `src/workspace-room.ts`_
+_Source: `client/src/comments.ts`, `client/src/anchor.ts` (+ `src/anchor.ts`), `client/src/components/CommentsPanel.svelte`, `client/src/stores/commentsPanel.ts`, `client/src/stores/commentDraft.ts`, comment routes in `src/workspace-room.ts`_
 
-| ID  | Scenario | Level | Status | Test | Notes |
-| --- | -------- | ----- | ------ | ---- | ----- |
+| ID     | Scenario                                                                                          | Level      | Status  | Test                                        | Notes                                                                              |
+| ------ | --------------------------------------------------------------------------------------------- | ---------- | ------- | ----------------------------------------- | ------------------------------------------------------------------------------ |
+| CMT-01 | `countUnresolvedComments` counts only unresolved threads                                           | unit       | covered | `tests/client/src/comments.test.ts`        |                                                                              |
+| CMT-02 | `relocateAnchor` — exact re-match, relocation on shift, null when the quote is gone, closest-to-offset when ambiguous, null for empty quote (client + Worker) | unit | covered | `tests/client/src/anchor.test.ts` | the comment-anchoring model                                        |
+| CMT-03 | Selecting text shows the comment-draft popup without opening the Comments panel first             | e2e        | covered | `tests/e2e/local/comments.spec.ts`         |                                                                              |
+| CMT-04 | Adding a comment renders a highlight over the anchored range and a row in the panel               | e2e        | covered | `tests/e2e/local/comments.spec.ts`         |                                                                              |
+| CMT-05 | Selecting new text while the draft box is open collapses it back to the "Add comment" button      | e2e        | covered | `tests/e2e/local/comments.spec.ts`         |                                                                              |
+| CMT-06 | The draft popup stays within the viewport when the selection is near the right edge on a narrow screen | e2e    | covered | `tests/e2e/local/comments.spec.ts`         | cross-ref §13                                                                 |
+| CMT-07 | A comment can be added on a mobile viewport with the Comments sheet closed                        | e2e        | covered | `tests/e2e/local/comments.spec.ts`         | cross-ref §13                                                                 |
+| CMT-08 | Deleting a comment via the panel removes its highlight                                            | e2e        | covered | `tests/e2e/local/comments.spec.ts`         |                                                                              |
+| CMT-09 | A comment thread is created and persisted under the doc's own storage key; docA / docB threads stay independent | integration | covered | `tests/src/workspace-room.test.ts` |                                                                              |
+| CMT-10 | Only the thread's author or the workspace owner can delete a thread                               | integration | covered | `tests/src/workspace-room.test.ts`         |                                                                              |
+| CMT-11 | A viewer cannot add a comment or a reply (403)                                                    | integration | covered | `tests/src/workspace-room.test.ts`         |                                                                              |
+| CMT-12 | A reviewer / editor can post a reply, and it appends to the thread and broadcasts                 | integration + e2e-collab | gap | —                              | success path of `handleCommentReplyRequest` is untested                       |
+| CMT-13 | Resolving a thread marks it resolved; reopening un-resolves it                                    | integration + e2e-collab | gap | —                              | `handleCommentResolveRequest` has no test — see `## Deferred` (open bug)       |
+| CMT-14 | A comment anchor follows edits made above / inside its range and greys out when its text is deleted, in the live editor | e2e-collab | gap | —                              | `relocateAnchor` logic covered (CMT-02); the editor integration is not        |
+| CMT-15 | Adding / resolving / deleting a comment on a shared doc propagates live to another collaborator   | e2e-collab | gap     | —                                         |                                                                              |
+| CMT-16 | The unresolved-comment count badge shows on the topbar Comments icon and the File-menu entry      | component  | gap     | —                                         | count logic covered by CMT-01 (v1.30.0)                                       |
+| CMT-17 | Clicking a comment row in the panel scrolls the editor to its anchor                              | e2e        | gap     | —                                         |                                                                              |
+| CMT-18 | An empty / whitespace-only comment or reply is rejected                                           | integration | partial | `tests/src/workspace-room.test.ts`        | `Invalid comment` / `Invalid reply` 400 branches — verify both are asserted   |
+| CMT-19 | The Comments panel collapses fully on close with no leftover sliver, matching the workspace panel  | e2e        | gap     | —                                         | `TODO.md` item 9 (regressed once already)                                     |
 
 ## 10. Workspace collab
 
@@ -294,5 +313,6 @@ _Source: `client/src/components/MenuBar.svelte`, `client/src/components/CommandP
 Scenarios deliberately not tested, and `it.skip` / `test.fixme` rows
 pointing at real bugs awaiting a fix branch.
 
-| ID  | Scenario | Why deferred |
-| --- | -------- | ------------ |
+| ID     | Scenario                                                                 | Why deferred                                                                                                                                                                              |
+| ------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CMT-13 | Reply-to / resolve a comment thread is "broken in practice" (`IMPROVEMENTS.md` Phase 1, confirmed 2026-08-13) | Server routes have passing tests; no repro found by code review. Needs an `e2e-collab` test with two GitHub-authenticated roles (reviewer + editor) exercising reply + resolve on a real shared doc to either reproduce or close it. Write that test in the §10 phase; if it fails, it becomes a bug-fix branch of its own. |

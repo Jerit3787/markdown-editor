@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInAsDevUser } from "./support/dev-login";
+import { readSharedState } from "./support/share";
 
 const BASE = "http://localhost:8787";
 
@@ -115,15 +116,7 @@ test("renaming a document while a second collaborator is connected updates a bac
 
   // Linker is still the active document here — this invite is what
   // actually seeds it into the new room (see the top-of-test comment).
-  const shareState = await owner.evaluate(() => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeId = localStorage.getItem("mde:active");
-    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { activeDoc, ws };
-  });
-  expect(shareState.ws?.shared).toBe(true);
+  const shareState = await readSharedState(owner);
   expect(shareState.activeDoc?.id).toBe(linkerId);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
 

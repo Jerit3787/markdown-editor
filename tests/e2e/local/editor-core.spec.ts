@@ -158,6 +158,9 @@ test.describe("link modal insertion", () => {
 
 test.describe("Edit menu clipboard commands", () => {
   test.use({ permissions: ["clipboard-read", "clipboard-write"] });
+  // These share one OS clipboard — running them in parallel lets one test's
+  // writeText race another's readText. Serialize within this block.
+  test.describe.configure({ mode: "serial" });
   const clip = (page: Page) => page.evaluate(() => navigator.clipboard.readText());
 
   test("Copy puts the selection on the clipboard without changing the document", async ({ page }) => {

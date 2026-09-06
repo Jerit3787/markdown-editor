@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInAsDevUser } from "./support/dev-login";
+import { readSharedState } from "./support/share";
 
 const BASE = "http://localhost:8787";
 
@@ -98,13 +99,7 @@ test("a shared workspace's real name reaches a fresh joiner and updates live for
   // the trigger again later would just toggle it shut instead of open.
   await owner.click("#editor-mount .cm-content");
 
-  const shareState = await owner.evaluate((docId) => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeDoc = docs.find((d: { id: string }) => d.id === docId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { ws };
-  }, firstDocId);
+  const shareState = await readSharedState(owner, firstDocId);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${firstDocId}/edit`;
 
   await joinAsNewWorkspace(viewer, shareUrl);
@@ -152,13 +147,7 @@ test("deleting a document from a shared workspace removes it live for other coll
 
   await shareAsAnyoneWithLink(owner, "Editor");
 
-  const shareState = await owner.evaluate((docId) => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeDoc = docs.find((d: { id: string }) => d.id === docId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { ws };
-  }, firstDocId);
+  const shareState = await readSharedState(owner, firstDocId);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${firstDocId}/edit`;
 
   await joinAsNewWorkspace(viewer, shareUrl);

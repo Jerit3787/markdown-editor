@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInAsDevUser } from "./support/dev-login";
+import { readSharedState } from "./support/share";
 
 const BASE = "http://localhost:8787";
 
@@ -43,14 +44,7 @@ test("a shared workspace previews without persisting, and Keep makes it survive 
     alice.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
     accessSelect.selectOption({ label: "Anyone with the link" }),
   ]);
-  const shareState = await alice.evaluate(() => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeId = localStorage.getItem("mde:active");
-    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { activeDoc, ws };
-  });
+  const shareState = await readSharedState(alice);
   const remoteId = shareState.ws.remoteId as string;
   const shareUrl = `${BASE}/w/${remoteId}/${shareState.activeDoc.id}/edit`;
 

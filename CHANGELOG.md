@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.10] - 2026-09-07
+
+### Fixed
+
+- **Stabilized the flaky `e2e-collab` test suite.** Three collaboration specs intermittently failed on CI (all passing on re-run): a share-flow read that raced the client's own `persistWorkspaces()` after the access PUT (now polled via a shared `readSharedState` helper), and content typed into a just-created shared document before its collab binding finished attaching, which the binding's reconcile then wiped. Also fixed two macOS-local test failures: a clipboard suite that raced itself in parallel, and a `Control+k` shortcut that needed to be `Mod-k`.
+
 ## [1.45.9] - 2026-09-07
 
 ### Changed

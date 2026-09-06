@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInAsDevUser } from "./support/dev-login";
+import { readSharedState } from "./support/share";
 
 const BASE = "http://localhost:8787";
 
@@ -95,15 +96,7 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   await invite("sugg-reviewer-e2e", "reviewer");
   await invite("sugg-viewer-e2e", "viewer");
 
-  const shareState = await owner.evaluate(() => {
-    const workspaces = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    const activeId = localStorage.getItem("mde:active");
-    const activeDoc = docs.find((d: { id: string }) => d.id === activeId);
-    const ws = workspaces.find((w: { id: string }) => w.id === activeDoc?.workspaceId);
-    return { activeDoc, ws };
-  });
-  expect(shareState.ws?.shared).toBe(true);
+  const shareState = await readSharedState(owner);
   const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
 
   const doneBtn = owner.locator('button:has-text("Done")');

@@ -50,19 +50,19 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 5. Images                          |      18 |       0 |    1 |    19 |
 | 6. Export & print                  |      12 |       0 |    0 |    12 |
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
-| 8. Version history & diff view     |      11 |       0 |    8 |    19 |
+| 8. Version history & diff view     |      16 |       0 |    3 |    19 |
 | 9. Comments                        |      11 |       1 |    7 |    19 |
 | 10. Workspace collab               |      36 |       4 |    6 |    46 |
 | 11. GitHub auth & Gist             |       9 |       5 |    9 |    23 |
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
 | 13. Mobile                         |       8 |       1 |    6 |    15 |
 | 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **243** |  **17** | **51** | **311** |
+| **Total**                          | **248** |  **17** | **46** | **311** |
 
-~78% of enumerated scenarios have a test asserting their outcome, ~6%
-are partial, ~17% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phases 1–7 done — §1–§4, §6, §7 fully covered; §5 all but one
-e2e-collab row). The pure-logic layers (stores, CRDT/room
+~80% of enumerated scenarios have a test asserting their outcome, ~5%
+are partial, ~15% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phases 1–8 done — §1–§4, §6, §7 fully covered; §5 all but one
+e2e-collab row; §8 all but three rows cross-referenced to §10/§12). The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
 (modals, menus, the Command Palette, DiagramEditor), the `.md` export
@@ -276,18 +276,18 @@ _Source: `client/src/version-grouping.ts`, `client/src/history.ts`, `client/src/
 | VER-04 | Oldest snapshots are pruned past the 300 cap; list is newest-first; a failed snapshot write doesn't throw | unit | covered | `tests/client/src/history.test.ts`               |                                                                               |
 | VER-05 | Snapshots store images alongside content; `getVersionImages` returns them or `undefined` for a no-image / unknown snapshot | unit | covered | `tests/client/src/history.test.ts`             |                                                                               |
 | VER-06 | `restoreLocalVersion` returns the stored content + images and force-appends a fresh snapshot       | unit      | covered | `tests/client/src/history.test.ts`               |                                                                               |
-| VER-07 | Restoring a version from the UI replaces the editor content + images, records a new snapshot, and toasts | e2e     | gap     | —                                                | store logic covered by VER-06; the click-through is not                        |
+| VER-07 | Restoring a version from the UI replaces the editor content + images, records a new snapshot, and toasts | component | covered | `tests/client/src/components/VersionHistory.test.ts` | re-levelled e2e→component — a full click-through (real IndexedDB round-trip via fake-indexeddb; only the live CodeMirror instance is stubbed) |
 | VER-08 | Restoring a **shared** document's version (`restoreSharedVersion*`)                                | e2e-collab | gap     | —                                                | cross-ref §10                                                                  |
 | VER-09 | Restore is disabled when the selected entry is already the current revision / newest nested entry  | component | covered | `tests/client/src/components/VersionHistory.test.ts` | `TODO.md` item 19                                                              |
 | VER-10 | `mergeSnapshotsFromRepo` adds remote snapshots, dedupes by id, re-sorts + re-caps at 300           | unit      | covered | `tests/client/src/history.test.ts`               | cross-ref §12                                                                  |
 | VER-11 | `computeDiffRows` / `toUnifiedLines` — same/added/removed/changed rows, surplus lines, word-level intraline segments, unified expansion | unit | covered | `tests/client/src/diff-lines.test.ts`            | GitHub-style diff data model                                                   |
-| VER-12 | DiffView renders line numbers and word-level intraline highlighting, and the Split / Unified toggle switches layout | component | gap  | —                                                | `TODO.md` — the render of the model in VER-11 is untested                       |
-| VER-13 | DiffView renders before/after image thumbnails for an image-only changed line, in Split and Unified | component | gap    | —                                                | `TODO.md` "image not loaded properly in diffs"; `parseImageOnlyLine` covered, the `<img>` render is not |
-| VER-14 | DiffView shows a loading placeholder while a repo-commit diff's images are still being fetched      | component | gap     | —                                                | `beforeImages === undefined` branch                                            |
+| VER-12 | DiffView renders line numbers and word-level intraline highlighting, and the Split / Unified toggle switches layout | component | covered | `tests/client/src/components/DiffView.test.ts` | render of the VER-11 model — gutters, `.diff-segment-changed` spans, `.diff-view-unified` toggle |
+| VER-13 | DiffView renders before/after image thumbnails for an image-only changed line, in Split and Unified | component | covered | `tests/client/src/components/DiffView.test.ts` | `img.diff-image-thumb` with resolved `src`, both modes; unknown ref → raw ref src |
+| VER-14 | DiffView shows a loading placeholder while a repo-commit diff's images are still being fetched      | component | covered | `tests/client/src/components/DiffView.test.ts` | `beforeImages`/`afterImages` undefined → `.diff-image-loading` in both modes |
 | VER-15 | `parseImageOnlyLine` / `extractAssetImageRefs` — exact single-image lines only, `assets/`-path refs, mixed/plain/empty lines rejected | unit | covered | `tests/client/src/diff-image-row.test.ts`      |                                                                               |
 | VER-16 | Version History merges local session groups and GitHub repo commits into one timeline, following renames across commits (`findRenamedPathAtRef`) | e2e-collab / integration | gap | —                                    | cross-ref §12; `fetchAndMergeRepoHistory` orchestration untested               |
 | VER-17 | Diffing any two selected historical entries against each other (not just against Live)             | e2e       | covered | `tests/e2e/local/version-history-grouping.spec.ts` |                                                                               |
-| VER-18 | A historical version renders identically to the live preview (mermaid / math / images / sanitization) | unit    | gap     | —                                                | `version-preview.ts` has no test at any level                                  |
+| VER-18 | A historical version renders identically to the live preview (mermaid / math / images / sanitization) | unit    | covered | `tests/client/src/version-preview.test.ts`        | image-ref resolution + DOMPurify sanitization + markdown; mermaid/math paths covered by `mermaid-preview.test.ts` / `math-preview.test.ts` |
 | VER-19 | A normalized image-reference format does not surface as a spurious diff                             | unit      | gap     | —                                                | `TODO.md`; root cause is deterministic pull refs — cross-ref §12               |
 
 ## 9. Comments
@@ -495,3 +495,6 @@ pointing at real bugs awaiting a fix branch.
 | ------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | CMT-13 | Reply-to / resolve a comment thread is "broken in practice" (`IMPROVEMENTS.md` Phase 1, confirmed 2026-08-13) | Server routes have passing tests; no repro found by code review. Needs an `e2e-collab` test with two GitHub-authenticated roles (reviewer + editor) exercising reply + resolve on a real shared doc to either reproduce or close it. Write that test in the §10 phase; if it fails, it becomes a bug-fix branch of its own. |
 | IMG-06 | The `![Encoding name…]()` placeholder tracks its position as a collaborator's concurrent edits land during the `FileReader` window | `e2e-collab`, deferred to the §10 phase — needs a second live editor making edits while the file reads. The single-editor half (a doc switch mid-read drops the pending image, `if (!range) return`) is covered by IMG-07. |
+| VER-08 | Restoring a **shared** document's version (`restoreSharedVersion` / `restoreSharedVersionContent`) | `e2e-collab`, deferred to the §10 phase — needs a live shared workspace with an authenticated editor role. The local restore path is covered by VER-06 (store) + VER-07 (UI). |
+| VER-16 | Version History merges local session groups and GitHub repo commits into one timeline, following renames across commits | Integration / `e2e-collab`, deferred to the §12 phase — `fetchAndMergeRepoHistory` orchestration needs a real (or fully faked) repo backend with a rename across commits. The building blocks (`mergeSnapshotsFromRepo` VER-10, `findRenamedPathAtRef`) are unit-covered. |
+| VER-19 | A normalized image-reference format does not surface as a spurious diff | Deferred to the §12 phase — the root cause is repo-sync pull-ref determinism (`resolveImagesFromPull` must round-trip a pushed ref to the exact same text), a repo-sync serialization property rather than a diff-model one. `computeDiffRows` treating identical image lines as `same` is already covered by VER-11. |

@@ -22,11 +22,30 @@ import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
 import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified, workspaceAccessDenied } from "./stores/share";
 import { showToast } from "./stores/toast";
-import { getActiveDoc, switchDoc, docsStore, moveDocToWorkspace, findDocById, persistDocs, importRemoteDocs, syncRemoteDocContent } from "./stores/docs";
+import {
+  getActiveDoc,
+  switchDoc,
+  docsStore,
+  moveDocToWorkspace,
+  findDocById,
+  persistDocs,
+  importRemoteDocs,
+  syncRemoteDocContent,
+  removeDocById,
+  docRemovalHook,
+} from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
 import { pendingJoin } from "./stores/joinWorkspace";
 import { workspacePresence } from "./stores/workspacePresence";
-import { workspacesStore, switchWorkspace, createWorkspace, persistWorkspaces, adoptSharedWorkspace, previewSharedWorkspace } from "./stores/workspaces";
+import {
+  workspacesStore,
+  switchWorkspace,
+  createWorkspace,
+  persistWorkspaces,
+  adoptSharedWorkspace,
+  previewSharedWorkspace,
+  renameWorkspace,
+} from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";
@@ -45,6 +64,7 @@ import { SHARE_PATH } from "./router";
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 const MESSAGE_PRESENCE = 2;
+const MESSAGE_WORKSPACE_META = 3;
 
 const COLORS = ["#e64980", "#f76707", "#f59f00", "#40c057", "#12b886", "#228be6", "#7950f2", "#e8590c"];
 export const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
@@ -84,6 +104,18 @@ const workspaceRoom = {
   ws: null as WebSocket | null,
   docs: new Map<string, DocBinding>(),
   activeDocId: null as string | null,
+  // This session's own resolved role for the whole connection (set once
+  // in joinWorkspace, from computeMyRole's result) — role is per
+  // connection, not per document (see access-role.ts's resolveRole()),
+  // so this is the one correct source for "what am I allowed to do
+  // here," independent of which documents happen to be bound yet. Never
+  // derive a fallback role by reading some OTHER binding's own .role:
+  // if no binding exists yet (or activeDocId is still null, e.g. while
+  // bindActiveDoc's whenSynced await is still pending), that reads as
+  // "not found" and silently defaulted to "editor" — handing a viewer
+  // an editor-looking binding for a document their real role never
+  // granted them write access to.
+  role: null as string | null,
   reconnectTimer: null as ReturnType<typeof setTimeout> | null,
   reconnectDelay: 1000,
 };
@@ -171,6 +203,7 @@ function init() {
     const binding = workspaceRoom.docs.get(docId);
     if (binding) binding.ydoc.transact(() => binding.metaMap.set("name", name || "Untitled"), "local");
   };
+  docRemovalHook.onRemoved = pushWorkspaceDocDelete;
 
   setupShareUI();
 
@@ -221,7 +254,7 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const docs = await Promise.all(docIds.map((id) => fetchRemoteDocContent(workspaceId, id)));
   const validDocs = docs.filter((d): d is NonNullable<typeof d> => !!d);
 
-  const decision = decideJoinTarget(validDocs, get(workspacesStore).length);
+  const decision = decideJoinTarget(validDocs, get(workspacesStore).length, access.workspaceName);
   if (decision.kind === "auto-permanent") {
     const ws = adoptSharedWorkspace(workspaceId, decision.workspaceName);
     importRemoteDocs(ws.id, validDocs);
@@ -237,7 +270,7 @@ async function joinSharedLink(workspaceId: string, landOnDocId: string) {
     return;
   }
 
-  pendingJoin.set({ remoteId: workspaceId, workspaceName: "Shared workspace", docs: validDocs, landOnDocId });
+  pendingJoin.set({ remoteId: workspaceId, workspaceName: access.workspaceName || "Shared workspace", docs: validDocs, landOnDocId });
 }
 
 function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): string | null {
@@ -301,8 +334,7 @@ function handleDocChanged(doc: any) {
       // join, so it silently never reached the server or any other
       // collaborator at all.
       if (!workspaceRoom.docs.has(doc.id)) {
-        const role = workspaceRoom.docs.get(workspaceRoom.activeDocId ?? "")?.role ?? "editor";
-        seedNewDocBinding(doc.id, doc, role);
+        seedNewDocBinding(doc.id, doc, workspaceRoom.role ?? "editor");
       }
       bindActiveDoc(doc.id);
       syncShareStores();
@@ -420,6 +452,7 @@ async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: s
   teardownWorkspace();
   const myGeneration = joinGeneration;
   workspaceRoom.workspaceId = workspaceId;
+  workspaceRoom.role = role;
 
   const docIds = await fetchWorkspaceDocIds(workspaceId);
   if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-fetch — leave workspaceRoom to the newer attempt
@@ -429,6 +462,17 @@ async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: s
   if (seedDocId && !docIds.includes(seedDocId)) {
     createDocBinding(seedDocId, role);
     seedDocBindingFromEditor(seedDocId);
+    // Registered with the room only now — after the check above already
+    // decided to seed, and before connectWorkspace() opens the socket.
+    // Registering any earlier would make the check above see this docId
+    // as already-known and skip seeding it entirely (a real regression:
+    // see setAccessMode's own comment). Registering any later would leave
+    // a window where the room's very first (synchronous, at-accept-time)
+    // greeting back to this same connection reports a docOrder without
+    // this docId yet — which applyWorkspaceMeta would read as "removed
+    // elsewhere" and delete the binding this line just seeded.
+    await registerDocWithRoom(workspaceId, seedDocId);
+    if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-register
   }
 
   connectWorkspace();
@@ -603,11 +647,11 @@ function createDocBinding(docId: string, role: string): DocBinding {
 // broadcasts every document's updates to every connected session the
 // same way regardless of whether the recipient already knew about that
 // document (see handleDocUpdate in workspace-room.ts). Role is per
-// connection, not per document (see access-role.ts's resolveRole()), so
-// any existing binding's role is this session's own role too.
+// connection, not per document (see access-role.ts's resolveRole() and
+// workspaceRoom.role's own comment), so this session's own resolved role
+// applies to this newly-discovered document too.
 function discoverRemoteDocBinding(docId: string): DocBinding {
-  const role = workspaceRoom.docs.get(workspaceRoom.activeDocId ?? "")?.role ?? "editor";
-  return createDocBinding(docId, role);
+  return createDocBinding(docId, workspaceRoom.role ?? "editor");
 }
 
 // Called once, immediately after the first incoming sync message has
@@ -739,6 +783,21 @@ async function bindActiveDoc(docId: string): Promise<void> {
   sendPresence(docId);
 }
 
+// Tears down one document's Yjs/awareness state and drops it from
+// workspaceRoom.docs — the same cleanup teardownWorkspace() already does
+// per-binding when leaving a workspace entirely, extracted so
+// applyWorkspaceMeta() can do it for a single removed document without
+// tearing down the whole connection.
+function destroyBinding(docId: string): void {
+  const binding = workspaceRoom.docs.get(docId);
+  if (!binding) return;
+  binding.awareness.destroy();
+  binding.ydoc.off("update", binding.ydocUpdateHandler);
+  if (binding.undoManager) binding.undoManager.destroy();
+  binding.ydoc.destroy();
+  workspaceRoom.docs.delete(docId);
+}
+
 function teardownWorkspace(): void {
   joinGeneration++;
   // Cancels any pending debounce timer and runs the flush immediately —
@@ -760,12 +819,7 @@ function teardownWorkspace(): void {
   // closing the socket — send() only transmits while the socket is OPEN, so
   // closing first silently drops that broadcast almost every time, leaving
   // a phantom presence entry the server never learns to remove.
-  for (const binding of workspaceRoom.docs.values()) {
-    binding.awareness.destroy();
-    binding.ydoc.off("update", binding.ydocUpdateHandler);
-    if (binding.undoManager) binding.undoManager.destroy();
-    binding.ydoc.destroy();
-  }
+  for (const docId of Array.from(workspaceRoom.docs.keys())) destroyBinding(docId);
   if (workspaceRoom.ws) {
     workspaceRoom.ws.onclose = null;
     workspaceRoom.ws.onerror = null;
@@ -775,11 +829,32 @@ function teardownWorkspace(): void {
       /* already closed */
     }
   }
-  workspaceRoom.docs.clear();
   workspaceRoom.workspaceId = null;
   workspaceRoom.ws = null;
   workspaceRoom.activeDocId = null;
+  workspaceRoom.role = null;
   workspaceRoom.reconnectDelay = 1000;
+}
+
+// Applies an incoming MESSAGE_WORKSPACE_META frame: mirrors the sharer's
+// real workspace name onto our local copy (matched by remoteId), and
+// removes any local document whose id is no longer in the room's
+// docOrder — the workspace-level counterpart to how a document's own
+// name/content already sync. Runs on every frame, including the one-time
+// greeting a freshly-opened connection gets (see WorkspaceRoom.handleSession),
+// so a stale local cache never has more than the same brief window every
+// other synced field already tolerates before the first real frame lands.
+function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: string[]): void {
+  const local = get(workspacesStore).find((w) => w.remoteId === remoteWorkspaceId);
+  if (!local) return;
+  if (name) renameWorkspace(local.id, name);
+  const orderSet = new Set(docOrder);
+  for (const doc of get(docsStore).filter((d) => d.workspaceId === local.id)) {
+    if (!orderSet.has(doc.id)) {
+      destroyBinding(doc.id);
+      removeDocById(doc.id);
+    }
+  }
 }
 
 // ---------- WebSocket transport (Yjs sync + awareness protocol) ----------
@@ -825,6 +900,15 @@ function handleServerMessage(data: Uint8Array): void {
     const username = decoding.readVarString(decoder);
     const docId = decoding.readVarString(decoder);
     handleRemotePresence(username, docId);
+    return;
+  }
+
+  if (messageType === MESSAGE_WORKSPACE_META) {
+    const name = decoding.readVarString(decoder);
+    const count = decoding.readVarUint(decoder);
+    const docOrder: string[] = [];
+    for (let i = 0; i < count; i++) docOrder.push(decoding.readVarString(decoder));
+    if (workspaceRoom.workspaceId) applyWorkspaceMeta(workspaceRoom.workspaceId, name, docOrder);
     return;
   }
 
@@ -993,6 +1077,29 @@ async function fetchWorkspaceAccess(workspaceId: string): Promise<AccessRecord> 
   }
 }
 
+export function pushWorkspaceRename(workspaceId: string, name: string): void {
+  const ws = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (!ws || !ws.shared || !ws.remoteId) return;
+  void fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}/meta`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function pushWorkspaceDocDelete(docId: string, workspaceId: string): void {
+  const ws = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (!ws || !ws.shared || !ws.remoteId) return;
+  // Destroy this session's own binding immediately rather than waiting
+  // for the broadcast echo — the deleting session may not even be
+  // currently connected via WS (renaming/deleting works regardless, see
+  // this feature's "Why HTTP, not WS" design note), and stores/docs.ts's
+  // own removeDocById() already dropped the local Doc by the time any
+  // echo could arrive anyway.
+  destroyBinding(docId);
+  void fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}/docs?docId=${encodeURIComponent(docId)}`, { method: "DELETE" });
+}
+
 async function putWorkspaceAccess(workspaceId: string, body: unknown): Promise<AccessRecord | null> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/access`, {
@@ -1014,6 +1121,30 @@ async function fetchWorkspaceDocIds(workspaceId: string): Promise<string[]> {
     return (await res.json()) as string[];
   } catch (err) {
     return [];
+  }
+}
+
+// Registers a docId with the room over plain HTTP, ahead of ever opening
+// the WebSocket. A brand-new room's very first connection is greeted with
+// its current docIds synchronously, at accept time — before this client
+// has had any chance to introduce itself over the socket at all (its own
+// sync-step1 burst only goes out once the socket's own onopen fires,
+// which is strictly later). Without this, that first greeting's docOrder
+// would still be missing every document that's about to be shared, and
+// this same client's own incoming MESSAGE_WORKSPACE_META handling
+// (applyWorkspaceMeta) would read that as every one of them having just
+// been deleted. Best-effort: on failure, the doc's own step1 sync frame
+// still registers it once the socket opens — just without this guard
+// against that first-greeting race.
+async function registerDocWithRoom(workspaceId: string, docId: string): Promise<void> {
+  try {
+    await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ docId }),
+    });
+  } catch (err) {
+    /* best-effort, see comment above */
   }
 }
 
@@ -1188,9 +1319,10 @@ export type JoinDecision = { kind: "auto-permanent"; workspaceName: string } | {
 // (including a Preview option — see JoinWorkspaceModal.svelte), except for
 // a receiver with zero workspaces, who has nothing to choose between
 // either and lands permanently the same way as the single-doc case.
-export function decideJoinTarget(validDocs: { name: string }[], existingWorkspaceCount: number): JoinDecision {
+export function decideJoinTarget(validDocs: { name: string }[], existingWorkspaceCount: number, remoteWorkspaceName?: string): JoinDecision {
+  const multiDocName = remoteWorkspaceName || "Shared workspace";
   if (existingWorkspaceCount === 0) {
-    return { kind: "auto-permanent", workspaceName: validDocs.length === 1 ? validDocs[0]!.name || "Untitled" : "Shared workspace" };
+    return { kind: "auto-permanent", workspaceName: validDocs.length === 1 ? validDocs[0]!.name || "Untitled" : multiDocName };
   }
   if (validDocs.length === 1) return { kind: "auto-preview", workspaceName: validDocs[0]!.name || "Untitled" };
   return { kind: "choice" };
@@ -1261,8 +1393,27 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
   );
   persistWorkspaces();
   if ((wantAnyone || access.invited.length > 0) && !workspaceRoom.workspaceId) {
+    // joinWorkspace only seeds seedDocId (the active document, from the
+    // live editor) — this room never existed before this call, so every
+    // other local document already in the workspace has to be introduced
+    // here too, or it's silently left unsynced and never reaches anyone
+    // who joins the link afterward.
+    const siblings = get(docsStore).filter((d) => d.workspaceId === doc.workspaceId && d.id !== doc.id);
+    // Register every sibling with the room before connecting at all — see
+    // registerDocWithRoom's own comment for why this has to happen before
+    // the socket opens. The active doc is deliberately NOT pre-registered
+    // here: joinWorkspace's own seedDocId handling only pushes this
+    // session's live, not-yet-synced editor content via
+    // seedDocBindingFromEditor when the room doesn't already know this
+    // docId (see its own comment) — pre-registering it here made that
+    // check see the docId as already-known and silently skip seeding it,
+    // leaving the room with an empty Y.Doc for the very document being
+    // shared (confirmed live: every collaborator who joined afterward saw
+    // completely empty content).
+    await Promise.all(siblings.map((d) => registerDocWithRoom(doc.workspaceId, d.id)));
     await joinWorkspace(doc.workspaceId, { role: "editor", seedDocId: doc.id });
     bindActiveDoc(doc.id);
+    for (const sibling of siblings) seedNewDocBinding(sibling.id, sibling, "editor");
   }
   if (!wantAnyone && access.invited.length === 0) teardownWorkspace();
   syncShareStores();

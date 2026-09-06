@@ -17,6 +17,18 @@ import { mergeById } from "../merge-records";
 import { parseMetadataBlock, type MetadataPair } from "../mmd-metadata";
 import type { BibEntry, CitationPrefs } from "../mmd-citations";
 
+// Lets collab.ts learn about a genuine LOCAL delete intent without this
+// module importing collab.ts back (this module never touches window.MDE
+// or collab.ts — see the module comment at the top of this file).
+// collab.ts's init() sets onRemoved once; deleteDoc() (the only
+// local-intent delete call site) invokes it right before removeDocById()
+// actually mutates state. Deliberately NOT called from removeDocById()
+// itself: applying a REMOTE-triggered deletion (collab.ts's
+// applyWorkspaceMeta) also goes through removeDocById(), and must not
+// re-trigger an outbound DELETE request for a deletion that already came
+// from the server.
+export const docRemovalHook: { onRemoved: ((id: string, workspaceId: string) => void) | null } = { onRemoved: null };
+
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
 
@@ -358,6 +370,7 @@ export async function deleteDoc(id: string): Promise<Doc | undefined> {
   const doc = findDocById(id);
   if (!doc) return undefined;
   if (!(await confirmAction(`Delete "${doc.name || "Untitled"}"?`, "This can't be undone."))) return undefined;
+  docRemovalHook.onRemoved?.(id, doc.workspaceId);
   removeDocById(id);
   showToast(`Deleted "${doc.name || "Untitled"}"`, "success");
   return doc;

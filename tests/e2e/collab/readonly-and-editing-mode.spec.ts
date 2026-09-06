@@ -158,10 +158,13 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
   // A viewer isn't merely read-only — the app locks into Preview-only view
   // mode for the whole session, so there's no editor surface to even click
   // into. #editor-mount is hidden (display:none via #body.mode-preview),
-  // not just disabled, and the Editor/Split toolbar control disappears
-  // entirely (see stores/view.ts's viewModeLocked).
+  // not just disabled, and the whole toolbar (formatting buttons AND the
+  // Editor/Split view-selector) disappears entirely — not just the
+  // formatting buttons within it, which used to leave an empty bar behind
+  // (see stores/view.ts's viewModeLocked, and Toolbar.svelte's own {#if}).
   await expect(viewer.locator("#editor-mount")).toBeHidden();
   await expect(viewer.locator("#preview")).toBeVisible();
+  await expect(viewer.locator("#toolbar")).toHaveCount(0);
   await expect(viewer.locator(".view-selector")).toHaveCount(0);
 
   const beforeAttempt = await viewer.evaluate(() => window.MDE.getEditor().state.doc.toString());

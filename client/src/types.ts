@@ -17,6 +17,10 @@ export interface AccessRecord {
   requireAccount: boolean;
   role: string;
   invited: InvitedPerson[];
+  // The sharer's real workspace name, as of the last fetch — empty/absent
+  // for a workspace shared before this field existed, or one that was
+  // never explicitly renamed. See collab.ts's decideJoinTarget/joinSharedLink.
+  workspaceName?: string;
 }
 
 export interface PresenceEntry {

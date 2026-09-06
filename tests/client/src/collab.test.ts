@@ -8,6 +8,12 @@
 // runs during these tests: DOMContentLoaded has already fired on jsdom's
 // document by the time this module's listener is attached, so it's just a
 // no-op registration — none of the tests below trigger it.
+//
+// applyWorkspaceMeta's document-removal path (see the "incoming workspace
+// meta sync" describe block below) goes through stores/docs.ts's
+// removeDocById(), which fire-and-forgets a deleteHistory() call that
+// opens a real IndexedDB database — unmocked by default under jsdom.
+import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { get } from "svelte/store";
 import * as Y from "yjs";
@@ -22,6 +28,8 @@ import {
   setAccessMode,
   isIdentityUnverified,
   DEFAULT_ACCESS,
+  pushWorkspaceRename,
+  pushWorkspaceDocDelete,
 } from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
@@ -136,6 +144,108 @@ describe("decideJoinTarget", () => {
   it("treats zero valid documents as a multi-document share (no single doc to auto-land)", () => {
     const result = decideJoinTarget([], 0);
     expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Shared workspace" });
+  });
+
+  it("uses the real remote workspace name for a multi-document permanent landing when provided", () => {
+    const result = decideJoinTarget([{ name: "A" }, { name: "B" }], 0, "Team Docs");
+    expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Team Docs" });
+  });
+
+  it("falls back to the 'Shared workspace' placeholder when no remote workspace name is provided", () => {
+    const result = decideJoinTarget([{ name: "A" }, { name: "B" }], 0);
+    expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Shared workspace" });
+  });
+});
+
+describe("pushWorkspaceRename", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("PUTs the new name to the workspace's room when the workspace is shared", () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal("fetch", fetchMock);
+    workspacesStore.set([fakeSharedWorkspace({ id: "ws1", remoteId: "remote-1" })]);
+
+    pushWorkspaceRename("ws1", "New Name");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/workspace/remote-1/meta", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "New Name" }),
+    });
+  });
+
+  it("does nothing for a workspace that was never shared", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    workspacesStore.set([fakeWorkspace({ id: "ws1" })]);
+
+    pushWorkspaceRename("ws1", "New Name");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("pushWorkspaceDocDelete", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("DELETEs the document from the workspace's room when the workspace is shared", () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal("fetch", fetchMock);
+    workspacesStore.set([fakeSharedWorkspace({ id: "ws1", remoteId: "remote-1" })]);
+
+    pushWorkspaceDocDelete("doc1", "ws1");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/workspace/remote-1/docs?docId=doc1", { method: "DELETE" });
+  });
+
+  it("does nothing for a workspace that was never shared", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    workspacesStore.set([fakeWorkspace({ id: "ws1" })]);
+
+    pushWorkspaceDocDelete("doc1", "ws1");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("also destroys this session's own Yjs binding for the deleted document immediately", async () => {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="shareDropdownBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { method?: string }) => {
+        if (url.includes("/access") && init?.method === "PUT") {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) return { ok: true, json: async () => [] };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "hello" } } })),
+      githubUsername: "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      setDocName: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+    handleDocChanged(undefined as unknown as Doc);
+    workspacesStore.set([fakeWorkspace({ id: "ws1", name: "WS" })]);
+    activeWorkspaceIdStore.set("ws1");
+    docsStore.set([{ id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1" }]);
+    activeIdStore.set("doc1");
+
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(workspaceRoom.docs.has("doc1")).toBe(true);
+
+    pushWorkspaceDocDelete("doc1", "ws1");
+
+    expect(workspaceRoom.docs.has("doc1")).toBe(false);
   });
 });
 
@@ -524,6 +634,61 @@ describe("shared document name sync", () => {
 
     expect(window.MDE.setDocCitations).toHaveBeenCalledWith("doc1", remote);
   });
+
+  // Regression test: sharing a workspace for the first time only ever
+  // seeded the currently active document into the newly-created room —
+  // any sibling document already in that local workspace was silently
+  // left unsynced, so a collaborator joining afterward only ever saw the
+  // one document the sharer happened to have open at share time.
+  it("also seeds every other local document already in the workspace when sharing for the first time", async () => {
+    docsStore.set([
+      { id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+      { id: "doc2", name: "Sibling Doc", content: "sibling content", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+    ]);
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const sibling = workspaceRoom.docs.get("doc2");
+    expect(sibling).toBeDefined();
+    expect(sibling?.ytext.toString()).toBe("sibling content");
+    expect(sibling?.metaMap.get("name")).toBe("Sibling Doc");
+  });
+
+  // Regression test: a brand-new room's very first connection is greeted
+  // with its current docIds synchronously, at accept time — before this
+  // client has sent anything of its own over the socket (its own
+  // sync-step1 burst only goes out once the socket's own onopen fires,
+  // strictly later). Without registering every document via POST /docs
+  // first, that first greeting's docOrder would still be empty, and this
+  // same client's own applyWorkspaceMeta (see the "incoming workspace
+  // meta sync" describe block) would read that as every document —
+  // including the one just being seeded here — having just been deleted.
+  it("registers the active document and every sibling with the room via POST /docs before sharing connects", async () => {
+    docsStore.set([
+      { id: "doc1", name: "My Doc", content: "hello", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+      { id: "doc2", name: "Sibling Doc", content: "sibling content", updatedAt: 0, createdAt: 0, workspaceId: "ws1" },
+    ]);
+    const fetchCalls: { url: string; method?: string; body?: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+        fetchCalls.push({ url, method: init?.method, body: init?.body });
+        if (url.includes("/access") && init?.method === "PUT") {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const postedIds = fetchCalls.filter((c) => c.method === "POST" && c.url.includes("/docs")).map((c) => JSON.parse(c.body ?? "{}").docId);
+    expect(postedIds).toEqual(expect.arrayContaining(["doc1", "doc2"]));
+  });
 });
 
 describe("suggestion-mode role wiring", () => {
@@ -642,6 +807,74 @@ describe("suggestion-mode role wiring", () => {
     await Promise.resolve();
 
     expect(mde.updatePreview).toHaveBeenCalled();
+  });
+});
+
+// Regression coverage: a not-yet-bound document introduced while a
+// workspace is already connected used to derive its role by reading
+// *some other* binding's own .role (falling back to "editor" the moment
+// that lookup came up empty) instead of using this session's own
+// resolved connection role — a real bug, not just theoretical, since
+// bindActiveDoc's own whenSynced await means workspaceRoom.activeDocId
+// can still be null well after the session's real role is already known.
+describe("connection-level role fallback (not derived from another binding)", () => {
+  function setupViewerWithOneDoc(suffix: string) {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="body"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [`doc-${suffix}-a`] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: "bob",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+      updatePreview: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-ws-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const docA = { id: `doc-${suffix}-a`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    const docB = { id: `doc-${suffix}-b`, name: "B", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([docA, docB]);
+    return { docA, docB };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("still resolves a viewer's own role for a second document even when activeDocId is null", async () => {
+    const { docA, docB } = setupViewerWithOneDoc("rolefix");
+    handleDocChanged(docA);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(workspaceRoom.role).toBe("viewer");
+    // Forces the exact race this test guards against: bindActiveDoc only
+    // sets activeDocId after its own whenSynced await settles, so there's
+    // a real window where it's still null despite the session's role
+    // already being fully known.
+    workspaceRoom.activeDocId = null;
+
+    handleDocChanged(docB);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get(docB.id);
+    expect(binding?.role).toBe("viewer");
   });
 });
 
@@ -773,5 +1006,93 @@ describe("discovering a document created by another collaborator", () => {
     expect(get(docsStore).length).toBe(countBefore);
     const localDoc = get(docsStore).find((d) => d.id === "doc-disc4-b");
     expect(localDoc?.name).toBe("Already Here");
+  });
+});
+
+describe("incoming workspace meta sync (rename + document removal)", () => {
+  const MESSAGE_WORKSPACE_META = 3;
+
+  function sendWorkspaceMeta(name: string, docOrder: string[]) {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_WORKSPACE_META);
+    encoding.writeVarString(encoder, name);
+    encoding.writeVarUint(encoder, docOrder.length);
+    for (const id of docOrder) encoding.writeVarString(encoder, id);
+    const buffer = encoding.toUint8Array(encoder).buffer;
+    MockWebSocket.instances[0].onmessage!({ data: buffer } as MessageEvent);
+  }
+
+  async function setup(suffix: string) {
+    document.body.innerHTML = '<div id="shareBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) {
+          return { ok: true, json: async () => [`doc-${suffix}-a`, `doc-${suffix}-b`] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-ws-${suffix}`, remoteId: `remote-${suffix}`, name: "Old Name" });
+    workspacesStore.set([ws]);
+    const docA = { id: `doc-${suffix}-a`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    const docB = { id: `doc-${suffix}-b`, name: "B", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([docA, docB]);
+
+    handleDocChanged(docA);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    return { ws, docA, docB };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("updates the local workspace's name when a non-empty name arrives", async () => {
+    const { ws, docA, docB } = await setup("meta1");
+    sendWorkspaceMeta("Renamed By Owner", [docA.id, docB.id]);
+
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.name).toBe("Renamed By Owner");
+  });
+
+  it("leaves the local workspace's name alone when the incoming name is empty", async () => {
+    const { ws } = await setup("meta2");
+    sendWorkspaceMeta("", [`doc-meta2-a`, `doc-meta2-b`]);
+
+    expect(get(workspacesStore).find((w) => w.id === ws.id)?.name).toBe("Old Name");
+  });
+
+  it("removes a local document whose id is missing from the incoming docOrder, tearing down its binding", async () => {
+    const { docB } = await setup("meta3");
+    sendWorkspaceMeta("Old Name", [`doc-meta3-a`]);
+
+    expect(get(docsStore).find((d) => d.id === docB.id)).toBeUndefined();
+    expect(workspaceRoom.docs.has(docB.id)).toBe(false);
+  });
+
+  it("leaves a document alone whose id is still present in docOrder", async () => {
+    const { docA, docB } = await setup("meta4");
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id]);
+
+    expect(get(docsStore).find((d) => d.id === docA.id)).toBeDefined();
+    expect(get(docsStore).find((d) => d.id === docB.id)).toBeDefined();
+    expect(workspaceRoom.docs.has(docB.id)).toBe(true);
   });
 });

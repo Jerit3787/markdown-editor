@@ -12,6 +12,7 @@ const ROOM_VERSIONS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/versions(\/.
 const ROOM_COMMENTS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/comments(\/.*)?$/;
 const WORKSPACE_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})$/;
 const WORKSPACE_ACCESS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/access$/;
+const WORKSPACE_META_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/meta$/;
 const WORKSPACE_DOCS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs$/;
 const WORKSPACE_DOC_VERSIONS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/versions(\/.*)?$/;
 const WORKSPACE_DOC_COMMENTS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/comments(\/.*)?$/;
@@ -31,6 +32,12 @@ export default {
     const workspaceAccessMatch = url.pathname.match(WORKSPACE_ACCESS_PATH);
     if (workspaceAccessMatch) {
       const id = env.WORKSPACE_ROOM.idFromName(workspaceAccessMatch[1]!);
+      return env.WORKSPACE_ROOM.get(id).fetch(request);
+    }
+
+    const workspaceMetaMatch = url.pathname.match(WORKSPACE_META_PATH);
+    if (workspaceMetaMatch) {
+      const id = env.WORKSPACE_ROOM.idFromName(workspaceMetaMatch[1]!);
       return env.WORKSPACE_ROOM.get(id).fetch(request);
     }
 

@@ -25,6 +25,12 @@ const MESSAGE_AWARENESS = 1;
 // message type is the thing that lets the doc list show "who's on which
 // file" across the whole workspace instead of just within one open doc.
 const MESSAGE_PRESENCE = 2;
+// The workspace's own name plus its ordered document list ({name,
+// docOrder}) — a single last-write-wins value nobody co-edits
+// character-by-character the way document content is, so it rides the
+// same socket as a plain broadcast/greeting frame instead of a Y.Doc.
+// docId-less, like MESSAGE_PRESENCE.
+const MESSAGE_WORKSPACE_META = 3;
 
 const SYNC_STEP1 = 0;
 const SYNC_STEP2 = 1;
@@ -120,6 +126,7 @@ export class WorkspaceRoom {
   sessions: Map<WebSocket, SessionInfo>;
   docs: Map<string, DocRoom>;
   docIds: string[];
+  name: string;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -127,6 +134,7 @@ export class WorkspaceRoom {
     this.sessions = new Map();
     this.docs = new Map();
     this.docIds = [];
+    this.name = "";
 
     this.state.blockConcurrencyWhile(async () => {
       const storedDocIds = await this.state.storage.get<string[]>("docs");
@@ -134,6 +142,7 @@ export class WorkspaceRoom {
       for (const docId of this.docIds) {
         await this.loadDocRoom(docId);
       }
+      this.name = (await this.state.storage.get<string>("name")) || "";
     });
   }
 
@@ -253,6 +262,7 @@ export class WorkspaceRoom {
     const url = new URL(request.url);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
     if (url.pathname.endsWith("/docs")) return this.handleDocsRequest(request);
+    if (url.pathname.endsWith("/meta")) return this.handleMetaRequest(request);
     if (url.pathname.endsWith("/internal/seed")) return this.handleInternalSeedRequest(request);
 
     const replyMatch = url.pathname.match(/\/docs\/([^/]+)\/comments\/([^/]+)\/reply$/);
@@ -331,7 +341,8 @@ export class WorkspaceRoom {
       // before the visitor has any access), but only participants see the
       // roster — see access-visibility.ts.
       const auth = await this.authorize(request);
-      return Response.json(auth.ok ? access : redactAccessForOutsider(access));
+      const body = auth.ok ? access : redactAccessForOutsider(access);
+      return Response.json({ ...body, workspaceName: this.name });
     }
     if (request.method === "PUT") {
       let body: { generalAccess?: unknown; requireAccount?: unknown; role?: unknown; invited?: unknown };
@@ -362,6 +373,37 @@ export class WorkspaceRoom {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  encodeWorkspaceMeta(): Uint8Array {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_WORKSPACE_META);
+    encoding.writeVarString(encoder, this.name);
+    encoding.writeVarUint(encoder, this.docIds.length);
+    for (const id of this.docIds) encoding.writeVarString(encoder, id);
+    return encoding.toUint8Array(encoder);
+  }
+
+  broadcastWorkspaceMeta(): void {
+    this.broadcast(this.encodeWorkspaceMeta(), null);
+  }
+
+  async handleMetaRequest(request: Request): Promise<Response> {
+    if (request.method !== "PUT") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    if (auth.role !== "editor") return new Response("Only an editor can rename this workspace.", { status: 403 });
+    let body: { name?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      return new Response("Invalid JSON.", { status: 400 });
+    }
+    if (typeof body.name !== "string") return new Response("Invalid name.", { status: 400 });
+    this.name = body.name;
+    await this.state.storage.put("name", this.name);
+    this.broadcastWorkspaceMeta();
+    return Response.json({ name: this.name });
+  }
+
   // ---------- WebSocket session ----------
 
   handleSession(ws: WebSocket, username: string | null, role: Role): void {
@@ -386,6 +428,7 @@ export class WorkspaceRoom {
         ws.send(encoding.toUint8Array(awarenessEncoder));
       }
     }
+    ws.send(this.encodeWorkspaceMeta());
 
     ws.addEventListener("message", (event: MessageEvent) => this.handleMessage(ws, event.data));
     ws.addEventListener("close", () => this.handleClose(ws));
@@ -909,6 +952,8 @@ export class WorkspaceRoom {
       this.docIds = this.docIds.filter((id) => id !== docId);
       await this.state.storage.put("docs", this.docIds);
       this.docs.delete(docId);
+      await this.state.storage.delete([docStorageKey(docId, "update"), docStorageKey(docId, "snapshots"), docStorageKey(docId, "comments")]);
+      this.broadcastWorkspaceMeta();
       return new Response(null, { status: 204 });
     }
 

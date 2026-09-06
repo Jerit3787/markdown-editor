@@ -49,7 +49,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 4. Documents, workspaces & multi-tab |    24 |       0 |    0 |    24 |
 | 5. Images                          |      14 |       0 |    1 |    15 |
 | 6. Export & print                  |      12 |       0 |    0 |    12 |
-| 7. Find & replace / search         |      11 |       0 |    5 |    16 |
+| 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      11 |       0 |    8 |    19 |
 | 9. Comments                        |      11 |       1 |    7 |    19 |
 | 10. Workspace collab               |      36 |       4 |    6 |    46 |
@@ -57,11 +57,11 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
 | 13. Mobile                         |       8 |       1 |    6 |    15 |
 | 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **234** |  **17** | **56** | **307** |
+| **Total**                          | **239** |  **17** | **51** | **307** |
 
-~76% of enumerated scenarios have a test asserting their outcome, ~6%
-are partial, ~18% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phases 1–6 done — §1–§4 and §6 fully covered, §5 all but one
+~78% of enumerated scenarios have a test asserting their outcome, ~6%
+are partial, ~17% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phases 1–7 done — §1–§4, §6, §7 fully covered; §5 all but one
 e2e-collab row). The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
@@ -247,17 +247,17 @@ _Source: `client/src/search.ts`, `client/src/fuzzy-match.ts`, `client/src/stores
 | SRCH-02 | `countMatches` honors the case-sensitive and regexp options                                       | unit      | covered | `tests/client/src/search.test.ts`              |                                                                     |
 | SRCH-03 | `Ctrl/Cmd+F` opens the find bar and highlights all matches with a live count                       | e2e       | covered | `tests/e2e/local/search-and-replace.spec.ts`   |                                                                     |
 | SRCH-04 | `Ctrl/Cmd+H` opens with the replace row; Replace All replaces every match                          | e2e       | covered | `tests/e2e/local/search-and-replace.spec.ts`   |                                                                     |
-| SRCH-05 | Find next / previous navigate through matches and wrap around at each end                          | component | gap     | —                                             | `findNext` / `findPrevious` wiring; only the count is tested          |
-| SRCH-06 | Replace-one (`replaceNext`) replaces just the current match and advances                           | component | gap     | —                                             | only Replace All is tested                                           |
-| SRCH-07 | Regex replace applies capture-group substitutions (`$1`)                                           | component | gap     | —                                             |                                                                     |
-| SRCH-08 | Whole-word toggle restricts matches to word boundaries                                             | component | gap     | —                                             | `wholeWord` option exists in `FindReplaceBar` but is untested        |
+| SRCH-05 | Find next / previous navigate through matches and wrap around at each end                          | component | covered | `tests/client/src/components/FindReplaceBar.test.ts` | Next/Prev advance + wrap (first Next selects the cursor-adjacent match, then advances) |
+| SRCH-06 | Replace-one (`replaceNext`) replaces just the current match and advances                           | component | covered | `tests/client/src/components/FindReplaceBar.test.ts` | replaceNext: first click selects, next replaces one and advances |
+| SRCH-07 | Regex replace applies capture-group substitutions (`$1`)                                           | component | covered | `tests/client/src/components/FindReplaceBar.test.ts` | regex + `$2, $1` swaps capture groups via Replace All |
+| SRCH-08 | Whole-word toggle restricts matches to word boundaries                                             | component | covered | `tests/client/src/components/FindReplaceBar.test.ts` | "cat cats cat": 3 substring → 2 whole-word |
 | SRCH-09 | Match-case toggle narrows the live count                                                           | component | covered | `tests/client/src/components/FindReplaceBar.test.ts` |                                                               |
 | SRCH-10 | An invalid regex disables navigation and shows the invalid state                                   | component | covered | `tests/client/src/components/FindReplaceBar.test.ts` |                                                               |
 | SRCH-11 | Replace / Replace All are disabled on a read-only view                                             | component | covered | `tests/client/src/components/FindReplaceBar.test.ts` | cross-ref §10                                                        |
 | SRCH-12 | The replace row only appears in replace mode                                                       | component | covered | `tests/client/src/components/FindReplaceBar.test.ts` |                                                               |
 | SRCH-13 | Escape closes the bar                                                                              | component + e2e | covered | `tests/client/src/components/FindReplaceBar.test.ts`, `tests/e2e/local/search-and-replace.spec.ts` |                                     |
 | SRCH-14 | `openFindBar` switches out of preview-only view mode so the bar is visible; leaves an already-visible mode alone; `closeFindBar` hides it | unit | covered | `tests/client/src/stores/findReplace.test.ts` |                                          |
-| SRCH-15 | The current query / options persist (or reset) predictably across close → reopen                   | component | gap     | —                                             | pins actual behavior — the store holds only open + mode, not the query |
+| SRCH-15 | The current query / options persist (or reset) predictably across close → reopen                   | component | covered | `tests/client/src/components/FindReplaceBar.test.ts` | a re-rendered bar has an empty Find field — the store holds only open + mode |
 | SRCH-16 | `fuzzyScore` — exact = best, non-contiguous subsequence matches, non-subsequence = null, case-insensitive, tighter/earlier scores better | unit | covered | `tests/client/src/fuzzy-match.test.ts`      | consumed by Command Palette (§14) and wikilink menu (§3)             |
 
 ## 8. Version history & diff view

@@ -1,10 +1,12 @@
 import "fake-indexeddb/auto";
 import { test, expect, beforeEach } from "vitest";
+import { get } from "svelte/store";
 import { render } from "vitest-browser-svelte";
 import VersionHistory from "../../../../client/src/components/VersionHistory.svelte";
 import { versionHistoryOpen } from "../../../../client/src/stores/versionHistory";
 import { docsStore, activeIdStore } from "../../../../client/src/stores/docs";
 import { workspacesStore } from "../../../../client/src/stores/workspaces";
+import { toasts } from "../../../../client/src/stores/toast";
 import { maybeSnapshotVersion, deleteHistory } from "../../../../client/src/history";
 
 const DOC_ID = "vh-test-doc";
@@ -107,4 +109,42 @@ test("restore is disabled only for the newest nested entry within a session", as
   // compared against as if it meant "the current version."
   await nestedRows[2]!.click();
   await expect.element(screen.getByRole("button", { name: "Restore this version" })).not.toBeDisabled();
+});
+
+test("VER-07: restoring an older local entry replaces the editor content and toasts", async () => {
+  // Two snapshots, 35s apart -> one session, two nested entries.
+  await maybeSnapshotVersion(DOC_ID, "the older revision", 1_000);
+  await maybeSnapshotVersion(DOC_ID, "the newer revision", 1_000 + 35 * 1000);
+
+  let dispatched: { from: number; to: number; insert: string } | null = null;
+  window.MDE = {
+    getEditor: () => ({
+      state: { readOnly: false, doc: { length: 18 } },
+      dispatch: (tr: { changes: { from: number; to: number; insert: string } }) => {
+        dispatched = tr.changes;
+      },
+    }),
+    formatRelativeTime: () => "just now",
+  } as unknown as typeof window.MDE;
+
+  toasts.set([]);
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText(/2 edits/)).toBeVisible();
+  await screen.getByText(/2 edits/).click();
+
+  const nestedRows = await screen.getByText(/1970/).all();
+  expect(nestedRows.length).toBe(2);
+  // nestedRows[0] is the newest (current) entry; [1] is the older one.
+  await nestedRows[1]!.click();
+
+  const restoreBtn = screen.getByRole("button", { name: "Restore this version" });
+  await expect.element(restoreBtn).not.toBeDisabled();
+  await restoreBtn.click();
+
+  await expect.poll(() => dispatched?.insert).toBe("the older revision");
+  expect(dispatched!.from).toBe(0);
+  expect(get(toasts).some((t) => t.message === "Version restored" && t.type === "success")).toBe(true);
+  // restore() calls close() on success
+  await expect.poll(() => get(versionHistoryOpen)).toBe(false);
 });

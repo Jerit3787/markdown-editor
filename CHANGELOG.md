@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.1] - 2026-09-07
+
+### Changed
+
+- **Test coverage — version history & diff view (maintenance phase 8).** Added component tests for `DiffView` (line-number gutters, word-level intraline highlighting, the Split/Unified toggle, image-row thumbnails, the still-loading placeholder), a unit test for `renderVersionPreview` (image-reference resolution + HTML sanitization), and a restore-from-UI test for `VersionHistory`. No behavior change.
+
 ## [1.46.0] - 2026-09-07
 
 ### Added

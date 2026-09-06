@@ -74,7 +74,7 @@
     { id: "footnote", label: "Footnote", category: "Format", run: () => window.MDE.runCmd("footnote"), requires: "doc" },
     // Insert
     { id: "diagram", label: "Insert diagram", category: "Insert", run: () => { diagramEditorRef.set(null); diagramEditorOpen.set(true); }, requires: "doc" },
-    { id: "manage-images", label: "Manage images", category: "Insert", run: () => window.MDE.openImagesManager(), requires: "doc" },
+    { id: "manage-images", label: "Manage images", category: "Insert", run: () => window.MDE.openManageImages(), requires: "doc" },
     // File
     { id: "new-doc", label: "New document", category: "File", run: () => window.MDE.newDoc(), requires: "workspace" },
     { id: "open-local", label: "Open from device", category: "File", run: () => window.MDE.openLocalFile() },

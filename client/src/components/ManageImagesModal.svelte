@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import Toggletip from "./Toggletip.svelte";
-  import { imagesModalOpen } from "../stores/imagesModal";
+  import { manageImagesModalOpen } from "../stores/imagesModal";
   import { docsStore, activeIdStore, deleteDocImage, setDocImage, getActiveDoc } from "../stores/docs";
   import { confirmAction } from "../stores/confirmDialog";
   import { showToast } from "../stores/toast";
@@ -22,7 +22,7 @@
   // `|| $docsStore[0]` (which could hand back a document from a
   // different workspace than the one actually open).
   const images = $derived.by(() => {
-    if (!$imagesModalOpen) return [];
+    if (!$manageImagesModalOpen) return [];
     const doc = $docsStore.find((d) => d.id === $activeIdStore) || getActiveDoc();
     const imgs = (doc && doc.images) || {};
     const rawContent = window.MDE.getEditor().state.doc.toString();
@@ -34,7 +34,7 @@
   });
 
   function close() {
-    imagesModalOpen.set(false);
+    manageImagesModalOpen.set(false);
   }
 
   function formatBytes(base64Length: number) {
@@ -96,15 +96,15 @@
 
   onMount(() => {
     const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && $imagesModalOpen) close();
+      if (e.key === "Escape" && $manageImagesModalOpen) close();
     };
     document.addEventListener("keydown", onKeydown);
     return () => document.removeEventListener("keydown", onKeydown);
   });
 </script>
 
-{#if $imagesModalOpen}
-  <Modal title="Images in this document" icon="icon-images" wide labelledBy="imagesModalTitle" onClose={close}>
+{#if $manageImagesModalOpen}
+  <Modal title="Manage images" icon="icon-images" wide labelledBy="manageImagesModalTitle" onClose={close}>
     {#snippet quickAction()}
       <Toggletip>Images are stored inside this document, not uploaded anywhere, unless you publish it to a Gist.</Toggletip>
     {/snippet}

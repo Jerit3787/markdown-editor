@@ -247,8 +247,8 @@
     <button bind:this={insertMenuBtn} id="insertMenuBtn" class="menubar-btn" type="button">Insert</button>
     <div bind:this={insertMenu} id="insertMenu" class="dropdown-menu menubar-menu">
       <button id="menuLink" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.runCmd("link"))}><svg class="icon"><use href="#icon-link"></use></svg> Insert Link... <kbd>Ctrl+K</kbd></button>
-      <button id="menuImage" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.runCmd("image"))}><svg class="icon"><use href="#icon-image"></use></svg> Insert Image...</button>
-      <button id="menuManageImages" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.openImagesManager())}><svg class="icon"><use href="#icon-images"></use></svg> Manage Images...</button>
+      <button id="menuImage" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.runCmd("image"))}><svg class="icon"><use href="#icon-image"></use></svg> Image...</button>
+      <button id="menuManageImages" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.openManageImages())}><svg class="icon"><use href="#icon-images"></use></svg> Manage Images...</button>
     </div>
   </div>
 

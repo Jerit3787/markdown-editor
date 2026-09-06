@@ -281,7 +281,7 @@ export interface MDEBridge {
   printDocument(): Promise<void>;
   toggleSidebar(): void;
   collapseSidebarForMobile(): void;
-  openImagesManager(): void;
+  openManageImages(): void;
   openShortcuts(): void;
   openAbout(): void;
   openDiagramEditor(): void;

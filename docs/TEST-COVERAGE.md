@@ -46,7 +46,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 1. Editor core & formatting        |      23 |       1 |    1 |    25 |
 | 2. Preview, scroll-sync & rendering |     22 |       1 |    0 |    23 |
 | 3. Markdown dialects               |      25 |       0 |    0 |    25 |
-| 4. Documents, workspaces & multi-tab |    15 |       2 |    7 |    24 |
+| 4. Documents, workspaces & multi-tab |    24 |       0 |    0 |    24 |
 | 5. Images                          |       6 |       2 |    7 |    15 |
 | 6. Export & print                  |       6 |       2 |    4 |    12 |
 | 7. Find & replace / search         |      11 |       0 |    5 |    16 |
@@ -57,11 +57,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
 | 13. Mobile                         |       8 |       1 |    6 |    15 |
 | 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **211** |  **23** | **73** | **307** |
+| **Total**                          | **220** |  **21** | **66** | **307** |
 
-~69% of enumerated scenarios have a test asserting their outcome, ~7%
-are partial, ~24% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phases 1–3 closed §1 editor, §2 preview, §3 dialects — §3 is now fully covered). The pure-logic layers (stores, CRDT/room
+~72% of enumerated scenarios have a test asserting their outcome, ~7%
+are partial, ~21% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phases 1–4 closed §1–§4 — editor, preview, dialects, and
+documents/workspaces are each now fully covered). The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
 (modals, menus, the Command Palette, DiagramEditor), the `.md` export
@@ -173,24 +174,24 @@ _Source: `client/src/stores/docs.ts`, `client/src/stores/workspaces.ts`, `client
 | DOC-01 | `createDoc` stamps the active workspace, honors an override, self-heals a missing workspace, and splits a leading metadata block once | unit | covered | `tests/client/src/stores/docs.test.ts`         |                                                                            |
 | DOC-02 | `nextAvailableName` / `ensureUniqueName` — unchanged when free, `-2` on collision, keeps incrementing, excludeId frees its own name | unit | covered | `tests/client/src/doc-naming.test.ts`          | the app's silent-suffix uniqueness rule                                     |
 | DOC-03 | Creating a document via the UI adds it to the sidebar and switches to it                          | e2e       | covered | `tests/e2e/local/documents.spec.ts`              |                                                                            |
-| DOC-04 | Deleting a document via the UI (with confirm) removes it and falls back to another doc in the same workspace | e2e | gap  | —                                               | `removeDocById` fallback + repoPath-deletion queue covered at unit          |
+| DOC-04 | Deleting a document via the UI (with confirm) removes it and falls back to another doc in the same workspace | e2e | covered | `tests/e2e/local/documents.spec.ts` | row menu → Delete → ConfirmDialog; falls back to sibling |
 | DOC-05 | `removeDocById` queues a repo-synced doc's `repoPath` for deletion on a later push; queues nothing for a never-synced doc; its own save doesn't resurrect the doc from a stale `localStorage` snapshot | unit | covered | `tests/client/src/stores/docs.test.ts` | cross-ref §12                                              |
 | DOC-06 | Renaming a document from the Edit modal; a colliding rename opens the collision dialog above it   | e2e + component | covered | `tests/e2e/local/doc-info-edit-modal.spec.ts`, `tests/client/src/components/DocEditModal.test.ts` |                                              |
-| DOC-07 | `moveDocToWorkspace` reassigns `workspaceId` only; via the MoveToWorkspaceModal UI                | unit + e2e | partial | `tests/client/src/stores/docs.test.ts`          | store covered; the modal UI is not                                          |
+| DOC-07 | `moveDocToWorkspace` reassigns `workspaceId` only; via the MoveToWorkspaceModal UI                | e2e | covered | `tests/e2e/local/documents.spec.ts` | row menu → Move → MoveToWorkspaceModal reassigns workspaceId |
 | DOC-08 | `createWorkspace` / `renameWorkspace` / `switchWorkspace` / `deleteWorkspaceRecord` mutate correctly, with oldest-remaining and null fallbacks on delete | unit | covered | `tests/client/src/stores/workspaces.test.ts` |                                                          |
-| DOC-09 | Create / rename / delete / switch a workspace via the WorkspaceSwitcher UI                        | component | gap     | —                                               | store logic fully covered by DOC-08                                          |
+| DOC-09 | Create / rename / delete / switch a workspace via the WorkspaceSwitcher UI                        | component | covered | `tests/client/src/components/WorkspaceSwitcher.test.ts` | switch / New workspace (+ rename mode) / inline rename |
 | DOC-10 | First run with no `mde:workspaces` seeds zero workspaces and persists that immediately; a stored active id is restored | unit | covered | `tests/client/src/stores/workspaces.test.ts`   |                                                                            |
 | DOC-11 | Legacy docs with no `workspaceId` are backfilled to the oldest workspace by `createdAt` and the rewrite is persisted immediately (once) | unit | covered | `tests/client/src/stores/docs.test.ts`        | pre-workspace user migration                                                |
-| DOC-12 | End-to-end first-run migration: a pre-workspace `localStorage` shape loads into a default workspace with the editor working | e2e | gap   | —                                               | only the store-level backfill (DOC-11) is tested                            |
+| DOC-12 | End-to-end first-run migration: a pre-workspace `localStorage` shape loads into a default workspace with the editor working | e2e | covered | `tests/e2e/local/doc-routing.spec.ts` | pre-workspace localStorage → default workspace, editor loads the body |
 | DOC-13 | `persistDocs` / `persistWorkspaces` merge with what another tab already saved instead of overwriting, keeping the other tab's newer edits | unit | covered | `tests/client/src/stores/docs.test.ts`, `workspaces.test.ts` | `TODO.md` multi-tab data-loss fix                    |
 | DOC-14 | `mergeById` — newer side wins, ties keep current, one-sided records preserved, empty inputs handled                | unit      | covered | `tests/client/src/merge-records.test.ts`         |                                                                            |
-| DOC-15 | Two real tabs open: a save in one tab never destroys the other tab's untouched docs / workspaces; a delete still sticks | e2e     | gap     | —                                               | `TODO.md` — the actual multi-tab scenario, not just the merge helper        |
+| DOC-15 | Two real tabs open: a save in one tab never destroys the other tab's untouched docs / workspaces; a delete still sticks | e2e | covered | `tests/e2e/local/multi-tab.spec.ts` | two context pages: save merges by record; a delete stays deleted |
 | DOC-16 | `syncRemoteDocContent` writes changed content / images / name and bumps `updatedAt`; is a no-op when nothing changed (incl. reordered image keys); suffixes a colliding remote rename | unit | covered | `tests/client/src/stores/docs.test.ts` | cross-ref §10                                          |
 | DOC-17 | `parseDocIdFromPath` extracts `/d/<id>`, rejects root / share-link / malformed paths; `pushDocUrl` / `replaceDocUrl` / `replaceToRoot` avoid redundant history entries | unit | covered | `tests/client/src/router.test.ts` |                                                                    |
-| DOC-18 | Deep-linking to `/d/<id>` loads that document                                                    | e2e       | partial | `tests/e2e/local/support/fixtures.ts`            | every local spec loads via `/d/<id>` but none asserts it resolved the right doc |
-| DOC-19 | Switching documents updates the URL; browser back / forward navigates between documents; deleting the active doc replaces the URL with `/` | e2e | gap  | —                                               | `initRouter` `popstate` handling is untested at any level                   |
-| DOC-20 | Sidebar rows are real `<a href="/d/…">` links — Ctrl/Cmd-click and middle-click open a document in a new tab | e2e     | gap     | —                                               | `TODO.md` tab-per-document routing                                          |
-| DOC-21 | DocList sorts documents alphabetically and shows a live per-document heading outline for the active doc | component | gap  | —                                               |                                                                            |
+| DOC-18 | Deep-linking to `/d/<id>` loads that document                                                    | e2e | covered | `tests/e2e/local/doc-routing.spec.ts` | deep link resolves the right doc (needs a base36 id — the `e2e-doc-1` fixture id is not route-parseable, which is why prior specs never asserted this) |
+| DOC-19 | Switching documents updates the URL; browser back / forward navigates between documents; deleting the active doc replaces the URL with `/` | e2e | covered | `tests/e2e/local/doc-routing.spec.ts` | switchDoc pushes URL; goBack/goForward switch docs; deleting the last doc → `/` |
+| DOC-20 | Sidebar rows are real `<a href="/d/…">` links — Ctrl/Cmd-click and middle-click open a document in a new tab | e2e | covered | `tests/e2e/local/doc-routing.spec.ts` | row is `<a href="/d/…">`; a ctrl/meta click is not preventDefault-ed; plain click = SPA nav |
+| DOC-21 | DocList sorts documents alphabetically and shows a live per-document heading outline for the active doc | component | covered | `tests/client/src/components/DocList.test.ts` | locale-aware alphabetical sort; Headings tab outline with data-level; active-workspace filter |
 | DOC-22 | `importRemoteDocs` adds remote docs into the target workspace, renaming on name collision        | unit      | covered | `tests/client/src/stores/docs.test.ts`           | cross-ref §10                                                               |
 | DOC-23 | Ephemeral (preview) workspaces: never persisted, activating one doesn't overwrite the default landing workspace, promote persists it for real | unit | covered | `tests/client/src/stores/workspaces.test.ts`   | cross-ref §10 for the reload-loses-it e2e                                   |
 | DOC-24 | `setActiveDocMetadata` / `setActiveDocCitations` / `replaceDocImages` update and persist the active doc | unit | covered | `tests/client/src/stores/docs.test.ts`           |                                                                            |

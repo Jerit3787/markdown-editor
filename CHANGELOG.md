@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.6] - 2026-09-06
+
+### Changed
+
+- Expanded automated test coverage for documents and workspaces (`docs/TEST-COVERAGE.md` §4, now fully covered): deleting and moving documents through the row menu, the workspace switcher (switch / create / rename), tab-per-document routing (deep links resolve the right document, browser back/forward navigates between documents, sidebar rows are real links), first-run migration of pre-workspace `localStorage` data, multi-tab save safety (concurrent edits and deletes across two tabs), and the document-list alphabetical sort and heading outline.
+
 ## [1.45.5] - 2026-09-06
 
 ### Changed

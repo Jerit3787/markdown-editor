@@ -55,3 +55,35 @@ test("DOC-21: only documents in the active workspace are listed", async () => {
   const names = Array.from(screen.container.querySelectorAll(".doc-name")).map((el) => el.textContent?.trim());
   expect(names).toEqual(["In W1"]);
 });
+
+test("COLLAB-42: a document row shows a presence avatar per collaborator viewing it, capped at 3", async () => {
+  const { workspacePresence } = await import("../../../../client/src/stores/workspacePresence");
+  docsStore.set([
+    { id: "a", name: "Doc A", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1" },
+    { id: "b", name: "Doc B", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1" },
+  ]);
+  activeIdStore.set("a");
+  workspacePresence.set(
+    new Map([
+      [
+        "a",
+        [
+          { username: "alice", color: "#f00" },
+          { username: "bob", color: "#0f0" },
+          { username: "carol", color: "#00f" },
+          { username: "dave", color: "#ff0" },
+        ],
+      ],
+    ]),
+  );
+
+  const screen = await render(DocList);
+
+  const rowA = screen.container.querySelectorAll("#docList li")[0]!;
+  const rowB = screen.container.querySelectorAll("#docList li")[1]!;
+  expect(rowA.querySelectorAll(".presence-avatar").length).toBe(3); // 4 viewers, capped at 3
+  expect(rowA.querySelector(".presence-avatar")?.textContent).toBe("A"); // first initial, uppercased
+  expect(rowB.querySelectorAll(".presence-avatar").length).toBe(0); // nobody on Doc B
+
+  workspacePresence.set(new Map());
+});

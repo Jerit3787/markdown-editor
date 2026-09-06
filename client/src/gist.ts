@@ -143,7 +143,7 @@ async function publish() {
       // file as; a real rename needs GitHub's own rename form (the
       // *old* key, with a `filename` property naming the new one).
       const knownFilename = doc.gistFilename || filename;
-      const files = knownFilename !== filename ? { [knownFilename]: { filename, content } } : { [filename]: { content } };
+      const files = gistUpdatePayload(knownFilename, filename, content);
       const res = await fetch(`/api/gist/${gistId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -331,6 +331,16 @@ export async function errorMessage(res: Response) {
 export function parseGistId(raw: string) {
   const match = raw.match(/([0-9a-f]{20,32})/i);
   return match ? match[1] : null;
+}
+
+// The files{} payload for a gist PATCH. The key must be exactly the name
+// the gist currently stores the file under (`knownFilename`) — using the
+// freshly-computed `filename` when they differ creates a *second* file
+// instead of updating the one that's there (the "renamed doc → duplicate
+// file in the gist" bug). A real rename uses GitHub's own form: the old
+// key, with a `filename` property naming the new one.
+export function gistUpdatePayload(knownFilename: string, filename: string, content: string): Record<string, { filename?: string; content: string }> {
+  return knownFilename !== filename ? { [knownFilename]: { filename, content } } : { [filename]: { content } };
 }
 
 function gistFilename(doc: Doc) {

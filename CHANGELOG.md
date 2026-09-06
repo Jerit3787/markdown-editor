@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.7] - 2026-09-07
+
+### Changed
+
+- **Test coverage — the remaining local-testable rows (Bucket A).** 27 new tests closing 15 gap/partial rows without any live backend: the Command Palette's keyboard navigation and full command list, What's New's auto-open-and-mark-seen, the read-only editor toggle, the toolbar surviving a locked view, the File > Repo submenu's last-synced label, signed-out Publish/Gist menu states, the mobile exit-Focus button and Preview badge, `gistUpdatePayload`'s no-duplicate rename shape, an image line surviving a push→pull round trip, `WhatsNew`'s dev warning, and the presence avatars in the document list. Catalogued coverage is now ~93% (290/311). No behavior change (one one-line pure-function extraction in `gist.ts`).
+
 ## [1.46.6] - 2026-09-07
 
 ### Changed

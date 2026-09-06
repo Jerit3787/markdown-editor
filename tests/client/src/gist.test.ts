@@ -12,6 +12,7 @@ let pushImagesAndRewrite: typeof import("../../../client/src/gist").pushImagesAn
 let parseGistId: typeof import("../../../client/src/gist").parseGistId;
 let formatGistDate: typeof import("../../../client/src/gist").formatGistDate;
 let extractInlineImages: typeof import("../../../client/src/gist").extractInlineImages;
+let gistUpdatePayload: typeof import("../../../client/src/gist").gistUpdatePayload;
 
 beforeAll(async () => {
   (window as any).MDE = {};
@@ -19,7 +20,7 @@ beforeAll(async () => {
     "fetch",
     vi.fn(async () => new Response(JSON.stringify({ connected: false }), { status: 200 })),
   );
-  ({ errorMessage, pushImagesAndRewrite, parseGistId, formatGistDate, extractInlineImages } = await import("../../../client/src/gist"));
+  ({ errorMessage, pushImagesAndRewrite, parseGistId, formatGistDate, extractInlineImages, gistUpdatePayload } = await import("../../../client/src/gist"));
   vi.unstubAllGlobals();
 });
 
@@ -129,6 +130,21 @@ describe("formatGistDate (GIST-10)", () => {
     // Gist timestamps always come from GitHub's API as valid ISO, so this
     // path is defensive only.
     expect(() => formatGistDate("not a date")).not.toThrow();
+  });
+});
+
+describe("gistUpdatePayload (GIST-02)", () => {
+  it("updates in place when the filename is unchanged — key is the filename, no rename prop", () => {
+    expect(gistUpdatePayload("notes.md", "notes.md", "body")).toEqual({ "notes.md": { content: "body" } });
+  });
+
+  it("renames via GitHub's form — key stays the OLD filename, a `filename` prop names the new one (so no duplicate file is created)", () => {
+    expect(gistUpdatePayload("old-name.md", "New Name.md", "body")).toEqual({
+      "old-name.md": { filename: "New Name.md", content: "body" },
+    });
+    // The bug this guards: keying by the fresh name makes GitHub add a
+    // second file rather than move the existing one.
+    expect(gistUpdatePayload("old-name.md", "New Name.md", "body")).not.toHaveProperty("New Name.md");
   });
 });
 

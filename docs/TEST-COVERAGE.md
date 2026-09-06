@@ -391,10 +391,25 @@ _Source: `client/src/repo-sync.ts`, `client/src/repo-sync-ui.ts`, `src/github-re
 
 ## 13. Mobile
 
-_Source: mobile layout branches in `client/src/app.ts` and components — bottom sheets, tab switcher, toolbar overflow, input-zoom, scroll sync_
+_Source: mobile layout branches in `client/src/app.ts` (`isMobile`, `matchMedia("(max-width: 780px)")`, sheet wiring) and the mobile paths of `MenuBar.svelte`, `Toolbar.svelte`, `DocList.svelte`, `CommentsPanel.svelte`, `WorkspaceSwitcher.svelte`_
 
-| ID  | Scenario | Level | Status | Test | Notes |
-| --- | -------- | ----- | ------ | ---- | ----- |
+| ID     | Scenario                                                                                          | Level | Status  | Test                                          | Notes                                                                     |
+| ------ | --------------------------------------------------------------------------------------------- | ----- | ------- | ------------------------------------------- | ------------------------------------------------------------------- |
+| MOB-01 | Below the mobile breakpoint the layout stacks (editor above preview), not side-by-side           | e2e   | gap     | —                                           |                                                                    |
+| MOB-02 | Editor font-size and all styled text fields are ≥ 16px on a narrow viewport (no iOS zoom-on-focus) | e2e   | covered | `tests/e2e/local/mobile-input-zoom.spec.ts`, `mobile-toolbar-and-sheets.spec.ts` |                                                    |
+| MOB-03 | Every menu-bar dropdown flips to right-anchor only when it would actually overflow the viewport; the File menu still left-anchors | e2e | covered | `tests/e2e/local/mobile-menu-overflow.spec.ts` | `IMPROVEMENTS.md` — runtime overflow check, not a hardcoded item     |
+| MOB-04 | Scrolling the editor pane moves the preview pane on mobile; scrolling the preview to its bottom moves the editor to its end in the same tick | e2e | covered | `tests/e2e/local/mobile-scroll-sync.spec.ts` |                                                                    |
+| MOB-05 | A scroll echo arriving after the write triggers no redundant write; moving the cursor does not force the preview back on mobile | e2e | covered | `tests/e2e/local/mobile-scroll-sync.spec.ts` |                                                                    |
+| MOB-06 | The Comments and sidebar bottom sheets: the backdrop blocks the top bar behind it without dimming the sheet itself                             | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` |                                                              |
+| MOB-07 | A bottom sheet dismisses on tap-outside and on the close button, and re-opens on the "Documents" tab each time                                  | e2e | partial | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` | backdrop covered; the dismiss gestures and the reset-to-Documents behavior (`app.ts` ~737) are not |
+| MOB-08 | The tabbed document / headings switcher: the Headings tab is read-only navigation, and tapping a heading closes the sheet                       | e2e | gap     | —                                           |                                                                    |
+| MOB-09 | Mobile toolbar buttons (sidebar toggle, view selector) match the size of ordinary formatting buttons; the share button renders as a circle     | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` | `IMPROVEMENTS.md`                                                   |
+| MOB-10 | The mobile toolbar overflow menu wraps buttons into a grid instead of one-per-line; row height stays stable across view modes                   | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` |                                                              |
+| MOB-11 | The workspace switcher's "Preview" badge stays within the sidebar edge                            | e2e   | gap     | —                                           | `IMPROVEMENTS.md` v1.41.1 — the `display: contents` mount fix        |
+| MOB-12 | The Share dialog's "Anyone with the link" label is not truncated mid-word on a mobile-Safari-width viewport | e2e | gap     | —                                           | `IMPROVEMENTS.md` v1.41.1                                            |
+| MOB-13 | The mobile-only floating "exit Focus Mode" button appears in focus mode and exits it             | e2e   | gap     | —                                           | cross-ref §14                                                       |
+| MOB-14 | Crossing the `matchMedia` breakpoint (resize / rotate) re-lays-out the app without a reload       | e2e   | gap     | —                                           | `mql` listener in `app.ts` ~750                                     |
+| MOB-15 | The comment-draft popup stays within the viewport near the right edge on a narrow screen          | e2e   | covered | `tests/e2e/local/comments.spec.ts`           | = CMT-06                                                            |
 
 ## 14. App shell
 

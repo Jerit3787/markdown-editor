@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.4] - 2026-09-06
+
+### Fixed
+
+- **Inline `$math$` with words on the same line dropped those words in the preview** — "The value is $x$ today" rendered as just the formula. The math renderer replaced each marker's entire text node with the formula instead of splicing it in; it now preserves the surrounding prose and handles multiple inline formulas per line.
+
+### Changed
+
+- Expanded automated test coverage for the preview (`docs/TEST-COVERAGE.md` §2): every block type's HTML rendering, DOMPurify sanitization of `<script>` / event-handler attributes / `javascript:` hrefs, task-list checkboxes, code-block language tagging, footnote structure, inline-vs-block math, inline KaTeX error handling, scroll sync across a preview hide/show, and the diagram editor end to end (create, edit, templates, reset view, PNG/SVG export).
+
 ## [1.45.3] - 2026-09-06
 
 ### Changed

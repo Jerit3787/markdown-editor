@@ -68,3 +68,32 @@ test.describe("line-prefix commands toggle", () => {
     await expect.poll(() => doc(page)).toBe("quoted");
   });
 });
+
+test.describe("Tab indentation", () => {
+  test("Tab indents the selected lines and keeps focus in the editor", async ({ page }) => {
+    await setDoc(page, "line one\nline two");
+    await page.evaluate(() => {
+      const v = window.MDE.getEditor();
+      v.dispatch({ selection: { anchor: 0, head: v.state.doc.length } });
+    });
+    await page.keyboard.press("Tab");
+    const after = await doc(page);
+    // Each line gained one indent unit at its start; the two lines match.
+    expect(after.split("\n").every((l) => /^(\t|\s{2,})line/.test(l))).toBe(true);
+    expect(await page.evaluate(() => document.activeElement?.closest(".cm-editor") != null)).toBe(true);
+  });
+
+  test("Shift-Tab dedents an indented line", async ({ page }) => {
+    await setDoc(page, "x");
+    await page.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 0, head: 1 } }));
+    await page.keyboard.press("Tab");
+    expect(await doc(page)).toMatch(/^(\t|\s{2,})x$/);
+
+    await page.evaluate(() => {
+      const v = window.MDE.getEditor();
+      v.dispatch({ selection: { anchor: 0, head: v.state.doc.length } });
+    });
+    await page.keyboard.press("Shift+Tab");
+    await expect.poll(() => doc(page)).toBe("x");
+  });
+});

@@ -45,7 +45,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | ---------------------------------- | ------: | ------: | ---: | ----: |
 | 1. Editor core & formatting        |      23 |       1 |    1 |    25 |
 | 2. Preview, scroll-sync & rendering |     22 |       1 |    0 |    23 |
-| 3. Markdown dialects               |      18 |       0 |    7 |    25 |
+| 3. Markdown dialects               |      25 |       0 |    0 |    25 |
 | 4. Documents, workspaces & multi-tab |    15 |       2 |    7 |    24 |
 | 5. Images                          |       6 |       2 |    7 |    15 |
 | 6. Export & print                  |       6 |       2 |    4 |    12 |
@@ -57,11 +57,11 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
 | 13. Mobile                         |       8 |       1 |    6 |    15 |
 | 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **204** |  **23** | **80** | **307** |
+| **Total**                          | **211** |  **23** | **73** | **307** |
 
-~66% of enumerated scenarios have a test asserting their outcome, ~7%
-are partial, ~26% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phases 1–2 closed §1 editor and §2 preview rows). The pure-logic layers (stores, CRDT/room
+~69% of enumerated scenarios have a test asserting their outcome, ~7%
+are partial, ~24% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phases 1–3 closed §1 editor, §2 preview, §3 dialects — §3 is now fully covered). The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
 (modals, menus, the Command Palette, DiagramEditor), the `.md` export
@@ -140,9 +140,9 @@ _Source: `client/src/wikilinks.ts`, `client/src/wikilink-rewrite.ts`, `client/sr
 | ------ | --------------------------------------------------------------------------------------------- | ----- | ------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | MDX-01 | `[[Name]]` transforms to a `wikilink:`-scheme link; parens round-trip; ordinary links untouched | unit  | covered | `tests/client/src/wikilinks.test.ts`                                               |                                                                                        |
 | MDX-02 | `resolveWikilinkTarget` exact-match / no-match; `findBacklinks` incl. self-reference handling    | unit  | covered | `tests/client/src/wikilinks.test.ts`                                              |                                                                                        |
-| MDX-03 | Backlinks panel lists documents that link here and navigates on click                            | component | gap  | —                                                                                | logic covered by MDX-02; the panel UI is not                                            |
+| MDX-03 | Backlinks panel lists documents that link here and navigates on click                            | component | covered | `tests/client/src/components/DocInfoPanel.test.ts` | lists linking docs; click → switchDoc + panel closes; No-backlinks empty state |
 | MDX-04 | `[[` opens the wikilink menu, filtered by existing doc names; Escape closes without inserting `]]` | e2e | covered | `tests/e2e/local/slash-and-wikilinks.spec.ts`                                     |                                                                                        |
-| MDX-05 | Wikilink menu keyboard nav (arrows + Enter select the highlighted doc)                           | e2e   | gap     | —                                                                                | only Escape + click paths tested                                                        |
+| MDX-05 | Wikilink menu keyboard nav (arrows + Enter select the highlighted doc)                           | e2e | covered | `tests/e2e/local/slash-and-wikilinks.spec.ts` | ArrowDown + Enter inserts the highlighted doc |
 | MDX-06 | Clicking a wikilink in the preview navigates to the target; clicking an unresolved one creates the doc | e2e | covered | `tests/e2e/local/slash-and-wikilinks.spec.ts`                                    |                                                                                        |
 | MDX-07 | `rewriteWikilinkReferences` / `findWikilinkOccurrences` — exact match only, ranges in order (client + Worker copies) | unit | covered | `tests/client/src/wikilink-rewrite.test.ts`, `tests/src/wikilink-rewrite.test.ts` |                                                                        |
 | MDX-08 | `planWikilinkRenameCascade` buckets self / local / shared targets (with defensive fallbacks); `runWikilinkRenameCascade` counts each and isolates failures | unit | covered | `tests/client/src/wikilink-rename-cascade.test.ts` |                                                     |
@@ -152,17 +152,17 @@ _Source: `client/src/wikilinks.ts`, `client/src/wikilink-rewrite.ts`, `client/sr
 | MDX-12 | `parseMetadataBlock` / `serializeMetadataBlock` — bare + HTML-comment-wrapped formats, indented continuations, legacy upgrade, exact round-trip | unit | covered | `tests/client/src/mmd-metadata.test.ts` |                                                            |
 | MDX-13 | Metadata values / keys containing `-->` or `--!>` are escaped so they can't close the wrapping HTML comment | unit | covered | `tests/client/src/mmd-metadata.test.ts`                                      | regression for `029af44`                                                                |
 | MDX-14 | Adding a metadata field in Document Info round-trips through `.md` export                          | e2e   | covered | `tests/e2e/local/mmd-syntax.spec.ts`                                              |                                                                                        |
-| MDX-15 | The metadata block is not rendered as visible content in the preview                              | e2e   | gap     | —                                                                                |                                                                                        |
+| MDX-15 | The metadata block is not rendered as visible content in the preview                              | e2e | covered | `tests/e2e/local/mmd-syntax.spec.ts` | structured metadata never appears as preview content |
 | MDX-16 | `transformCitations` — text + structured sources, numbered + author-year styles, repeated keys reuse a number, unknown key untouched, author-year bib sorted | unit | covered | `tests/client/src/mmd-citations.test.ts` |                                                       |
 | MDX-17 | A `[@key]` citation with a typed definition renders as a numbered link + bibliography; a structured entry round-trips through `.md` export | e2e | covered | `tests/e2e/local/mmd-citations.spec.ts`                          |                                                                                        |
-| MDX-18 | Author-year display style renders end-to-end in the preview (requires structured storage)         | e2e   | gap     | —                                                                                | only numbered style is e2e-tested                                                       |
-| MDX-19 | Per-document citation marker style toggle (`[@key]` pandoc vs `[#key]` multimarkdown) takes effect | e2e   | gap     | —                                                                                | both regexes unit-covered; the setting toggle is not                                    |
+| MDX-18 | Author-year display style renders end-to-end in the preview (requires structured storage)         | e2e | covered | `tests/e2e/local/mmd-citations.spec.ts` | Author-year style renders author+year inline, no numbered sup |
+| MDX-19 | Per-document citation marker style toggle (`[@key]` pandoc vs `[#key]` multimarkdown) takes effect | e2e | covered | `tests/e2e/local/mmd-citations.spec.ts` | `[#key]` literal under Pandoc, resolves after switching to MultiMarkdown |
 | MDX-20 | `transformDefinitionLists` / `transformSuperscriptSubscript` — conversions, and no misread of footnote-as-superscript or GFM-strikethrough-as-subscript | unit | covered | `tests/client/src/mmd-inline-blocks.test.ts` |                                                    |
 | MDX-21 | Definition lists, superscript, subscript render in the preview                                    | e2e   | covered | `tests/e2e/local/mmd-syntax.spec.ts`                                             |                                                                                        |
-| MDX-22 | Definition list / superscript / subscript survive a `.md` export → re-import round-trip           | e2e   | gap     | —                                                                                | cross-ref §6; only metadata + citations round-trips are tested                          |
+| MDX-22 | Definition list / superscript / subscript survive a `.md` export → re-import round-trip           | e2e | covered | `tests/e2e/local/mmd-syntax.spec.ts` | `:   def` / `~x~` / `^x^` markers survive `.md` export, not rendered HTML |
 | MDX-23 | `scanMarkdownCompatibility` flags every app-only + flavor-specific construct, sorted by position, with code spans exempt and no double-flagging | unit | covered | `tests/client/src/markdown-compat.test.ts` |                                                        |
 | MDX-24 | Slash menu: `/` opens + filters + runs a command; Escape closes without inserting                 | e2e   | covered | `tests/e2e/local/slash-and-wikilinks.spec.ts`                                     |                                                                                        |
-| MDX-25 | Slash menu keyboard nav (arrows + Enter); every registered slash command is reachable             | e2e   | gap     | —                                                                                |                                                                                        |
+| MDX-25 | Slash menu keyboard nav (arrows + Enter); every registered slash command is reachable             | e2e | covered | `tests/e2e/local/slash-and-wikilinks.spec.ts` | ArrowDown + Enter runs the highlighted command |
 
 ## 4. Documents, workspaces & multi-tab
 

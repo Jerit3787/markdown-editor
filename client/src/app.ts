@@ -35,7 +35,7 @@ import { commentsPanelOpen } from "./stores/commentsPanel";
 import { docListActiveTab } from "./stores/docList";
 import { githubSignInModalOpen, githubSignInModalHint } from "./stores/githubSignInModal";
 import { linkModalOpen, linkModalPrefillText } from "./stores/linkModal";
-import { imagesModalOpen } from "./stores/imagesModal";
+import { manageImagesModalOpen } from "./stores/imagesModal";
 import { shortcutsModalOpen } from "./stores/shortcutsModal";
 import { aboutModalOpen } from "./stores/aboutModals";
 import { focusMode } from "./stores/focusMode";
@@ -92,7 +92,6 @@ import katexCss from "katex/dist/katex.min.css?raw";
     initSidebar();
     initImport();
     initShortStatus();
-    initImagesManager();
     initModalEscapeKey();
     // Desktop can Escape out of Focus Mode; mobile has no such key, and
     // #topbar (the View menu's own toggle) is itself hidden while Focus
@@ -353,13 +352,6 @@ import katexCss from "katex/dist/katex.min.css?raw";
     return text.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, alt, ref) => {
       const dataUrl = doc.images[ref];
       return dataUrl ? `![${alt}](${dataUrl})` : match;
-    });
-  }
-
-  // ---------- Images manager ----------
-  function initImagesManager() {
-    document.getElementById("imagesManagerBtn")?.addEventListener("click", () => {
-      imagesModalOpen.set(true);
     });
   }
 
@@ -1256,8 +1248,8 @@ ${bodyHtml}
     printDocument,
     toggleSidebar,
     collapseSidebarForMobile,
-    openImagesManager() {
-      imagesModalOpen.set(true);
+    openManageImages() {
+      manageImagesModalOpen.set(true);
     },
     openShortcuts() {
       shortcutsModalOpen.set(true);

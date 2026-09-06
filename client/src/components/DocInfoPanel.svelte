@@ -17,7 +17,7 @@
   // unwraps docsStore via the non-reactive get() internally) so this
   // recomputes when the active doc's own fields change in place — e.g.
   // a new image/diagram added — not only when $activeIdStore switches
-  // to a different document. Same fix ImagesModal.svelte already
+  // to a different document. Same fix ManageImagesModal.svelte already
   // applies to this exact trap.
   const doc = $derived($activeIdStore ? $docsStore.find((d) => d.id === $activeIdStore) || getActiveDoc() : undefined);
   const backlinks = $derived(doc ? findBacklinks(doc.name, $docsStore, doc.id) : []);

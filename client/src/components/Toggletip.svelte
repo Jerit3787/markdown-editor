@@ -5,7 +5,7 @@
   interface Props {
     children: Snippet;
     // Defaults to a plain "?" glyph (the original, still used by e.g.
-    // ImagesModal.svelte's header quick-action). Pass an icon sprite id
+    // ManageImagesModal.svelte's header quick-action). Pass an icon sprite id
     // (e.g. "icon-info") to render that instead, for inline uses where
     // an info icon reads better than a question mark.
     icon?: string;

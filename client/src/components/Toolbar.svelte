@@ -135,8 +135,6 @@
     <span class="sep"></span>
     <button type="button" title="Link (Ctrl+K)" onclick={() => run("link")}><svg class="icon"><use href="#icon-link"></use></svg></button>
     <button type="button" title="Image" onclick={() => run("image")}><svg class="icon"><use href="#icon-image"></use></svg></button>
-    <!-- Wired by app.ts's initImagesManager(), same as before. -->
-    <button id="imagesManagerBtn" type="button" title="Manage images"><svg class="icon"><use href="#icon-images"></use></svg></button>
     <span class="sep"></span>
     <button type="button" title="Table" onclick={() => run("table")}><svg class="icon"><use href="#icon-table"></use></svg></button>
     <button type="button" title="Horizontal rule" onclick={() => run("hr")}>―</button>

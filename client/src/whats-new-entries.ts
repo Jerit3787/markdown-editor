@@ -281,4 +281,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/live-workspace-sync.png",
     category: "Collaboration",
   },
+  {
+    version: "1.46.0",
+    title: "Tabbed Image Picker",
+    description:
+      "Inserting an image now opens a dedicated picker: an Upload tab to drop files onto the modal or pick from your device, and an Existing tab to re-insert an image already in the document with one click. Oversized files are flagged in the modal instead of leaving a marker in your text. Replace and delete moved to their own Manage Images modal in the Insert menu.",
+    screenshot: "/whats-new/image-picker.png",
+    category: "Editing & Formatting",
+  },
 ];

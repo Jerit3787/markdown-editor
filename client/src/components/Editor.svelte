@@ -239,9 +239,13 @@
     });
   }
 
-  function insertImageWithUpload(file: File, pos?: number) {
+  function insertImageWithUpload(file: File, pos?: number, onError?: (message: string) => void) {
     const from = pos ?? view!.state.selection.main.head;
     if (file.size > MAX_IMAGE_BYTES) {
+      if (onError) {
+        onError(`${file.name} is over the 2 MB limit`);
+        return;
+      }
       view!.dispatch({ changes: { from, insert: `![${file.name}: image too large, 2MB max]()` } });
       return;
     }

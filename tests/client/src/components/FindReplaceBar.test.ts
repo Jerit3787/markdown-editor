@@ -94,3 +94,35 @@ test("Escape closes the bar", async () => {
   await userEvent.keyboard("{Escape}");
   expect(get(findBarOpen)).toBe(false);
 });
+
+test("SRCH-05: Next / Previous cycle through matches and wrap around", async () => {
+  mountEditor("cat one cat two cat three");
+  const screen = await render(FindReplaceBar);
+  const next = screen.getByRole("button", { name: "Next match" });
+  await screen.getByLabelText("Find").fill("cat");
+  await expect.element(screen.getByText("1 of 3")).toBeVisible();
+
+  // The first Next selects the match the cursor is already at (match 1);
+  // each subsequent Next advances.
+  await next.click();
+  expect(view.state.selection.main.from).toBe(0);
+  await next.click();
+  await expect.element(screen.getByText("2 of 3")).toBeVisible();
+  await next.click();
+  await expect.element(screen.getByText("3 of 3")).toBeVisible();
+  await next.click();
+  await expect.element(screen.getByText("1 of 3")).toBeVisible(); // wrapped forward
+
+  await screen.getByRole("button", { name: "Previous match" }).click();
+  await expect.element(screen.getByText("3 of 3")).toBeVisible(); // wrapped backward
+});
+
+test("SRCH-08: the whole-word toggle restricts matches to word boundaries", async () => {
+  mountEditor("cat cats cat");
+  const screen = await render(FindReplaceBar);
+  await screen.getByLabelText("Find").fill("cat");
+  await expect.element(screen.getByText("1 of 3")).toBeVisible();
+
+  await screen.getByLabelText("Whole word").click();
+  await expect.element(screen.getByText("1 of 2")).toBeVisible();
+});

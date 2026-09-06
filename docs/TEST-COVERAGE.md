@@ -43,29 +43,37 @@ branches, 37.2% functions** (808 tests across 67 files).
 
 | Subsystem                          | Covered |  Partial |  Gap | Total |
 | ---------------------------------- | ------: | ------: | ---: | ----: |
-| 1. Editor core & formatting        |      23 |       1 |    1 |    25 |
+| 1. Editor core & formatting        |      25 |       0 |    0 |    25 |
 | 2. Preview, scroll-sync & rendering |     22 |       1 |    0 |    23 |
 | 3. Markdown dialects               |      25 |       0 |    0 |    25 |
 | 4. Documents, workspaces & multi-tab |    24 |       0 |    0 |    24 |
 | 5. Images                          |      18 |       0 |    1 |    19 |
 | 6. Export & print                  |      12 |       0 |    0 |    12 |
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
-| 8. Version history & diff view     |      16 |       0 |    3 |    19 |
+| 8. Version history & diff view     |      17 |       0 |    2 |    19 |
 | 9. Comments                        |      17 |       0 |    2 |    19 |
-| 10. Workspace collab               |      37 |       4 |    5 |    46 |
-| 11. GitHub auth & Gist             |      19 |       3 |    1 |    23 |
-| 12. GitHub repo sync               |      19 |       1 |    4 |    24 |
-| 13. Mobile                         |      12 |       0 |    3 |    15 |
-| 14. App shell                      |      16 |       2 |    3 |    21 |
-| **Total**                          | **276** |  **12** | **23** | **311** |
+| 10. Workspace collab               |      38 |       3 |    5 |    46 |
+| 11. GitHub auth & Gist             |      21 |       1 |    1 |    23 |
+| 12. GitHub repo sync               |      22 |       0 |    2 |    24 |
+| 13. Mobile                         |      14 |       0 |    1 |    15 |
+| 14. App shell                      |      19 |       1 |    1 |    21 |
+| **Total**                          | **290** |  **6** | **15** | **311** |
 
-~88% of enumerated scenarios have a test asserting their outcome, ~4%
-are partial, ~7% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phases 1–14 done. Fully covered: §1–§7. The remaining gaps are almost
-entirely `e2e-collab` flows (live cursors, reconnect, reviewer-withdraw,
-the Share modal), a handful needing real GitHub OAuth in e2e (Gist happy
-push + open, repo-link-via-UI, VH repo commits), three mobile-Safari
-width regressions, and the Command Palette's full ~30-entry sweep. The pure-logic layers (stores, CRDT/room
+~93% of enumerated scenarios have a test asserting their outcome, ~2%
+are partial, ~5% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phases 1–14 + Bucket A done. Fully covered: §1–§7. The 15 remaining gaps
+are, by design: `e2e-collab` flows queued for Bucket B (live cursors,
+WS-reconnect, reviewer-withdraw, the Share modal, shared comment/version
+propagation, legacy migrate); three integration tests queued for Bucket C
+against the fake-GitHub harness (GIST-05 happy push, VER-16/REPO-21 repo
+commits in Version History); and four that need a real GitHub OAuth token
+in e2e (GIST-11 open a Gist, REPO-19 link-repo-via-UI, REPO-22
+empty-state-load-from-repo) — permanently deferred (their orchestration is
+integration-covered; automating the click-through would mean a
+fake-GitHub-proxy mode in the Worker, not worth it). Plus MOB-12 (a
+Safari-width `<option>` truncation, not meaningfully assertable in
+Chromium) and COLLAB-31 (a redundant-rejoin edge whose near-case is
+already covered). The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
 (modals, menus, the Command Palette, DiagramEditor), the `.md` export
@@ -96,7 +104,7 @@ _Source: `client/src/app.ts`, `client/src/formatting-commands.ts`, `client/src/c
 | EDIT-14 | Command Palette toolbar button opens the palette with its input focused                     | e2e   | covered | `tests/e2e/local/formatting.spec.ts`             | palette itself catalogued in §14                                                                                   |
 | EDIT-15 | Toolbar groups insert buttons with separators; Command Palette set apart at the end         | e2e   | covered | `tests/e2e/local/toolbar-grouping.spec.ts`       | `IMPROVEMENTS.md` v1.40.4                                                                                           |
 | EDIT-16 | Toolbar overflow menu appears and works when the bar is narrower than its buttons (desktop) | e2e | covered | `tests/e2e/local/editor-core.spec.ts`, `mobile-menu-overflow.spec.ts` | desktop-narrow (900px) overflow + toggle re-hides on widen |
-| EDIT-17 | Toolbar update does not throw when `.view-selector` / `#toolbar` is absent from the DOM (locked viewer) | e2e-collab | gap | —                                        | regression for `0c658b6`; needs a viewer role — cross-ref §10                                                      |
+| EDIT-17 | Toolbar update does not throw when `.view-selector` / `#toolbar` is absent from the DOM (locked viewer) | e2e | covered | `tests/e2e/local/locked-view-and-preview-badge.spec.ts` | `viewModeLocked` set directly, then doc switches — no pageerror (regression for `0c658b6`) |
 | EDIT-18 | Edit-menu Cut / Copy / Paste act on the editor selection                                    | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | Cut/Copy/Paste + no-selection no-op, with clipboard permissions granted |
 | EDIT-19 | Tab / Shift-Tab indent / dedent the selected lines (Tab captured, does not move focus out)  | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | `indentWithTab`; focus stays in editor |
 | EDIT-20 | Typing schedules a debounced save (~400ms) and an undebounced preview / count / outline update | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | debounced save → `localStorage` → survives reload (re-levelled unit→e2e — the wiring only means anything through the real editor) |
@@ -104,7 +112,7 @@ _Source: `client/src/app.ts`, `client/src/formatting-commands.ts`, `client/src/c
 | EDIT-22 | Switching keybinding mode (Normal / Vim / Emacs) via Settings shows / hides the status indicator and enables the motions | e2e | covered | `tests/e2e/local/keybindings.spec.ts`   |                                                                                                                    |
 | EDIT-23 | Keybinding mode persists to `localStorage`; corrupted saved value falls back to Normal      | unit  | covered | `tests/client/src/stores/keybindings.test.ts`    |                                                                                                                    |
 | EDIT-24 | Vim status indicator reflects the current vim sub-mode (NORMAL / INSERT / VISUAL)           | e2e | covered | `tests/e2e/local/keybindings.spec.ts` | NORMAL/INSERT/VISUAL transitions; 5× flake-checked |
-| EDIT-25 | Editor is read-only when `window.MDE.setReadOnly(true)` (viewer role)                        | e2e-collab | partial | `tests/e2e/collab/readonly-and-editing-mode.spec.ts` | verify depth — cross-ref §10                                                                                 |
+| EDIT-25 | Editor is read-only when `window.MDE.setReadOnly(true)`                                       | e2e | covered | `tests/e2e/local/editor-readonly-and-mobile-focus.spec.ts` | `setReadOnly(true)` blocks typing, `setReadOnly(false)` restores it |
 
 ## 2. Preview, scroll-sync & rendering
 
@@ -291,7 +299,7 @@ _Source: `client/src/version-grouping.ts`, `client/src/history.ts`, `client/src/
 | VER-16 | Version History merges local session groups and GitHub repo commits into one timeline, following renames across commits (`findRenamedPathAtRef`) | e2e-collab / integration | gap | —                                    | cross-ref §12; `fetchAndMergeRepoHistory` orchestration untested               |
 | VER-17 | Diffing any two selected historical entries against each other (not just against Live)             | e2e       | covered | `tests/e2e/local/version-history-grouping.spec.ts` |                                                                               |
 | VER-18 | A historical version renders identically to the live preview (mermaid / math / images / sanitization) | unit    | covered | `tests/client/src/version-preview.test.ts`        | image-ref resolution + DOMPurify sanitization + markdown; mermaid/math paths covered by `mermaid-preview.test.ts` / `math-preview.test.ts` |
-| VER-19 | A normalized image-reference format does not surface as a spurious diff                             | unit      | gap     | —                                                | `TODO.md`; root cause is deterministic pull refs — cross-ref §12               |
+| VER-19 | A normalized image-reference format does not surface as a spurious diff                             | unit      | covered | `tests/client/src/repo-sync.test.ts`             | a local image line round-trips push→pull byte-identical; `computeDiffRows` sees `same` |
 
 ## 9. Comments
 
@@ -368,7 +376,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-39 | Legacy `CollabRoom` single-doc share link transparently migrates to a fresh `WorkspaceRoom` on open, before live sync attaches — end-to-end | e2e-collab | gap  | —                                                     | `handleMigrateRequest` tombstone covered at integration (`collab-room.test.ts`); no e2e opens an `/api/collab` link |
 | COLLAB-40 | `normalizeInvited` / `getAccess` legacy migration — `{username, role}` validation, dedupe, 100-cap, legacy `string[]` → editor invites | unit | covered | `tests/src/collab-room.test.ts`                        |                                                                       |
 | COLLAB-41 | `handleInternalSeedRequest` seeds a document's Yjs state, access, snapshots, and comments from a migration payload | integration | covered | `tests/src/workspace-room.test.ts`                    |                                                                       |
-| COLLAB-42 | Cross-document presence (`MESSAGE_PRESENCE` / `workspacePresence` store) — "who is looking at what" avatars, and a socket close clears that session's presence | integration + component | partial | `tests/src/workspace-room.test.ts` | awareness cleanup on socket close covered; the `workspacePresence` store and the avatar UI are not |
+| COLLAB-42 | Cross-document presence (`MESSAGE_PRESENCE` / `workspacePresence` store) — "who is looking at what" avatars, and a socket close clears that session's presence | integration + component | covered | `tests/src/workspace-room.test.ts`, `tests/client/src/components/DocList.test.ts` | socket-close cleanup + the per-row presence avatars (capped at 3) |
 | COLLAB-43 | Remote collaborators' cursors / selections render in the editor (yCollab awareness)                 | e2e-collab  | gap     | —                                                     |                                                                       |
 | COLLAB-44 | A mid-session WebSocket drop reconnects and re-syncs without duplicating content                    | e2e-collab  | gap     | —                                                     | only a full reload (COLLAB-14) is tested                                |
 | COLLAB-45 | `handleMetaRequest` — non-editor PUT rejected without persist/broadcast, editor PUT persists + survives reload + broadcasts, `GET /access` carries `workspaceName`, a fresh session is greeted with the meta | integration | covered | `tests/src/workspace-room.test.ts` |                                                     |
@@ -389,7 +397,7 @@ _Source: `src/github-auth.ts`, `src/auth.ts`, `src/env.ts`, `client/src/gist.ts`
 | AUTH-07  | `handleMe` treats a 401 from GitHub's `/user` as a revoked token (→ signed out) but trusts the existing session when GitHub is simply unreachable | integration | covered | `tests/src/github-auth.test.ts`         | 401 → `connected:false` + cookie cleared; fetch throws → `connected:true`, no cookie touched |
 | AUTH-08  | `handleLogout` clears the session cookie                                                          | integration | covered | `tests/src/github-auth.test.ts`                 | POST → 200 + `Max-Age=0`; survives a failing grant-revoke; GET → 302 `/` |
 | GIST-01  | `handleGistCreate` publishes the current document as a new Gist, honoring the Public / Secret choice made at creation | integration | covered | `tests/src/github-auth.test.ts` | forwards the request body (incl. `public`) to `POST /gists`, proxies the result, 401 when signed out |
-| GIST-02  | `handleGistUpdate` updates the linked Gist; renaming then updating does not create a duplicate file | integration | partial | `tests/src/github-auth.test.ts` | handler `PATCH /gists/:id` forwarding covered; the filename-matching that prevents the duplicate is client-side in `gist.ts` and still untested |
+| GIST-02  | `handleGistUpdate` updates the linked Gist; renaming then updating does not create a duplicate file | integration + unit | covered | `tests/src/github-auth.test.ts`, `tests/client/src/gist.test.ts` | handler forwarding + `gistUpdatePayload` uses GitHub's rename form (old key + `filename` prop) so no second file is created |
 | GIST-03  | `handleGistList` / `handleGistGet` return the user's gists / one gist by id                       | integration | covered | `tests/src/github-auth.test.ts`                 | list → `/gists?per_page=100`, get → `/gists/:id`                     |
 | GIST-04  | `handleGistImageUpload` — requires sign-in, and rejects malformed JSON / missing filename / missing `contentBase64` / invalid base64 with diagnostic detail | integration | covered | `tests/src/gist-images.test.ts`               |                                                                      |
 | GIST-05  | A valid image is pushed into the Gist's own git repo as a real binary blob (isomorphic-git → `MemoryFS`), and the markdown is rewritten to reference it | integration | partial | `tests/src/gist-images.test.ts` | validation covered; the test stops at "only fails downstream at the git push" — the happy push path is not exercised |
@@ -400,7 +408,7 @@ _Source: `src/github-auth.ts`, `src/auth.ts`, `src/env.ts`, `client/src/gist.ts`
 | GIST-10  | `formatGistDate` renders a Gist ISO timestamp                                                     | unit        | covered | `tests/client/src/gist.test.ts`                 |                                                                      |
 | GIST-11  | Opening a Gist (own list / pasted URL / id) creates a new local document                          | e2e         | gap     | —                                             | needs a fake `/api/gist*` backend; no OAuth in e2e                    |
 | GIST-12  | The GistVisibilityDialog defaults to Secret, resolves the chosen visibility on Publish, and resolves `null` on Cancel | component | covered | `tests/client/src/components/GistVisibilityDialog.test.ts` |                                                          |
-| GIST-13  | Gist / repo menu actions are disabled or hidden when signed out                                   | e2e         | partial | —                                             | cross-ref §12 (`3c75e6d` — skip repo-commits when signed out)         |
+| GIST-13  | Gist / repo menu actions are disabled or hidden when signed out                                   | component   | covered | `tests/client/src/components/MenuBar.test.ts`  | signed-out shows the plain Publish button + hides the submenu; signed-in the reverse |
 | GIST-14  | `MemoryFS` implements the filesystem surface isomorphic-git needs (read / write / readdir / stat / symlink) | unit | covered | `tests/src/memory-fs.test.ts`               | direct: write→read (bytes/string), auto-mkdir, readdir sort, unlink, ENOENT/ENOSYS, `.`/`..` normalization |
 | GIST-15  | `fake-github-server` harness — ref+tree lookup, real blob sha1, full blob→tree→commit→ref push, non-fast-forward rejection | integration | covered | `tests/src/test-support/fake-github-server.test.ts` | the test double §11-12 integration tests rely on                       |
 
@@ -434,8 +442,8 @@ _Source: `client/src/repo-sync.ts`, `client/src/repo-sync-ui.ts`, `src/github-re
 | REPO-20 | A per-file SHA conflict routes through RepoConflictModal and applies the chosen side per file (never a silent overwrite)                                          | component | covered | `tests/client/src/components/RepoConflictModal.test.ts` | per-file select defaults to `mine`; Apply → `onResolve({docId: side})`; Cancel resolves nothing |
 | REPO-21 | Version History merges repo commits into the timeline, diffs a commit against current content, restores from a commit, and follows a rename across commits (`findRenamedPathAtRef`) | e2e-collab / integration | gap | —                             | cross-ref VER-16; `handleRepoCommits` proxy is covered, the client integration is not |
 | REPO-22 | The no-workspace empty state offers "load a workspace from a repo" and it works end-to-end          | e2e         | gap     | —                                         | `TODO.md` item 14                                                    |
-| REPO-23 | "Synced to" / last-push-or-pull time shows in Document Info                                         | e2e         | gap     | —                                         | `repoLastSyncedAt` is set (REPO-12); the display is untested         |
-| REPO-24 | Repo-commits / repo-dates requests are skipped entirely when signed out                             | unit + integration | partial | `tests/client/src/repo-doc-dates.test.ts`, `tests/src/github-repo.test.ts` | dates path + server 401 covered; `3c75e6d` client-side repo-commits skip is not |
+| REPO-23 | "Synced to" / last-push-or-pull time shows in the File > Repo submenu                              | component   | covered | `tests/client/src/components/MenuBar.test.ts`  | `repoLastSyncedLabel` renders "Synced <relative>" when set, nothing when unset |
+| REPO-24 | Repo-commits / repo-dates requests are skipped entirely when signed out                             | unit + integration + component | covered | `tests/client/src/repo-doc-dates.test.ts`, `tests/src/github-repo.test.ts`, `tests/client/src/components/VersionHistory.test.ts` | dates skip + server 401 + VersionHistory's `/commits` skip |
 
 ## 13. Mobile
 
@@ -453,9 +461,9 @@ _Source: mobile layout branches in `client/src/app.ts` (`isMobile`, `matchMedia(
 | MOB-08 | The tabbed document / headings switcher: the Headings tab is read-only navigation, and tapping a heading closes the sheet                       | e2e | covered | `tests/e2e/local/mobile-layout.spec.ts`      | one `.outline-item` per heading, no row menu; tap → `jumpToLine` + sheet closes |
 | MOB-09 | Mobile toolbar buttons (sidebar toggle, view selector) match the size of ordinary formatting buttons; the share button renders as a circle     | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` | `IMPROVEMENTS.md`                                                   |
 | MOB-10 | The mobile toolbar overflow menu wraps buttons into a grid instead of one-per-line; row height stays stable across view modes                   | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` |                                                              |
-| MOB-11 | The workspace switcher's "Preview" badge stays within the sidebar edge                            | e2e   | gap     | —                                           | `IMPROVEMENTS.md` v1.41.1 — the `display: contents` mount fix        |
+| MOB-11 | The workspace switcher's "Preview" badge stays within the sidebar edge                            | e2e   | covered | `tests/e2e/local/locked-view-and-preview-badge.spec.ts` | ephemeral workspace + long name on a 390px viewport — badge box within `#sidebar`'s right edge |
 | MOB-12 | The Share dialog's "Anyone with the link" label is not truncated mid-word on a mobile-Safari-width viewport | e2e | gap     | —                                           | `IMPROVEMENTS.md` v1.41.1                                            |
-| MOB-13 | The mobile-only floating "exit Focus Mode" button appears in focus mode and exits it             | e2e   | gap     | —                                           | cross-ref §14                                                       |
+| MOB-13 | The mobile-only floating "exit Focus Mode" button appears in focus mode and exits it             | e2e   | covered | `tests/e2e/local/editor-readonly-and-mobile-focus.spec.ts` | visible only at ≤780px + `body.focus-mode`; tap exits; box within the viewport |
 | MOB-14 | Crossing the `matchMedia` breakpoint (resize / rotate) re-lays-out the app without a reload       | e2e   | covered | `tests/e2e/local/mobile-layout.spec.ts`      | row→column→row on viewport resize, no reload                        |
 | MOB-15 | The comment-draft popup stays within the viewport near the right edge on a narrow screen          | e2e   | covered | `tests/e2e/local/comments.spec.ts`           | = CMT-06                                                            |
 
@@ -465,8 +473,8 @@ _Source: `client/src/components/MenuBar.svelte`, `client/src/components/CommandP
 
 | ID       | Scenario                                                                                        | Level | Status  | Test                                            | Notes                                                                       |
 | -------- | ------------------------------------------------------------------------------------------- | ----- | ------- | ------------------------------------------- | ------------------------------------------------------------------- |
-| SHELL-01 | Command Palette opens on `Ctrl/Cmd+Shift+P`, fuzzy-filters, supports arrow + Enter nav, runs the selected command, closes on Esc | e2e | partial | `tests/e2e/local/formatting.spec.ts`        | only the toolbar-button open + input-focus is covered              |
-| SHELL-02 | Every registered command is reachable and runs; `requires: "doc"` commands are hidden / disabled with no active document | e2e | gap | —                                        | ~30 entries in `CommandPalette.svelte`                             |
+| SHELL-01 | Command Palette opens on `Ctrl/Cmd+Shift+P`, fuzzy-filters, supports arrow + Enter nav, runs the selected command, closes on Esc | e2e | covered | `tests/e2e/local/command-palette.spec.ts`, `formatting.spec.ts` | keyboard-open, filter, ArrowUp/Down active row, Enter runs, Esc closes |
+| SHELL-02 | Every registered command is reachable and runs; `requires: "doc"` commands are hidden / disabled with no active document | e2e | covered | `tests/e2e/local/command-palette.spec.ts` | >20 entries listed; `requires:"doc"` vanish with no active doc; a spread of them run with no pageerror |
 | SHELL-03 | Command Palette switches view mode and toggles Focus Mode                                         | e2e   | covered | `tests/e2e/local/view-mode.spec.ts`, `focus-mode.spec.ts` |                                                     |
 | SHELL-04 | `Modal.svelte` — the shared shell: header (title/icon) + aria-modal dialog + body/tabs/footer regions, × and backdrop-click close, `elevated` z-index | component | covered | `tests/client/src/components/Modal.test.ts` | focus-trap / Esc / scroll-lock are each consumer's own onMount, not Modal's |
 | SHELL-05 | Regular toasts enqueue, auto-dismiss after their duration, dismiss manually, and stack           | unit  | covered | `tests/client/src/stores/toast.test.ts`     | `showToast` type default, per-toast timers, stacking, `dismissToast` |
@@ -474,8 +482,8 @@ _Source: `client/src/components/MenuBar.svelte`, `client/src/components/CommandP
 | SHELL-07 | `compareVersions` / `missedEntries` / `groupByCategory` — numeric segment compare, newest-only when nothing seen, strictly-newer filter, category grouping + ordering | unit | covered | `tests/client/src/whats-new.test.ts` |                                                        |
 | SHELL-08 | Every `WHATS_NEW_ENTRIES` entry has a known category and every category has a sprite icon         | unit  | covered | `tests/client/src/whats-new-entries.test.ts` |                                                                  |
 | SHELL-09 | What's New: manual reopen shows the category index; a category enters its stepper newest-first; the last slide reads "Done" and returns to the index; the auto-open (missed-entries) flow skips the index | component + e2e | covered | `tests/client/src/components/WhatsNew.test.ts`, `tests/e2e/local/whats-new.spec.ts` |                              |
-| SHELL-10 | What's New auto-opens once for missed entries, then marks them seen so it doesn't reopen          | e2e   | gap     | —                                           | `missedEntries` logic covered (SHELL-07); the seen side-effect is not |
-| SHELL-11 | `WhatsNew.svelte` warns in dev when the newest entry's version ≠ `__APP_VERSION__`               | component | gap     | —                                           | dev-only guard                                                     |
+| SHELL-10 | What's New auto-opens once for missed entries, then marks them seen so it doesn't reopen          | e2e   | covered | `tests/e2e/local/whats-new.spec.ts`          | clear `mde:whatsNewSeen` → auto-opens → dismiss bumps it to the build version → second reload stays closed |
+| SHELL-11 | `WhatsNew.svelte` warns in dev when the newest entry's version ≠ `__APP_VERSION__`               | component | covered | `tests/client/src/components/WhatsNewDevWarn.test.ts` | mocked stale entries module → `console.warn` fires on mount |
 | SHELL-12 | Focus Mode toggles from the View menu / Command Palette, Escape exits, and it dims non-active paragraphs (`activeParagraphRange` finds the cursor's paragraph across every edge case) | unit + e2e | covered | `tests/client/src/focus-mode.test.ts`, `tests/e2e/local/focus-mode.spec.ts` |                                        |
 | SHELL-13 | Focus Mode is stateless-by-default — reopening the app / a sheet does not restore it              | e2e   | covered | `tests/e2e/local/focus-mode.spec.ts`         | toggled on → reload → `body` has no `focus-mode` class             |
 | SHELL-14 | `formatRelativeTime` — Today / Yesterday / `{n}d` / `{n}w` / `{n}mo` / full date-with-year thresholds | unit | covered | `tests/client/src/relative-time.test.ts`    | `TODO.md` item 4                                                   |

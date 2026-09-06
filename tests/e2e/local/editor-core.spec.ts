@@ -155,3 +155,43 @@ test.describe("link modal insertion", () => {
     await expect.poll(() => doc(page)).toBe("click [here](https://x.com)");
   });
 });
+
+test.describe("Edit menu clipboard commands", () => {
+  test.use({ permissions: ["clipboard-read", "clipboard-write"] });
+  const clip = (page: Page) => page.evaluate(() => navigator.clipboard.readText());
+
+  test("Copy puts the selection on the clipboard without changing the document", async ({ page }) => {
+    await setDoc(page, "copy me please");
+    await page.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 0, head: 7 } })); // "copy me"
+    await page.click("#editMenuBtn");
+    await page.click("#menuCopy");
+    await expect.poll(() => doc(page)).toBe("copy me please");
+    expect(await clip(page)).toBe("copy me");
+  });
+
+  test("Cut removes the selection and puts it on the clipboard", async ({ page }) => {
+    await setDoc(page, "cut this out");
+    await page.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 4, head: 9 } })); // "this "
+    await page.click("#editMenuBtn");
+    await page.click("#menuCut");
+    await expect.poll(() => doc(page)).toBe("cut out");
+    expect(await clip(page)).toBe("this ");
+  });
+
+  test("Paste inserts the clipboard text at the caret", async ({ page }) => {
+    await setDoc(page, "before  after");
+    await page.evaluate(() => navigator.clipboard.writeText("MIDDLE"));
+    await page.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 7 } })); // between the two spaces
+    await page.click("#editMenuBtn");
+    await page.click("#menuPaste");
+    await expect.poll(() => doc(page)).toBe("before MIDDLE after");
+  });
+
+  test("Copy with no selection is a no-op", async ({ page }) => {
+    await setDoc(page, "untouched");
+    await page.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 3 } }));
+    await page.click("#editMenuBtn");
+    await page.click("#menuCopy");
+    await expect.poll(() => doc(page)).toBe("untouched");
+  });
+});

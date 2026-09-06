@@ -163,8 +163,10 @@ test.describe("preview sanitization & safety", () => {
     }
     const link = page.locator("#preview a", { hasText: "click" });
     if (await link.count()) {
-      const href = await link.getAttribute("href");
-      expect(href === null || !href.toLowerCase().startsWith("javascript:")).toBe(true);
+      const href = (await link.getAttribute("href")) ?? "";
+      // Positive allowlist: after DOMPurify the href is dropped, blanked,
+      // or a plain safe scheme — never any executable scheme.
+      expect(href === "" || /^(https?:\/\/|mailto:|#|\/|\.\/)/i.test(href)).toBe(true);
     }
   });
 

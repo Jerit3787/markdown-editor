@@ -127,3 +127,40 @@ test("Replacing with an oversized file shows an error and leaves the original im
   });
   expect(imagesAfter["pixel.png"]).toBe(originalImages["pixel.png"]);
 });
+
+async function dropFile(page: import("@playwright/test").Page, name: string, type: string, bytes: number[] | number) {
+  await page.evaluate(
+    ({ name, type, bytes }) => {
+      const data = typeof bytes === "number" ? new Uint8Array(bytes) : Uint8Array.from(bytes);
+      const file = new File([data], name, { type });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      const el = document.querySelector("#editor-mount .cm-content")!;
+      const r = el.getBoundingClientRect();
+      el.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, clientX: r.x + 5, clientY: r.y + 5, bubbles: true, cancelable: true }));
+    },
+    { name, type, bytes },
+  );
+}
+
+const PIXEL_BYTES = Array.from(Uint8Array.from(atob(PIXEL_PNG_BASE64), (c) => c.charCodeAt(0)));
+
+test("IMG-03: dropping an image file onto the editor embeds it", async ({ page }) => {
+  await dropFile(page, "dropped.png", "image/png", PIXEL_BYTES);
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toMatch(/!\[dropped\]\(dropped\.png\)/);
+  const images = await page.evaluate(() => JSON.parse(localStorage.getItem("mde:docs") || "[]")[0]?.images ?? {});
+  expect(images["dropped.png"]).toMatch(/^data:image\/png;base64,/);
+});
+
+test("IMG-04: dropping an oversized image inserts the too-large marker, not the image", async ({ page }) => {
+  await dropFile(page, "huge.png", "image/png", 3 * 1024 * 1024);
+  await expect.poll(() => page.evaluate(() => window.MDE.getEditor().state.doc.toString())).toContain("huge.png: image too large, 2MB max");
+});
+
+test("IMG-05: dropping a non-image file is ignored (no marker, no ref)", async ({ page }) => {
+  await dropFile(page, "notes.txt", "text/plain", Array.from(new TextEncoder().encode("hello")));
+  await page.waitForTimeout(200);
+  const doc = await page.evaluate(() => window.MDE.getEditor().state.doc.toString());
+  expect(doc).not.toContain("notes.txt");
+  expect(doc).not.toContain("Encoding");
+});

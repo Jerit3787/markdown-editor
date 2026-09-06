@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.6] - 2026-09-07
+
+### Changed
+
+- **Test coverage — the Comments-panel collapse (CMT-19) is now a full geometry assertion.** Investigation confirmed the panel collapses correctly on close (the auto-sized grid column goes to 0, the editor reclaims the space, the panel slides entirely past the viewport edge — no sliver); the earlier weak/racy test is replaced with a settled-geometry check driven off the panel's own store. No behavior change.
+
 ## [1.46.5] - 2026-09-07
 
 ### Fixed

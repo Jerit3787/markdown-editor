@@ -51,13 +51,13 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 6. Export & print                  |      12 |       0 |    0 |    12 |
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      16 |       0 |    3 |    19 |
-| 9. Comments                        |      16 |       1 |    2 |    19 |
+| 9. Comments                        |      17 |       0 |    2 |    19 |
 | 10. Workspace collab               |      37 |       4 |    5 |    46 |
 | 11. GitHub auth & Gist             |      19 |       3 |    1 |    23 |
 | 12. GitHub repo sync               |      19 |       1 |    4 |    24 |
 | 13. Mobile                         |      12 |       0 |    3 |    15 |
 | 14. App shell                      |      16 |       2 |    3 |    21 |
-| **Total**                          | **275** |  **13** | **23** | **311** |
+| **Total**                          | **276** |  **12** | **23** | **311** |
 
 ~88% of enumerated scenarios have a test asserting their outcome, ~4%
 are partial, ~7% are gaps (was 59/10/31 at the v1.45.2 first pass;
@@ -317,7 +317,7 @@ _Source: `client/src/comments.ts`, `client/src/anchor.ts` (+ `src/anchor.ts`), `
 | CMT-16 | The unresolved-comment count badge shows on the topbar Comments icon and the File-menu entry      | component  | covered | `tests/client/src/components/MenuBar.test.ts` | File-menu `.menu-badge` (3 / none / 99+); topbar `#commentsBadge` is the same store |
 | CMT-17 | Clicking a comment row in the panel scrolls the editor to its anchor                              | e2e        | covered | `tests/e2e/local/comments.spec.ts`         | `.comment-entry-quote` click → editor selection back at [from,to]             |
 | CMT-18 | An empty / whitespace-only comment or reply is rejected                                           | integration | covered | `tests/src/workspace-room.test.ts`        | both `Invalid comment.` and `Invalid reply.` 400s asserted via the real handlers |
-| CMT-19 | The Comments panel collapses fully on close with no leftover sliver, matching the workspace panel  | e2e        | partial | `tests/e2e/local/comments.spec.ts`        | close re-adds `.collapsed` + a real translateX slide + no h-scroll; the exact off-screen pixel math is viewport-sensitive and not asserted |
+| CMT-19 | The Comments panel collapses fully on close with no leftover sliver, matching the workspace panel  | e2e        | covered | `tests/e2e/local/comments.spec.ts`        | at a 1280 viewport: the `comments` grid track → `0px`, `#main` reclaims to the edge, the panel's box sits at `left: 1600` (fully past the edge), no h-scroll |
 
 ## 10. Workspace collab
 

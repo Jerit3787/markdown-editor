@@ -43,7 +43,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 
 | Subsystem                          | Covered |  Partial |  Gap | Total |
 | ---------------------------------- | ------: | ------: | ---: | ----: |
-| 1. Editor core & formatting        |      12 |       4 |    9 |    25 |
+| 1. Editor core & formatting        |      23 |       1 |    1 |    25 |
 | 2. Preview, scroll-sync & rendering |     10 |       5 |    8 |    23 |
 | 3. Markdown dialects               |      18 |       0 |    7 |    25 |
 | 4. Documents, workspaces & multi-tab |    15 |       2 |    7 |    24 |
@@ -57,10 +57,11 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      18 |       1 |    5 |    24 |
 | 13. Mobile                         |       8 |       1 |    6 |    15 |
 | 14. App shell                      |      10 |       3 |    8 |    21 |
-| **Total**                          | **181** |  **30** | **96** | **307** |
+| **Total**                          | **192** |  **27** | **88** | **307** |
 
-~59% of enumerated scenarios have a test asserting their outcome, ~10%
-are partial, ~31% are gaps. The pure-logic layers (stores, CRDT/room
+~63% of enumerated scenarios have a test asserting their outcome, ~9%
+are partial, ~29% are gaps (was 59/10/31 at the v1.45.2 first pass;
+Phase 1 closed §1's editor rows). The pure-logic layers (stores, CRDT/room
 servers, markdown transforms, diff/version model, repo-sync planners)
 are strongly covered; the gaps cluster in UI-orchestration paths
 (modals, menus, the Command Palette, DiagramEditor), the `.md` export
@@ -80,25 +81,25 @@ _Source: `client/src/app.ts`, `client/src/formatting-commands.ts`, `client/src/c
 | EDIT-03 | Blockquote / inline code / code block                                                       | e2e   | covered | `tests/e2e/local/formatting.spec.ts`             |                                                                                                                    |
 | EDIT-04 | Bullet / numbered / task list prefix                                                        | e2e   | covered | `tests/e2e/local/formatting.spec.ts`             |                                                                                                                    |
 | EDIT-05 | Insert table and horizontal rule                                                            | e2e   | covered | `tests/e2e/local/formatting.spec.ts`             |                                                                                                                    |
-| EDIT-06 | Math snippet inserts `$$\n\n$$` with the cursor on the interior blank line                   | e2e   | partial | `tests/e2e/local/formatting.spec.ts`             | content asserted; interior cursor position not                                                                    |
-| EDIT-07 | Footnote snippet inserts `[^1]` at cursor + `[^1]:` at doc end, as one undo step             | e2e   | partial | `tests/e2e/local/formatting.spec.ts`             | basic `[^1]` case only; single-undo-step and auto-numbering past existing `[^N]` (named `[^note]` ignored) untested |
+| EDIT-06 | Math snippet inserts `$$\n\n$$` with the cursor on the interior blank line                   | e2e | covered | `tests/e2e/local/formatting.spec.ts` | math caret position + LaTeX typing now asserted |
+| EDIT-07 | Footnote snippet inserts `[^1]` at cursor + `[^1]:` at doc end, as one undo step             | e2e | covered | `tests/e2e/local/formatting.spec.ts` | auto-numbering past `[^N]`, named `[^note]` ignored, single undo step |
 | EDIT-08 | Link toolbar button / Insert menu / Mod-k open the link modal with the selection prefilled  | e2e   | covered | `tests/e2e/local/formatting.spec.ts`, `menu-format-insert.spec.ts` |                                                                                                |
-| EDIT-09 | Link modal confirm inserts `[text](url)` into the editor, with `link text` / `https://` fallbacks for empty fields | e2e | gap | —                                       | `insertLinkIntoEditor` in `formatting-commands.ts`                                                                 |
+| EDIT-09 | Link modal confirm inserts `[text](url)` into the editor, with `link text` / `https://` fallbacks for empty fields | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | `insertLinkIntoEditor` + empty-field fallbacks + prefill |
 | EDIT-10 | Mod-b / Mod-i wrap the selection                                                            | e2e   | covered | `tests/e2e/local/formatting.spec.ts`             |                                                                                                                    |
-| EDIT-11 | Wrap command on an **empty** selection inserts the placeholder and selects it (type-to-replace) | e2e | gap | —                                                | `wrapSelection` branch; every formatting e2e selects-all first                                                     |
-| EDIT-12 | Line-prefix command on a line that **already** has the prefix removes it (toggle off)       | e2e   | gap     | —                                                | `prefixLine` toggle-off branch                                                                                     |
+| EDIT-11 | Wrap command on an **empty** selection inserts the placeholder and selects it (type-to-replace) | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | `wrapSelection` empty-selection branch |
+| EDIT-12 | Line-prefix command on a line that **already** has the prefix removes it (toggle off)       | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | `prefixLine` toggle-off branch |
 | EDIT-13 | Undo / Redo toolbar buttons                                                                 | e2e   | covered | `tests/e2e/local/formatting.spec.ts`             |                                                                                                                    |
 | EDIT-14 | Command Palette toolbar button opens the palette with its input focused                     | e2e   | covered | `tests/e2e/local/formatting.spec.ts`             | palette itself catalogued in §14                                                                                   |
 | EDIT-15 | Toolbar groups insert buttons with separators; Command Palette set apart at the end         | e2e   | covered | `tests/e2e/local/toolbar-grouping.spec.ts`       | `IMPROVEMENTS.md` v1.40.4                                                                                           |
-| EDIT-16 | Toolbar overflow menu appears and works when the bar is narrower than its buttons (desktop) | e2e   | partial | `tests/e2e/local/mobile-menu-overflow.spec.ts`   | mobile width only; desktop-narrow path untested — cross-ref §13                                                    |
+| EDIT-16 | Toolbar overflow menu appears and works when the bar is narrower than its buttons (desktop) | e2e | covered | `tests/e2e/local/editor-core.spec.ts`, `mobile-menu-overflow.spec.ts` | desktop-narrow (900px) overflow + toggle re-hides on widen |
 | EDIT-17 | Toolbar update does not throw when `.view-selector` / `#toolbar` is absent from the DOM (locked viewer) | e2e-collab | gap | —                                        | regression for `0c658b6`; needs a viewer role — cross-ref §10                                                      |
-| EDIT-18 | Edit-menu Cut / Copy / Paste act on the editor selection                                    | e2e   | gap     | —                                                | `menuClipboard*` in `app.ts`; native shortcuts work without these                                                  |
-| EDIT-19 | Tab / Shift-Tab indent / dedent the selected lines (Tab captured, does not move focus out)  | e2e   | gap     | —                                                | `indentWithTab`                                                                                                    |
-| EDIT-20 | Typing schedules a debounced save (~400ms) and an undebounced preview / count / outline update | unit | gap     | —                                                | `scheduleSave` / `updateListener` wiring; `debounce.ts` itself covered in §14                                      |
-| EDIT-21 | Status bar word count, character count, and cursor position update on edit / selection      | e2e   | gap     | —                                                | `updateCounts` / `updateCursorPos`                                                                                 |
+| EDIT-18 | Edit-menu Cut / Copy / Paste act on the editor selection                                    | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | Cut/Copy/Paste + no-selection no-op, with clipboard permissions granted |
+| EDIT-19 | Tab / Shift-Tab indent / dedent the selected lines (Tab captured, does not move focus out)  | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | `indentWithTab`; focus stays in editor |
+| EDIT-20 | Typing schedules a debounced save (~400ms) and an undebounced preview / count / outline update | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | debounced save → `localStorage` → survives reload (re-levelled unit→e2e — the wiring only means anything through the real editor) |
+| EDIT-21 | Status bar word count, character count, and cursor position update on edit / selection      | e2e | covered | `tests/e2e/local/editor-core.spec.ts` | `updateCounts` / `updateCursorPos`, incl. singular forms |
 | EDIT-22 | Switching keybinding mode (Normal / Vim / Emacs) via Settings shows / hides the status indicator and enables the motions | e2e | covered | `tests/e2e/local/keybindings.spec.ts`   |                                                                                                                    |
 | EDIT-23 | Keybinding mode persists to `localStorage`; corrupted saved value falls back to Normal      | unit  | covered | `tests/client/src/stores/keybindings.test.ts`    |                                                                                                                    |
-| EDIT-24 | Vim status indicator reflects the current vim sub-mode (NORMAL / INSERT / VISUAL)           | e2e   | gap     | —                                                | `vim-mode-change` listener in `Editor.svelte`; repeated toggle re-binds the listener                              |
+| EDIT-24 | Vim status indicator reflects the current vim sub-mode (NORMAL / INSERT / VISUAL)           | e2e | covered | `tests/e2e/local/keybindings.spec.ts` | NORMAL/INSERT/VISUAL transitions; 5× flake-checked |
 | EDIT-25 | Editor is read-only when `window.MDE.setReadOnly(true)` (viewer role)                        | e2e-collab | partial | `tests/e2e/collab/readonly-and-editing-mode.spec.ts` | verify depth — cross-ref §10                                                                                 |
 
 ## 2. Preview, scroll-sync & rendering

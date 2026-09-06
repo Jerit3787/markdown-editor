@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.3] - 2026-09-06
+
+### Changed
+
+- Expanded automated test coverage for the editor core and formatting commands (`docs/TEST-COVERAGE.md` §1): empty-selection placeholder behavior, line-prefix toggle-off, Tab/Shift-Tab indentation, the status bar, link-modal insertion, Edit-menu Cut/Copy/Paste, footnote numbering and single-undo, math caret placement, debounced autosave persistence, desktop toolbar overflow, and vim sub-mode indicator transitions.
+
 ## [1.45.2] - 2026-09-06
 
 ### Added

@@ -181,3 +181,22 @@ test.describe("preview sanitization & safety", () => {
     await expect(page.locator('#preview p:has-text("before")')).toContainText("after");
   });
 });
+
+test("PREV-18: sync-scroll still tracks the editor after the preview is hidden and re-shown", async ({ page }) => {
+  const longContent = Array.from({ length: 80 }, (_, i) => `## Section ${i + 1}\n\nParagraph ${i + 1}.\n`).join("\n");
+  await setPreviewDoc(page, longContent);
+  await page.waitForTimeout(200);
+
+  const toggle = page.locator('.view-selector button[title="Toggle preview pane"]');
+  // Hide the preview, then bring it back — same toggle button.
+  await toggle.click();
+  await expect(page.locator("#body")).toHaveClass(/mode-editor/);
+  await toggle.click();
+  await expect(page.locator("#body")).not.toHaveClass(/mode-editor/);
+
+  await page.evaluate(() => {
+    window.MDE.getEditor().scrollDOM.scrollTop = 2000;
+    window.MDE.getEditor().scrollDOM.dispatchEvent(new Event("scroll"));
+  });
+  await expect.poll(() => page.evaluate(() => document.getElementById("preview")!.scrollTop)).toBeGreaterThan(0);
+});

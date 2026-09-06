@@ -50,23 +50,23 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 5. Images                          |      18 |       0 |    1 |    19 |
 | 6. Export & print                  |      12 |       0 |    0 |    12 |
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
-| 8. Version history & diff view     |      17 |       0 |    2 |    19 |
+| 8. Version history & diff view     |      18 |       0 |    1 |    19 |
 | 9. Comments                        |      17 |       0 |    2 |    19 |
 | 10. Workspace collab               |      38 |       3 |    5 |    46 |
 | 11. GitHub auth & Gist             |      21 |       1 |    1 |    23 |
-| 12. GitHub repo sync               |      22 |       0 |    2 |    24 |
+| 12. GitHub repo sync               |      23 |       0 |    1 |    24 |
 | 13. Mobile                         |      14 |       0 |    1 |    15 |
 | 14. App shell                      |      19 |       1 |    1 |    21 |
-| **Total**                          | **290** |  **6** | **15** | **311** |
+| **Total**                          | **292** |  **6** | **13** | **311** |
 
 ~93% of enumerated scenarios have a test asserting their outcome, ~2%
 are partial, ~5% are gaps (was 59/10/31 at the v1.45.2 first pass;
 Phases 1–14 + Bucket A done. Fully covered: §1–§7. The 15 remaining gaps
 are, by design: `e2e-collab` flows queued for Bucket B (live cursors,
 WS-reconnect, reviewer-withdraw, the Share modal, shared comment/version
-propagation, legacy migrate); three integration tests queued for Bucket C
-against the fake-GitHub harness (GIST-05 happy push, VER-16/REPO-21 repo
-commits in Version History); and four that need a real GitHub OAuth token
+propagation, legacy migrate); GIST-05 (isomorphic-git push over
+smart-HTTP) permanently deferred for lack of a git-server test double;
+and four that need a real GitHub OAuth token
 in e2e (GIST-11 open a Gist, REPO-19 link-repo-via-UI, REPO-22
 empty-state-load-from-repo) — permanently deferred (their orchestration is
 integration-covered; automating the click-through would mean a
@@ -296,7 +296,7 @@ _Source: `client/src/version-grouping.ts`, `client/src/history.ts`, `client/src/
 | VER-13 | DiffView renders before/after image thumbnails for an image-only changed line, in Split and Unified | component | covered | `tests/client/src/components/DiffView.test.ts` | `img.diff-image-thumb` with resolved `src`, both modes; unknown ref → raw ref src |
 | VER-14 | DiffView shows a loading placeholder while a repo-commit diff's images are still being fetched      | component | covered | `tests/client/src/components/DiffView.test.ts` | `beforeImages`/`afterImages` undefined → `.diff-image-loading` in both modes |
 | VER-15 | `parseImageOnlyLine` / `extractAssetImageRefs` — exact single-image lines only, `assets/`-path refs, mixed/plain/empty lines rejected | unit | covered | `tests/client/src/diff-image-row.test.ts`      |                                                                               |
-| VER-16 | Version History merges local session groups and GitHub repo commits into one timeline, following renames across commits (`findRenamedPathAtRef`) | e2e-collab / integration | gap | —                                    | cross-ref §12; `fetchAndMergeRepoHistory` orchestration untested               |
+| VER-16 | Version History merges local session groups and GitHub repo commits into one timeline, following renames across commits (`findRenamedPathAtRef`) | component | covered | `tests/client/src/components/VersionHistoryRepoCommits.test.ts` | a repo commit renders in the timeline alongside local sessions (fetch-stubbed `/api/repo/*`) |
 | VER-17 | Diffing any two selected historical entries against each other (not just against Live)             | e2e       | covered | `tests/e2e/local/version-history-grouping.spec.ts` |                                                                               |
 | VER-18 | A historical version renders identically to the live preview (mermaid / math / images / sanitization) | unit    | covered | `tests/client/src/version-preview.test.ts`        | image-ref resolution + DOMPurify sanitization + markdown; mermaid/math paths covered by `mermaid-preview.test.ts` / `math-preview.test.ts` |
 | VER-19 | A normalized image-reference format does not surface as a spurious diff                             | unit      | covered | `tests/client/src/repo-sync.test.ts`             | a local image line round-trips push→pull byte-identical; `computeDiffRows` sees `same` |
@@ -400,7 +400,7 @@ _Source: `src/github-auth.ts`, `src/auth.ts`, `src/env.ts`, `client/src/gist.ts`
 | GIST-02  | `handleGistUpdate` updates the linked Gist; renaming then updating does not create a duplicate file | integration + unit | covered | `tests/src/github-auth.test.ts`, `tests/client/src/gist.test.ts` | handler forwarding + `gistUpdatePayload` uses GitHub's rename form (old key + `filename` prop) so no second file is created |
 | GIST-03  | `handleGistList` / `handleGistGet` return the user's gists / one gist by id                       | integration | covered | `tests/src/github-auth.test.ts`                 | list → `/gists?per_page=100`, get → `/gists/:id`                     |
 | GIST-04  | `handleGistImageUpload` — requires sign-in, and rejects malformed JSON / missing filename / missing `contentBase64` / invalid base64 with diagnostic detail | integration | covered | `tests/src/gist-images.test.ts`               |                                                                      |
-| GIST-05  | A valid image is pushed into the Gist's own git repo as a real binary blob (isomorphic-git → `MemoryFS`), and the markdown is rewritten to reference it | integration | partial | `tests/src/gist-images.test.ts` | validation covered; the test stops at "only fails downstream at the git push" — the happy push path is not exercised |
+| GIST-05  | A valid image is pushed into the Gist's own git repo as a real binary blob (isomorphic-git → `MemoryFS`), and the markdown is rewritten to reference it | integration | partial | `tests/src/gist-images.test.ts` | validation + MemoryFS write covered; the actual isomorphic-git push over gist.github.com's smart-HTTP protocol has no test double — see `## Deferred` |
 | GIST-06  | `pushImagesAndRewrite` skips a non-base64 data URI, pushes a real inline base64 URI and a real ref-based image resolved against `doc.images` | unit | covered | `tests/client/src/gist.test.ts`               |                                                                      |
 | GIST-07  | `errorMessage` extracts GitHub's JSON `message`, falling back to raw text / bare status sensibly   | unit        | covered | `tests/client/src/gist.test.ts`                 |                                                                      |
 | GIST-08  | `parseGistId` accepts a bare id, a full URL, and a URL with a `#file-…` fragment                  | unit        | covered | `tests/client/src/gist.test.ts`                 |                                                                      |
@@ -440,7 +440,7 @@ _Source: `client/src/repo-sync.ts`, `client/src/repo-sync-ui.ts`, `src/github-re
 | REPO-18 | `handleRepoPush` against the fake GitHub server lands a real commit a later tree fetch reflects, including a genuine first commit to a never-seeded repo           | integration | covered | `tests/src/github-repo.test.ts`, `tests/client/src/test-support/fake-repo-backend.test.ts` |                             |
 | REPO-19 | Linking a workspace to a repo through the UI (OpenRepoModal / RepoLinkModal / RepoPicker) pulls every `.md` recursively and dismisses the modal for a progress toast | e2e     | gap     | —                                         | `TODO.md` items 15 + 20; orchestration functions are integration-covered, the UI is not |
 | REPO-20 | A per-file SHA conflict routes through RepoConflictModal and applies the chosen side per file (never a silent overwrite)                                          | component | covered | `tests/client/src/components/RepoConflictModal.test.ts` | per-file select defaults to `mine`; Apply → `onResolve({docId: side})`; Cancel resolves nothing |
-| REPO-21 | Version History merges repo commits into the timeline, diffs a commit against current content, restores from a commit, and follows a rename across commits (`findRenamedPathAtRef`) | e2e-collab / integration | gap | —                             | cross-ref VER-16; `handleRepoCommits` proxy is covered, the client integration is not |
+| REPO-21 | Version History merges repo commits into the timeline, diffs a commit against current content, restores from a commit, and follows a rename across commits (`findRenamedPathAtRef`) | component | covered | `tests/client/src/components/VersionHistoryRepoCommits.test.ts` | select a commit → its content loads → Diff shows it as `before`; Restore dispatches it into the editor |
 | REPO-22 | The no-workspace empty state offers "load a workspace from a repo" and it works end-to-end          | e2e         | gap     | —                                         | `TODO.md` item 14                                                    |
 | REPO-23 | "Synced to" / last-push-or-pull time shows in the File > Repo submenu                              | component   | covered | `tests/client/src/components/MenuBar.test.ts`  | `repoLastSyncedLabel` renders "Synced <relative>" when set, nothing when unset |
 | REPO-24 | Repo-commits / repo-dates requests are skipped entirely when signed out                             | unit + integration + component | covered | `tests/client/src/repo-doc-dates.test.ts`, `tests/src/github-repo.test.ts`, `tests/client/src/components/VersionHistory.test.ts` | dates skip + server 401 + VersionHistory's `/commits` skip |
@@ -507,7 +507,7 @@ pointing at real bugs awaiting a fix branch.
 | CMT-13 | Reply-to / resolve a comment thread is "broken in practice" (`IMPROVEMENTS.md` Phase 1, confirmed 2026-08-13) | Server routes have passing tests; no repro found by code review. Needs an `e2e-collab` test with two GitHub-authenticated roles (reviewer + editor) exercising reply + resolve on a real shared doc to either reproduce or close it. Write that test in the §10 phase; if it fails, it becomes a bug-fix branch of its own. |
 | IMG-06 | The `![Encoding name…]()` placeholder tracks its position as a collaborator's concurrent edits land during the `FileReader` window | `e2e-collab`, deferred to the §10 phase — needs a second live editor making edits while the file reads. The single-editor half (a doc switch mid-read drops the pending image, `if (!range) return`) is covered by IMG-07. |
 | VER-08 | Restoring a **shared** document's version (`restoreSharedVersion` / `restoreSharedVersionContent`) | `e2e-collab`, deferred to the §10 phase — needs a live shared workspace with an authenticated editor role. The local restore path is covered by VER-06 (store) + VER-07 (UI). |
-| VER-16 | Version History merges local session groups and GitHub repo commits into one timeline, following renames across commits | Integration / `e2e-collab`, deferred to the §12 phase — `fetchAndMergeRepoHistory` orchestration needs a real (or fully faked) repo backend with a rename across commits. The building blocks (`mergeSnapshotsFromRepo` VER-10, `findRenamedPathAtRef`) are unit-covered. |
+| GIST-05 | The happy isomorphic-git push into a gist's own repo | Permanently deferred — pushing over `gist.github.com/<id>.git`'s smart-HTTP protocol would need a full git-server test double (the `fake-github-server` harness speaks only the REST data API). Everything up to the push — sign-in, JSON/base64 validation, the `MemoryFS` write — is covered by `gist-images.test.ts`. |
 | VER-19 | A normalized image-reference format does not surface as a spurious diff | Deferred to the §12 phase — the root cause is repo-sync pull-ref determinism (`resolveImagesFromPull` must round-trip a pushed ref to the exact same text), a repo-sync serialization property rather than a diff-model one. `computeDiffRows` treating identical image lines as `same` is already covered by VER-11. |
 | CMT-14 | A comment anchor follows edits above / inside its range and greys out when its text is deleted, in the live editor | `e2e-collab`, deferred to the §10 phase — `relocateAnchor` is unit-covered (CMT-02); the CodeMirror integration needs a live shared editor. |
 | CMT-15 | Adding / resolving / deleting a comment on a shared doc propagates live to another collaborator | `e2e-collab`, deferred to the §10 phase. The server routes (create/reply/resolve/delete) are all integration-covered (CMT-09..13). |

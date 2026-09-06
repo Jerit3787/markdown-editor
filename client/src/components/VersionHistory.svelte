@@ -211,7 +211,11 @@
       showToast("Couldn't load this version's content", "error");
       return undefined;
     }
-    return { content, images: await fetchCommitImages(doc, entry.id, content) };
+    const commitImages = await fetchCommitImages(doc, entry.id, content);
+    // Match the local branch: no images → undefined, not an empty object
+    // (which, once wrapped by $state, isn't structured-cloneable into the
+    // IndexedDB snapshot a restore appends).
+    return { content, images: Object.keys(commitImages).length ? commitImages : undefined };
   }
 
   async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, entry: LocalEntry | CommitEntry) {

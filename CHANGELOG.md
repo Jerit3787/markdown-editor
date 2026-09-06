@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.8] - 2026-09-07
+
+### Changed
+
+- **Test coverage — repo commits in Version History (Bucket C).** Three new component tests: a GitHub repo commit renders in the Version-History timeline alongside local sessions; selecting it loads the commit's content and the Diff view shows it as the "before" side; and Restore from a commit dispatches that content into the editor. Also fixed a latent issue the tests surfaced — a commit with no images now yields `undefined` rather than an empty object for its image map, matching the local-restore path (an empty `$state`-wrapped object isn't structured-cloneable into the snapshot a restore appends).
+
 ## [1.46.7] - 2026-09-07
 
 ### Changed

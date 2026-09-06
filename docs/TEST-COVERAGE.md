@@ -179,10 +179,22 @@ _Source: image paste/drop/pick paths in `client/src/app.ts`, `client/src/compone
 
 ## 6. Export & print
 
-_Source: export / print logic in `client/src/app.ts`_
+_Source: export / print logic in `client/src/app.ts` (`exportAs`, `exportPdf`, `printDocument`, `buildStandaloneHtml`, `currentFileBase`)_
 
-| ID  | Scenario | Level | Status | Test | Notes |
-| --- | -------- | ----- | ------ | ---- | ----- |
+| ID     | Scenario                                                                                          | Level | Status  | Test                                | Notes                                                                                    |
+| ------ | --------------------------------------------------------------------------------------------- | ----- | ------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
+| EXP-01 | `.md` export resolves diagram refs to their source and image refs to data URIs, then re-serializes the metadata and citations blocks | e2e | gap | —                                 | the entire `md` branch of `exportAs` is untested; fidelity-critical                     |
+| EXP-02 | `.md` export → import round-trip preserves metadata, citations, images, and diagrams             | e2e   | gap     | —                                  | cross-ref MDX-22                                                                        |
+| EXP-03 | `.txt` export downloads `<base>.txt` containing the preview's rendered text (no markdown syntax)  | e2e   | partial | `tests/e2e/local/export.spec.ts`    | filename asserted; text-content shape not                                               |
+| EXP-04 | `.html` export downloads a standalone document with the rendered diagram SVG, not the raw fence   | e2e   | covered | `tests/e2e/local/export.spec.ts`    |                                                                                        |
+| EXP-05 | `.html` export inlines the stylesheet (incl. KaTeX CSS) so the file renders correctly opened alone | e2e  | partial | `tests/e2e/local/export.spec.ts`    | `<svg>` presence only; not that styles are inlined                                      |
+| EXP-06 | `.html` export escapes the document body so it can't inject markup into the exported file        | unit  | gap     | —                                  | `buildStandaloneHtml` escaping                                                          |
+| EXP-07 | `.pdf` export downloads `<base>.pdf`                                                              | e2e   | covered | `tests/e2e/local/export.spec.ts`    |                                                                                        |
+| EXP-08 | Export filename derives from the document name, sanitized (`currentFileBase`)                     | e2e   | gap     | —                                  | tests only assert the extension, never the base name                                    |
+| EXP-09 | txt / html / pdf export awaits `flushPreviewRenders` so a just-pasted diagram / formula isn't exported as raw source | e2e | covered | `tests/e2e/local/export.spec.ts` | the "not `\`\`\`mermaid`" assertion in EXP-04                                            |
+| EXP-10 | Print media hides all app chrome and shows the preview regardless of the current view mode        | e2e   | covered | `tests/e2e/local/print.spec.ts`     |                                                                                        |
+| EXP-11 | The printed page shows the document title as a heading that is hidden on screen                   | e2e   | covered | `tests/e2e/local/print.spec.ts`     |                                                                                        |
+| EXP-12 | File-menu Print and Command Palette Print both call `window.print()`                              | e2e   | covered | `tests/e2e/local/print.spec.ts`     |                                                                                        |
 
 ## 7. Find & replace / search
 

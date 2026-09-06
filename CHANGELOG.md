@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.9] - 2026-09-07
+
+### Changed
+
+- **Test coverage — live-collaboration flows (Bucket B, part 1).** New `tests/e2e/collab/live-collab.spec.ts` with a shared `support/collab.ts` helper: two collaborators editing the same line concurrently converge to identical text in both directions (COLLAB-13); a single-document share link is received with no join modal as its own new room-linked workspace (COLLAB-25). Re-classified PREV-23 as covered — `suggestion-mode.spec.ts` already asserts the `#preview` suggestion marks. No behavior change.
+
 ## [1.46.8] - 2026-09-07
 
 ### Changed

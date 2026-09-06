@@ -44,7 +44,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | Subsystem                          | Covered |  Partial |  Gap | Total |
 | ---------------------------------- | ------: | ------: | ---: | ----: |
 | 1. Editor core & formatting        |      25 |       0 |    0 |    25 |
-| 2. Preview, scroll-sync & rendering |     22 |       1 |    0 |    23 |
+| 2. Preview, scroll-sync & rendering |     23 |       0 |    0 |    23 |
 | 3. Markdown dialects               |      25 |       0 |    0 |    25 |
 | 4. Documents, workspaces & multi-tab |    24 |       0 |    0 |    24 |
 | 5. Images                          |      18 |       0 |    1 |    19 |
@@ -52,12 +52,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      18 |       0 |    1 |    19 |
 | 9. Comments                        |      17 |       0 |    2 |    19 |
-| 10. Workspace collab               |      38 |       3 |    5 |    46 |
+| 10. Workspace collab               |      40 |       1 |    5 |    46 |
 | 11. GitHub auth & Gist             |      21 |       1 |    1 |    23 |
 | 12. GitHub repo sync               |      23 |       0 |    1 |    24 |
 | 13. Mobile                         |      14 |       0 |    1 |    15 |
 | 14. App shell                      |      19 |       1 |    1 |    21 |
-| **Total**                          | **292** |  **6** | **13** | **311** |
+| **Total**                          | **295** |  **4** | **12** | **311** |
 
 ~93% of enumerated scenarios have a test asserting their outcome, ~2%
 are partial, ~5% are gaps (was 59/10/31 at the v1.45.2 first pass;
@@ -142,7 +142,7 @@ _Source: `client/src/components/Preview.svelte`, `client/src/scroll-sync.ts`, `c
 | PREV-20  | DiagramEditor: insert a starter template, fit-to-container / reset view (panzoom)          | e2e | covered | `tests/e2e/local/diagram-editor.spec.ts` | template fills code + dismisses picker; Reset view control |
 | PREV-21  | DiagramEditor: export PNG / copy-as-SVG produces a valid standalone asset; filename derives from the diagram | e2e | covered | `tests/e2e/local/diagram-editor.spec.ts` | Download PNG → `.png`; Copy as SVG offered |
 | PREV-22  | `diagramKey` allocates `diagram` / `diagram-2` / … ; `resolveDiagramRefs` substitutes stored sources, leaves unknown refs and no-map text alone | unit | covered | `tests/client/src/diagram-refs.test.ts` |                                                                    |
-| PREV-23  | Suggestion insert/delete marks render in the preview when a shared doc has tracked suggestions | e2e-collab | partial | `tests/e2e/collab/suggestion-mode.spec.ts` | cross-ref §10; `withSuggestions` path in `Preview.svelte`                                         |
+| PREV-23  | Suggestion insert/delete marks render in the preview when a shared doc has tracked suggestions | e2e-collab | covered | `tests/e2e/collab/suggestion-mode.spec.ts` | `#preview .suggestion-insert` shows the proposed text; `#preview .suggestion-delete` shows a struck line; both clear on resolve |
 
 ## 3. Markdown dialects
 
@@ -288,7 +288,7 @@ _Source: `client/src/version-grouping.ts`, `client/src/history.ts`, `client/src/
 | VER-05 | Snapshots store images alongside content; `getVersionImages` returns them or `undefined` for a no-image / unknown snapshot | unit | covered | `tests/client/src/history.test.ts`             |                                                                               |
 | VER-06 | `restoreLocalVersion` returns the stored content + images and force-appends a fresh snapshot       | unit      | covered | `tests/client/src/history.test.ts`               |                                                                               |
 | VER-07 | Restoring a version from the UI replaces the editor content + images, records a new snapshot, and toasts | component | covered | `tests/client/src/components/VersionHistory.test.ts` | re-levelled e2e→component — a full click-through (real IndexedDB round-trip via fake-indexeddb; only the live CodeMirror instance is stubbed) |
-| VER-08 | Restoring a **shared** document's version (`restoreSharedVersion*`)                                | e2e-collab | gap     | —                                                | cross-ref §10                                                                  |
+| VER-08 | Restoring a **shared** document's version (`restoreSharedVersion*`)                                | e2e-collab | gap     | —                                                | Bucket B2 — needs ≥2 distinct server-side shared snapshots; `WorkspaceRoom`'s snapshot-capture cadence isn't a quick e2e setup. Store path covered by VER-06/COLLAB-37. |
 | VER-09 | Restore is disabled when the selected entry is already the current revision / newest nested entry  | component | covered | `tests/client/src/components/VersionHistory.test.ts` | `TODO.md` item 19                                                              |
 | VER-10 | `mergeSnapshotsFromRepo` adds remote snapshots, dedupes by id, re-sorts + re-caps at 300           | unit      | covered | `tests/client/src/history.test.ts`               | cross-ref §12                                                                  |
 | VER-11 | `computeDiffRows` / `toUnifiedLines` — same/added/removed/changed rows, surplus lines, word-level intraline segments, unified expansion | unit | covered | `tests/client/src/diff-lines.test.ts`            | GitHub-style diff data model                                                   |
@@ -321,7 +321,7 @@ _Source: `client/src/comments.ts`, `client/src/anchor.ts` (+ `src/anchor.ts`), `
 | CMT-12 | A reviewer / editor can post a reply, and it appends to the thread and broadcasts                 | integration | covered | `tests/src/workspace-room.test.ts` | e2e-collab broadcast half deferred to §10                                     |
 | CMT-13 | Resolving a thread marks it resolved; reopening un-resolves it                                    | integration | covered | `tests/src/workspace-room.test.ts` | server route confirmed sound; the "broken in practice" report is client-side — chase in §10 e2e-collab |
 | CMT-14 | A comment anchor follows edits made above / inside its range and greys out when its text is deleted, in the live editor | e2e-collab | gap | —                              | `relocateAnchor` logic covered (CMT-02); the editor integration is not        |
-| CMT-15 | Adding / resolving / deleting a comment on a shared doc propagates live to another collaborator   | e2e-collab | gap     | —                                         |                                                                              |
+| CMT-15 | Adding / resolving / deleting a comment on a shared doc propagates to another collaborator          | e2e-collab | gap     | —                                         | **finding:** the comment DO endpoints never call `broadcast()` and `collab.ts` has no comment subscription, so a new/resolved/deleted comment does NOT push live — a peer only sees it on its next `listComments` fetch (doc switch / reload). Covering the reload path or fixing the push is Bucket B2. |
 | CMT-16 | The unresolved-comment count badge shows on the topbar Comments icon and the File-menu entry      | component  | covered | `tests/client/src/components/MenuBar.test.ts` | File-menu `.menu-badge` (3 / none / 99+); topbar `#commentsBadge` is the same store |
 | CMT-17 | Clicking a comment row in the panel scrolls the editor to its anchor                              | e2e        | covered | `tests/e2e/local/comments.spec.ts`         | `.comment-entry-quote` click → editor selection back at [from,to]             |
 | CMT-18 | An empty / whitespace-only comment or reply is rejected                                           | integration | covered | `tests/src/workspace-room.test.ts`        | both `Invalid comment.` and `Invalid reply.` 400s asserted via the real handlers |
@@ -347,7 +347,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-10 | Reviewer's edits become suggestions an editor accepts / rejects end-to-end; a viewer sees preview-only | e2e-collab | covered | `tests/e2e/collab/suggestion-mode.spec.ts`             |                                                                       |
 | COLLAB-11 | A reviewer withdrawing their own pending suggestion, end-to-end                                     | e2e-collab  | gap     | —                                                     | withdraw is unit-covered (COLLAB-06); the collab flow is editor-accept/reject only |
 | COLLAB-12 | A live edit from one collaborator appears in another's browser with no reload                       | e2e-collab  | covered | `tests/e2e/collab/live-sync.spec.ts`                   |                                                                       |
-| COLLAB-13 | Two collaborators editing concurrently converge (CRDT), including edits to the same line            | e2e-collab  | partial | `tests/e2e/collab/live-sync.spec.ts`                   | only one-directional propagation is asserted                            |
+| COLLAB-13 | Two collaborators editing concurrently converge (CRDT), including edits to the same line            | e2e-collab  | covered | `tests/e2e/collab/live-collab.spec.ts`, `live-sync.spec.ts` | both edit the same line concurrently → both sides converge to identical text containing both edits |
 | COLLAB-14 | Reloading a shared document does not duplicate its content                                          | e2e-collab  | covered | `tests/e2e/collab/live-sync.spec.ts`                   | regression for `f723634` / `61da45e`                                    |
 | COLLAB-15 | A document created after both collaborators are already connected appears in the other's list live  | e2e-collab + unit | covered | `tests/e2e/collab/live-sync.spec.ts`, `tests/client/src/collab.test.ts` | regression for `b0a1b9b` / `d6df5ad`                        |
 | COLLAB-16 | `collab.ts` creates a local doc on the first `MESSAGE_SYNC` for an unknown `docId` (name or `Untitled`), but not for a bare `MESSAGE_AWARENESS`, and never re-imports a known doc | unit | covered | `tests/client/src/collab.test.ts` |                                                                       |
@@ -359,7 +359,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-22 | `decideJoinTarget` — single doc previews (or lands permanently for a zero-workspace receiver); multi-doc lands permanently for zero-workspace, else choice; real remote name used when provided | unit | covered | `tests/client/src/collab.test.ts` |                                                          |
 | COLLAB-23 | Share modal: generate + copy link, switch general access (restricted / account / anyone), invite a username with a role, change a role, revoke — end-to-end through the UI | e2e-collab | gap | —                                                    | server `handleAccessRequest` fully covered (COLLAB-03); most e2e tests PUT `/access` directly rather than driving the modal |
 | COLLAB-24 | ShareChoiceModal: choosing "share this document" vs "share the whole workspace"                     | component   | covered | `tests/client/src/components/ShareChoiceModal.test.ts` | document / workspace / cancel resolution; prompt names the doc count + workspace |
-| COLLAB-25 | A single-doc share link is received as its own new workspace named after the doc, with no join modal, for every receiver | e2e-collab | partial | —                                                | `decideJoinTarget` unit-covered (COLLAB-22); no e2e for the single-doc receive path |
+| COLLAB-25 | A single-doc share link is received as its own new workspace named after the doc, with no join modal, for every receiver | e2e-collab | covered | `tests/e2e/collab/live-collab.spec.ts`            | no join modal; lands as its own new `remoteId`-linked workspace (not the generic "Shared workspace"); content syncs |
 | COLLAB-26 | JoinWorkspaceModal renders all three options; "Preview only" creates an ephemeral workspace and never persists it | component | covered | `tests/client/src/components/JoinWorkspaceModal.test.ts` |                                                          |
 | COLLAB-27 | A shared workspace previews without persisting; "Keep this workspace" makes it survive a reload     | e2e-collab  | covered | `tests/e2e/collab/shared-workspace-preview.spec.ts`    |                                                                       |
 | COLLAB-28 | A viewer-access room locks the app to Preview-only with no edit surface; editable access allows typing | e2e-collab + unit | covered | `tests/e2e/collab/readonly-and-editing-mode.spec.ts`, `tests/client/src/collab.test.ts` |                                             |

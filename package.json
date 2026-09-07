@@ -1,7 +1,7 @@
 {
   "name": "markdown-editor",
   "private": true,
-  "version": "1.48.2",
+  "version": "1.48.3",
   "type": "module",
   "license": "MIT",
   "description": "A fast, static markdown editor with live preview and real-time multi-user collaboration.",
@@ -16,9 +16,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:e2e:local": "playwright test --project=local",
+    "test:e2e:webkit": "playwright test --project=webkit",
     "test:e2e:collab": "bash tests/scripts/e2e-collab.sh",
     "test:e2e:github": "bash tests/scripts/e2e-github.sh",
-    "test:e2e": "npm run test:e2e:local && npm run test:e2e:collab"
+    "test:e2e": "npm run test:e2e:local && npm run test:e2e:webkit && npm run test:e2e:collab"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260804.1",

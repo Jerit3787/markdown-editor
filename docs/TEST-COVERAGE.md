@@ -21,6 +21,7 @@ exercises the real risk):
 | `e2e`        | full built client, no Worker                      | `tests/e2e/local/*.spec.ts`                         |
 | `e2e-collab` | full client + real `wrangler dev` Worker + DOs    | `tests/e2e/collab/*.spec.ts`                        |
 | `e2e-github` | full client + Worker + **real GitHub** (opt-in, secret-gated, non-blocking CI) | `tests/e2e/github/*.spec.ts` |
+| `e2e-webkit` | client-only, Playwright **WebKit** engine at an iPhone viewport — mobile-Safari-width CSS/layout (not a true iOS repro; native form chrome is host-OS-level) | `tests/e2e/webkit/*.spec.ts` |
 
 **Status** — `covered` (a test asserts the outcome) · `partial` (a test
 touches the path but not the outcome, or tests it at the wrong level) ·
@@ -56,9 +57,9 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 10. Workspace collab               |      44 |       1 |    1 |    46 |
 | 11. GitHub auth & Gist             |      22 |       1 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
-| 13. Mobile                         |      14 |       0 |    1 |    15 |
+| 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      19 |       1 |    1 |    21 |
-| **Total**                          | **307** |  **3** |  **4** | **314** |
+| **Total**                          | **308** |  **3** |  **3** | **314** |
 
 ~93% of enumerated scenarios have a test asserting their outcome, ~2%
 are partial, ~5% are gaps (was 59/10/31 at the v1.45.2 first pass;
@@ -466,7 +467,7 @@ _Source: mobile layout branches in `client/src/app.ts` (`isMobile`, `matchMedia(
 | MOB-09 | Mobile toolbar buttons (sidebar toggle, view selector) match the size of ordinary formatting buttons; the share button renders as a circle     | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` | `IMPROVEMENTS.md`                                                   |
 | MOB-10 | The mobile toolbar overflow menu wraps buttons into a grid instead of one-per-line; row height stays stable across view modes                   | e2e | covered | `tests/e2e/local/mobile-toolbar-and-sheets.spec.ts` |                                                              |
 | MOB-11 | The workspace switcher's "Preview" badge stays within the sidebar edge                            | e2e   | covered | `tests/e2e/local/locked-view-and-preview-badge.spec.ts` | ephemeral workspace + long name on a 390px viewport — badge box within `#sidebar`'s right edge |
-| MOB-12 | The Share dialog's "Anyone with the link" label is not truncated mid-word on a mobile-Safari-width viewport | e2e | gap     | —                                           | `IMPROVEMENTS.md` v1.41.1                                            |
+| MOB-12 | The Share dialog's general-access `<select>` reserves room for its dropdown arrow beyond the label width at mobile-Safari width (no clip of "Anyone with the link" / "…an account"), and nothing overflows the phone | e2e-webkit | covered | `tests/e2e/webkit/mobile-share.spec.ts` | guards the `mirror + 32px` width computation + CSS under the WebKit engine; not a true iOS `<select>`-chrome reproduction (see the `e2e-webkit` level note). `IMPROVEMENTS.md` v1.41.1 |
 | MOB-13 | The mobile-only floating "exit Focus Mode" button appears in focus mode and exits it             | e2e   | covered | `tests/e2e/local/editor-readonly-and-mobile-focus.spec.ts` | visible only at ≤780px + `body.focus-mode`; tap exits; box within the viewport |
 | MOB-14 | Crossing the `matchMedia` breakpoint (resize / rotate) re-lays-out the app without a reload       | e2e   | covered | `tests/e2e/local/mobile-layout.spec.ts`      | row→column→row on viewport resize, no reload                        |
 | MOB-15 | The comment-draft popup stays within the viewport near the right edge on a narrow screen          | e2e   | covered | `tests/e2e/local/comments.spec.ts`           | = CMT-06                                                            |

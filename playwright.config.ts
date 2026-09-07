@@ -51,6 +51,19 @@ export default defineConfig({
       use: { baseURL: "http://localhost:5275" },
     },
     {
+      // Mobile-Safari-width visual checks that the Chromium `local`
+      // project can't do — native form-control chrome differs by engine
+      // (and, for a real iPhone, by OS). WebKit-the-engine is not
+      // iOS-Safari-the-platform: `<select>` renders with the host OS's
+      // appearance, not iOS's wheel picker. It still catches the
+      // regression classes that matter (CSS/layout under WebKit, the
+      // width-computation logic, the ellipsis fallback). Off the same
+      // client-only vite dev server as `local`.
+      name: "webkit",
+      testDir: "./tests/e2e/webkit",
+      use: { ...devices["iPhone 13"], baseURL: "http://localhost:5275" },
+    },
+    {
       name: "collab",
       testDir: "./tests/e2e/collab",
       use: { baseURL: "http://localhost:8787" },

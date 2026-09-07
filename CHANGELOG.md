@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.3] - 2026-09-08
+
+### Changed
+
+- **Test coverage — mobile-Safari-width checks now run under Playwright's WebKit engine.** A new `webkit` Playwright project (iPhone viewport) covers MOB-12: the Share dialog's general-access `<select>` reserves room for its dropdown arrow beyond the label width, so "Anyone with the link" / "Anyone with an account" aren't clipped, and the modal doesn't overflow the phone. WebKit-the-engine isn't iOS-Safari-the-platform (native form-control chrome is host-OS-level), but it guards the width-computation logic and CSS. Catalogued coverage is now 308/314, with 3 gaps — all genuinely un-automatable without a real device or resource-creating pushes.
+
 ## [1.48.2] - 2026-09-08
 
 ### Changed

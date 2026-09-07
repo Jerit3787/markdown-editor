@@ -19,12 +19,14 @@ npm run typecheck            # tsc --noEmit (root/server, strict) && svelte-chec
 npm run format               # prettier --write .
 npm run format:check
 
-npm run test:e2e:local       # Playwright, client-only flows (formatting, export, focus mode, etc.)
+npm run test:e2e:local       # Playwright (Chromium), client-only flows (formatting, export, focus mode, etc.)
+npm run test:e2e:webkit      # Playwright (WebKit, iPhone viewport), mobile-Safari-width checks (MOB-12)
 npm run test:e2e:collab      # bash tests/scripts/e2e-collab.sh — spins up a real Worker, exercises live collaboration
-npm run test:e2e             # both, sequentially
+npm run test:e2e:github      # bash tests/scripts/e2e-github.sh — opt-in, real GitHub; skips exit-0 without a throwaway-account token (tests/e2e/github/README.md)
+npm run test:e2e             # local + webkit + collab, sequentially
 ```
 
-**Sandboxed Claude Code environments:** the pre-installed Playwright browser cache can lag behind whatever `@playwright/test` version `package.json` currently pins (e.g. it expects `chromium_headless_shell-<rev>` but only an older `-<rev>` is on disk), making `npm run test:e2e:local`/`test:e2e:collab` fail with `browserType.launch: Executable doesn't exist at ...`. Don't just skip the suite — check `ls /opt/pw-browsers/` for whatever `chromium-*` build (not the `headless_shell` one) is actually present, temporarily add `launchOptions: { executablePath: "/opt/pw-browsers/chromium" }` under `playwright.config.ts`'s top-level `use`, run the suite, then revert the config change before committing (it's a sandbox-only workaround — real dev machines download a matching browser via `npx playwright install` and don't need it).
+**Sandboxed Claude Code environments:** the pre-installed Playwright browser cache can lag behind whatever `@playwright/test` version `package.json` currently pins (e.g. it expects `chromium_headless_shell-<rev>` but only an older `-<rev>` is on disk), making `npm run test:e2e:local`/`test:e2e:collab` fail with `browserType.launch: Executable doesn't exist at ...`. Don't just skip the suite — check `ls /opt/pw-browsers/` for whatever `chromium-*` build (not the `headless_shell` one) is actually present, temporarily add `launchOptions: { executablePath: "/opt/pw-browsers/chromium" }` under `playwright.config.ts`'s top-level `use`, run the suite, then revert the config change before committing (it's a sandbox-only workaround — real dev machines download a matching browser via `npx playwright install` and don't need it). The `webkit` project needs its own browser (`npx playwright install webkit`); if it's not in the sandbox cache and can't be fetched, run `--project=local` explicitly and note `webkit` was skipped rather than editing it out.
 
 `npm run dev` serves whatever is currently built into `client/dist` — re-run `npm run build` (or run `vite build --config client/vite.config.ts --watch` in a second terminal) after client-side changes before testing against the Worker. GitHub sign-in / Gist / repo-sync need a real OAuth App (`GITHUB_CLIENT_SECRET`/`SESSION_SECRET` in a git-ignored `.dev.vars`, see CONTRIBUTING.md) — everything else (local editing, multi-doc, export, sharing between two tabs on one machine) works without one.
 

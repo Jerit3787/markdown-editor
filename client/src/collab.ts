@@ -45,6 +45,7 @@ import {
   adoptSharedWorkspace,
   previewSharedWorkspace,
   renameWorkspace,
+  deleteWorkspaceRecord,
   isDefaultWorkspaceName,
 } from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
@@ -247,9 +248,14 @@ function init() {
   window.MDE.onGithubAuthComplete = () => handleDocChanged(getActiveDoc());
 }
 
-async function joinSharedLink(workspaceId: string, landOnDocId: string) {
+export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const localMatch = get(workspacesStore).find((w) => w.remoteId === workspaceId);
   const access = await fetchWorkspaceAccess(workspaceId);
+  if (access.deleted) {
+    if (localMatch) handleWorkspaceGone(localMatch.id);
+    else workspaceAccessDenied.set("deleted");
+    return;
+  }
   await window.MDE.githubSessionReady;
   const username = window.MDE.githubUsername;
   const role = computeMyRole(access, username);
@@ -400,6 +406,12 @@ async function rejoinKnownWorkspace(remoteId: string, docId: string) {
   if (myGeneration !== joinGeneration) return;
   const access = await fetchWorkspaceAccess(remoteId);
   if (myGeneration !== joinGeneration) return;
+  if (access.deleted) {
+    const local = get(workspacesStore).find((w) => w.remoteId === remoteId);
+    if (local) handleWorkspaceGone(local.id);
+    else workspaceAccessDenied.set("deleted");
+    return;
+  }
   const role = computeMyRole(access, window.MDE.githubUsername);
   if (!role) {
     workspaceAccessDenied.set(window.MDE.githubUsername ? "no-access" : "no-session");
@@ -945,6 +957,34 @@ function teardownWorkspace(): void {
   workspaceRoom.reconnectDelay = 1000;
 }
 
+// The owner deleted this shared workspace (a live MESSAGE_WORKSPACE_DELETED
+// frame, or a 410 from the access fetch on reconnect / share-link open).
+// Tear down the connection, then: a *mirror* of the owner's workspace is
+// removed entirely (deletion is also the owner's tool for cutting off
+// access) with a banner; a workspace the user *merged* a share into keeps
+// its documents (their own library) and only loses the live link.
+function handleWorkspaceGone(localWorkspaceId: string): void {
+  const local = get(workspacesStore).find((w) => w.id === localWorkspaceId);
+  teardownWorkspace();
+  if (!local) return;
+  if (local.mirrored) {
+    // Drop the workspace record first so removeDocById's docRemovalHook
+    // (pushWorkspaceDocDelete) sees no shared workspace and stays a no-op.
+    const docIds = get(docsStore)
+      .filter((d) => d.workspaceId === local.id)
+      .map((d) => d.id);
+    deleteWorkspaceRecord(local.id);
+    for (const id of docIds) removeDocById(id);
+    workspaceAccessDenied.set("deleted");
+  } else {
+    workspacesStore.update((all) =>
+      all.map((w) => (w.id === local.id ? { ...w, shared: undefined, remoteId: undefined, updatedAt: Date.now() } : w)),
+    );
+    persistWorkspaces();
+    showToast(`"${local.name}" is no longer shared — its owner deleted the shared workspace. Your local copy is kept.`, "info");
+  }
+}
+
 // Applies an incoming MESSAGE_WORKSPACE_META frame: mirrors the sharer's
 // real workspace name onto our local copy (matched by remoteId), and
 // removes any local document whose id is no longer in the room's
@@ -1029,6 +1069,14 @@ function handleServerMessage(data: Uint8Array): void {
     const docOrder: string[] = [];
     for (let i = 0; i < count; i++) docOrder.push(decoding.readVarString(decoder));
     if (workspaceRoom.workspaceId) applyWorkspaceMeta(workspaceRoom.workspaceId, name, docOrder);
+    return;
+  }
+
+  if (messageType === MESSAGE_WORKSPACE_DELETED) {
+    const remoteId = workspaceRoom.workspaceId;
+    const local = remoteId ? get(workspacesStore).find((w) => w.remoteId === remoteId) : null;
+    if (local) handleWorkspaceGone(local.id);
+    else teardownWorkspace();
     return;
   }
 

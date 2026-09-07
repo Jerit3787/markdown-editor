@@ -72,19 +72,53 @@ Roles today: owner → `editor`; link role or per-invite → `viewer` /
   a `reviewer` is *forced* into suggesting; an `editor` could opt into
   suggesting or viewing voluntarily.
 
-## Group E — Bug
+## Group E — Bugs
 
-- **E1 (#4)** — Sidebar wikilink/reference targets are sometimes missing;
-  you have to click an entry several times before the link "sets," then
-  it navigates. Intermittent. Candidate for systematic-debugging — needs
-  a reliable repro (which sidebar list, fresh load vs after edit, shared
-  vs local).
+- **E1 (#4)** — Sidebar document rows are sometimes missing in a
+  workspace that is **both repo-synced and shared**; you have to click a
+  row several times before it navigates. **Root cause found
+  (2026-09-08):** repo-sync creates docs with client-side ids and never
+  registers them with the shared `WorkspaceRoom`, so the room's
+  `MESSAGE_WORKSPACE_META` broadcast makes `applyWorkspaceMeta()` delete
+  every repo-pulled doc (not in the server `docOrder`); the next pull
+  re-creates them with fresh ids. A click during the churn hits
+  `switchDoc()` with a stale id, which sets `activeId` to a dead id and
+  then the `id === activeId` guard blocks further clicks. → repo-sync +
+  sharing don't compose. Decision (user, 2026-09-08): **make them
+  compose** — register repo docs with the room. Needs a short spec.
+
+## Group F — Shared-workspace lifecycle & correctness (new, 2026-09-08)
+
+- **F1** — Opening a shared link, the workspace name resolves to the
+  literal "Shared workspace" instead of the real name. **Root cause
+  found:** `seedWorkspaceForFirstShare()` seeds each doc's content +
+  per-doc name but never pushes the *workspace's* name to the server
+  (`WorkspaceRoom.name` stays `""`); `/access` and the meta broadcast
+  both carry `""`, so `decideJoinTarget` falls back to "Shared
+  workspace" and `applyWorkspaceMeta` never heals it. Small Phase-1 fix:
+  `pushWorkspaceRename` in `seedWorkspaceForFirstShare` after join, plus
+  optional heal-on-connect for already-shared workspaces. **In progress.**
+- **F2** — Same root cause as F1, second symptom: the merge/separate
+  prompt (`JoinWorkspaceModal`) when opening a link while you already
+  have a local workspace reads *"Shared workspace is shared with you"* —
+  the placeholder name leaking into modal copy. Fixed by F1.
+- **F3** — Deleting a shared workspace gives no warning that
+  collaborators on the other side will lose access to its documents.
+  Needs a confirm dialog spelling out the consequence for a shared
+  workspace specifically.
+- **F4** — A deleted shared workspace stays accessible to others via the
+  existing link — local deletion never tears down / revokes the
+  `WorkspaceRoom`. Deletion must revoke remote access (server-side:
+  clear access record / close the room / return 404-gone on join).
 
 ---
 
 ## Rough shape for later
 
-- **E1** is a bug → systematic-debugging, standalone, likely Phase 1.
+- **E1 / F1–F4** are a "shared-workspace correctness" cluster. F1 (+F2)
+  ships now as a standalone Phase-1 fix. E1, F3, F4 go into a short
+  spec — repo-sync↔sharing composition and shared-workspace deletion
+  semantics (warn + revoke).
 - **A1, A3, A4, C1, B1** are bounded role/UI fixes → could be one
   "collaboration mode chrome" spec + plan, with **D6** (the mode
   switcher) as the umbrella feature they all hang off.

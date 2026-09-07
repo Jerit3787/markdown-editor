@@ -616,7 +616,17 @@ function replaceBindingContent(binding: DocBinding, doc: Doc): void {
 // If this workspace is the connected shared room and we're its editor,
 // register the pull's results with the room so applyWorkspaceMeta stops
 // deleting repo docs the server never learned about.
-function handleRepoDocsChanged({ workspaceId, created, updated, deleted }: { workspaceId: string; created: string[]; updated: string[]; deleted: string[] }): void {
+function handleRepoDocsChanged({
+  workspaceId,
+  created,
+  updated,
+  deleted,
+}: {
+  workspaceId: string;
+  created: string[];
+  updated: string[];
+  deleted: string[];
+}): void {
   const ws = get(workspacesStore).find((w) => w.id === workspaceId);
   if (!ws?.remoteId || ws.remoteId !== workspaceRoom.workspaceId || workspaceRoom.role !== "editor") return;
   for (const id of created) {
@@ -1015,9 +1025,7 @@ function handleWorkspaceGone(localWorkspaceId: string): void {
     for (const id of docIds) removeDocById(id);
     workspaceAccessDenied.set("deleted");
   } else {
-    workspacesStore.update((all) =>
-      all.map((w) => (w.id === local.id ? { ...w, shared: undefined, remoteId: undefined, updatedAt: Date.now() } : w)),
-    );
+    workspacesStore.update((all) => all.map((w) => (w.id === local.id ? { ...w, shared: undefined, remoteId: undefined, updatedAt: Date.now() } : w)));
     persistWorkspaces();
     showToast(`"${local.name}" is no longer shared — its owner deleted the shared workspace. Your local copy is kept.`, "info");
   }

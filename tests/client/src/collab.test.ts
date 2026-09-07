@@ -1191,10 +1191,7 @@ describe("discovering a document created by another collaborator", () => {
 
   it("seeds a repo-pulled doc into the connected shared room (E1)", async () => {
     const { ws } = await setup("repohook1");
-    docsStore.update((d) => [
-      ...d,
-      { id: "pulled-1", name: "Pulled", content: "hi", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "pulled.md" },
-    ]);
+    docsStore.update((d) => [...d, { id: "pulled-1", name: "Pulled", content: "hi", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "pulled.md" }]);
     handleRepoDocsChanged({ workspaceId: ws.id, created: ["pulled-1"], updated: [], deleted: [] });
     for (let i = 0; i < 5; i++) await Promise.resolve();
 
@@ -1212,10 +1209,7 @@ describe("discovering a document created by another collaborator", () => {
   it("pushes a repo-deleted doc's removal to the room (E1)", async () => {
     const { ws } = await setup("repohook3");
     // Introduce a synced doc into the room.
-    docsStore.update((d) => [
-      ...d,
-      { id: "syncedDoc", name: "S", content: "s", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "s.md" },
-    ]);
+    docsStore.update((d) => [...d, { id: "syncedDoc", name: "S", content: "s", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "s.md" }]);
     handleRepoDocsChanged({ workspaceId: ws.id, created: ["syncedDoc"], updated: [], deleted: [] });
     for (let i = 0; i < 5; i++) await Promise.resolve();
     expect(workspaceRoom.docs.has("syncedDoc")).toBe(true);
@@ -1371,10 +1365,7 @@ describe("incoming workspace meta sync (rename + document removal)", () => {
   // includes them leaves them alone.
   it("keeps a repo-pulled doc once the repo hook has seeded it into the room", async () => {
     const { ws, docA, docB } = await setup("metarepo");
-    docsStore.update((d) => [
-      ...d,
-      { id: "repo-doc", name: "Repo Doc", content: "x", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "r.md" },
-    ]);
+    docsStore.update((d) => [...d, { id: "repo-doc", name: "Repo Doc", content: "x", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "r.md" }]);
     handleRepoDocsChanged({ workspaceId: ws.id, created: ["repo-doc"], updated: [], deleted: [] });
     for (let i = 0; i < 5; i++) await Promise.resolve();
 

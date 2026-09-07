@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.9] - 2026-09-08
+
+### Fixed
+
+- **A shared workspace opened from a link showed the literal name "Shared workspace".** Sharing seeded every document's content and name into the room but never the workspace's own name, so `WorkspaceRoom.name` stayed empty — collaborators joining the link (and the "… is shared with you" merge/separate prompt) fell back to the placeholder. The name is now pushed as part of first-share seeding, an editor already connected to a pre-existing share heals the name on the next sync, and a single-document share is named after its workspace rather than after the one file.
+
 ## [1.48.8] - 2026-09-08
 
 ### Fixed

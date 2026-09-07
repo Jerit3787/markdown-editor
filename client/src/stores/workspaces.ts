@@ -209,6 +209,16 @@ export function renameWorkspace(id: string, name: string) {
   persistWorkspaces();
 }
 
+// Names the app assigns itself when it has to invent one. Not worth
+// propagating to a collaborator over a share link (collab.ts) — they'd
+// rather fall back to the document name or the "Shared workspace"
+// placeholder than adopt the other person's untouched default.
+export const DEFAULT_WORKSPACE_NAME = "New workspace";
+const SELF_ASSIGNED_WORKSPACE_NAMES = [DEFAULT_WORKSPACE_NAME, "Untitled workspace"];
+export function isDefaultWorkspaceName(name: string | undefined | null): boolean {
+  return !name || SELF_ASSIGNED_WORKSPACE_NAMES.includes(name.trim());
+}
+
 // Returns whether the switch actually happened (false if `id` was
 // already active) — mirrors docs.ts's switchDoc(). Does NOT touch which
 // document is active; the caller (WorkspaceSwitcher.svelte) calls

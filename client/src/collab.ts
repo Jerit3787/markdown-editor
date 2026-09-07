@@ -45,6 +45,7 @@ import {
   adoptSharedWorkspace,
   previewSharedWorkspace,
   renameWorkspace,
+  isDefaultWorkspaceName,
 } from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
@@ -603,6 +604,18 @@ async function seedWorkspaceForFirstShare(activeDoc: Doc): Promise<void> {
   await joinWorkspace(activeDoc.workspaceId, { role: "editor", seedDocId: activeDoc.id });
   bindActiveDoc(activeDoc.id);
   for (const sibling of siblings) seedNewDocBinding(sibling.id, sibling, "editor");
+
+  // A freshly-created room's name is "" server-side; only a later explicit
+  // rename (pushWorkspaceRename) ever set it. Without this, every
+  // collaborator opening the share link fell back to decideJoinTarget's
+  // literal "Shared workspace" (and applyWorkspaceMeta's `if (name)` guard
+  // never healed it) — including in JoinWorkspaceModal's "<name> is shared
+  // with you" copy. Push the local workspace's own name now, as part of
+  // the same first-share seeding as every document's content/meta above —
+  // but not a self-assigned default like "New workspace", which a joiner
+  // is better off replacing with the document name / "Shared workspace".
+  const localWs = get(workspacesStore).find((w) => w.id === activeDoc.workspaceId);
+  if (localWs && !isDefaultWorkspaceName(localWs.name)) pushWorkspaceRename(activeDoc.workspaceId, localWs.name);
 }
 
 function createDocBinding(docId: string, role: string): DocBinding {
@@ -942,7 +955,18 @@ function teardownWorkspace(): void {
 function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: string[]): void {
   const local = get(workspacesStore).find((w) => w.remoteId === remoteWorkspaceId);
   if (!local) return;
-  if (name) renameWorkspace(local.id, name);
+  if (name) {
+    renameWorkspace(local.id, name);
+  } else if (!isDefaultWorkspaceName(local.name) && workspaceRoom.role === "editor") {
+    // Self-heal a workspace shared before first-share started pushing its
+    // name (seedWorkspaceForFirstShare): the room still reports name ""
+    // here, so contribute this editor's local name (unless it's a
+    // self-assigned default). The server then broadcasts it back as a
+    // non-empty frame and every session — this one included — takes the
+    // renameWorkspace branch above and settles. A non-editor's PUT would
+    // just 403, so the role guard skips the pointless request.
+    pushWorkspaceRename(local.id, local.name);
+  }
   const orderSet = new Set(docOrder);
   for (const doc of get(docsStore).filter((d) => d.workspaceId === local.id)) {
     if (!orderSet.has(doc.id)) {
@@ -1415,12 +1439,17 @@ export type JoinDecision = { kind: "auto-permanent"; workspaceName: string } | {
 // (including a Preview option — see JoinWorkspaceModal.svelte), except for
 // a receiver with zero workspaces, who has nothing to choose between
 // either and lands permanently the same way as the single-doc case.
+//
+// The workspace's real name (remoteWorkspaceName) always wins when the
+// room has one — a single-doc share still names the adopted workspace
+// after the workspace, not the file. The single-file-name fallback is
+// only for a room with no name of its own (a legacy share, or one made
+// before first-share pushed the name).
 export function decideJoinTarget(validDocs: { name: string }[], existingWorkspaceCount: number, remoteWorkspaceName?: string): JoinDecision {
-  const multiDocName = remoteWorkspaceName || "Shared workspace";
-  if (existingWorkspaceCount === 0) {
-    return { kind: "auto-permanent", workspaceName: validDocs.length === 1 ? validDocs[0]!.name || "Untitled" : multiDocName };
-  }
-  if (validDocs.length === 1) return { kind: "auto-preview", workspaceName: validDocs[0]!.name || "Untitled" };
+  const fallbackName = validDocs.length === 1 ? validDocs[0]!.name || "Untitled" : "Shared workspace";
+  const workspaceName = remoteWorkspaceName || fallbackName;
+  if (existingWorkspaceCount === 0) return { kind: "auto-permanent", workspaceName };
+  if (validDocs.length === 1) return { kind: "auto-preview", workspaceName };
   return { kind: "choice" };
 }
 

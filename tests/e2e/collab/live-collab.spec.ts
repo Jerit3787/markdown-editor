@@ -66,6 +66,34 @@ test("COLLAB-25: a single-doc share link is received as its own new workspace na
   await bCtx.close();
 });
 
+test("COLLAB-25: a joiner receives the document's real name, not the 'Shared document' fallback", async ({ browser }) => {
+  const aCtx = await browser.newContext();
+  const bCtx = await browser.newContext();
+  const a = await aCtx.newPage();
+  const b = await bCtx.newPage();
+
+  await ownerWithDoc(a, "docname-owner-e2e", "body text");
+  await a.click("#docTitle");
+  await a.fill("#docTitle", "Design Doc");
+  await a.keyboard.press("Enter");
+  const url = await shareAnyoneLink(a, "Editor");
+
+  await b.goto(url);
+  await b.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await expectEditorContains(b, "body text");
+
+  // fetchRemoteDocContent must wait for the SyncStep2 that actually carries
+  // the doc's meta.name — not resolve on the server's greeting SyncStep1,
+  // which would leave every joined document showing "Shared document".
+  await expect.poll(() => b.locator("#docTitle").inputValue()).toBe("Design Doc");
+  const names = await b.evaluate(() => JSON.parse(localStorage.getItem("mde:docs") || "[]").map((d: { name: string }) => d.name));
+  expect(names).toContain("Design Doc");
+  expect(names).not.toContain("Shared document");
+
+  await aCtx.close();
+  await bCtx.close();
+});
+
 test("COLLAB-23b: the topbar Share dropdown shows the real general-access level, not always 'Restricted'", async ({ browser }) => {
   const ctx = await browser.newContext();
   const owner = await ctx.newPage();

@@ -30,6 +30,14 @@
   // secrets (wrangler secret put ...), never committed.
   "vars": {
     "GITHUB_CLIENT_ID": "Ov23liV4lb0YiRtTwpm9",
+    // Public halves of the Google OAuth client + Picker API key (Drive
+    // integration — src/google-auth.ts). GOOGLE_CLIENT_SECRET is a Worker
+    // secret (wrangler secret put). Empty here → the feature's routes 503
+    // and the client hides the Google menu items (desired default until
+    // real values are set). Local dev: a git-ignored .dev.vars — see
+    // CONTRIBUTING.md.
+    "GOOGLE_CLIENT_ID": "",
+    "GOOGLE_API_KEY": "",
   },
 
   // Serves the built client (client/dist/, produced by `npm run build` —

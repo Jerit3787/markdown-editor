@@ -3,6 +3,8 @@ export { WorkspaceRoom } from "./workspace-room.js";
 import { handleLogin, handleCallback, handleLogout, handleMe, handleGistCreate, handleGistUpdate, handleGistGet, handleGistList } from "./github-auth.js";
 import { handleGistImageUpload } from "./gist-images.js";
 import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
+import { handleGoogleConnect, handleGoogleCallback, handleGoogleStatus, handleGoogleDisconnect } from "./google-auth.js";
+import { handleDrivePickerToken, handleDriveImport } from "./google-drive.js";
 import type { Env } from "./env";
 
 const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
@@ -111,6 +113,13 @@ export default {
     if (url.pathname === "/api/auth/github/callback") return handleCallback(request, env);
     if (url.pathname === "/api/auth/github/logout") return handleLogout(request, env);
     if (url.pathname === "/api/auth/github/me") return handleMe(request, env);
+
+    if (url.pathname === "/api/auth/google/connect") return handleGoogleConnect(request, env);
+    if (url.pathname === "/api/auth/google/callback") return handleGoogleCallback(request, env);
+    if (url.pathname === "/api/auth/google/status") return handleGoogleStatus(request, env);
+    if (url.pathname === "/api/auth/google/disconnect" && request.method === "POST") return handleGoogleDisconnect(request, env);
+    if (url.pathname === "/api/auth/google/picker-token" && request.method === "GET") return handleDrivePickerToken(request, env);
+    if (url.pathname === "/api/drive/import" && request.method === "POST") return handleDriveImport(request, env);
 
     if (url.pathname === "/api/gist" && request.method === "POST") return handleGistCreate(request, env);
     if (url.pathname === "/api/gists" && request.method === "GET") return handleGistList(request, env);

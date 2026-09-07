@@ -37,6 +37,11 @@ const MESSAGE_WORKSPACE_META = 3;
 // client "this document's comments changed, refetch them". Sent to
 // everyone including the acting client (a redundant refetch is harmless).
 const MESSAGE_COMMENTS = 4;
+// Broadcast once, to every live session, when the owner deletes the
+// workspace (handleDeleteRequest). Single varuint, no docId — like a bare
+// MESSAGE_WORKSPACE_META greeting. The client tears down and drops its
+// local mirror; sessions are closed right after the broadcast.
+const MESSAGE_WORKSPACE_DELETED = 5;
 
 const SYNC_STEP1 = 0;
 const SYNC_STEP2 = 1;
@@ -143,6 +148,7 @@ export class WorkspaceRoom {
   docs: Map<string, DocRoom>;
   docIds: string[];
   name: string;
+  deleted: boolean;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -151,6 +157,7 @@ export class WorkspaceRoom {
     this.docs = new Map();
     this.docIds = [];
     this.name = "";
+    this.deleted = false;
 
     this.state.blockConcurrencyWhile(async () => {
       const storedDocIds = await this.state.storage.get<string[]>("docs");
@@ -159,6 +166,7 @@ export class WorkspaceRoom {
         await this.loadDocRoom(docId);
       }
       this.name = (await this.state.storage.get<string>("name")) || "";
+      this.deleted = (await this.state.storage.get<boolean>("deleted")) === true;
     });
   }
 
@@ -282,6 +290,10 @@ export class WorkspaceRoom {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (this.deleted) return new Response("This workspace has been deleted.", { status: 410 });
+    if (request.method === "DELETE" && /\/api\/workspace\/[^/]+$/.test(url.pathname)) {
+      return this.handleDeleteRequest(request);
+    }
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
     if (url.pathname.endsWith("/docs")) return this.handleDocsRequest(request);
     if (url.pathname.endsWith("/meta")) return this.handleMetaRequest(request);
@@ -431,6 +443,37 @@ export class WorkspaceRoom {
     await this.state.storage.put("name", this.name);
     this.broadcastWorkspaceMeta();
     return Response.json({ name: this.name });
+  }
+
+  // Owner-only hard revoke. Sets a persisted `deleted` tombstone (a DO
+  // can't delete itself, so any later request re-reads it and 410s), tells
+  // every live session, closes them, and wipes the rest of storage.
+  async handleDeleteRequest(request: Request): Promise<Response> {
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const access = await this.getAccess();
+    if (!access.owner || access.owner !== auth.username) {
+      return new Response("Only the workspace owner can delete it.", { status: 403 });
+    }
+
+    this.deleted = true;
+    await this.state.storage.put("deleted", true);
+
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_WORKSPACE_DELETED);
+    this.broadcast(encoding.toUint8Array(encoder), null);
+    for (const ws of Array.from(this.sessions.keys())) {
+      try {
+        ws.close(1000, "workspace deleted");
+      } catch {
+        /* already closed */
+      }
+    }
+    this.sessions.clear();
+
+    await this.state.storage.deleteAll();
+    await this.state.storage.put("deleted", true);
+    return new Response(null, { status: 204 });
   }
 
   // ---------- WebSocket session ----------

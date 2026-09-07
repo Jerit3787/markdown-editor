@@ -33,3 +33,10 @@ test("shows a no-button message for 'no-access', not a sign-in button", async ()
   await expect.element(screen.getByText(/ask the owner/i)).toBeVisible();
   expect((await screen.getByRole("button").all()).length).toBe(0);
 });
+
+test("shows a no-action 'deleted by its owner' message for 'deleted'", async () => {
+  workspaceAccessDenied.set("deleted");
+  const screen = await render(WorkspaceAccessBanner);
+  await expect.element(screen.getByText(/deleted by its owner/i)).toBeVisible();
+  expect((await screen.getByRole("button").all()).length).toBe(0);
+});

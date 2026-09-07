@@ -15,4 +15,8 @@
   <div class="workspace-access-banner" role="alert">
     <span>You no longer have access to this shared workspace. Ask the owner to invite you, or check that you're using the right link.</span>
   </div>
+{:else if $workspaceAccessDenied === "deleted"}
+  <div class="workspace-access-banner" role="alert">
+    <span>This shared workspace was deleted by its owner. You no longer have access to it.</span>
+  </div>
 {/if}

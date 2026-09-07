@@ -31,6 +31,9 @@ function fakeState() {
         for (const k of keys) if (store.delete(k)) count++;
         return count;
       },
+      deleteAll: async () => {
+        store.clear();
+      },
       setAlarm: async () => {},
     },
     blockConcurrencyWhile: async (fn: () => Promise<void>) => {
@@ -392,6 +395,84 @@ describe("WorkspaceRoom.handleAccessRequest", () => {
     const body = (await res.json()) as AccessRecord;
     expect(body.owner).toBe("alice");
     expect(body.invited).toEqual([{ username: "bob", role: "reviewer" }]);
+  });
+});
+
+describe("WorkspaceRoom DELETE /api/workspace/:id (owner revoke)", () => {
+  const OWNER_ACCESS = { owner: "alice", generalAccess: "anyone" as const, requireAccount: false, role: "editor" as const, invited: [] };
+
+  async function deleteRequest(username: string | null): Promise<Request> {
+    const init: RequestInit = { method: "DELETE" };
+    if (username !== null) {
+      const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username });
+      init.headers = { Cookie: `mde_gh_session=${cookie}` };
+    }
+    return new Request("https://example.com/api/workspace/ws1", init);
+  }
+
+  it("lets the owner delete: 204, then every route 410s", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", OWNER_ACCESS);
+
+    const del = await room.fetch(await deleteRequest("alice"));
+    expect(del.status).toBe(204);
+
+    const access = await room.fetch(new Request("https://example.com/api/workspace/ws1/access"));
+    expect(access.status).toBe(410);
+
+    const upgrade = await room.fetch(new Request("https://example.com/api/workspace/ws1", { headers: { Upgrade: "websocket" } }));
+    expect(upgrade.status).toBe(410);
+  });
+
+  it("persists the tombstone across a reconstruct", async () => {
+    const state = fakeState();
+    const room1 = new WorkspaceRoom(state, fakeEnvWithSecret);
+    await room1.state.storage.put("access", OWNER_ACCESS);
+    await room1.fetch(await deleteRequest("alice"));
+
+    const room2 = new WorkspaceRoom(state, fakeEnvWithSecret);
+    await new Promise((r) => setTimeout(r, 0)); // let the constructor's blockConcurrencyWhile drain
+    const access = await room2.fetch(new Request("https://example.com/api/workspace/ws1/access"));
+    expect(access.status).toBe(410);
+  });
+
+  it("refuses a non-owner editor: 403, room still live", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { ...OWNER_ACCESS, generalAccess: "restricted", invited: [{ username: "bob", role: "editor" }] });
+
+    const del = await room.fetch(await deleteRequest("bob"));
+    expect(del.status).toBe(403);
+
+    const access = await room.fetch(new Request("https://example.com/api/workspace/ws1/access"));
+    expect(access.status).toBe(200);
+  });
+
+  it("refuses an unauthenticated caller on a restricted workspace: 401", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { ...OWNER_ACCESS, generalAccess: "restricted" });
+    const del = await room.fetch(await deleteRequest(null));
+    expect(del.status).toBe(401);
+  });
+
+  it("broadcasts MESSAGE_WORKSPACE_DELETED to live sessions and closes them", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", OWNER_ACCESS);
+    const sent: ArrayBuffer[] = [];
+    let closed = false;
+    const ws = {
+      send: (d: ArrayBuffer) => sent.push(d),
+      close: () => {
+        closed = true;
+      },
+    } as unknown as WebSocket;
+    room.sessions.set(ws, { username: "bob", role: "editor", viewingDocId: null });
+
+    await room.fetch(await deleteRequest("alice"));
+
+    expect(closed).toBe(true);
+    expect(room.sessions.size).toBe(0);
+    const gotDeletedFrame = sent.some((buf) => decoding.readVarUint(decoding.createDecoder(new Uint8Array(buf))) === 5);
+    expect(gotDeletedFrame).toBe(true);
   });
 });
 

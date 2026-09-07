@@ -138,28 +138,36 @@ describe("workspaces store — mutations", () => {
     expect(found.remoteId).toBe("room-abc");
   });
 
-  it("adoptSharedWorkspace creates a new local workspace tagged shared+remoteId", async () => {
+  it("adoptSharedWorkspace creates a new local workspace tagged shared+remoteId+mirrored", async () => {
     const { workspacesStore, adoptSharedWorkspace } = await import("../../../../client/src/stores/workspaces");
     const ws = adoptSharedWorkspace("room-xyz", "Team Docs");
     expect(ws.shared).toBe(true);
     expect(ws.remoteId).toBe("room-xyz");
+    expect(ws.mirrored).toBe(true);
     expect(ws.name).toBe("Team Docs");
     expect(get(workspacesStore).find((w) => w.id === ws.id)).toBeTruthy();
   });
 
-  it("mergeSharedWorkspaceInto tags an existing workspace with shared+remoteId", async () => {
+  it("mergeSharedWorkspaceInto tags an existing workspace with shared+remoteId but NOT mirrored", async () => {
     const { workspacesStore, createWorkspace, mergeSharedWorkspaceInto } = await import("../../../../client/src/stores/workspaces");
     const existing = createWorkspace("My Notes");
     mergeSharedWorkspaceInto(existing.id, "room-xyz");
     const updated = get(workspacesStore).find((w) => w.id === existing.id);
     expect(updated?.shared).toBe(true);
     expect(updated?.remoteId).toBe("room-xyz");
+    expect(updated?.mirrored).toBeUndefined();
+  });
+
+  it("createWorkspace does not set the mirror flag", async () => {
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    expect(createWorkspace("Mine").mirrored).toBeUndefined();
   });
 
   it("previewSharedWorkspace creates an ephemeral workspace, activates it, but never persists it", async () => {
     const { workspacesStore, activeWorkspaceIdStore, previewSharedWorkspace } = await import("../../../../client/src/stores/workspaces");
     const ws = previewSharedWorkspace("room-preview", "Peek");
     expect(ws.ephemeral).toBe(true);
+    expect(ws.mirrored).toBe(true);
     expect(get(workspacesStore).find((w) => w.id === ws.id)).toBeTruthy();
     expect(get(activeWorkspaceIdStore)).toBe(ws.id);
     expect(JSON.parse(localStorage.getItem("mde:workspaces")!)).toEqual([]);
@@ -185,11 +193,13 @@ describe("workspaces store — mutations", () => {
     expect(persisted.find((w: { id: string }) => w.id === real.id)?.name).toBe("Real renamed");
   });
 
-  it("promoteEphemeralWorkspace clears the ephemeral flag and persists the workspace for real", async () => {
+  it("promoteEphemeralWorkspace clears the ephemeral flag, keeps the mirror flag, and persists for real", async () => {
     const { previewSharedWorkspace, promoteEphemeralWorkspace, workspacesStore } = await import("../../../../client/src/stores/workspaces");
     const preview = previewSharedWorkspace("room-x", "Preview");
     promoteEphemeralWorkspace(preview.id);
-    expect(get(workspacesStore).find((w) => w.id === preview.id)?.ephemeral).toBe(false);
+    const promoted = get(workspacesStore).find((w) => w.id === preview.id);
+    expect(promoted?.ephemeral).toBe(false);
+    expect(promoted?.mirrored).toBe(true);
     const persisted = JSON.parse(localStorage.getItem("mde:workspaces")!);
     expect(persisted.map((w: { id: string }) => w.id)).toContain(preview.id);
   });

@@ -11,7 +11,8 @@
   } from "../stores/workspaces";
   import { docsStore, removeDocById, ensureActiveDocInWorkspace, persistDocs } from "../stores/docs";
   import { confirmAction } from "../stores/confirmDialog";
-  import { pushWorkspaceRename } from "../collab";
+  import { showToast } from "../stores/toast";
+  import { pushWorkspaceRename, teardownWorkspace } from "../collab";
 
   let open = $state(false);
   let renamingId = $state<string | null>(null);
@@ -67,9 +68,57 @@
 
   async function remove(id: string, name: string, e: MouseEvent) {
     e.stopPropagation();
+    const ws = $workspacesStore.find((w) => w.id === id);
+    if (!ws) return;
     const count = docCounts.get(id) || 0;
-    const message = count > 0 ? `This also deletes its ${count} document${count === 1 ? "" : "s"}. This can't be undone.` : "This can't be undone.";
-    if (!(await confirmAction(`Delete "${name}"?`, message))) return;
+    const docsPhrase = count > 0 ? `${count} document${count === 1 ? "" : "s"}` : "no documents";
+
+    // Owner-vs-merger for a shared workspace that isn't a pure mirror (both
+    // have shared && !mirrored) — resolved by a fresh access fetch. The
+    // server's DELETE is the real gate (403s a non-owner harmlessly), so a
+    // failed fetch just falls back to the owner phrasing.
+    let iAmOwner = false;
+    if (ws.shared && !ws.mirrored && ws.remoteId) {
+      try {
+        const res = await fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}/access`);
+        iAmOwner = res.ok ? (await res.json()).owner === window.MDE.githubUsername && !!window.MDE.githubUsername : true;
+      } catch {
+        iAmOwner = true;
+      }
+    }
+
+    let title = `Delete "${name}"?`;
+    let message: string;
+    if (ws.mirrored) {
+      title = `Remove "${name}"?`;
+      message = "This removes your local copy. You can open it again from the share link unless the owner has revoked access.";
+    } else if (ws.shared && iAmOwner) {
+      message = `This is a shared workspace. Deleting it revokes access for everyone you've shared it with and removes its ${docsPhrase} for them too. This can't be undone.`;
+    } else if (ws.shared) {
+      title = `Remove "${name}"?`;
+      message = `This removes your workspace and its ${docsPhrase} from this device. The shared workspace itself stays available to its owner and other collaborators.`;
+    } else {
+      message = count > 0 ? `This also deletes its ${docsPhrase}. This can't be undone.` : "This can't be undone.";
+    }
+
+    if (!(await confirmAction(title, message))) return;
+
+    if (ws.shared && iAmOwner && ws.remoteId) {
+      try {
+        const res = await fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}`, { method: "DELETE" });
+        if (res.status === 403) {
+          showToast("Removed from this device. You weren't the owner, so the shared workspace still exists for others.", "info");
+        } else if (!res.ok && res.status !== 410) {
+          showToast("Couldn't reach the server to revoke sharing — removed locally; collaborators may keep access until the room is cleaned up.", "error");
+        }
+      } catch {
+        showToast("Couldn't reach the server to revoke sharing — removed locally.", "error");
+      }
+      teardownWorkspace();
+    } else if (ws.shared) {
+      teardownWorkspace();
+    }
+
     const docIds = $docsStore.filter((d) => d.workspaceId === id).map((d) => d.id);
     docIds.forEach(removeDocById);
     deleteWorkspaceRecord(id);

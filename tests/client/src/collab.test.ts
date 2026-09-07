@@ -32,6 +32,8 @@ import {
   pushWorkspaceRename,
   pushWorkspaceDocDelete,
   addPerson,
+  joinSharedLink,
+  handleRepoDocsChanged,
 } from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
@@ -1187,6 +1189,38 @@ describe("discovering a document created by another collaborator", () => {
     expect(localDoc?.workspaceId).toBe(ws.id);
   });
 
+  it("seeds a repo-pulled doc into the connected shared room (E1)", async () => {
+    const { ws } = await setup("repohook1");
+    docsStore.update((d) => [...d, { id: "pulled-1", name: "Pulled", content: "hi", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "pulled.md" }]);
+    handleRepoDocsChanged({ workspaceId: ws.id, created: ["pulled-1"], updated: [], deleted: [] });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+
+    expect(workspaceRoom.docs.has("pulled-1")).toBe(true);
+    expect(workspaceRoom.docs.get("pulled-1")!.ytext.toString()).toBe("hi");
+  });
+
+  it("does nothing when the changed workspace is not the connected room (E1)", async () => {
+    await setup("repohook2");
+    handleRepoDocsChanged({ workspaceId: "some-other-ws", created: ["x"], updated: [], deleted: [] });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(workspaceRoom.docs.has("x")).toBe(false);
+  });
+
+  it("pushes a repo-deleted doc's removal to the room (E1)", async () => {
+    const { ws } = await setup("repohook3");
+    // Introduce a synced doc into the room.
+    docsStore.update((d) => [...d, { id: "syncedDoc", name: "S", content: "s", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "s.md" }]);
+    handleRepoDocsChanged({ workspaceId: ws.id, created: ["syncedDoc"], updated: [], deleted: [] });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(workspaceRoom.docs.has("syncedDoc")).toBe(true);
+
+    (fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.length = 0;
+    handleRepoDocsChanged({ workspaceId: ws.id, created: [], updated: [], deleted: ["syncedDoc"] });
+
+    const calls = (fetch as unknown as { mock: { calls: [string, { method?: string }?][] } }).mock.calls;
+    expect(calls.some(([u, i]) => String(u).includes("/docs?docId=syncedDoc") && i?.method === "DELETE")).toBe(true);
+  });
+
   it("falls back to 'Untitled' when the first frame carries no name yet", async () => {
     await setup("disc2");
     const sourceDoc = new Y.Doc();
@@ -1322,5 +1356,137 @@ describe("incoming workspace meta sync (rename + document removal)", () => {
     expect(get(docsStore).find((d) => d.id === docA.id)).toBeDefined();
     expect(get(docsStore).find((d) => d.id === docB.id)).toBeDefined();
     expect(workspaceRoom.docs.has(docB.id)).toBe(true);
+  });
+
+  // E1 regression: a repo-linked-AND-shared workspace used to lose its
+  // repo-pulled docs — they were never registered with the room, so this
+  // frame's docOrder omitted them and applyWorkspaceMeta deleted them.
+  // Now handleRepoDocsChanged seeds them first, so a later frame that
+  // includes them leaves them alone.
+  it("keeps a repo-pulled doc once the repo hook has seeded it into the room", async () => {
+    const { ws, docA, docB } = await setup("metarepo");
+    docsStore.update((d) => [...d, { id: "repo-doc", name: "Repo Doc", content: "x", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "r.md" }]);
+    handleRepoDocsChanged({ workspaceId: ws.id, created: ["repo-doc"], updated: [], deleted: [] });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id, "repo-doc"]);
+
+    expect(get(docsStore).find((d) => d.id === "repo-doc")).toBeDefined();
+    expect(workspaceRoom.docs.has("repo-doc")).toBe(true);
+  });
+});
+
+describe("owner-deleted-the-workspace teardown", () => {
+  const MESSAGE_WORKSPACE_DELETED = 5;
+
+  function sendWorkspaceDeleted() {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_WORKSPACE_DELETED);
+    MockWebSocket.instances[0].onmessage!({ data: encoding.toUint8Array(encoder).buffer } as MessageEvent);
+  }
+
+  async function setup(suffix: string, opts: { mirrored: boolean }) {
+    document.body.innerHTML = '<div id="shareBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (url.includes("/docs")) return { ok: true, json: async () => [`doc-${suffix}-a`, `doc-${suffix}-b`] };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: "bob",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-${suffix}`, remoteId: `remote-${suffix}`, name: "Team Docs", mirrored: opts.mirrored || undefined });
+    workspacesStore.set([ws]);
+    const docA = { id: `doc-${suffix}-a`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    const docB = { id: `doc-${suffix}-b`, name: "B", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([docA, docB]);
+    activeIdStore.set(docA.id);
+
+    handleDocChanged(docA);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    return { ws, docA, docB };
+  }
+
+  beforeEach(() => {
+    workspaceAccessDenied.set(null);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("removes a mirrored workspace and its docs, and shows the deleted banner", async () => {
+    const { ws, docA, docB } = await setup("del1", { mirrored: true });
+    sendWorkspaceDeleted();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(workspacesStore).find((w) => w.id === ws.id)).toBeUndefined();
+    expect(get(docsStore).find((d) => d.id === docA.id)).toBeUndefined();
+    expect(get(docsStore).find((d) => d.id === docB.id)).toBeUndefined();
+    expect(get(workspaceAccessDenied)).toBe("deleted");
+    expect(workspaceRoom.workspaceId).toBeNull();
+  });
+
+  it("keeps a merged workspace's docs but severs its live link", async () => {
+    const { ws, docA } = await setup("del2", { mirrored: false });
+    sendWorkspaceDeleted();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const local = get(workspacesStore).find((w) => w.id === ws.id);
+    expect(local).toBeDefined();
+    expect(local?.shared).toBeUndefined();
+    expect(local?.remoteId).toBeUndefined();
+    expect(get(docsStore).find((d) => d.id === docA.id)).toBeDefined();
+    expect(get(workspaceAccessDenied)).not.toBe("deleted");
+    expect(workspaceRoom.workspaceId).toBeNull();
+  });
+
+  it("opening a share link for a deleted workspace tears the mirror down and shows the banner", async () => {
+    document.body.innerHTML = '<div id="shareBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) return { ok: false, status: 410, json: async () => ({}) };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: "bob",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: "local-del4", remoteId: "remote-del4", name: "Team Docs", mirrored: true });
+    workspacesStore.set([ws]);
+    const docA = { id: "doc-del4-a", name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([docA]);
+
+    await joinSharedLink("remote-del4", "doc-del4-a");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(workspacesStore).find((w) => w.id === ws.id)).toBeUndefined();
+    expect(get(docsStore).find((d) => d.id === docA.id)).toBeUndefined();
+    expect(get(workspaceAccessDenied)).toBe("deleted");
   });
 });

@@ -33,6 +33,7 @@ import {
   syncRemoteDocContent,
   removeDocById,
   docRemovalHook,
+  repoDocSyncHook,
 } from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
 import { pendingJoin } from "./stores/joinWorkspace";
@@ -45,6 +46,7 @@ import {
   adoptSharedWorkspace,
   previewSharedWorkspace,
   renameWorkspace,
+  deleteWorkspaceRecord,
   isDefaultWorkspaceName,
 } from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
@@ -69,6 +71,7 @@ const MESSAGE_AWARENESS = 1;
 const MESSAGE_PRESENCE = 2;
 const MESSAGE_WORKSPACE_META = 3;
 const MESSAGE_COMMENTS = 4;
+const MESSAGE_WORKSPACE_DELETED = 5;
 
 export const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
 const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment", editor: "edit" };
@@ -224,6 +227,7 @@ function init() {
     if (binding) binding.ydoc.transact(() => binding.metaMap.set("name", name || "Untitled"), "local");
   };
   docRemovalHook.onRemoved = pushWorkspaceDocDelete;
+  repoDocSyncHook.onRepoDocsChanged = handleRepoDocsChanged;
 
   setupShareUI();
 
@@ -246,9 +250,14 @@ function init() {
   window.MDE.onGithubAuthComplete = () => handleDocChanged(getActiveDoc());
 }
 
-async function joinSharedLink(workspaceId: string, landOnDocId: string) {
+export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const localMatch = get(workspacesStore).find((w) => w.remoteId === workspaceId);
   const access = await fetchWorkspaceAccess(workspaceId);
+  if (access.deleted) {
+    if (localMatch) handleWorkspaceGone(localMatch.id);
+    else workspaceAccessDenied.set("deleted");
+    return;
+  }
   await window.MDE.githubSessionReady;
   const username = window.MDE.githubUsername;
   const role = computeMyRole(access, username);
@@ -399,6 +408,12 @@ async function rejoinKnownWorkspace(remoteId: string, docId: string) {
   if (myGeneration !== joinGeneration) return;
   const access = await fetchWorkspaceAccess(remoteId);
   if (myGeneration !== joinGeneration) return;
+  if (access.deleted) {
+    const local = get(workspacesStore).find((w) => w.remoteId === remoteId);
+    if (local) handleWorkspaceGone(local.id);
+    else workspaceAccessDenied.set("deleted");
+    return;
+  }
   const role = computeMyRole(access, window.MDE.githubUsername);
   if (!role) {
     workspaceAccessDenied.set(window.MDE.githubUsername ? "no-access" : "no-session");
@@ -580,6 +595,52 @@ function seedNewDocBinding(docId: string, doc: Doc, role: string): void {
   encoding.writeVarString(encoder, docId);
   syncProtocol.writeSyncStep1(encoder, binding.ydoc);
   send(encoding.toUint8Array(encoder));
+}
+
+// Overwrites a synced binding's content + meta wholesale from a plain Doc
+// record — used when a repo pull is authoritative for that file (a clean
+// update, or a "theirs" conflict resolution). Yjs merges it as an
+// ordinary local edit, so collaborators get it like any other change.
+function replaceBindingContent(binding: DocBinding, doc: Doc): void {
+  binding.ydoc.transact(() => {
+    if (binding.ytext.length) binding.ytext.delete(0, binding.ytext.length);
+    if (doc.content) binding.ytext.insert(0, doc.content);
+    binding.metaMap.set("name", doc.name || "Untitled");
+    binding.metaMap.set("metadata", JSON.stringify(doc.metadata ?? []));
+    binding.metaMap.set("citations", JSON.stringify(doc.citations ?? EMPTY_CITATIONS));
+    if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
+  }, "local");
+}
+
+// repoDocSyncHook handler (E1): the owner just pulled from the linked repo.
+// If this workspace is the connected shared room and we're its editor,
+// register the pull's results with the room so applyWorkspaceMeta stops
+// deleting repo docs the server never learned about.
+function handleRepoDocsChanged({
+  workspaceId,
+  created,
+  updated,
+  deleted,
+}: {
+  workspaceId: string;
+  created: string[];
+  updated: string[];
+  deleted: string[];
+}): void {
+  const ws = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (!ws?.remoteId || ws.remoteId !== workspaceRoom.workspaceId || workspaceRoom.role !== "editor") return;
+  for (const id of created) {
+    const doc = findDocById(id);
+    if (doc && !workspaceRoom.docs.has(id)) seedNewDocBinding(id, doc, "editor");
+  }
+  for (const id of updated) {
+    const binding = workspaceRoom.docs.get(id);
+    const doc = findDocById(id);
+    if (binding && doc) replaceBindingContent(binding, doc);
+  }
+  for (const id of deleted) {
+    if (workspaceRoom.docs.has(id)) pushWorkspaceDocDelete(id, workspaceId);
+  }
 }
 
 // Seeds a brand-new room the first time a workspace is shared — whether
@@ -944,6 +1005,32 @@ function teardownWorkspace(): void {
   workspaceRoom.reconnectDelay = 1000;
 }
 
+// The owner deleted this shared workspace (a live MESSAGE_WORKSPACE_DELETED
+// frame, or a 410 from the access fetch on reconnect / share-link open).
+// Tear down the connection, then: a *mirror* of the owner's workspace is
+// removed entirely (deletion is also the owner's tool for cutting off
+// access) with a banner; a workspace the user *merged* a share into keeps
+// its documents (their own library) and only loses the live link.
+function handleWorkspaceGone(localWorkspaceId: string): void {
+  const local = get(workspacesStore).find((w) => w.id === localWorkspaceId);
+  teardownWorkspace();
+  if (!local) return;
+  if (local.mirrored) {
+    // Drop the workspace record first so removeDocById's docRemovalHook
+    // (pushWorkspaceDocDelete) sees no shared workspace and stays a no-op.
+    const docIds = get(docsStore)
+      .filter((d) => d.workspaceId === local.id)
+      .map((d) => d.id);
+    deleteWorkspaceRecord(local.id);
+    for (const id of docIds) removeDocById(id);
+    workspaceAccessDenied.set("deleted");
+  } else {
+    workspacesStore.update((all) => all.map((w) => (w.id === local.id ? { ...w, shared: undefined, remoteId: undefined, updatedAt: Date.now() } : w)));
+    persistWorkspaces();
+    showToast(`"${local.name}" is no longer shared — its owner deleted the shared workspace. Your local copy is kept.`, "info");
+  }
+}
+
 // Applies an incoming MESSAGE_WORKSPACE_META frame: mirrors the sharer's
 // real workspace name onto our local copy (matched by remoteId), and
 // removes any local document whose id is no longer in the room's
@@ -1028,6 +1115,14 @@ function handleServerMessage(data: Uint8Array): void {
     const docOrder: string[] = [];
     for (let i = 0; i < count; i++) docOrder.push(decoding.readVarString(decoder));
     if (workspaceRoom.workspaceId) applyWorkspaceMeta(workspaceRoom.workspaceId, name, docOrder);
+    return;
+  }
+
+  if (messageType === MESSAGE_WORKSPACE_DELETED) {
+    const remoteId = workspaceRoom.workspaceId;
+    const local = remoteId ? get(workspacesStore).find((w) => w.remoteId === remoteId) : null;
+    if (local) handleWorkspaceGone(local.id);
+    else teardownWorkspace();
     return;
   }
 
@@ -1168,6 +1263,9 @@ function getGuestIdentity() {
 async function fetchWorkspaceAccess(workspaceId: string): Promise<AccessRecord> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/access`);
+    // 410 Gone — the owner deleted the workspace (WorkspaceRoom's `deleted`
+    // tombstone). The status is the only signal; the body is a plain string.
+    if (res.status === 410) return { ...DEFAULT_ACCESS, deleted: true };
     if (!res.ok) return { ...DEFAULT_ACCESS };
     return { ...DEFAULT_ACCESS, ...(await res.json()) };
   } catch (err) {
@@ -1330,7 +1428,7 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
 // join-generation race, and that teardownWorkspace() no longer resets
 // identityUnverified — see bb938d9 / COLLAB-31) — not part of any real
 // caller's public surface.
-export { handleDocChanged, workspaceRoom, teardownWorkspace };
+export { handleDocChanged, workspaceRoom, teardownWorkspace, handleRepoDocsChanged };
 
 function setupShareUI() {
   document.getElementById("shareBtn").addEventListener("click", openShareModal);

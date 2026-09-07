@@ -102,9 +102,7 @@ test("A1/A2: Publish + GitHub Repo are hidden for a non-owner shared session, sh
   const screen = await render(MenuBar);
   const hidden = (sel: string) => screen.container.querySelector(sel)?.hasAttribute("hidden");
   const repoSubmenu = () =>
-    [...screen.container.querySelectorAll("#fileMenu .menu-submenu-trigger")]
-      .find((b) => /GitHub Repo/.test(b.textContent ?? ""))
-      ?.closest(".menu-submenu");
+    [...screen.container.querySelectorAll("#fileMenu .menu-submenu-trigger")].find((b) => /GitHub Repo/.test(b.textContent ?? ""))?.closest(".menu-submenu");
 
   // Local (no collab role) — visible.
   expect(hidden("#publishSubmenu")).toBe(false);

@@ -10,6 +10,8 @@
   import { fetchRepoDocDates, type RepoDocDates } from "../repo-doc-dates";
   import { scanMarkdownCompatibility, type CompatIssue } from "../markdown-compat";
   import { DEFAULT_CITATION_PREFS } from "../mmd-citations";
+  import { workspaceRepoLinked } from "../stores/repoSync";
+  import { collabIsOwner } from "../stores/collabMode";
 
   const COMPAT_CATEGORIES = ["app-only", "flavor-specific"] as const;
 
@@ -174,7 +176,7 @@
         {/each}
       </div>
     {/if}
-    {#if doc.repoPath || doc.gistId}
+    {#if doc.repoPath || doc.gistId || ($workspaceRepoLinked && !$collabIsOwner)}
       <div class="menu-section-label">Synced to</div>
       {#if doc.repoPath}
         {@const workspace = $workspacesStore.find((w) => w.id === doc.workspaceId)}
@@ -191,6 +193,11 @@
             </a>
           </div>
         {/if}
+      {:else if $workspaceRepoLinked && !$collabIsOwner}
+        <div class="doc-info-row">
+          <span class="doc-info-primary">Repo</span>
+          <span class="doc-info-secondary">Synced to a GitHub repo, managed by the workspace owner</span>
+        </div>
       {/if}
       {#if doc.gistId}
         <div class="doc-info-row">

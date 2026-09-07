@@ -1302,9 +1302,11 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
 // pill (#shareBtn, #presenceBar), which render outside the modal's own DOM
 // subtree, and pushes everything the component needs into stores/share.ts.
 
-// Exported purely for collab.test.ts's join-generation race regression
-// test — not part of any real caller's public surface.
-export { handleDocChanged, workspaceRoom };
+// Exported purely for collab.test.ts's regression tests (the
+// join-generation race, and that teardownWorkspace() no longer resets
+// identityUnverified — see bb938d9 / COLLAB-31) — not part of any real
+// caller's public surface.
+export { handleDocChanged, workspaceRoom, teardownWorkspace };
 
 function setupShareUI() {
   document.getElementById("shareBtn").addEventListener("click", openShareModal);

@@ -169,9 +169,9 @@ export async function deleteHistory(docId: string): Promise<void> {
 }
 
 // ---------- Shared (collaboration-room) documents ----------
-// Thin fetch wrappers over CollabRoom's HTTP routes — same same-origin
-// relative-fetch, try/catch-with-safe-fallback style as collab.ts's own
-// fetchAccess/putAccess.
+// Thin fetch wrappers over the WorkspaceRoom HTTP routes — same
+// same-origin relative-fetch, try/catch-with-safe-fallback style as
+// collab.ts's own fetchWorkspaceAccess/putWorkspaceAccess.
 
 export async function listSharedVersions(workspaceId: string, docId: string): Promise<VersionSummary[]> {
   try {

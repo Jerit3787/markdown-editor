@@ -1,7 +1,8 @@
 // Shared (collaboration-room) documents' threaded comments — thin fetch
-// wrappers over CollabRoom's HTTP routes, same same-origin relative-fetch,
-// try/catch-with-safe-fallback style as collab.ts's own fetchAccess/
-// putAccess and history.ts's shared-version wrappers. Local (never-shared)
+// wrappers over the WorkspaceRoom HTTP routes, same same-origin
+// relative-fetch, try/catch-with-safe-fallback style as collab.ts's own
+// fetchWorkspaceAccess/putWorkspaceAccess and history.ts's shared-version
+// wrappers. Local (never-shared)
 // documents use stores/docs.ts's addDocNote/deleteDocNote/
 // refreshDocNoteAnchors instead — see that module's own comment for why
 // the two paths diverge once a document is shared.

@@ -36,6 +36,11 @@
     !isAnyone ? "restricted" : access.requireAccount ? "anyone-account" : "anyone-link"
   );
 
+  // A collaborator viewing a workspace someone else owns (they JOINED it).
+  // access.owner is null only before any share has claimed the room — i.e.
+  // the local user's own first share — which is never read-only.
+  const isReadOnly = $derived(!!(access.owner && $githubUsername && access.owner !== $githubUsername));
+
   // Native <select> sizes to its widest <option> regardless of which one
   // is selected — same auto-width-via-hidden-mirror technique app.ts uses
   // for #docTitle, so the control visually matches whichever of the three
@@ -126,13 +131,14 @@
       aria-label="Add people by GitHub username"
       bind:value={addPeopleValue}
       onkeydown={onAddPeopleKeydown}
+      disabled={isReadOnly}
     />
 
     <div class="menu-section-label">People with access</div>
     <div class="share-people-list">
       <div class="share-person share-person-owner">
-        <span class="presence-avatar" style:background={$githubUsername ? colorForUsername($githubUsername) : "var(--text-dim)"}>{initial($githubUsername || "")}</span>
-        <span class="share-person-name">{$githubUsername || "Not signed in"}</span>
+        <span class="presence-avatar" style:background={(access.owner || $githubUsername) ? colorForUsername(access.owner || $githubUsername) : "var(--text-dim)"}>{initial(access.owner || $githubUsername || "")}</span>
+        <span class="share-person-name">{access.owner || $githubUsername || "Not signed in"}</span>
         <span class="share-person-role">Owner</span>
       </div>
       {#each access.invited as person (person.username)}
@@ -144,12 +150,13 @@
             aria-label={`Access level for ${person.username}`}
             value={person.role}
             onchange={(e) => onInviteRoleChange(person.username, e)}
+            disabled={isReadOnly}
           >
             <option value="viewer">Viewer</option>
             <option value="reviewer">Reviewer</option>
             <option value="editor">Editor</option>
           </select>
-          <button type="button" class="share-person-remove" aria-label={`Remove ${person.username}`} onclick={() => removeInvite(person.username)}>
+          <button type="button" class="share-person-remove" aria-label={`Remove ${person.username}`} onclick={() => removeInvite(person.username)} disabled={isReadOnly}>
             <svg class="icon"><use href="#icon-x"></use></svg>
           </button>
         </div>
@@ -161,15 +168,18 @@
     <div class="share-access-row" class:active={isAnyone}>
       <span class="share-access-icon"><svg class="icon"><use href={isAnyone ? "#icon-globe" : "#icon-lock"}></use></svg></span>
       <div class="share-access-text">
-        <select bind:this={accessSelectEl} class="share-access-select" aria-label="General access" value={accessMode} onchange={onAccessModeChange}>
+        <select bind:this={accessSelectEl} class="share-access-select" aria-label="General access" value={accessMode} onchange={onAccessModeChange} disabled={isReadOnly}>
           <option value="restricted">Restricted</option>
           <option value="anyone-account">Anyone with an account</option>
           <option value="anyone-link">Anyone with the link</option>
         </select>
         <span bind:this={accessMirrorEl} class="share-access-mirror" aria-hidden="true"></span>
         <span class="modal-hint">{hint}</span>
+        {#if isReadOnly}
+          <span class="modal-hint">Only the workspace's owner can change who has access.</span>
+        {/if}
       </div>
-      <select class="share-role-select" aria-label="Access level for people with the link" hidden={!isAnyone} value={access.role} onchange={onRoleChange}>
+      <select class="share-role-select" aria-label="Access level for people with the link" hidden={!isAnyone} value={access.role} onchange={onRoleChange} disabled={isReadOnly}>
         <option value="viewer">Viewer</option>
         <option value="reviewer">Reviewer</option>
         <option value="editor">Editor</option>

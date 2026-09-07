@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.0] - 2026-09-07
+
+### Fixed
+
+- **The Share dropdown next to the Share button always read "Restricted".** It was querying a retired per-document endpoint that no workspace-shared document ever writes to; it now reads the workspace's real general-access level.
+- **A collaborator who joined a shared workspace saw a broken Share dialog.** It showed "Restricted" whatever the real setting, the Copy-link button was dead, and it labelled the viewer "Owner". The dialog now shows the real access level, roster, and owner, with a working Copy link and the access controls disabled — only the workspace owner can change sharing (already enforced server-side). The same root cause also fixed the copied link, which pointed at an unreachable id for non-owners.
+
 ## [1.46.10] - 2026-09-07
 
 ### Fixed

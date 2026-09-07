@@ -1096,30 +1096,6 @@ function getGuestIdentity() {
 
 // ---------- Server access-control API ----------
 
-async function fetchAccess(roomId: string): Promise<AccessRecord> {
-  try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/access`);
-    if (!res.ok) return { ...DEFAULT_ACCESS };
-    return { ...DEFAULT_ACCESS, ...(await res.json()) };
-  } catch (err) {
-    return { ...DEFAULT_ACCESS };
-  }
-}
-
-async function putAccess(roomId: string, body: unknown): Promise<AccessRecord | null> {
-  try {
-    const res = await fetch(`/api/collab/${encodeURIComponent(roomId)}/access`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) return null;
-    return { ...DEFAULT_ACCESS, ...(await res.json()) };
-  } catch (err) {
-    return null;
-  }
-}
-
 async function fetchWorkspaceAccess(workspaceId: string): Promise<AccessRecord> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/access`);
@@ -1128,6 +1104,18 @@ async function fetchWorkspaceAccess(workspaceId: string): Promise<AccessRecord> 
   } catch (err) {
     return { ...DEFAULT_ACCESS };
   }
+}
+
+// The collaboration room's id for a given local workspace id. A workspace
+// this session JOINED has a local id distinct from the room's id — the two
+// only coincide for the workspace's original owner, and only once their
+// first share has claimed the room (before that, remoteId is undefined and
+// the local id IS the id the room will be keyed by, so the ?? fallback is
+// correct). Same resolution as wikilink-rename-cascade.ts and, since
+// PR #159, CommentsPanel / VersionHistory.
+function shareRoomId(workspaceId: string): string {
+  const ws = get(workspacesStore).find((w) => w.id === workspaceId);
+  return ws?.remoteId ?? workspaceId;
 }
 
 export function pushWorkspaceRename(workspaceId: string, name: string): void {
@@ -1284,7 +1272,7 @@ function setupShareUI() {
       const doc = getActiveDoc();
       if (doc) {
         // Fetch access to display correct label in dropdown
-        currentAccess = await fetchAccess(doc.id);
+        currentAccess = await fetchWorkspaceAccess(shareRoomId(doc.workspaceId));
         const titleEl = document.getElementById("shareAccessTitle");
         const descEl = document.getElementById("shareAccessDesc");
 
@@ -1404,7 +1392,7 @@ export async function openShareModal() {
   }
 
   shareModalOpen.set(true);
-  currentAccess = await fetchWorkspaceAccess(targetWorkspaceId);
+  currentAccess = await fetchWorkspaceAccess(shareRoomId(targetWorkspaceId));
   syncShareStores();
 }
 
@@ -1426,7 +1414,7 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
   const doc = getActiveDoc();
   if (!doc) return false;
   const wantAnyone = mode !== "restricted";
-  const access = await putWorkspaceAccess(doc.workspaceId, {
+  const access = await putWorkspaceAccess(shareRoomId(doc.workspaceId), {
     generalAccess: wantAnyone ? "anyone" : "restricted",
     requireAccount: mode === "anyone-account",
     role: fallbackRole || (currentAccess && currentAccess.role) || "viewer",
@@ -1459,7 +1447,7 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
 export async function setRole(role: string) {
   const doc = getActiveDoc();
   if (!doc || !currentAccess) return;
-  const access = await putWorkspaceAccess(doc.workspaceId, {
+  const access = await putWorkspaceAccess(shareRoomId(doc.workspaceId), {
     generalAccess: "anyone",
     requireAccount: currentAccess.requireAccount,
     role,
@@ -1486,7 +1474,7 @@ export function buildShareLink(): string | null {
   // Invited-only (restricted) links always resolve to editor access per
   // authorize() server-side; "anyone" links carry whatever role is set.
   const segment = isAnyone ? ROLE_TO_SEGMENT[currentAccess.role] || "view" : "edit";
-  return `${location.origin}/w/${encodeURIComponent(doc.workspaceId)}/${encodeURIComponent(doc.id)}/${segment}`;
+  return `${location.origin}/w/${encodeURIComponent(shareRoomId(doc.workspaceId))}/${encodeURIComponent(doc.id)}/${segment}`;
 }
 
 export async function addPerson(rawUsername: string) {
@@ -1497,7 +1485,7 @@ export async function addPerson(rawUsername: string) {
   const existing = currentAccess ? currentAccess.invited : [];
   if (existing.some((p) => p.username === username)) return;
   const invited = [...existing, { username, role: "editor" }];
-  const access = await putWorkspaceAccess(doc.workspaceId, {
+  const access = await putWorkspaceAccess(shareRoomId(doc.workspaceId), {
     generalAccess: currentAccess ? currentAccess.generalAccess : "restricted",
     requireAccount: currentAccess ? currentAccess.requireAccount : false,
     role: currentAccess ? currentAccess.role : "viewer",
@@ -1530,7 +1518,7 @@ export async function setInviteRole(username: string, role: string) {
   const doc = getActiveDoc();
   if (!doc || !currentAccess) return;
   const invited = currentAccess.invited.map((p) => (p.username === username ? { ...p, role } : p));
-  const access = await putWorkspaceAccess(doc.workspaceId, {
+  const access = await putWorkspaceAccess(shareRoomId(doc.workspaceId), {
     generalAccess: currentAccess.generalAccess,
     requireAccount: currentAccess.requireAccount,
     role: currentAccess.role,
@@ -1549,7 +1537,7 @@ export async function removeInvite(username: string) {
   const doc = getActiveDoc();
   if (!doc || !currentAccess) return;
   const invited = currentAccess.invited.filter((p) => p.username !== username);
-  const access = await putWorkspaceAccess(doc.workspaceId, {
+  const access = await putWorkspaceAccess(shareRoomId(doc.workspaceId), {
     generalAccess: currentAccess.generalAccess,
     requireAccount: currentAccess.requireAccount,
     role: currentAccess.role,

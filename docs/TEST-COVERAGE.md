@@ -52,12 +52,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      19 |       0 |    0 |    19 |
 | 9. Comments                        |      18 |       0 |    1 |    19 |
-| 10. Workspace collab               |      40 |       1 |    5 |    46 |
+| 10. Workspace collab               |      41 |       1 |    4 |    46 |
 | 11. GitHub auth & Gist             |      21 |       1 |    1 |    23 |
 | 12. GitHub repo sync               |      23 |       0 |    1 |    24 |
 | 13. Mobile                         |      14 |       0 |    1 |    15 |
 | 14. App shell                      |      19 |       1 |    1 |    21 |
-| **Total**                          | **297** |  **3** | **11** | **311** |
+| **Total**                          | **298** |  **3** | **10** | **311** |
 
 ~93% of enumerated scenarios have a test asserting their outcome, ~2%
 are partial, ~5% are gaps (was 59/10/31 at the v1.45.2 first pass;
@@ -357,7 +357,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-20 | A remote rename / metadata / citations change on the active doc applies via `MDE.setDoc*`           | unit        | covered | `tests/client/src/collab.test.ts`                      |                                                                       |
 | COLLAB-21 | `decideShareTarget` — direct when already shared or no siblings; choice modal when unshared with siblings; placeholder-name fallback | unit | covered | `tests/client/src/collab.test.ts`                     |                                                                       |
 | COLLAB-22 | `decideJoinTarget` — single doc previews (or lands permanently for a zero-workspace receiver); multi-doc lands permanently for zero-workspace, else choice; real remote name used when provided | unit | covered | `tests/client/src/collab.test.ts` |                                                          |
-| COLLAB-23 | Share modal: generate + copy link, switch general access (restricted / account / anyone), invite a username with a role, change a role, revoke — end-to-end through the UI | e2e-collab | gap | —                                                    | server `handleAccessRequest` fully covered (COLLAB-03); most e2e tests PUT `/access` directly rather than driving the modal |
+| COLLAB-23 | Share modal + topbar dropdown: a joined collaborator sees the real general-access level and owner (controls disabled, "only the owner" hint), Copy link uses the room id, and the topbar dropdown label matches the real access | e2e-collab, component | covered | `tests/e2e/collab/live-collab.spec.ts`, `tests/client/src/components/Share.test.ts` | **fixed 3 bugs in this PR:** the dropdown always read "Restricted" (`fetchAccess(doc.id)` legacy endpoint); a joined non-owner's modal showed wrong access + dead Copy link + wrong owner (`doc.workspaceId` vs `ws.remoteId`); `buildShareLink` emitted a `/w/<localId>/` URL. Owner-side full CRUD through the modal (invite / role-change / revoke) is still `gap`; server `handleAccessRequest` covered by COLLAB-03. |
 | COLLAB-24 | ShareChoiceModal: choosing "share this document" vs "share the whole workspace"                     | component   | covered | `tests/client/src/components/ShareChoiceModal.test.ts` | document / workspace / cancel resolution; prompt names the doc count + workspace |
 | COLLAB-25 | A single-doc share link is received as its own new workspace named after the doc, with no join modal, for every receiver | e2e-collab | covered | `tests/e2e/collab/live-collab.spec.ts`            | no join modal; lands as its own new `remoteId`-linked workspace (not the generic "Shared workspace"); content syncs |
 | COLLAB-26 | JoinWorkspaceModal renders all three options; "Preview only" creates an ephemeral workspace and never persists it | component | covered | `tests/client/src/components/JoinWorkspaceModal.test.ts` |                                                          |

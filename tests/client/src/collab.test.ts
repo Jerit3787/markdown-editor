@@ -157,6 +157,15 @@ describe("decideJoinTarget", () => {
     const result = decideJoinTarget([{ name: "A" }, { name: "B" }], 0);
     expect(result).toEqual({ kind: "auto-permanent", workspaceName: "Shared workspace" });
   });
+
+  it("names a single-doc share after the workspace, not the file, when the room has a real name", () => {
+    expect(decideJoinTarget([{ name: "Release Notes" }], 3, "Team Docs")).toEqual({ kind: "auto-preview", workspaceName: "Team Docs" });
+    expect(decideJoinTarget([{ name: "Release Notes" }], 0, "Team Docs")).toEqual({ kind: "auto-permanent", workspaceName: "Team Docs" });
+  });
+
+  it("still falls back to the single file's name when the room has no name of its own", () => {
+    expect(decideJoinTarget([{ name: "Release Notes" }], 3)).toEqual({ kind: "auto-preview", workspaceName: "Release Notes" });
+  });
 });
 
 describe("pushWorkspaceRename", () => {
@@ -674,6 +683,23 @@ describe("shared document name sync", () => {
 
     const binding = workspaceRoom.docs.get("doc1");
     expect(binding?.metaMap.get("name")).toBe("My Doc");
+  });
+
+  // Regression test: sharing a workspace for the first time seeded every
+  // document's content and per-doc name but never pushed the WORKSPACE's
+  // own name to the server, so WorkspaceRoom.name stayed "" — every
+  // collaborator opening the share link then saw decideJoinTarget's
+  // literal "Shared workspace" fallback (and applyWorkspaceMeta's
+  // `if (name)` guard never healed it), including in JoinWorkspaceModal's
+  // "<name> is shared with you" copy.
+  it("pushes the workspace's own name to the server when sharing for the first time", async () => {
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const calls = (fetch as unknown as { mock: { calls: [string, { method?: string; body?: string }?][] } }).mock.calls;
+    const metaPut = calls.find(([url, init]) => url === "/api/workspace/ws1/meta" && init?.method === "PUT");
+    expect(metaPut).toBeTruthy();
+    expect(JSON.parse(metaPut![1]!.body!)).toEqual({ name: "WS" });
   });
 
   it("applies a remote rename on the active doc via MDE.setDocName", async () => {
@@ -1256,6 +1282,20 @@ describe("incoming workspace meta sync (rename + document removal)", () => {
     sendWorkspaceMeta("", [`doc-meta2-a`, `doc-meta2-b`]);
 
     expect(get(workspacesStore).find((w) => w.id === ws.id)?.name).toBe("Old Name");
+  });
+
+  // Self-heal for workspaces shared before first-share pushed the name:
+  // an editor receiving an empty-name meta frame contributes its own
+  // local name back to the room instead of leaving it "" forever.
+  it("pushes this editor's local name back to the room when the incoming name is empty", async () => {
+    await setup("meta2b");
+    (fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.length = 0;
+    sendWorkspaceMeta("", [`doc-meta2b-a`, `doc-meta2b-b`]);
+
+    const calls = (fetch as unknown as { mock: { calls: [string, { method?: string; body?: string }?][] } }).mock.calls;
+    const metaPut = calls.find(([url, init]) => url === "/api/workspace/remote-meta2b/meta" && init?.method === "PUT");
+    expect(metaPut).toBeTruthy();
+    expect(JSON.parse(metaPut![1]!.body!)).toEqual({ name: "Old Name" });
   });
 
   it("removes a local document whose id is missing from the incoming docOrder, tearing down its binding", async () => {

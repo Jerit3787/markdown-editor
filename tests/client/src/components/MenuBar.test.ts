@@ -95,3 +95,31 @@ test("A3: Edit / Format / Insert menus + the Comments item are hidden in Viewing
   await expect.poll(() => hidden("#editMenuBtn")).toBe(false);
   expect(hidden("#menuComments")).toBe(false);
 });
+
+test("A1/A2: Publish + GitHub Repo are hidden for a non-owner shared session, shown for owner and local", async () => {
+  const { githubUsername } = await import("../../../../client/src/stores/github");
+  githubUsername.set("octocat");
+  const screen = await render(MenuBar);
+  const hidden = (sel: string) => screen.container.querySelector(sel)?.hasAttribute("hidden");
+  const repoSubmenu = () =>
+    [...screen.container.querySelectorAll("#fileMenu .menu-submenu-trigger")]
+      .find((b) => /GitHub Repo/.test(b.textContent ?? ""))
+      ?.closest(".menu-submenu");
+
+  // Local (no collab role) — visible.
+  expect(hidden("#publishSubmenu")).toBe(false);
+  expect(repoSubmenu()?.hasAttribute("hidden")).toBe(false);
+
+  // Shared, NOT owner — hidden (even for an editor).
+  enterCollabRoom("r1", "editor", false);
+  await expect.poll(() => hidden("#publishSubmenu")).toBe(true);
+  expect(hidden("#menuPublishSignedOut")).toBe(true);
+  expect(repoSubmenu()?.hasAttribute("hidden")).toBe(true);
+
+  // Shared AND owner — visible again.
+  enterCollabRoom("r2", "editor", true);
+  await expect.poll(() => hidden("#publishSubmenu")).toBe(false);
+  expect(repoSubmenu()?.hasAttribute("hidden")).toBe(false);
+
+  githubUsername.set(null);
+});

@@ -13,9 +13,14 @@
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
   import { openFindBar } from "../stores/findReplace";
-  import { effectiveMode } from "../stores/collabMode";
+  import { effectiveMode, collabRole, collabIsOwner } from "../stores/collabMode";
 
   const viewing = $derived($effectiveMode === "viewing");
+  // Publish to Gist / repo push are the workspace owner's call — a
+  // non-owner collaborator (viewer, reviewer, or editor) doesn't control
+  // the document's external publishing targets. (spec §5) Unchanged for a
+  // plain local document ($collabRole is null).
+  const publishHidden = $derived(!!$collabRole && !$collabIsOwner);
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
   let editMenuBtn: HTMLButtonElement, editMenu: HTMLDivElement;
@@ -129,16 +134,16 @@
         </div>
       </div>
 
-      <div class="menu-divider"></div>
+      <div class="menu-divider" hidden={publishHidden}></div>
       <!-- Signed out: plain button, click opens a sign-in prompt. Signed
            in: submenu with the publish action + a link to the live gist.
            Both always exist (toggled via hidden, not {#if}) so the
            submenu's flyout trigger is wired once by initSubmenus at
            mount, regardless of which one is visible when that runs. -->
-      <button id="menuPublishSignedOut" type="button" disabled={!hasActiveDoc} hidden={!!$githubUsername} onclick={() => act(() => window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue."))}>
+      <button id="menuPublishSignedOut" type="button" disabled={!hasActiveDoc} hidden={!!$githubUsername || publishHidden} onclick={() => act(() => window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue."))}>
         <svg class="icon"><use href="#icon-rocket"></use></svg> Publish to Gist
       </button>
-      <div class="menu-submenu" id="publishSubmenu" hidden={!$githubUsername}>
+      <div class="menu-submenu" id="publishSubmenu" hidden={!$githubUsername || publishHidden}>
         <button class="menu-submenu-trigger" type="button" disabled={!hasActiveDoc}>
           <svg class="icon"><use href="#icon-rocket"></use></svg> Publish <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
         </button>
@@ -152,7 +157,7 @@
         </div>
       </div>
 
-      <div class="menu-submenu">
+      <div class="menu-submenu" hidden={publishHidden}>
         <button class="menu-submenu-trigger" type="button" disabled={!hasWorkspace}>
           <svg class="icon"><use href="#icon-github"></use></svg> GitHub Repo <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
         </button>

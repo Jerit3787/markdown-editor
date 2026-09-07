@@ -1,266 +1,188 @@
-# Roadmap
+# Roadmap & Backlog
 
-Candidate features for this editor, tracked so nothing from past research or
-past design decisions gets lost. Sourced from a competitive analysis against
-17 other markdown editors (Typora, Obsidian, HackMD, StackEdit, Mark Text,
-Zettlr, iA Writer, Notion, Bear, Joplin, HedgeDoc, Dillinger, and others,
-August 2026), plus scope explicitly deferred while shipping other features.
+The single planning surface for this editor: active work, feature
+candidates, deferred design considerations, and the shipped log. Nothing
+here is a commitment — checked items under **Shipped** are live in
+production; everything else is a candidate.
 
-Checked items are live in production; unchecked items are candidates, not
-commitments.
+Sources: a competitive analysis against 17 other markdown editors
+(Typora, Obsidian, HackMD, StackEdit, Mark Text, Zettlr, iA Writer,
+Notion, Bear, Joplin, HedgeDoc, Dillinger, and others, August 2026);
+bugs and feature requests found through manual use; and scope explicitly
+deferred while shipping other features.
 
-## Shipped
+## How work is sized
 
-- [x] Mermaid diagram rendering in the live preview (v1.1.0)
-- [x] Dedicated full-screen diagram editor — templates, syntax reference (v1.2.0)
-- [x] Diagram editor: hover-to-edit existing diagrams in place (v1.2.0)
-- [x] Diagram export — Copy as SVG / Download PNG (v1.3.0)
-- [x] Diagram editor pan & zoom, with reset view (v1.3.0)
-- [x] Diagram editor Mermaid-aware syntax highlighting (v1.3.0)
-- [x] KaTeX math rendering — `$inline$` / `$$block$$`, toolbar button to
-      insert a snippet (v1.4.0)
-- [x] Footnotes — `[^1]` references / `[^1]: text` definitions, toolbar
-      button to insert an auto-numbered pair (v1.5.0)
-- [x] Custom CSS on export — a global Settings field applied to HTML and
-      PDF exports (v1.6.0)
-- [x] Focus Mode — paragraph dimming, typewriter scrolling, hidden chrome,
-      one combined toggle (v1.7.0)
-- [x] Open Source Licenses — direct dependencies listed in the About
-      modal, generated automatically at build time (v1.8.0)
-- [x] Vim / Emacs keybindings — a Settings toggle, persisted, with a
-      live status bar mode indicator (v1.9.0)
-- [x] Command palette — global Ctrl/Cmd+Shift+P overlay (also reachable
-      from the Help menu), fuzzy-searches every open document and ~35
-      app commands (v1.10.0)
-- [x] Slash commands — inline `/`-triggered insertion menu for block-level
-      elements, anchored to the cursor (v1.11.0)
-- [x] Version history with revert — automatic background snapshots for
-      every document (local and shared alike), non-destructive restore
-      (v1.12.0)
-- [x] Threaded comments anchored to text — lightweight self-notes on
-      local documents, full threaded/resolvable comments (role-gated)
-      on shared ones, highlighted inline with a toggleable panel
-      (v1.13.0)
-- [x] Wikilinks + backlinks between documents — `[[Name]]` renders as a
-      clickable/navigable preview link with `[[`-triggered autocomplete;
-      document names are now enforced unique (silent `-2` suffixing,
-      with a three-way Replace/Save-as/Cancel prompt only for a
-      deliberate rename that collides) so link resolution is always
-      unambiguous; bundled in the same release: a merged Document Info + Backlinks panel, and a sidebar sort-order fix (only a real
-      content edit reorders the list, not merely opening a document)
-      (v1.15.0)
-- [x] Desktop view selector — Editor pane / Preview pane toggle buttons
-      in the toolbar and View menu, sharing one toggle model; formatting
-      toolbar restructured into a full-width row spanning the document
-      sidenav + editor + preview, with overflowing buttons collapsing
-      into a "⋮" menu instead of wrapping/scrolling (v1.16.0)
-- [x] Mobile bottom sheets — the document sidenav and comments panel
-      present as native-style bottom sheets on mobile (flush to the
-      screen edges, dimmed backdrop + header, tap-outside/close-button
-      dismissal) instead of the desktop-style overlay/side-panel
-      presentation that squeezed the editor down to almost nothing on a
-      phone; opening either sheet closes the other (v1.17.0)
-- [x] Mobile document/headings tabbed switcher — a "Documents"/"Headings"
-      tab bar replaces the per-row expandable outline on mobile, showing
-      the active document's full outline at the top level instead of
-      nested under one row at a time; the last piece of the mobile
-      redesign mockup. Desktop unchanged (v1.18.0)
-- [x] Standardized modal layout — Phase 1 — a shared `Modal` component
-      (icon-only close button, text-link quick action, scrollable body
-      pinned between header/footer) now backs all 13 simple dialogs
-      (Sign in, Insert link, Images manager, Open from GitHub Gist,
-      Keyboard Shortcuts, About, Terms, Privacy, Licenses, Settings,
-      Document info, Rename collision, Share), replacing 13 different
-      hand-rolled variants; also replaces both native `window.confirm()`
-      popups (delete document, delete image) with a matching
-      `ConfirmDialog` (v1.19.0)
-- [x] Standardized modal layout — Phase 2 — converted What's New to the
-      shared `Modal` component too; scoped narrower than originally
-      planned after investigation showed Version History, the Comments
-      panel, Command Palette, and the Diagram Editor aren't structurally
-      dialogs (no backdrop/centered-box presentation) and forcing them
-      into `Modal` would fight their own layouts rather than simplify
-      them — left as-is, see the Backlog entry below (v1.19.2)
-- [x] **Workspace core.** First of four planned sub-projects toward
-      sharing a whole _workspace_ (a named group of documents) instead
-      of one document at a time. Introduces `Workspace` as a real
-      container documents belong to: create/switch/rename/delete
-      workspaces from a new switcher in the sidebar header, one active
-      at a time (VS Code-style, not multi-root); documents filter to
-      the active workspace; a document can be moved between workspaces;
-      existing users migrate transparently onto a default "My
-      Workspace." Purely local — no sharing or external sync yet (v1.20.0).
-- [x] **Workspace-level sharing.** Second sub-project. Sharing now
-      happens at the workspace level instead of one document at a
-      time — every document inside a shared workspace syncs live to
-      collaborators simultaneously. Sharing a single document moves it
-      into its own workspace first, then shares that. Opening a shared
-      workspace link for the first time asks whether to add it as a
-      new workspace or merge into one you already have (v1.21.0).
-- [x] **GitHub repo sync.** Third sub-project. Link a workspace to a
-      GitHub repo (`repo` OAuth scope), pull its `.md` files in as
-      docs (recursively, whole tree), and push local changes back out
-      as one atomic commit via the Git Data API. Per-file SHA-based
-      conflict detection — a changed-on-both-sides file always prompts
-      "keep mine / take theirs," never silently resolved. Independent
-      of live workspace sharing; the two features don't interact
-      (v1.22.0).
-- [x] **Share the whole workspace, not just one document.** The Share
-      button on a document with siblings now offers a choice — share
-      just this document (unchanged behavior) or the whole workspace —
-      instead of always silently isolating the document into its own
-      workspace first (v1.23.0).
-- [x] **Open an existing GitHub repo directly as a new workspace, and
-      link-then-sync an existing one automatically.** File > Open >
-      From GitHub Repo creates a workspace from any repo in one step,
-      switching to an already-linked workspace instead of duplicating
-      it; linking an _existing_ workspace to a repo now immediately
-      pushes its local docs out and pulls in whatever the repo already
-      has, instead of requiring a manual Push then Pull afterward
-      (v1.23.0).
-- [x] **Document info and progress transparency.** The Document Info
-      panel now shows a document's linked GitHub repo/Gist with a
-      direct link, and relative dates read "5d ago" / "2w ago" /
-      "3mo ago" instead of jumping straight to a bare date past
-      yesterday; GitHub repo push/pull and Gist publish now show a
-      live-updating progress toast, instead of the only feedback being
-      a menu button's own label that's invisible behind whatever modal
-      triggered the action (v1.23.0).
-- [x] **Version History meets repo commits, and workspace-gated actions.**
-      Version History now interleaves a repo-linked document's actual
-      GitHub commits with local snapshots in one chronological list, with
-      a Preview/Diff toggle and undoable restore from either a commit or a
-      snapshot; linking to an existing repo preserves filenames instead of
-      duplicating them, surfaces push conflicts instead of discarding
-      them, and Mermaid diagrams/filenames survive a push intact. Actions
-      that need a workspace or open document (New document, GitHub Repo,
-      Publish, Export) now disable upfront instead of erroring after the
-      fact, and shared workspaces sync every open document's edits, not
-      just the active one (v1.24.0).
-- [x] **A URL for every document.** Each tab's URL now reflects whichever
-      document is open — deep links and browser back/forward work, and
-      Ctrl/Cmd-click (or middle-click) a sidebar row to open it in a
-      genuine new tab. Receiving a single shared document always lands it
-      as its own new workspace, for every receiver, not just someone with
-      no workspaces yet. Also fixed: opening the app in more than one tab
-      could silently destroy unrelated documents or workspaces, since
-      every save now merges with local storage's actual current contents
-      instead of blindly overwriting it (v1.25.0).
-- [x] **GitHub-style diff view, with images.** The diff view now has line
-      numbers on both sides, word-level highlighting for exactly what
-      changed within a line, and a Split/Unified toggle — for local
-      documents, shared documents, and repo commits alike. A line that's
-      just an image reference renders as a before/after thumbnail
-      comparison instead of raw text, with per-snapshot accuracy (v1.26.0).
-- [x] **Portable local history.** Version History snapshots and personal
-      notes on a repo-linked document now travel with the repo instead of
-      staying stuck on whichever device created them — pushing bundles
-      them into the commit, and opening the doc anywhere else pulls them
-      back in and merges with whatever's already there (v1.27.0).
-- [x] **Shared document names sync live.** Renaming a shared document now
-      shows up for every collaborator immediately instead of staying
-      stuck on whichever browser made the change until it happened to
-      reload — the name rides the same live connection as content and
-      images (v1.28.0).
-- [x] **Search and replace.** Ctrl/Cmd+F opens a find bar with a live
-      match count and case/whole-word/regex toggles; Ctrl/Cmd+H expands
-      it into Replace and Replace All (v1.29.0).
-- [x] **Unresolved-comment count badge.** The Comments topbar icon and
-      File menu entry show a live count of unresolved comment threads on
-      a shared document, visible before opening the panel (v1.30.0).
-- [x] **Undo/Redo and Command Palette toolbar buttons.** Undo and Redo
-      now sit at the start of the formatting toolbar, always visible; a
-      Command Palette quick-access icon sits at the end — all three were
-      previously reachable only via keyboard shortcut or a menu (v1.31.0).
-- [x] **Insert an existing image, or replace one in place.** The Insert
-      image toolbar button now opens a picker of every image already in
-      the document; each image also gets a Replace action to swap its
-      underlying file everywhere it's referenced, without touching the
-      document text or position (v1.32.0).
-- [x] **Printing support.** A Print action in the File menu and Command
-      Palette opens the browser's native print dialog with a dedicated,
-      chrome-free print layout, titled with the document name and
-      paginated cleanly (v1.33.0).
-- [x] **Choose Gist visibility.** Publishing a document to Gist for the
-      first time now lets you choose Public or Secret before it's
-      created, since GitHub only accepts this choice at creation and
-      can't change it later (v1.34.0).
-- [x] **Markdown compatibility checker.** Document Info's new
-      Compatibility row flags constructs that won't render the same
-      elsewhere — wikilinks and image/diagram references (app-only) plus
-      GFM/math extensions that work here and on GitHub but aren't
-      guaranteed everywhere. Click a flagged item to jump right to it
-      (v1.35.0).
-- [x] **MultiMarkdown syntax support.** Definition lists and
-      superscript/subscript now render correctly, and a new Metadata
-      section in Document Info round-trips freeform `Key: Value` fields
-      as real MultiMarkdown text on export, Gist publish, and repo push
-      (v1.36.0).
-- [x] **Citations & bibliography, split Format/Insert menus, smart
-      version-history grouping.** `[@key]`/`[#key]` citations resolve
-      against a bibliography (numbered or inline author-year, typed
-      directly or managed as structured entries in Document Info);
-      Bold/Italic/Strikethrough and Insert Link/Image/Manage Images moved
-      out of the overloaded Edit menu into their own Format and Insert
-      menus; Version History now groups continuous edits into collapsible
-      sessions instead of a flat list, with much finer-grained capture
-      underneath, and the Diff view can compare any two historical
-      entries against each other, not just a version against the live
-      document (v1.37.0).
-- [x] **Document Info edit modal.** Document Info is now a read-only
-      summary — including a new Name row — with an Edit button that
-      opens a dedicated modal for renaming the document and editing its
-      metadata and citation settings (v1.38.0).
-- [x] **Suggestion-mode collaboration** (Google Docs parity). The
-      reviewer role now proposes edits instead of being read-only —
-      insertions and deletions show up as tracked, per-suggestion changes
-      the document's editor can accept, reject, or that the reviewer can
-      withdraw. Viewer role is now Preview-only, with no edit surface at
-      all (v1.39.0).
-- [x] **Categorized What's New.** Reopening What's New from the Help menu
-      now starts at a category index instead of a long stepper from the
-      very first release — pick a topic to step through just its
-      updates (v1.40.0).
-- [x] **Toolbar grouping by type.** The trailing insert cluster (link,
-      image, table, diagram, math, footnote, etc.) was one ungrouped run
-      of buttons; re-grouped into media/reference insert, structural
-      insert, and notation insert, with Command Palette set apart at the
-      end (v1.40.4).
-- [x] **Shared-document session separation.** Opening a share link now
-      previews the workspace (never persisted) instead of always
-      permanently committing it — a "Preview" badge and "Keep this
-      workspace" action in the switcher, plus a "Preview only" option in
-      the join-choice modal. A receiver with zero workspaces of their own
-      still lands directly and permanently, since there's nothing to
-      protect from clutter (v1.41.1).
+- **Small fix** — a one-file bug fix, a copy tweak, a config change.
+  Fix it directly, landing a regression test that fails before the fix
+  and passes after. No spec, no plan document.
+- **Feature-sized** — anything else, including changes that look
+  well-scoped in chat but touch behaviour others depend on. Full
+  `brainstorm → spec → plan → ship` cycle per `CLAUDE.md` (design spec
+  in `docs/superpowers/specs/`, implementation plan in
+  `docs/superpowers/plans/`), each normally its own commit.
 
-## Backlog — quick wins
+Verify an item against `CHANGELOG.md` before starting it if this file
+hasn't been touched in a while.
 
-Small, client-side-only, drop into the existing render pipeline.
+---
 
-The quick-wins backlog is now empty — see the other tiers below.
+## Active
 
-## Backlog — leverage what we have
+### Shared-workspace correctness (2026-09)
 
-Extends existing Yjs / role infrastructure rather than adding new systems.
+A cluster found in a live two-browser shared-workspace pass.
 
-The leverage-what-we-have backlog is now empty — see the other tiers below.
+- **F1 — workspace name resolves to "Shared workspace" on a share link.**
+  `seedWorkspaceForFirstShare()` seeded each document's content and
+  per-doc name but never the _workspace's_ own name, so
+  `WorkspaceRoom.name` stayed `""`; `/access` and the meta broadcast both
+  carried `""`, `decideJoinTarget` fell back to the placeholder, and
+  `applyWorkspaceMeta` never healed it. **Shipped v1.48.9** (PR #175):
+  push the name on first share, self-heal for an already-connected
+  editor, and a self-assigned default ("New workspace") is deliberately
+  not propagated.
+- **F2 — placeholder name in the merge/separate join prompt.** Same root
+  cause and fix as F1.
+- **F5 — a single-file workspace share named the joiner's workspace
+  after the file.** `decideJoinTarget` now prefers the real remote
+  workspace name. Shipped with F1.
+- **E1 — sidebar rows missing in a workspace that is both repo-synced
+  and shared.** repo-sync creates docs with client-side ids and never
+  registers them with the shared `WorkspaceRoom`, so
+  `applyWorkspaceMeta()` deletes every repo-pulled doc (absent from the
+  server `docOrder`); the next pull re-creates them with fresh ids, and a
+  click during the churn hits `switchDoc()` with a stale id →
+  `setActiveId` to a dead id → the `id === activeId` guard blocks further
+  clicks. Decision: **make repo-sync and sharing compose** — the owner's
+  pulled docs propagate through the room (repo sync stays owner-only).
+- **F3 — no warning when deleting a shared workspace.** Needs a
+  role-aware confirm dialog (owner vs a collaborator dropping a mirror).
+- **F4 — a deleted shared workspace stays reachable via its link.** Local
+  deletion never revokes the `WorkspaceRoom`. Deletion must hard-revoke:
+  server-side `deleted` flag, `410` on every route,
+  `MESSAGE_WORKSPACE_DELETED` broadcast; collaborators lose a _mirrored_
+  copy entirely (with a banner), a _merged_ workspace only loses its live
+  link.
 
-## Backlog — bigger bets
+**E1 + F3 + F4** are one spec:
+`docs/superpowers/specs/2026-09-08-shared-workspace-composition-lifecycle-design.md`
+(under review). New `Workspace.mirrored` flag; owner-vs-merger resolved
+by a fresh access fetch at delete time; immediate hard revoke, no
+soft-delete; minor version bump + What's New entry.
+
+### Collaboration roles, focus mode & suggesting mode
+
+Found in a manual pass over a shared/viewed workspace, benchmarked
+against Google Docs' Editing / Suggesting / Viewing modes (its top-right
+mode switcher, right-margin suggestion cards, and Viewing mode hiding
+comments and the suggestion UI entirely).
+
+Roles today: owner → `editor`; link role or per-invite → `viewer` /
+`reviewer` (suggester) / `editor`. `authorize()` resolves it server-side;
+`collab.ts` mirrors it into the UI best-effort. `MenuBar` has no
+role gating yet.
+
+**Group A — role-based access gaps**
+
+- **A1** — Publish to Gist / repo must be disabled for `viewer` and
+  `reviewer`. Currently reachable.
+- **A2** _(decision needed)_ — Should a non-owner `editor` have Publish
+  to Gist / push-to-repo at all? Leaning owner-only (editors edit
+  content, they don't control external publishing targets).
+- **A3** — Viewer mode: hide (not just disable) the Edit / Format /
+  Insert menus.
+- **A4** — Viewer mode: no comments access at all — hide the panel,
+  toggle, and inline highlights.
+- **A5** — Collaborators have no signal that a workspace/document is
+  linked to a GitHub repo or Gist. Surface it (read-only badge /
+  Document Info row).
+
+**Group B — focus mode**
+
+- **B1** — No affordance for exiting focus mode. Add a Chrome-style top
+  hover toast: slides down from the top edge, auto-hides, reappears when
+  the pointer hits the top of the viewport; states the exit key.
+- **B2** _(decision needed)_ — Focus mode dims paragraphs on the editor
+  side only. Should it extend to the preview pane?
+
+**Group C — viewer-mode UI**
+
+- **C1** — In viewer mode there's no way to reach the sidebar. Add a
+  floating button to open the document sidenav.
+
+**Group D — suggesting-mode redesign** (its own brainstorm)
+
+- **D1** — Inline suggestion rendering looks cramped/broken. Move to a
+  Google-Docs-style right-margin card model.
+- **D2** — Deleting your own just-inserted suggested text should remove
+  the suggestion (and its card) entirely, not leave an "added X then
+  deleted X" pair.
+- **D3** — Every edit should be its own message thread.
+- **D4** _(needs brainstorm)_ — Granularity. Google Docs splits
+  aggressively on whitespace and produces card spam. Anchor a suggestion
+  to a line/span rather than per-character, without losing independent
+  accept/reject.
+- **D5** — The standalone "edit" icon on suggestions is unclear. Fold
+  suggestion actions into the comment-thread UI (Google Docs merges
+  suggestion + comment into one card).
+- **D6** — Add the Editing / Suggesting / Viewing mode switcher
+  (top-right). Umbrella for A3/A4/C1 — the chosen mode drives which
+  chrome is visible. Today a `reviewer` is forced into suggesting; an
+  `editor` could opt into suggesting or viewing voluntarily.
+
+**Shape:** A1, A3, A4, C1, B1 are bounded role/UI fixes → one
+"collaboration mode chrome" spec, with D6 (the switcher) as the umbrella.
+A2, B2 are decisions to settle first. D1–D5 are a separate
+suggesting-mode redesign, the largest piece.
+
+### Preview links & wikilinks
+
+- **G1** — A markdown link `[text](target)` whose `target` isn't a URL
+  (a bare doc name / relative path) renders as `<domain>/d/<target>` and
+  navigates nowhere. It should resolve to the matching document, or show
+  a "that document doesn't exist" affordance.
+- **G2** — An unresolved wikilink shows raw `[Name](wikilink:Name)` text
+  in the preview — seen even for `[[Name]]` inside an inline code span
+  (the `[[…]]` → `[…](wikilink:…)` rewrite runs over code spans it should
+  skip, and the renderer prints the unknown scheme literally). Wikilink
+  rewriting must respect code spans / fences, and an unresolved wikilink
+  needs a real rendered "unresolved link" state, never leaked
+  `wikilink:` syntax.
+
+Small cluster in `wikilinks.ts` / `wikilink-rewrite.ts` / the preview
+renderer. Needs a repro pass; likely Phase-1-sized.
+
+### Other open bugs
+
+- **Comment reply / resolve reported broken in practice** (2026-08-13).
+  A full review of the path (server routes, HTTP handlers, client fetch
+  wrappers, panel UI) found no defect and the server logic has passing
+  tests. Needs a fresh repro with specifics — exact steps, and whether
+  it's a network error, a UI freeze, or a silent no-op — against a real
+  shared document with two GitHub-authenticated roles.
+
+---
+
+## Feature backlog — bigger bets
 
 New infrastructure, backend, or scope — each its own project.
 
-- [ ] AI writing assist / chat-with-doc
-- [ ] AI-generated diagrams from a text prompt (flagged as bigger-bets
-      tier in the original diagram editor design doc — needs an LLM
-      backend, cost/auth model)
 - [ ] **Google Drive sync** — sub-project 4 of the workspace pivot
       (Workspace core, workspace-level sharing, and GitHub repo sync
-      shipped above). Same idea as GitHub repo sync, but Drive is a
-      separate OAuth provider/API integration from scratch. Supersedes
-      the earlier "multi-provider cloud sync (Drive, Dropbox,
-      OneDrive)" idea — scoped down to just Drive, since Dropbox/
-      OneDrive were never actually requested.
+      already shipped). Same idea as GitHub repo sync, but Drive is a
+      separate OAuth provider/API from scratch, and adds "open markdown
+      from Drive" (Picker import) and "save markdown to Drive" (per-file
+      export). **In progress** on `feat/google-drive-sync` — plan 1 of 5
+      (connection + open-from-Drive) is up as a PR, currently paused
+      while the shared-workspace bugs above are worked. Supersedes the
+      earlier "multi-provider cloud sync (Drive, Dropbox, OneDrive)"
+      idea — scoped to Drive only, since Dropbox/OneDrive were never
+      actually requested.
+- [ ] AI writing assist / chat-with-doc
+- [ ] AI-generated diagrams from a text prompt (flagged bigger-bets tier
+      in the original diagram editor design doc — needs an LLM backend,
+      cost/auth model)
 - [ ] Plugin / extension system
 - [ ] Slide / presentation export
 - [ ] Tag system + graph view
@@ -268,11 +190,13 @@ New infrastructure, backend, or scope — each its own project.
 - [ ] True WYSIWYG toggle
 - [ ] Direct blog publishing (Blogger/WordPress)
 
-## Partial / deferred considerations
+---
 
-Real options that came up while designing or building a shipped feature, set
-aside rather than chosen — worth reconsidering on their own if they turn out
-to matter later.
+## Deferred considerations
+
+Real options that came up while designing or building a shipped feature,
+set aside rather than chosen — worth reconsidering on their own if they
+turn out to matter later.
 
 - [ ] Diagram export: additional formats/options beyond SVG + PNG — JPG/WebP,
       scale factor, padding, transparent-background toggle (explicitly out
@@ -380,11 +304,6 @@ to matter later.
 - [ ] An authoring/editing UI for What's New entries — v1.14.0 entries
       are added directly to `whats-new-entries.ts` as a manual step per
       release, same as CHANGELOG/ROADMAP updates already are
-- [x] **Wikilink rename cascade.** Renaming a document now rewrites
-      every `[[OldName]]` reference to it elsewhere — local documents,
-      a self-reference in the renamed document itself, and any shared
-      workspace's documents (even one not currently connected) via a
-      new authenticated endpoint (v1.42.0).
 - [ ] Case-insensitive wikilink matching — v1.15.0 is exact-match only,
       the same simplicity tradeoff that motivated enforcing unique
       names in the first place
@@ -419,10 +338,10 @@ to matter later.
 - [ ] Standardized modal layout — Version History, the mobile Comments
       sheet, Command Palette, and the Diagram Editor's header each keep
       their own hand-built structure rather than the shared `Modal`
-      component — explicitly left out of Phase 2 (see Shipped above):
-      none of the four is a centered-box-with-backdrop dialog the way
-      Modal assumes, so converting them would mean fighting their own
-      layouts rather than simplifying them
+      component — explicitly left out of Phase 2: none of the four is a
+      centered-box-with-backdrop dialog the way Modal assumes, so
+      converting them would mean fighting their own layouts rather than
+      simplifying them
 - [ ] Tab-bar support in `Modal` (built in Phase 1, unused so far) has
       no real consumer yet — no modal in the app currently needs
       internal sub-sections
@@ -436,26 +355,226 @@ to matter later.
       want to see/choose which side wins per document rather than an
       automatic silent-suffix rename
 - [ ] Continuous/automatic GitHub repo sync — v1.22.0 is explicit
-      pull/push only (like the Gist flow), not a background process, and
-      doesn't interact with live workspace sharing even when both are
-      active on the same workspace
+      pull/push only (like the Gist flow), not a background process
 - [ ] Subfolder-scoped or non-recursive GitHub repo linking — v1.22.0
       always maps a linked workspace to the whole repo tree on a chosen
       branch, recursively; no way to link to just a subfolder
 - [ ] Automatic conflict resolution when a repo's tree moves between a
       link-and-sync's push and pull steps (e.g. a concurrent external
       push) — v1.23.0 still always routes any such conflict through the
-      existing shared conflict-resolution modal, same manual-choice
-      model as v1.22.0's push/pull
+      existing shared conflict-resolution modal
 - [ ] Sync-status detail (e.g. last-synced time) in Document Info's
       "Synced to" section — v1.23.0 shows only the linked repo path /
       Gist, not how recently it was last pushed or pulled
 - [ ] Real per-file progress during a GitHub repo push — v1.23.0's
       progress toast shows a static file count computed before sending,
       not a live increment, since the push protocol sends every blob in
-      one atomic request; would need restructuring the already-shipped
-      push protocol to get real per-file increments
+      one atomic request
 - [ ] Progress feedback during repo-sync conflict resolution — v1.23.0's
       progress toasts cover only the initial push/pull/publish
       operation; the conflict-resolution modal's own "Applying…" button
       state is the only in-progress feedback during that step today
+
+---
+
+## Shipped
+
+The list below is the canonical feature history through **v1.41.1**.
+**v1.42.0 onward is in `CHANGELOG.md`** — including the wikilink rename
+cascade (v1.42.0), the test-coverage catalogue effort (v1.48.x, now
+314/314 covered), Google Docs suggesting polish, the What's New
+screenshot guard (v1.48.8), and shared-workspace name propagation
+(v1.48.9).
+
+The earlier `TODO.md` (a workspace/repo-sync punch list) and
+`IMPROVEMENTS.md` (Phase 1–3 bugs and small features) tracked work that
+has all shipped — see `CHANGELOG.md` and git history for specifics,
+including the real root causes found along the way (a
+filename-sanitization bug behind "images can't be imported"; a Gist API
+filename-matching bug behind rename-creates-a-duplicate; a
+comment-highlight-while-typing regression).
+
+- [x] Mermaid diagram rendering in the live preview (v1.1.0)
+- [x] Dedicated full-screen diagram editor — templates, syntax reference (v1.2.0)
+- [x] Diagram editor: hover-to-edit existing diagrams in place (v1.2.0)
+- [x] Diagram export — Copy as SVG / Download PNG (v1.3.0)
+- [x] Diagram editor pan & zoom, with reset view (v1.3.0)
+- [x] Diagram editor Mermaid-aware syntax highlighting (v1.3.0)
+- [x] KaTeX math rendering — `$inline$` / `$$block$$`, toolbar button to
+      insert a snippet (v1.4.0)
+- [x] Footnotes — `[^1]` references / `[^1]: text` definitions, toolbar
+      button to insert an auto-numbered pair (v1.5.0)
+- [x] Custom CSS on export — a global Settings field applied to HTML and
+      PDF exports (v1.6.0)
+- [x] Focus Mode — paragraph dimming, typewriter scrolling, hidden chrome,
+      one combined toggle (v1.7.0)
+- [x] Open Source Licenses — direct dependencies listed in the About
+      modal, generated automatically at build time (v1.8.0)
+- [x] Vim / Emacs keybindings — a Settings toggle, persisted, with a
+      live status bar mode indicator (v1.9.0)
+- [x] Command palette — global Ctrl/Cmd+Shift+P overlay (also reachable
+      from the Help menu), fuzzy-searches every open document and ~35
+      app commands (v1.10.0)
+- [x] Slash commands — inline `/`-triggered insertion menu for block-level
+      elements, anchored to the cursor (v1.11.0)
+- [x] Version history with revert — automatic background snapshots for
+      every document (local and shared alike), non-destructive restore
+      (v1.12.0)
+- [x] Threaded comments anchored to text — lightweight self-notes on
+      local documents, full threaded/resolvable comments (role-gated)
+      on shared ones, highlighted inline with a toggleable panel
+      (v1.13.0)
+- [x] Wikilinks + backlinks between documents — `[[Name]]` renders as a
+      clickable/navigable preview link with `[[`-triggered autocomplete;
+      document names are now enforced unique (silent `-2` suffixing,
+      with a three-way Replace/Save-as/Cancel prompt only for a
+      deliberate rename that collides) so link resolution is always
+      unambiguous; bundled in the same release: a merged Document Info +
+      Backlinks panel, and a sidebar sort-order fix (only a real
+      content edit reorders the list, not merely opening a document)
+      (v1.15.0)
+- [x] Desktop view selector — Editor pane / Preview pane toggle buttons
+      in the toolbar and View menu, sharing one toggle model; formatting
+      toolbar restructured into a full-width row spanning the document
+      sidenav + editor + preview, with overflowing buttons collapsing
+      into a "⋮" menu instead of wrapping/scrolling (v1.16.0)
+- [x] Mobile bottom sheets — the document sidenav and comments panel
+      present as native-style bottom sheets on mobile (flush to the
+      screen edges, dimmed backdrop + header, tap-outside/close-button
+      dismissal) instead of the desktop-style overlay/side-panel
+      presentation that squeezed the editor down to almost nothing on a
+      phone; opening either sheet closes the other (v1.17.0)
+- [x] Mobile document/headings tabbed switcher — a "Documents"/"Headings"
+      tab bar replaces the per-row expandable outline on mobile, showing
+      the active document's full outline at the top level instead of
+      nested under one row at a time; the last piece of the mobile
+      redesign mockup. Desktop unchanged (v1.18.0)
+- [x] Standardized modal layout — Phase 1 — a shared `Modal` component
+      (icon-only close button, text-link quick action, scrollable body
+      pinned between header/footer) now backs all 13 simple dialogs
+      (Sign in, Insert link, Images manager, Open from GitHub Gist,
+      Keyboard Shortcuts, About, Terms, Privacy, Licenses, Settings,
+      Document info, Rename collision, Share), replacing 13 different
+      hand-rolled variants; also replaces both native `window.confirm()`
+      popups (delete document, delete image) with a matching
+      `ConfirmDialog` (v1.19.0)
+- [x] Standardized modal layout — Phase 2 — converted What's New to the
+      shared `Modal` component too; scoped narrower than originally
+      planned after investigation showed Version History, the Comments
+      panel, Command Palette, and the Diagram Editor aren't structurally
+      dialogs (no backdrop/centered-box presentation) and forcing them
+      into `Modal` would fight their own layouts rather than simplify
+      them — left as-is, see the Deferred considerations list (v1.19.2)
+- [x] **Workspace core.** First of four planned sub-projects toward
+      sharing a whole _workspace_ (a named group of documents) instead
+      of one document at a time. Introduces `Workspace` as a real
+      container documents belong to: create/switch/rename/delete
+      workspaces from a new switcher in the sidebar header, one active
+      at a time (VS Code-style, not multi-root); documents filter to
+      the active workspace; a document can be moved between workspaces;
+      existing users migrate transparently onto a default "My
+      Workspace." Purely local — no sharing or external sync yet (v1.20.0)
+- [x] **Workspace-level sharing.** Second sub-project. Sharing now
+      happens at the workspace level instead of one document at a
+      time — every document inside a shared workspace syncs live to
+      collaborators simultaneously. Sharing a single document moves it
+      into its own workspace first, then shares that. Opening a shared
+      workspace link for the first time asks whether to add it as a
+      new workspace or merge into one you already have (v1.21.0)
+- [x] **GitHub repo sync.** Third sub-project. Link a workspace to a
+      GitHub repo (`repo` OAuth scope), pull its `.md` files in as
+      docs (recursively, whole tree), and push local changes back out
+      as one atomic commit via the Git Data API. Per-file SHA-based
+      conflict detection — a changed-on-both-sides file always prompts
+      "keep mine / take theirs," never silently resolved (v1.22.0)
+- [x] **Share the whole workspace, not just one document.** The Share
+      button on a document with siblings now offers a choice — share
+      just this document (unchanged behavior) or the whole workspace —
+      instead of always silently isolating the document into its own
+      workspace first (v1.23.0)
+- [x] **Open an existing GitHub repo directly as a new workspace, and
+      link-then-sync an existing one automatically.** File > Open >
+      From GitHub Repo creates a workspace from any repo in one step,
+      switching to an already-linked workspace instead of duplicating
+      it; linking an _existing_ workspace to a repo now immediately
+      pushes its local docs out and pulls in whatever the repo already
+      has (v1.23.0)
+- [x] **Document info and progress transparency.** The Document Info
+      panel now shows a document's linked GitHub repo/Gist with a
+      direct link, and relative dates read "5d ago" / "2w ago" /
+      "3mo ago" instead of jumping straight to a bare date past
+      yesterday; GitHub repo push/pull and Gist publish now show a
+      live-updating progress toast (v1.23.0)
+- [x] **Version History meets repo commits, and workspace-gated actions.**
+      Version History now interleaves a repo-linked document's actual
+      GitHub commits with local snapshots in one chronological list, with
+      a Preview/Diff toggle and undoable restore from either a commit or a
+      snapshot; linking to an existing repo preserves filenames instead of
+      duplicating them, surfaces push conflicts instead of discarding
+      them, and Mermaid diagrams/filenames survive a push intact. Actions
+      that need a workspace or open document (New document, GitHub Repo,
+      Publish, Export) now disable upfront instead of erroring after the
+      fact, and shared workspaces sync every open document's edits, not
+      just the active one (v1.24.0)
+- [x] **A URL for every document.** Each tab's URL now reflects whichever
+      document is open — deep links and browser back/forward work, and
+      Ctrl/Cmd-click (or middle-click) a sidebar row to open it in a
+      genuine new tab. Receiving a single shared document always lands it
+      as its own new workspace, for every receiver. Also fixed: opening
+      the app in more than one tab could silently destroy unrelated
+      documents or workspaces, since every save now merges with local
+      storage's actual current contents instead of blindly overwriting it
+      (v1.25.0)
+- [x] **GitHub-style diff view, with images.** The diff view now has line
+      numbers on both sides, word-level highlighting for exactly what
+      changed within a line, and a Split/Unified toggle — for local
+      documents, shared documents, and repo commits alike. A line that's
+      just an image reference renders as a before/after thumbnail
+      comparison instead of raw text, with per-snapshot accuracy (v1.26.0)
+- [x] **Portable local history.** Version History snapshots and personal
+      notes on a repo-linked document now travel with the repo instead of
+      staying stuck on whichever device created them (v1.27.0)
+- [x] **Shared document names sync live.** Renaming a shared document now
+      shows up for every collaborator immediately, riding the same live
+      connection as content and images (v1.28.0)
+- [x] **Search and replace.** Ctrl/Cmd+F opens a find bar with a live
+      match count and case/whole-word/regex toggles; Ctrl/Cmd+H expands
+      it into Replace and Replace All (v1.29.0)
+- [x] **Unresolved-comment count badge** on the Comments topbar icon and
+      File menu entry (v1.30.0)
+- [x] **Undo/Redo and Command Palette toolbar buttons** (v1.31.0)
+- [x] **Insert an existing image, or replace one in place** — a picker of
+      every image already in the document, plus a per-image Replace
+      action (v1.32.0)
+- [x] **Printing support** — a chrome-free print layout via the File menu
+      and Command Palette (v1.33.0)
+- [x] **Choose Gist visibility** — Public or Secret, chosen at creation
+      (GitHub can't change it later) (v1.34.0)
+- [x] **Markdown compatibility checker** — a Document Info row flagging
+      app-only and flavor-specific syntax, click to jump to it (v1.35.0)
+- [x] **MultiMarkdown syntax support** — definition lists,
+      superscript/subscript, and a round-tripping `Key: Value` metadata
+      section (v1.36.0)
+- [x] **Citations & bibliography, split Format/Insert menus, smart
+      version-history grouping** — `[@key]`/`[#key]` citations against a
+      bibliography (numbered or author-year); Bold/Italic/Strikethrough
+      and Insert Link/Image/Manage Images moved into their own Format and
+      Insert menus; Version History groups continuous edits into
+      collapsible sessions and can diff any two entries (v1.37.0)
+- [x] **Document Info edit modal** — Document Info is now a read-only
+      summary with an Edit button opening a dedicated modal for name,
+      metadata, and citation settings (v1.38.0)
+- [x] **Suggestion-mode collaboration** (Google Docs parity) — the
+      reviewer role proposes tracked insert/delete suggestions an editor
+      can accept/reject or the reviewer can withdraw; viewer role is
+      Preview-only with no edit surface (v1.39.0)
+- [x] **Categorized What's New** — reopening it starts at a category
+      index instead of a long stepper (v1.40.0)
+- [x] **Toolbar grouping by type** — the trailing insert cluster
+      re-grouped into media/reference, structural, and notation insert,
+      with Command Palette set apart (v1.40.4)
+- [x] **Shared-document session separation** — opening a share link now
+      previews the workspace (never persisted) instead of always
+      committing it — a "Preview" badge and "Keep this workspace" action,
+      plus a "Preview only" join option. A receiver with zero workspaces
+      still lands permanently (v1.41.1)

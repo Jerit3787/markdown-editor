@@ -404,8 +404,17 @@ export class CollabRoom {
     const snapshots = await this.getSnapshots();
     const docId = new URL(request.url).pathname.split("/")[3]!; // /api/collab/<docId>/migrate
 
+    // The legacy single-document room never tracked a name server-side, but
+    // a modern client connected to it may have written one into the Y.Doc's
+    // `meta` map (same field a WorkspaceRoom doc uses) — carry that forward
+    // so the migrated workspace and its one document aren't left showing the
+    // "Shared workspace" / "Shared document" placeholders. Empty string when
+    // the room predates any name-syncing client; the seed handles that.
+    const docName = (this.doc.getMap<string>("meta").get("name") || "").trim();
+
     const seedBody = {
       docId,
+      docName,
       update: Array.from(Y.encodeStateAsUpdate(this.doc)),
       access,
       snapshots,

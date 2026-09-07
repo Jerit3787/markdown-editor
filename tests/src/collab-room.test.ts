@@ -734,6 +734,56 @@ describe("CollabRoom.handleMigrateRequest", () => {
     expect(tombstone).toBe(body.workspaceId);
   });
 
+  it("forwards the doc's meta.name to the seed so the migrated workspace/doc aren't left as placeholders", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    room.doc.transact(() => {
+      room.doc.getText("content").insert(0, "hello");
+      room.doc.getMap<string>("meta").set("name", "Meeting Notes");
+    }, "storage");
+
+    const seeded: Array<{ docName?: string }> = [];
+    const envWithBinding = {
+      ...fakeEnv,
+      WORKSPACE_ROOM: {
+        idFromName: (name: string) => name,
+        get: () => ({
+          fetch: async (req: Request) => {
+            seeded.push(await req.json());
+            return new Response(null, { status: 204 });
+          },
+        }),
+      },
+    } as unknown as Env;
+    room.env = envWithBinding;
+
+    await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    expect(seeded[0]!.docName).toBe("Meeting Notes");
+  });
+
+  it("forwards an empty docName when the legacy room never had a name", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
+
+    const seeded: Array<{ docName?: string }> = [];
+    room.env = {
+      ...fakeEnv,
+      WORKSPACE_ROOM: {
+        idFromName: (name: string) => name,
+        get: () => ({
+          fetch: async (req: Request) => {
+            seeded.push(await req.json());
+            return new Response(null, { status: 204 });
+          },
+        }),
+      },
+    } as unknown as Env;
+
+    await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    expect(seeded[0]!.docName).toBe("");
+  });
+
   it("returns the existing tombstone on a second migration call instead of migrating again", async () => {
     const room = new CollabRoom(fakeState(), fakeEnv);
     await room.state.storage.put("migratedTo", "ws-existing");

@@ -69,6 +69,7 @@ const MESSAGE_AWARENESS = 1;
 const MESSAGE_PRESENCE = 2;
 const MESSAGE_WORKSPACE_META = 3;
 const MESSAGE_COMMENTS = 4;
+const MESSAGE_WORKSPACE_DELETED = 5;
 
 export const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
 const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment", editor: "edit" };
@@ -1168,6 +1169,9 @@ function getGuestIdentity() {
 async function fetchWorkspaceAccess(workspaceId: string): Promise<AccessRecord> {
   try {
     const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/access`);
+    // 410 Gone — the owner deleted the workspace (WorkspaceRoom's `deleted`
+    // tombstone). The status is the only signal; the body is a plain string.
+    if (res.status === 410) return { ...DEFAULT_ACCESS, deleted: true };
     if (!res.ok) return { ...DEFAULT_ACCESS };
     return { ...DEFAULT_ACCESS, ...(await res.json()) };
   } catch (err) {

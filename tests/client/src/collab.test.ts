@@ -702,6 +702,15 @@ describe("shared document name sync", () => {
     expect(JSON.parse(metaPut![1]!.body!)).toEqual({ name: "WS" });
   });
 
+  it("does not push a self-assigned default workspace name on first share", async () => {
+    workspacesStore.set([fakeWorkspace({ id: "ws1", name: "New workspace" })]);
+    await setAccessMode("anyone-link", "editor");
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const calls = (fetch as unknown as { mock: { calls: [string, { method?: string }?][] } }).mock.calls;
+    expect(calls.some(([url, init]) => url === "/api/workspace/ws1/meta" && init?.method === "PUT")).toBe(false);
+  });
+
   it("applies a remote rename on the active doc via MDE.setDocName", async () => {
     await setAccessMode("anyone-link", "editor");
     for (let i = 0; i < 10; i++) await Promise.resolve();

@@ -45,6 +45,7 @@ import {
   adoptSharedWorkspace,
   previewSharedWorkspace,
   renameWorkspace,
+  isDefaultWorkspaceName,
 } from "./stores/workspaces";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
@@ -610,9 +611,11 @@ async function seedWorkspaceForFirstShare(activeDoc: Doc): Promise<void> {
   // literal "Shared workspace" (and applyWorkspaceMeta's `if (name)` guard
   // never healed it) — including in JoinWorkspaceModal's "<name> is shared
   // with you" copy. Push the local workspace's own name now, as part of
-  // the same first-share seeding as every document's content/meta above.
+  // the same first-share seeding as every document's content/meta above —
+  // but not a self-assigned default like "New workspace", which a joiner
+  // is better off replacing with the document name / "Shared workspace".
   const localWs = get(workspacesStore).find((w) => w.id === activeDoc.workspaceId);
-  if (localWs?.name) pushWorkspaceRename(activeDoc.workspaceId, localWs.name);
+  if (localWs && !isDefaultWorkspaceName(localWs.name)) pushWorkspaceRename(activeDoc.workspaceId, localWs.name);
 }
 
 function createDocBinding(docId: string, role: string): DocBinding {
@@ -954,14 +957,14 @@ function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: s
   if (!local) return;
   if (name) {
     renameWorkspace(local.id, name);
-  } else if (local.name && workspaceRoom.role === "editor") {
+  } else if (!isDefaultWorkspaceName(local.name) && workspaceRoom.role === "editor") {
     // Self-heal a workspace shared before first-share started pushing its
     // name (seedWorkspaceForFirstShare): the room still reports name ""
-    // here, so contribute this editor's local name. The server then
-    // broadcasts it back as a non-empty frame and every session — this one
-    // included — takes the renameWorkspace branch above and settles. A
-    // non-editor's PUT would just 403, so the role guard skips the
-    // pointless request.
+    // here, so contribute this editor's local name (unless it's a
+    // self-assigned default). The server then broadcasts it back as a
+    // non-empty frame and every session — this one included — takes the
+    // renameWorkspace branch above and settles. A non-editor's PUT would
+    // just 403, so the role guard skips the pointless request.
     pushWorkspaceRename(local.id, local.name);
   }
   const orderSet = new Set(docOrder);

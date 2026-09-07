@@ -50,14 +50,14 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 5. Images                          |      18 |       0 |    1 |    19 |
 | 6. Export & print                  |      12 |       0 |    0 |    12 |
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
-| 8. Version history & diff view     |      19 |       0 |    0 |    19 |
+| 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      18 |       0 |    1 |    19 |
 | 10. Workspace collab               |      41 |       1 |    4 |    46 |
 | 11. GitHub auth & Gist             |      21 |       1 |    1 |    23 |
 | 12. GitHub repo sync               |      23 |       0 |    1 |    24 |
 | 13. Mobile                         |      14 |       0 |    1 |    15 |
 | 14. App shell                      |      19 |       1 |    1 |    21 |
-| **Total**                          | **298** |  **3** | **10** | **311** |
+| **Total**                          | **301** |  **3** | **10** | **314** |
 
 ~93% of enumerated scenarios have a test asserting their outcome, ~2%
 are partial, ~5% are gaps (was 59/10/31 at the v1.45.2 first pass;
@@ -300,6 +300,9 @@ _Source: `client/src/version-grouping.ts`, `client/src/history.ts`, `client/src/
 | VER-17 | Diffing any two selected historical entries against each other (not just against Live)             | e2e       | covered | `tests/e2e/local/version-history-grouping.spec.ts` |                                                                               |
 | VER-18 | A historical version renders identically to the live preview (mermaid / math / images / sanitization) | unit    | covered | `tests/client/src/version-preview.test.ts`        | image-ref resolution + DOMPurify sanitization + markdown; mermaid/math paths covered by `mermaid-preview.test.ts` / `math-preview.test.ts` |
 | VER-19 | A normalized image-reference format does not surface as a spurious diff                             | unit      | covered | `tests/client/src/repo-sync.test.ts`             | a local image line round-trips push→pull byte-identical; `computeDiffRows` sees `same` |
+| VER-20 | A shared version snapshot records the usernames that edited in its window (first-seen order, anonymous ignored, carried across a throttled capture); a restore attributes the restorer; the list endpoint returns `authors` (`[]` for pre-feature / migrated snapshots) | integration | covered | `tests/src/workspace-room.test.ts` | `DocRoom.pendingAuthors` accumulated in `handleDocUpdate`, flushed in `maybeSnapshot` / `forceSnapshot` |
+| VER-21 | Version History renders a colour-coded avatar per editor on shared version rows and session headers (union, first-seen order); none for author-less rows; 3 avatars + a `+N` chip past three | component | covered | `tests/client/src/components/VersionHistory.test.ts` | reuses `.presence-avatar` + `colorForUsername` (now in `client/src/user-color.ts`) |
+| VER-22 | A shared version is attributed live to the collaborator who edited it                              | e2e-collab | covered | `tests/e2e/collab/version-history-collab.spec.ts` | asserts the first editor (the 30s throttle holds later ones for the next capture) |
 
 ## 9. Comments
 

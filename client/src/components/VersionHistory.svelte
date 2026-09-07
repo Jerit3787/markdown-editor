@@ -15,6 +15,7 @@
     restoreSharedVersion,
     restoreSharedVersionContent,
   } from "../history";
+  import { colorForUsername } from "../user-color";
   import { renderVersionPreview } from "../version-preview";
   import { showToast } from "../stores/toast";
   import { extractAssetImageRefs } from "../diff-image-row";
@@ -27,6 +28,7 @@
     kind: "local";
     id: string;
     timestamp: number;
+    authors: string[];
   }
   interface CommitEntry {
     kind: "commit";
@@ -43,6 +45,7 @@
     startTimestamp: number;
     endTimestamp: number;
     entries: LocalEntry[];
+    authors: string[]; // de-duped union of the nested entries' authors, first-seen order
   }
   type HistoryEntry = LocalEntry | CommitEntry | SessionEntry;
 
@@ -289,11 +292,19 @@
     // silently merging every entry into one group) — sort back to
     // oldest-first before grouping.
     const localEntries: LocalEntry[] = localList
-      .map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp }))
+      .map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp, authors: v.authors ?? [] }))
       .sort((a, b) => a.timestamp - b.timestamp);
     const groupedLocalEntries: HistoryEntry[] = groupSnapshotsIntoSessions(localEntries).map((g) =>
       g.entries.length > 1
-        ? { kind: "session" as const, id: g.entries[0]!.id, timestamp: g.endTimestamp, startTimestamp: g.startTimestamp, endTimestamp: g.endTimestamp, entries: g.entries }
+        ? {
+            kind: "session" as const,
+            id: g.entries[0]!.id,
+            timestamp: g.endTimestamp,
+            startTimestamp: g.startTimestamp,
+            endTimestamp: g.endTimestamp,
+            entries: g.entries,
+            authors: [...new Set(g.entries.flatMap((e) => e.authors))],
+          }
         : g.entries[0]!,
     );
     const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);
@@ -396,6 +407,17 @@
   });
 </script>
 
+{#snippet authorAvatars(names: string[])}
+  {#if names.length}
+    <span class="version-history-authors" title={names.join(", ")} aria-label={`Edited by ${names.join(", ")}`}>
+      {#each names.slice(0, 3) as name (name)}
+        <span class="presence-avatar presence-avatar-sm" style:background={colorForUsername(name)}>{name.charAt(0).toUpperCase()}</span>
+      {/each}
+      {#if names.length > 3}<span class="version-history-author-more">+{names.length - 3}</span>{/if}
+    </span>
+  {/if}
+{/snippet}
+
 {#if $versionHistoryOpen}
   <div class="version-history-overlay" role="dialog" aria-modal="true" aria-labelledby="versionHistoryTitle">
     <div class="version-history-header">
@@ -422,9 +444,12 @@
                 <button type="button" class="version-history-row version-history-session-header" onclick={() => toggleSession(v.id)}>
                   <span class="version-history-row-label">
                     <svg class="icon version-history-chevron" class:expanded={expandedSessions.has(v.id)}><use href="#icon-chevron-right"></use></svg>
-                    {formatSessionLabel(v.startTimestamp, v.endTimestamp, v.entries.length)}
+                    <span class="version-history-label-text">{formatSessionLabel(v.startTimestamp, v.endTimestamp, v.entries.length)}</span>
                   </span>
-                  {#if i === 0}<span class="version-history-current">(includes current)</span>{/if}
+                  <span class="version-history-row-meta">
+                    {#if i === 0}<span class="version-history-current">(current)</span>{/if}
+                    {@render authorAvatars(v.authors)}
+                  </span>
                 </button>
                 {#if expandedSessions.has(v.id)}
                   {#each [...v.entries].reverse() as nested, ni (nested.id)}
@@ -434,8 +459,11 @@
                       class:active={nested.id === selectedId}
                       onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), nested)}
                     >
-                      <span class="version-history-row-label">{formatTimestamp(nested.timestamp)}</span>
-                      {#if i === 0 && ni === 0}<span class="version-history-current">(current)</span>{/if}
+                      <span class="version-history-row-label"><span class="version-history-label-text">{formatTimestamp(nested.timestamp)}</span></span>
+                      <span class="version-history-row-meta">
+                        {#if i === 0 && ni === 0}<span class="version-history-current">(current)</span>{/if}
+                        {@render authorAvatars(nested.authors)}
+                      </span>
                     </button>
                   {/each}
                 {/if}
@@ -450,12 +478,13 @@
                 <span class="version-history-row-label">
                   {#if v.kind === "commit"}
                     <svg class="icon"><use href="#icon-github"></use></svg>
-                    {v.message}
-                  {:else}
-                    {formatTimestamp(v.timestamp)}
                   {/if}
+                  <span class="version-history-label-text">{v.kind === "commit" ? v.message : formatTimestamp(v.timestamp)}</span>
                 </span>
-                {#if i === 0}<span class="version-history-current">(current)</span>{/if}
+                <span class="version-history-row-meta">
+                  {#if i === 0}<span class="version-history-current">(current)</span>{/if}
+                  {#if v.kind === "local"}{@render authorAvatars(v.authors)}{/if}
+                </span>
               </button>
             {/if}
           {/each}

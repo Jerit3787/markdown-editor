@@ -53,6 +53,7 @@ import { getSuggestionsMap } from "./suggestions";
 import { pendingSuggestionCount } from "./stores/suggestions";
 import { remoteCommentsChanged } from "./stores/commentsPanel";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
+import { COLORS, colorForUsername } from "./user-color";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
 // informational for whoever's reading the link — actual access is always
@@ -68,7 +69,6 @@ const MESSAGE_PRESENCE = 2;
 const MESSAGE_WORKSPACE_META = 3;
 const MESSAGE_COMMENTS = 4;
 
-const COLORS = ["#e64980", "#f76707", "#f59f00", "#40c057", "#12b886", "#228be6", "#7950f2", "#e8590c"];
 export const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
 const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment", editor: "edit" };
 export const ROLE_TO_SEGMENT: Record<string, string> = { viewer: "view", reviewer: "review", editor: "edit" };
@@ -1108,12 +1108,6 @@ function send(bytes: Uint8Array) {
 // every room they join in that session (not regenerated per-join, so their
 // presence avatar/cursor label stays consistent while they're around).
 
-function colorForUsername(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return COLORS[hash % COLORS.length];
-}
-
 const GUEST_ADJECTIVES = ["Quiet", "Curious", "Swift", "Gentle", "Bold", "Clever", "Calm", "Bright"];
 const GUEST_ANIMALS = ["Fox", "Owl", "Otter", "Falcon", "Panda", "Lynx", "Heron", "Wren"];
 let guestIdentity: { name: string; color: string } | null = null;
@@ -1290,8 +1284,6 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
 // This file keeps ownership of room/access state and the topbar presence
 // pill (#shareBtn, #presenceBar), which render outside the modal's own DOM
 // subtree, and pushes everything the component needs into stores/share.ts.
-
-export { colorForUsername };
 
 // Exported purely for collab.test.ts's join-generation race regression
 // test — not part of any real caller's public surface.

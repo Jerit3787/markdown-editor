@@ -49,6 +49,11 @@ export interface Snapshot {
   timestamp: number;
   content: string;
   images?: Record<string, string>;
+  // GitHub usernames of the collaborators who edited during this
+  // snapshot's window, first-seen order. Absent on snapshots captured
+  // before authorship tracking, and on snapshots migrated in from a
+  // legacy CollabRoom — every read path treats absent as [].
+  authors?: string[];
 }
 
 export interface CommentReply {
@@ -97,6 +102,11 @@ export interface DocRoom {
   awareness: awarenessProtocol.Awareness;
   snapshots: Snapshot[];
   lastSnapshotAt: number | undefined;
+  // Usernames that have edited this doc since the last snapshot capture —
+  // flushed onto Snapshot.authors and cleared by maybeSnapshot /
+  // forceSnapshot. In-memory only; losing it across DO eviction just
+  // means a snapshot with fewer (or no) recorded authors.
+  pendingAuthors: Set<string>;
   commentThreads: CommentThread[];
   persistScheduled: boolean;
 }
@@ -173,6 +183,7 @@ export class WorkspaceRoom {
       awareness,
       snapshots: [],
       lastSnapshotAt: undefined,
+      pendingAuthors: new Set(),
       commentThreads: storedComments || [],
       persistScheduled: false,
     };
@@ -572,6 +583,10 @@ export class WorkspaceRoom {
     syncProtocol.writeUpdate(encoder, update);
     this.broadcast(encoding.toUint8Array(encoder), origin);
     if (origin === "storage") return;
+    // `origin` is the editing client's WebSocket for a real edit (and the
+    // string "restore" for a restore, which isn't a sessions key).
+    const editor = this.sessions.get(origin as WebSocket);
+    if (editor?.username) docRoom.pendingAuthors.add(editor.username);
     this.refreshCommentAnchors(docRoom, docRoom.doc.getText("content").toString());
     this.schedulePersist(docId, docRoom);
     if (origin !== "restore") void this.maybeSnapshot(docId, docRoom);
@@ -663,19 +678,22 @@ export class WorkspaceRoom {
         snapshots = snapshots.filter((s) => idsToKeep.has(s.id));
       }
     }
-    snapshots.push({ id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom) });
+    const authors = [...docRoom.pendingAuthors];
+    snapshots.push({ id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom), authors: authors.length ? authors : undefined });
     while (snapshots.length > 300) snapshots.shift();
     await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);
     docRoom.lastSnapshotAt = now;
+    docRoom.pendingAuthors.clear();
   }
 
-  async forceSnapshot(docId: string, docRoom: DocRoom, content: string, now: number = Date.now()): Promise<Snapshot> {
+  async forceSnapshot(docId: string, docRoom: DocRoom, content: string, now: number = Date.now(), author?: string): Promise<Snapshot> {
     const snapshots = await this.getSnapshots(docId);
-    const snap: Snapshot = { id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom) };
+    const snap: Snapshot = { id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom), authors: author ? [author] : undefined };
     snapshots.push(snap);
     while (snapshots.length > 50) snapshots.shift();
     await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);
     docRoom.lastSnapshotAt = now;
+    docRoom.pendingAuthors.clear();
     return snap;
   }
 
@@ -684,7 +702,7 @@ export class WorkspaceRoom {
     const auth = await this.authorize(request);
     if (!auth.ok) return new Response(auth.message, { status: auth.status });
     const snapshots = await this.getSnapshots(docId);
-    const list = snapshots.map((s) => ({ id: s.id, timestamp: s.timestamp })).reverse();
+    const list = snapshots.map((s) => ({ id: s.id, timestamp: s.timestamp, authors: s.authors ?? [] })).reverse();
     return Response.json(list);
   }
 
@@ -718,7 +736,7 @@ export class WorkspaceRoom {
         for (const [key, value] of Object.entries(snap.images)) imagesMap.set(key, value);
       }
     }, "restore");
-    const created = await this.forceSnapshot(docId, docRoom, snap.content);
+    const created = await this.forceSnapshot(docId, docRoom, snap.content, Date.now(), auth.username ?? undefined);
     return Response.json(created);
   }
 
@@ -746,7 +764,7 @@ export class WorkspaceRoom {
       text.delete(0, text.length);
       text.insert(0, content);
     }, "restore");
-    const created = await this.forceSnapshot(docId, docRoom, content);
+    const created = await this.forceSnapshot(docId, docRoom, content, Date.now(), auth.username ?? undefined);
     return Response.json(created);
   }
 

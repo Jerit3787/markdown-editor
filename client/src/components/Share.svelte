@@ -4,18 +4,8 @@
   import Toggletip from "./Toggletip.svelte";
   import { githubUsername } from "../stores/github";
   import { shareModalOpen, shareAccess, shareTargetName } from "../stores/share";
-  import {
-    closeShareModal,
-    setAccessMode,
-    setRole,
-    setInviteRole,
-    buildShareLink,
-    addPerson,
-    removeInvite,
-    colorForUsername,
-    DEFAULT_ACCESS,
-    type AccessMode,
-  } from "../collab";
+  import { closeShareModal, setAccessMode, setRole, setInviteRole, buildShareLink, addPerson, removeInvite, DEFAULT_ACCESS, type AccessMode } from "../collab";
+  import { colorForUsername } from "../user-color";
   import { showToast } from "../stores/toast";
 
   const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment", editor: "edit" };

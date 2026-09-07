@@ -34,7 +34,7 @@ async function expectFixtureRepoPulled(page: Page) {
 test("REPO-19: linking a workspace to a repo pulls every .md recursively", async ({ page }) => {
   await signInReal(page);
   await page.click("#emptyNewWorkspaceBtn"); // a workspace to link
-  await page.click("#menuOpenRepo");
+  await page.evaluate(() => window.MDE.openRepoModal?.());
   await expect(page.locator('text="Open GitHub Repo as Workspace"')).toBeVisible();
 
   await page.fill('input[aria-label="owner/repo"]', REPO);

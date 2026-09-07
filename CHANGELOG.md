@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.49.0] - UNRELEASED
+
+### Added
+
+- **Google Drive — Open markdown from Drive.** Connect Google Drive from Settings or File > Open, then pick markdown files from anywhere in your Drive to import them as documents in the current workspace. Uses the privacy-friendly `drive.file` scope (the app only ever sees files you pick or it creates). Save-to-Drive and full folder sync land in the same release — see `docs/superpowers/plans/`.
+
 ## [1.48.8] - 2026-09-08
 
 ### Fixed

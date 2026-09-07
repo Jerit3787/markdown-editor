@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.0] - 2026-09-08
+
+### Added
+
+- **Version History shows who edited each version.** A shared document's version list now marks every version — and every collapsed editing session — with a colour-coded avatar for each collaborator whose edits it contains, the same way the live presence avatars work. Restoring a version is attributed to whoever restored it. (Versions saved before this update, and versions carried over from an old single-document share link, have no author recorded and show none.)
+
 ## [1.47.2] - 2026-09-08
 
 ### Fixed

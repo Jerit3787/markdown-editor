@@ -297,4 +297,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/share-collaborator-view.png",
     category: "Collaboration",
   },
+  {
+    version: "1.48.0",
+    title: "See Who Changed What",
+    description:
+      "Version History now shows a colour-coded avatar for every collaborator whose edits a version contains — on each version and each collapsed editing session — so you can tell at a glance whose work you're about to restore or compare.",
+    screenshot: "/whats-new/version-history-authors.png",
+    category: "Version History",
+  },
 ];

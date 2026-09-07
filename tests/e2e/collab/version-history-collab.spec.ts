@@ -51,11 +51,11 @@ test("VER-08: a joined collaborator can browse a shared document's server-side v
   await peerCtx.close();
 });
 
-// VER-17 — a shared version snapshot is attributed to the collaborator
+// VER-22 — a shared version snapshot is attributed to the collaborator
 // whose edits it captured. (The first snapshot in an editing burst records
 // only the first editor — the 30s throttle holds later ones for the next
 // capture — so this asserts the owner, whose edit lands first.)
-test("VER-17: a shared version is attributed to the collaborator who edited it", async ({ browser }) => {
+test("VER-22: a shared version is attributed to the collaborator who edited it", async ({ browser }) => {
   const ownerCtx = await browser.newContext();
   const peerCtx = await browser.newContext();
   const owner = await ownerCtx.newPage();

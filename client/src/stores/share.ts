@@ -43,5 +43,5 @@ export const identityUnverified = writable(false);
 // (see that store's own comment for why teardownWorkspace() itself is
 // the wrong place), plus right after a role successfully resolves in
 // joinSharedLink/rejoinKnownWorkspace.
-export type WorkspaceAccessDeniedReason = "no-session" | "no-access";
+export type WorkspaceAccessDeniedReason = "no-session" | "no-access" | "deleted";
 export const workspaceAccessDenied = writable<WorkspaceAccessDeniedReason | null>(null);

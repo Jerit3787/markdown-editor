@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { get } from "svelte/store";
-  import { commentsPanelOpen, unresolvedCommentCount } from "../stores/commentsPanel";
+  import { commentsPanelOpen, unresolvedCommentCount, remoteCommentsChanged } from "../stores/commentsPanel";
   import { commentDraft } from "../stores/commentDraft";
   import { activeIdStore, getActiveDoc, addDocNote, deleteDocNote } from "../stores/docs";
   import { fetchAndMergeRepoHistory } from "../repo-history-sync";
@@ -25,8 +25,14 @@
   function currentDocContext() {
     const doc = getActiveDoc();
     if (!doc) return null;
-    const isShared = !!get(workspacesStore).find((w) => w.id === doc.workspaceId)?.shared;
-    return { doc, isShared };
+    const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
+    // A workspace this session *joined* has a local id distinct from the
+    // Durable Object's id — every /api/workspace/* call has to address the
+    // room by ws.remoteId, not doc.workspaceId (which only coincide for
+    // the workspace's original owner). See wikilink-rename-cascade.ts for
+    // the same remoteId! resolution.
+    const roomId = ws?.remoteId ?? doc.workspaceId;
+    return { doc, isShared: !!ws?.shared, roomId };
   }
 
   async function loadEntries() {
@@ -39,7 +45,7 @@
     }
     loading = true;
     if (ctx.isShared) {
-      const threads = await listComments(ctx.doc.workspaceId, ctx.doc.id);
+      const threads = await listComments(ctx.roomId, ctx.doc.id);
       entries = threads.map((t) => ({ ...t, kind: "thread" as const }));
       unresolvedCommentCount.set(countUnresolvedComments(threads));
     } else {
@@ -79,7 +85,7 @@
     const cm = window.MDE.getEditor();
     const quote = cm.state.sliceDoc($commentDraft.from, $commentDraft.to);
     if (ctx.isShared) {
-      const thread = await createComment(ctx.doc.workspaceId, ctx.doc.id, $commentDraft.from, $commentDraft.to, quote, draftBody.trim());
+      const thread = await createComment(ctx.roomId, ctx.doc.id, $commentDraft.from, $commentDraft.to, quote, draftBody.trim());
       if (!thread) showToast("Couldn't add comment", "error");
     } else {
       addDocNote($commentDraft.from, $commentDraft.to, quote, draftBody.trim());
@@ -95,7 +101,7 @@
     if (!ctx || !ctx.isShared) return;
     const body = (replyBodies[threadId] || "").trim();
     if (!body) return;
-    await replyToComment(ctx.doc.workspaceId, ctx.doc.id, threadId, body);
+    await replyToComment(ctx.roomId, ctx.doc.id, threadId, body);
     replyBodies = { ...replyBodies, [threadId]: "" };
     await loadEntries();
   }
@@ -103,7 +109,7 @@
   async function toggleResolve(thread: CommentThread) {
     const ctx = currentDocContext();
     if (!ctx || !ctx.isShared) return;
-    await resolveComment(ctx.doc.workspaceId, ctx.doc.id, thread.id, !thread.resolved);
+    await resolveComment(ctx.roomId, ctx.doc.id, thread.id, !thread.resolved);
     await loadEntries();
   }
 
@@ -113,7 +119,7 @@
     if (entry.kind === "note") {
       deleteDocNote(entry.id);
     } else {
-      const ok = await deleteComment(ctx.doc.workspaceId, ctx.doc.id, entry.id);
+      const ok = await deleteComment(ctx.roomId, ctx.doc.id, entry.id);
       if (!ok) {
         showToast("Couldn't delete comment", "error");
         return;
@@ -144,6 +150,15 @@
     // loadVersions() always yields for local docs too. queueMicrotask
     // forces the same real yield here regardless of which branch runs.
     queueMicrotask(() => void loadEntries());
+  });
+
+  // A collaborator changed this document's comments in the shared room —
+  // refetch, but only when the change is for the document we're showing.
+  $effect(() => {
+    const signal = $remoteCommentsChanged;
+    if (signal.n === 0) return;
+    const activeId = get(activeIdStore);
+    if (signal.docId === activeId) queueMicrotask(() => void loadEntries());
   });
 
   function close() {

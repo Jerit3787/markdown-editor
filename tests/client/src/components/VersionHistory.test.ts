@@ -171,3 +171,28 @@ test("REPO-24: a signed-out viewer never fires the /commits request for a repo-l
   expect((fetchSpy.mock.calls as unknown as string[][]).some((c) => String(c[0]).includes("/commits"))).toBe(false);
   vi.unstubAllGlobals();
 });
+
+test("VER-08: a shared doc's version calls address the room by remoteId, not the local workspace id", async () => {
+  // A workspace this session JOINED has a local id distinct from the
+  // Durable Object's id — every /api/workspace/* call must use ws.remoteId
+  // or it 403s for everyone but the room's original owner.
+  workspacesStore.set([{ id: "local-ws-id", name: "WS", createdAt: 0, updatedAt: 0, shared: true, remoteId: "room-abc-123" }]);
+  docsStore.set([{ id: DOC_ID, name: "Test", content: "live", updatedAt: 0, createdAt: 0, workspaceId: "local-ws-id" }]);
+  activeIdStore.set(DOC_ID);
+
+  const fetchSpy = vi.fn(async (url: string) => {
+    if (String(url).endsWith("/versions")) return new Response(JSON.stringify([{ id: "s1", timestamp: 1_000 }]), { status: 200 });
+    if (String(url).includes("/versions/s1")) return new Response(JSON.stringify({ content: "snapshot one", images: {} }), { status: 200 });
+    return new Response("[]", { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchSpy);
+
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText(/1970/)).toBeVisible();
+
+  const urls = (fetchSpy.mock.calls as unknown as string[][]).map((c) => String(c[0]));
+  expect(urls.some((u) => u.includes("/api/workspace/room-abc-123/docs/"))).toBe(true);
+  expect(urls.some((u) => u.includes("/api/workspace/local-ws-id/"))).toBe(false);
+  vi.unstubAllGlobals();
+});

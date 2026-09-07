@@ -763,6 +763,35 @@ describe("WorkspaceRoom comment threads", () => {
     expect(nfRes.status).toBe(404);
   });
 
+  it("CMT-15: create / reply / resolve / delete each broadcast a MESSAGE_COMMENTS frame for that doc to connected sessions", async () => {
+    const { room, thread } = await roomWithThread("editor");
+    const sent: ArrayBuffer[] = [];
+    const peerWs = { send: (d: ArrayBuffer) => sent.push(d) } as unknown as WebSocket;
+    room.sessions.set(peerWs, { username: "carol", role: "editor", viewingDocId: null });
+
+    const MESSAGE_COMMENTS = 4;
+    const isCommentsFrame = (buf: ArrayBuffer) => {
+      const d = decoding.createDecoder(new Uint8Array(buf));
+      return decoding.readVarUint(d) === MESSAGE_COMMENTS && decoding.readVarString(d) === "docA";
+    };
+
+    await room.handleCommentsRequest(await req("bob", `/docs/docA/comments`, { from: 0, to: 5, quote: "quote", body: "new one" }), "docA");
+    await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/${thread.id}/reply`, { body: "a reply" }), "docA", thread.id);
+    await room.handleCommentResolveRequest(await req("bob", `/docs/docA/comments/${thread.id}/resolve`, {}), "docA", thread.id);
+    const access = { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [{ username: "bob", role: "editor" }] };
+    await room.state.storage.put("access", access);
+    await room.handleCommentDeleteRequest(
+      new Request(`https://example.com/w/ws1/docs/docA/comments/${thread.id}`, {
+        method: "DELETE",
+        headers: { Cookie: `mde_gh_session=${await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" })}` },
+      }),
+      "docA",
+      thread.id,
+    );
+
+    expect(sent.filter(isCommentsFrame)).toHaveLength(4);
+  });
+
   it("CMT-18: a whitespace-only new comment is rejected 400 Invalid comment.", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     await room.state.storage.put("access", {

@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.10] - 2026-09-07
+
+### Fixed
+
+- **Comments and version history now work for collaborators who _joined_ a shared workspace, not just its owner.** A joined workspace's local id differs from the collaboration room's id, and `CommentsPanel` / `VersionHistory` were addressing the room by the local id — so every non-owner's comment list, comment creation, and version-history browsing silently 403'd. Both now resolve the room's `remoteId` (the same way the wiki-link rename cascade already did).
+- **Comment changes on a shared document now propagate live.** Adding, replying to, resolving, or deleting a comment broadcasts a new `MESSAGE_COMMENTS` frame that every connected collaborator turns into a refetch — previously a peer only saw the change on its next document switch or reload. Covered by a new `e2e-collab` test (CMT-15) plus the existing integration suite.
+
+### Changed
+
+- **Test coverage — shared-document comments (CMT-15) and version history (VER-08).** New `tests/e2e/collab/comments-collab.spec.ts` and `tests/e2e/collab/version-history-collab.spec.ts` drive a real second collaborator; a `VersionHistory` component test pins the `remoteId` addressing. Catalogued coverage is now 297/311 with 11 gaps (the Total row's long-standing off-by-one against its own subsystem rows is corrected in the same edit).
+
 ## [1.46.9] - 2026-09-07
 
 ### Changed

@@ -26,6 +26,11 @@ export interface Snapshot {
 export interface VersionSummary {
   id: string;
   timestamp: number;
+  // GitHub usernames who edited in this version's window (shared docs
+  // only; the local-history endpoint doesn't populate it). Always an
+  // array from the shared endpoint — [] for pre-feature / migrated
+  // snapshots.
+  authors: string[];
 }
 
 function uid(): string {
@@ -103,7 +108,9 @@ export async function maybeSnapshotVersion(docId: string, content: string, now: 
 
 export async function listVersions(docId: string): Promise<VersionSummary[]> {
   const snapshots = await getHistory(docId);
-  return snapshots.map((s) => ({ id: s.id, timestamp: s.timestamp })).reverse();
+  // Local (never-shared) history is single-author by definition — no
+  // avatars are shown for it, so authors stays empty.
+  return snapshots.map((s) => ({ id: s.id, timestamp: s.timestamp, authors: [] as string[] })).reverse();
 }
 
 export async function getVersionContent(docId: string, versionId: string): Promise<string | undefined> {

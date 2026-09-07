@@ -196,3 +196,91 @@ test("VER-08: a shared doc's version calls address the room by remoteId, not the
   expect(urls.some((u) => u.includes("/api/workspace/local-ws-id/"))).toBe(false);
   vi.unstubAllGlobals();
 });
+
+function sharedDocSetup() {
+  workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0, shared: true, remoteId: "room-1" }]);
+  docsStore.set([{ id: DOC_ID, name: "Test", content: "live", updatedAt: 0, createdAt: 0, workspaceId: "w1" }]);
+  activeIdStore.set(DOC_ID);
+}
+const jsonRes = (v: unknown) => new Response(JSON.stringify(v), { status: 200 });
+
+test("VER-16: a shared version row shows one avatar per editor", async () => {
+  sharedDocSetup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (String(url).endsWith("/versions")) return jsonRes([{ id: "s1", timestamp: 1000, authors: ["alice", "bob"] }]);
+      if (String(url).includes("/versions/s1")) return jsonRes({ content: "x", images: {} });
+      return jsonRes([]);
+    }),
+  );
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText(/1970/)).toBeVisible();
+
+  const row = screen.container.querySelector(".version-history-row")!;
+  expect(row.querySelectorAll(".presence-avatar").length).toBe(2);
+  expect(row.querySelector(".version-history-authors")!.getAttribute("title")).toBe("alice, bob");
+  vi.unstubAllGlobals();
+});
+
+test("VER-16: a session header shows the de-duped union of its entries' editors, first-seen order", async () => {
+  sharedDocSetup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (String(url).endsWith("/versions"))
+        return jsonRes([
+          { id: "s1", timestamp: 1000, authors: ["alice"] },
+          { id: "s2", timestamp: 1000 + 35_000, authors: ["bob", "alice"] },
+        ]);
+      if (String(url).includes("/versions/")) return jsonRes({ content: "x", images: {} });
+      return jsonRes([]);
+    }),
+  );
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText(/edits/)).toBeVisible();
+
+  const header = screen.container.querySelector(".version-history-session-header")!;
+  expect(header.querySelector(".version-history-authors")!.getAttribute("title")).toBe("alice, bob");
+  vi.unstubAllGlobals();
+});
+
+test("VER-16: a row with no authors renders no avatar", async () => {
+  sharedDocSetup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (String(url).endsWith("/versions")) return jsonRes([{ id: "s1", timestamp: 1000, authors: [] }]);
+      if (String(url).includes("/versions/s1")) return jsonRes({ content: "x", images: {} });
+      return jsonRes([]);
+    }),
+  );
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText(/1970/)).toBeVisible();
+  expect(screen.container.querySelector(".version-history-row .presence-avatar")).toBeNull();
+  expect(screen.container.querySelector(".version-history-authors")).toBeNull();
+  vi.unstubAllGlobals();
+});
+
+test("VER-16: more than three editors collapse to 3 avatars + a +N chip", async () => {
+  sharedDocSetup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (String(url).endsWith("/versions")) return jsonRes([{ id: "s1", timestamp: 1000, authors: ["a", "b", "c", "d", "e"] }]);
+      if (String(url).includes("/versions/s1")) return jsonRes({ content: "x", images: {} });
+      return jsonRes([]);
+    }),
+  );
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText(/1970/)).toBeVisible();
+
+  const row = screen.container.querySelector(".version-history-row")!;
+  expect(row.querySelectorAll(".presence-avatar").length).toBe(3);
+  expect(row.querySelector(".version-history-author-more")!.textContent).toContain("+2");
+  vi.unstubAllGlobals();
+});

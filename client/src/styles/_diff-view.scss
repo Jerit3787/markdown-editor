@@ -43,8 +43,10 @@
 .version-history-row {
   width: 100%;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 2px 8px;
   text-align: left;
   border: none;
   background: none;
@@ -61,8 +63,39 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.version-history-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.version-history-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto; // stays right-aligned even when it wraps to its own line
 }
 .version-history-current {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.version-history-authors {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  .presence-avatar {
+    margin-left: -6px;
+  }
+  .presence-avatar:first-child {
+    margin-left: 0;
+  }
+}
+.version-history-author-more {
+  margin-left: 4px;
   font-size: 11px;
   color: var(--text-dim);
 }

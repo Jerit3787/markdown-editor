@@ -1142,9 +1142,64 @@ describe("WorkspaceRoom.handleMetaRequest", () => {
     });
     const res = await room.handleMetaRequest(request);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ name: "Renamed Workspace" });
+    expect(await res.json()).toEqual({ name: "Renamed Workspace", repoLinked: false });
     expect(room.name).toBe("Renamed Workspace");
     expect(await room.state.storage.get("name")).toBe("Renamed Workspace");
+  });
+
+  it("accepts a repoLinked flag from an editor and carries it in the next meta frame", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    room.docIds = ["docA", "docB"];
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const res = await room.handleMetaRequest(
+      new Request("https://example.com/w/ws1/meta", {
+        method: "PUT",
+        headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ repoLinked: true }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(room.repoLinked).toBe(true);
+    expect(await room.state.storage.get("repoLinked")).toBe(true);
+
+    const dec = decoding.createDecoder(room.encodeWorkspaceMeta());
+    expect(decoding.readVarUint(dec)).toBe(MESSAGE_WORKSPACE_META);
+    decoding.readVarString(dec); // name
+    const n = decoding.readVarUint(dec);
+    for (let i = 0; i < n; i++) decoding.readVarString(dec);
+    expect(decoding.readVarUint(dec)).toBe(1); // trailing repoLinked
+  });
+
+  it("still accepts a name-only PUT and rejects an empty body", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const mk = (body: unknown) =>
+      room.handleMetaRequest(
+        new Request("https://example.com/w/ws1/meta", {
+          method: "PUT",
+          headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      );
+    expect((await mk({ name: "Renamed" })).status).toBe(200);
+    expect((await mk({})).status).toBe(400);
+  });
+
+  it("rejects a non-editor's repoLinked PUT", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "carol" });
+    const res = await room.handleMetaRequest(
+      new Request("https://example.com/w/ws1/meta", {
+        method: "PUT",
+        headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ repoLinked: true }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(room.repoLinked).toBe(false);
   });
 
   it("broadcasts the new name and current docOrder to other connected sessions", async () => {

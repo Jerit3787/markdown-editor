@@ -49,38 +49,38 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 2. Preview, scroll-sync & rendering |     23 |       0 |    0 |    23 |
 | 3. Markdown dialects               |      25 |       0 |    0 |    25 |
 | 4. Documents, workspaces & multi-tab |    24 |       0 |    0 |    24 |
-| 5. Images                          |      18 |       0 |    1 |    19 |
+| 5. Images                          |      19 |       0 |    0 |    19 |
 | 6. Export & print                  |      12 |       0 |    0 |    12 |
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      19 |       0 |    0 |    19 |
-| 10. Workspace collab               |      44 |       1 |    1 |    46 |
+| 10. Workspace collab               |      45 |       1 |    0 |    46 |
 | 11. GitHub auth & Gist             |      22 |       1 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
-| 14. App shell                      |      19 |       1 |    1 |    21 |
-| **Total**                          | **308** |  **3** |  **3** | **314** |
+| 14. App shell                      |      21 |       0 |    0 |    21 |
+| **Total**                          | **312** |  **2** |  **0** | **314** |
 
-~93% of enumerated scenarios have a test asserting their outcome, ~2%
-are partial, ~5% are gaps (was 59/10/31 at the v1.45.2 first pass;
-Phases 1–14 + Bucket A done. Fully covered: §1–§7. The 15 remaining gaps
-are, by design: `e2e-collab` flows queued for Bucket B (live cursors,
-WS-reconnect, reviewer-withdraw, the Share modal, shared comment/version
-propagation, legacy migrate); GIST-05 (isomorphic-git push over
-smart-HTTP) permanently deferred for lack of a git-server test double;
-and four that need a real GitHub OAuth token
-in e2e (GIST-11 open a Gist, REPO-19 link-repo-via-UI, REPO-22
-empty-state-load-from-repo) — permanently deferred (their orchestration is
-integration-covered; automating the click-through would mean a
-fake-GitHub-proxy mode in the Worker, not worth it). Plus MOB-12 (a
-Safari-width `<option>` truncation, not meaningfully assertable in
-Chromium) and COLLAB-31 (a redundant-rejoin edge whose near-case is
-already covered). The pure-logic layers (stores, CRDT/room
-servers, markdown transforms, diff/version model, repo-sync planners)
-are strongly covered; the gaps cluster in UI-orchestration paths
-(modals, menus, the Command Palette, DiagramEditor), the `.md` export
-branch, and a handful of documented past bugs that never got a
-regression test.
+>99% of enumerated scenarios have a test asserting their outcome (was
+59/10/31 at the v1.45.2 first pass; Phases 1–14 + Buckets A/B done, plus
+the real-GitHub and WebKit harnesses). **No `gap` rows remain.** The two
+`partial` rows are both documented deferrals, not backlog:
+
+- **GIST-05** — the happy isomorphic-git push into a gist's own git repo.
+  A push _creates_ a real gist every run and pushing over
+  `gist.github.com/<id>.git`'s smart-HTTP would need a full git-server
+  test double; everything up to the push (validation, `MemoryFS` write)
+  is covered by `gist-images.test.ts`. See `## Deferred`.
+- **COLLAB-31** — `identityUnverified` not getting stuck `false` after a
+  _redundant_ rejoin with the same session. Unit-covered for the
+  adjacent "clears on a resolving rejoin" case; the exact
+  redundant-rejoin permutation isn't isolated.
+
+The pure-logic layers (stores, CRDT/room servers, markdown transforms,
+diff/version model, repo-sync planners) and the UI-orchestration paths
+(modals, menus, the Command Palette, DiagramEditor, the Share modal,
+live collaboration, the legacy-share migration) all have outcome-level
+tests.
 
 ---
 
@@ -220,7 +220,7 @@ _Source: image paste/drop/pick paths in `client/src/app.ts`, `client/src/compone
 | IMG-03 | Dropping an image file onto the editor embeds it at the drop position                             | e2e | covered | `tests/e2e/local/images.spec.ts` | real `drop` DragEvent embeds the image |
 | IMG-04 | An oversized (>2 MB) image inserts the `image too large, 2MB max` marker instead of uploading — on both paste and drop | e2e | covered | `tests/e2e/local/images.spec.ts` | oversized on drop → too-large marker (paste path already covered) |
 | IMG-05 | A non-image paste / drop payload is ignored (the `image/` type filter)                            | e2e | covered | `tests/e2e/local/images.spec.ts` | a dropped `text/plain` file is ignored — no marker, no ref |
-| IMG-06 | The `![Encoding name…]()` placeholder is replaced in place once the `FileReader` resolves, its position tracked across concurrent edits | e2e-collab | gap | —                                | still deferred — needs a second live editor typing during the `FileReader` window (a hard timing setup). Single-editor half covered by IMG-07; see `## Deferred` |
+| IMG-06 | The `![Encoding name…]()` placeholder is replaced in place once the `FileReader` resolves, its position tracked across concurrent edits | e2e-collab | covered | `tests/e2e/collab/image-marker-concurrent.spec.ts` | deterministic 1.5s `FileReader` stub on editor A; a collaborator's prefix insert shifts the live placeholder and the `![raced](raced.png)` swap-in follows it to the tail. Single-editor drop-on-switch is IMG-07 |
 | IMG-07 | Switching documents mid-encode drops the pending image instead of writing it to the wrong doc    | e2e | covered | `tests/e2e/local/images.spec.ts` | switchDoc before the ~500KB read resolves → image lands in neither doc, no stray placeholder |
 | IMG-08 | Toolbar "Image" button / Insert-menu "Image..." opens the tabbed picker (Upload + Existing tabs)   | e2e   | covered | `tests/e2e/local/images.spec.ts`        | picker opens with both tabs; toolbar has exactly one image button          |
 | IMG-09 | Picking a thumbnail on the picker's Existing tab inserts `![alt](key)` and closes the modal        | e2e   | covered | `tests/e2e/local/images.spec.ts`, `tests/client/src/components/ImagePickerModal.test.ts` |                                        |
@@ -378,7 +378,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-36 | `pushWorkspaceRename` / `pushWorkspaceDocDelete` PUT / DELETE to the room only for a shared workspace, and the delete tears down the local Y.Doc binding immediately | unit | covered | `tests/client/src/collab.test.ts`                     |                                                                       |
 | COLLAB-37 | Version snapshots + restore (content and images) enforce editor-only and replace-not-merge semantics server-side, capped at 300 (WorkspaceRoom) / 50 (CollabRoom) | integration | covered | `tests/src/workspace-room.test.ts`, `collab-room.test.ts` | cross-ref §8                                        |
 | COLLAB-38 | `handleWikilinkRenameRequest` rejects no-session / non-editor / missing names, rewrites live content, returns `changed` accurately | integration | covered | `tests/src/workspace-room.test.ts` | cross-ref §3                                                           |
-| COLLAB-39 | Legacy `CollabRoom` single-doc share link transparently migrates to a fresh `WorkspaceRoom` on open, before live sync attaches — end-to-end | e2e-collab | gap  | —                                                     | still deferred — needs a manufactured `/api/collab` room with WS-seeded content, then `/d/<id>` opened by a fresh visitor. `handleMigrateRequest` tombstone + the name-forwarding path are integration-covered (`collab-room.test.ts`, `workspace-room.test.ts`) |
+| COLLAB-39 | Legacy `CollabRoom` single-doc share link transparently migrates to a fresh `WorkspaceRoom` on open, before live sync attaches — end-to-end | e2e-collab | covered | `tests/e2e/collab/legacy-migration.spec.ts` | raw-WS-seeded legacy `CollabRoom` + a fresh visitor opening a `shared: true` doc; asserts content carry-over, the flag clearing, the adopted-workspace `remoteId`, and live sync on the migrated room. `handleMigrateRequest` tombstone also integration-covered (`collab-room.test.ts`) |
 | COLLAB-40 | `normalizeInvited` / `getAccess` legacy migration — `{username, role}` validation, dedupe, 100-cap, legacy `string[]` → editor invites | unit | covered | `tests/src/collab-room.test.ts`                        |                                                                       |
 | COLLAB-41 | `handleInternalSeedRequest` seeds a document's Yjs state, access, snapshots, and comments from a migration payload | integration | covered | `tests/src/workspace-room.test.ts`                    |                                                                       |
 | COLLAB-42 | Cross-document presence (`MESSAGE_PRESENCE` / `workspacePresence` store) — "who is looking at what" avatars, and a socket close clears that session's presence | integration + component | covered | `tests/src/workspace-room.test.ts`, `tests/client/src/components/DocList.test.ts` | socket-close cleanup + the per-row presence avatars (capped at 3) |
@@ -509,6 +509,5 @@ pointing at real bugs awaiting a fix branch.
 
 | ID     | Scenario                                                                 | Why deferred                                                                                                                                                                              |
 | ------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| IMG-06 | The `![Encoding name…]()` placeholder tracks its position as a collaborator's concurrent edits land during the `FileReader` window | `e2e-collab`, deferred to the §10 phase — needs a second live editor making edits while the file reads. The single-editor half (a doc switch mid-read drops the pending image, `if (!range) return`) is covered by IMG-07. |
 | VER-08 | _Restoring_ a **shared** document's version (`restoreSharedVersion` / `restoreSharedVersionContent`) — the click-through, not just the list/open now covered by `version-history-collab.spec.ts` | `e2e-collab` — the Restore button is disabled for the only snapshot the room reliably captures within an e2e's lifetime (it's the "current" one); needs ≥2 distinct server snapshots, and `WorkspaceRoom`'s 30s snapshot-capture gate isn't a quick e2e setup. Server restore route covered by COLLAB-37; local restore by VER-06/VER-07. |
 | GIST-05 | The happy isomorphic-git push into a gist's own repo | Permanently deferred — a push *creates* a real gist every run (teardown burden) and pushing over `gist.github.com/<id>.git`'s smart-HTTP protocol would need a full git-server test double. The `e2e-github` harness is read-only by design; everything up to the push — sign-in, JSON/base64 validation, the `MemoryFS` write — is covered by `gist-images.test.ts`. |

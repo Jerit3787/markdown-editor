@@ -13,6 +13,7 @@ All notable changes to this project are documented here. Format follows
 ### Changed
 
 - **Test coverage — the chronically flaky `e2e-collab` specs are fixed at the source.** `readonly-and-editing-mode` and `live-sync`'s "second document created mid-session" cases were racing the connection-teardown bug above rather than any test-timing issue; with that fixed they pass repeatably (and roughly 10× faster). A `setActiveDocContent` test helper sets a new shared document's content in one atomic editor dispatch instead of racing per-keystroke input against the collab rebind.
+- **Test coverage — the two long-deferred `e2e-collab` gaps are closed.** COLLAB-39 drives the legacy single-document → workspace migration end-to-end: a raw-WebSocket-seeded `CollabRoom`, then a fresh visitor opening a document still carrying the old per-document `shared` flag — asserting the content carries over, the workspace is adopted locally, and live sync works on the migrated room. IMG-06 covers an image-upload placeholder keeping its place when a collaborator types above it mid-encode. No catalogued `gap` rows remain; GIST-05 (a real gist push, which would create a gist every run) stays a documented partial.
 
 ## [1.48.3] - 2026-09-08
 

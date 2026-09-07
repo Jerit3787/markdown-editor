@@ -13,6 +13,9 @@
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
   import { openFindBar } from "../stores/findReplace";
+  import { effectiveMode } from "../stores/collabMode";
+
+  const viewing = $derived($effectiveMode === "viewing");
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
   let editMenuBtn: HTMLButtonElement, editMenu: HTMLDivElement;
@@ -195,7 +198,7 @@
       </button>
 
       <div class="menu-divider"></div>
-      <button id="menuComments" type="button" disabled={!hasActiveDoc} onclick={() => act(() => commentsPanelOpen.set(true))}>
+      <button id="menuComments" type="button" hidden={viewing} disabled={!hasActiveDoc} onclick={() => act(() => commentsPanelOpen.set(true))}>
         <svg class="icon"><use href="#icon-message-square"></use></svg> Comments
         {#if $unresolvedCommentCount > 0}
           <span class="menu-badge">{$unresolvedCommentCount > 99 ? "99+" : $unresolvedCommentCount}</span>
@@ -219,8 +222,8 @@
     </div>
   </div>
 
-  <div class="dropdown">
-    <button bind:this={editMenuBtn} id="editMenuBtn" class="menubar-btn" type="button">Edit</button>
+  <div class="dropdown" hidden={viewing}>
+    <button bind:this={editMenuBtn} id="editMenuBtn" class="menubar-btn" type="button" hidden={viewing}>Edit</button>
     <div bind:this={editMenu} id="editMenu" class="dropdown-menu menubar-menu">
       <button id="menuUndo" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.undo())}><svg class="icon"><use href="#icon-undo-2"></use></svg> Undo <kbd>Ctrl+Z</kbd></button>
       <button id="menuRedo" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.redo())}><svg class="icon"><use href="#icon-redo-2"></use></svg> Redo <kbd>Ctrl+Shift+Z</kbd></button>
@@ -234,8 +237,8 @@
     </div>
   </div>
 
-  <div class="dropdown">
-    <button bind:this={formatMenuBtn} id="formatMenuBtn" class="menubar-btn" type="button">Format</button>
+  <div class="dropdown" hidden={viewing}>
+    <button bind:this={formatMenuBtn} id="formatMenuBtn" class="menubar-btn" type="button" hidden={viewing}>Format</button>
     <div bind:this={formatMenu} id="formatMenu" class="dropdown-menu menubar-menu">
       <button id="menuBold" type="button" class="menu-glyph-btn" disabled={!hasActiveDoc} onclick={() => act(() => formatCmd("bold"))}><b>B</b> Bold <kbd>Ctrl+B</kbd></button>
       <button id="menuItalic" type="button" class="menu-glyph-btn" disabled={!hasActiveDoc} onclick={() => act(() => formatCmd("italic"))}><i>I</i> Italic <kbd>Ctrl+I</kbd></button>
@@ -243,8 +246,8 @@
     </div>
   </div>
 
-  <div class="dropdown">
-    <button bind:this={insertMenuBtn} id="insertMenuBtn" class="menubar-btn" type="button">Insert</button>
+  <div class="dropdown" hidden={viewing}>
+    <button bind:this={insertMenuBtn} id="insertMenuBtn" class="menubar-btn" type="button" hidden={viewing}>Insert</button>
     <div bind:this={insertMenu} id="insertMenu" class="dropdown-menu menubar-menu">
       <button id="menuLink" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.runCmd("link"))}><svg class="icon"><use href="#icon-link"></use></svg> Insert Link... <kbd>Ctrl+K</kbd></button>
       <button id="menuImage" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.runCmd("image"))}><svg class="icon"><use href="#icon-image"></use></svg> Image...</button>

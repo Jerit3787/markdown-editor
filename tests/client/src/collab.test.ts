@@ -33,6 +33,7 @@ import {
   pushWorkspaceDocDelete,
   addPerson,
   joinSharedLink,
+  handleRepoDocsChanged,
 } from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
@@ -1186,6 +1187,44 @@ describe("discovering a document created by another collaborator", () => {
     expect(localDoc?.name).toBe("Bob's New Doc");
     expect(localDoc?.content).toBe("content from bob");
     expect(localDoc?.workspaceId).toBe(ws.id);
+  });
+
+  it("seeds a repo-pulled doc into the connected shared room (E1)", async () => {
+    const { ws } = await setup("repohook1");
+    docsStore.update((d) => [
+      ...d,
+      { id: "pulled-1", name: "Pulled", content: "hi", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "pulled.md" },
+    ]);
+    handleRepoDocsChanged({ workspaceId: ws.id, created: ["pulled-1"], updated: [], deleted: [] });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+
+    expect(workspaceRoom.docs.has("pulled-1")).toBe(true);
+    expect(workspaceRoom.docs.get("pulled-1")!.ytext.toString()).toBe("hi");
+  });
+
+  it("does nothing when the changed workspace is not the connected room (E1)", async () => {
+    await setup("repohook2");
+    handleRepoDocsChanged({ workspaceId: "some-other-ws", created: ["x"], updated: [], deleted: [] });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(workspaceRoom.docs.has("x")).toBe(false);
+  });
+
+  it("pushes a repo-deleted doc's removal to the room (E1)", async () => {
+    const { ws } = await setup("repohook3");
+    // Introduce a synced doc into the room.
+    docsStore.update((d) => [
+      ...d,
+      { id: "syncedDoc", name: "S", content: "s", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "s.md" },
+    ]);
+    handleRepoDocsChanged({ workspaceId: ws.id, created: ["syncedDoc"], updated: [], deleted: [] });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(workspaceRoom.docs.has("syncedDoc")).toBe(true);
+
+    (fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.length = 0;
+    handleRepoDocsChanged({ workspaceId: ws.id, created: [], updated: [], deleted: ["syncedDoc"] });
+
+    const calls = (fetch as unknown as { mock: { calls: [string, { method?: string }?][] } }).mock.calls;
+    expect(calls.some(([u, i]) => String(u).includes("/docs?docId=syncedDoc") && i?.method === "DELETE")).toBe(true);
   });
 
   it("falls back to 'Untitled' when the first frame carries no name yet", async () => {

@@ -33,6 +33,7 @@ import {
   syncRemoteDocContent,
   removeDocById,
   docRemovalHook,
+  repoDocSyncHook,
 } from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
 import { pendingJoin } from "./stores/joinWorkspace";
@@ -226,6 +227,7 @@ function init() {
     if (binding) binding.ydoc.transact(() => binding.metaMap.set("name", name || "Untitled"), "local");
   };
   docRemovalHook.onRemoved = pushWorkspaceDocDelete;
+  repoDocSyncHook.onRepoDocsChanged = handleRepoDocsChanged;
 
   setupShareUI();
 
@@ -593,6 +595,42 @@ function seedNewDocBinding(docId: string, doc: Doc, role: string): void {
   encoding.writeVarString(encoder, docId);
   syncProtocol.writeSyncStep1(encoder, binding.ydoc);
   send(encoding.toUint8Array(encoder));
+}
+
+// Overwrites a synced binding's content + meta wholesale from a plain Doc
+// record — used when a repo pull is authoritative for that file (a clean
+// update, or a "theirs" conflict resolution). Yjs merges it as an
+// ordinary local edit, so collaborators get it like any other change.
+function replaceBindingContent(binding: DocBinding, doc: Doc): void {
+  binding.ydoc.transact(() => {
+    if (binding.ytext.length) binding.ytext.delete(0, binding.ytext.length);
+    if (doc.content) binding.ytext.insert(0, doc.content);
+    binding.metaMap.set("name", doc.name || "Untitled");
+    binding.metaMap.set("metadata", JSON.stringify(doc.metadata ?? []));
+    binding.metaMap.set("citations", JSON.stringify(doc.citations ?? EMPTY_CITATIONS));
+    if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
+  }, "local");
+}
+
+// repoDocSyncHook handler (E1): the owner just pulled from the linked repo.
+// If this workspace is the connected shared room and we're its editor,
+// register the pull's results with the room so applyWorkspaceMeta stops
+// deleting repo docs the server never learned about.
+function handleRepoDocsChanged({ workspaceId, created, updated, deleted }: { workspaceId: string; created: string[]; updated: string[]; deleted: string[] }): void {
+  const ws = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (!ws?.remoteId || ws.remoteId !== workspaceRoom.workspaceId || workspaceRoom.role !== "editor") return;
+  for (const id of created) {
+    const doc = findDocById(id);
+    if (doc && !workspaceRoom.docs.has(id)) seedNewDocBinding(id, doc, "editor");
+  }
+  for (const id of updated) {
+    const binding = workspaceRoom.docs.get(id);
+    const doc = findDocById(id);
+    if (binding && doc) replaceBindingContent(binding, doc);
+  }
+  for (const id of deleted) {
+    if (workspaceRoom.docs.has(id)) pushWorkspaceDocDelete(id, workspaceId);
+  }
 }
 
 // Seeds a brand-new room the first time a workspace is shared — whether
@@ -1382,7 +1420,7 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
 // join-generation race, and that teardownWorkspace() no longer resets
 // identityUnverified — see bb938d9 / COLLAB-31) — not part of any real
 // caller's public surface.
-export { handleDocChanged, workspaceRoom, teardownWorkspace };
+export { handleDocChanged, workspaceRoom, teardownWorkspace, handleRepoDocsChanged };
 
 function setupShareUI() {
   document.getElementById("shareBtn").addEventListener("click", openShareModal);

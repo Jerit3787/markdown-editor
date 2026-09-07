@@ -60,3 +60,26 @@ test("a viewer-role link only offers Viewing", async ({ browser }) => {
   await aCtx.close();
   await bCtx.close();
 });
+
+test("a non-owner editor collaborator has no Publish / GitHub Repo in the File menu", async ({ browser }) => {
+  const aCtx = await browser.newContext();
+  const bCtx = await browser.newContext();
+  const a = await aCtx.newPage();
+  const b = await bCtx.newPage();
+
+  await ownerWithDoc(a, "gate-owner-e2e", "body");
+  const url = await shareAnyoneLink(a, "Editor");
+  await joinSharedWorkspace(b, url);
+
+  await b.click("#fileMenuBtn");
+  await expect(b.locator("#publishSubmenu")).toBeHidden();
+  await expect(b.locator("#menuPublishSignedOut")).toBeHidden();
+  await expect(b.locator('#fileMenu .menu-submenu-trigger:has-text("GitHub Repo")')).toBeHidden();
+
+  // The owner still has them.
+  await a.click("#fileMenuBtn");
+  await expect(a.locator("#publishSubmenu")).toBeVisible();
+
+  await aCtx.close();
+  await bCtx.close();
+});

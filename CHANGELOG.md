@@ -9,6 +9,11 @@ All notable changes to this project are documented here. Format follows
 ### Added
 
 - **Editing / Suggesting / Viewing mode switcher.** In a shared workspace, a switcher next to Share lets you work below your granted role — an editor can review as a suggester or read as a viewer, a reviewer can drop to viewing. Viewing mode hides the editing menus, the comments panel and button, and the editor pane, and adds a floating button to reopen the documents sidebar. More in this release — see `docs/superpowers/plans/`.
+- **Collaborators can see when a workspace syncs to a GitHub repo.** Document Info shows a read-only "Synced to a GitHub repo, managed by the workspace owner" line for people you've shared a repo-linked workspace with.
+
+### Changed
+
+- **Publishing to Gist and syncing to a GitHub repo are the workspace owner's controls only.** A collaborator you share a workspace with — at any role, editor included — no longer sees Publish to Gist or the GitHub Repo menu; those actions belong to whoever owns the workspace.
 
 ## [1.49.0] - 2026-09-08
 

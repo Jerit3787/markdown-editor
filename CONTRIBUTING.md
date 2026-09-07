@@ -31,9 +31,13 @@ Vite dev server instead.
 npm test              # Vitest — unit tests + Svelte component tests, one command
 npm run typecheck     # tsc --noEmit (root/server) + svelte-check (client)
 npm run format:check  # Prettier
-npm run test:e2e:local    # Playwright, client-only flows
+npm run test:e2e:local    # Playwright (Chromium), client-only flows
+npm run test:e2e:webkit   # Playwright (WebKit, iPhone viewport), mobile-Safari-width checks
 npm run test:e2e:collab   # Playwright, spins up a real Worker + live collaboration
 ```
+
+The Playwright browsers download on first run — `npx playwright install
+chromium webkit` if you want them ahead of time.
 
 `npm test` and `npm run typecheck` are fast enough to run on every
 change; the Playwright suites are heavier (`test:e2e:collab` needs a

@@ -107,6 +107,12 @@ test("COLLAB-23a: a joined non-owner's Share modal shows the real access and cop
   // The General-access select reflects the real setting (was always "restricted").
   await expect(peer.locator('select[aria-label="General access"]')).toHaveValue("anyone-link", { timeout: 5000 });
 
+  // ...and it's read-only for a non-owner, with the owner-only hint and the real owner.
+  await expect(peer.locator('select[aria-label="General access"]')).toBeDisabled();
+  await expect(peer.locator('select[aria-label="Access level for people with the link"]')).toBeDisabled();
+  await expect(peer.locator('text="Only the workspace\'s owner can change who has access."')).toBeVisible();
+  await expect(peer.locator(".share-person-owner .share-person-name")).toHaveText("share-owner-e2e");
+
   await peer.locator('button.secondary-btn:has-text("Copy link")').click();
   const copied = await peer.evaluate(() => navigator.clipboard.readText());
   expect(copied).toContain(`/w/${roomId}/`);

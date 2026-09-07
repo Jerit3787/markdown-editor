@@ -31,6 +31,12 @@ const MESSAGE_PRESENCE = 2;
 // same socket as a plain broadcast/greeting frame instead of a Y.Doc.
 // docId-less, like MESSAGE_PRESENCE.
 const MESSAGE_WORKSPACE_META = 3;
+// Comment threads are plain HTTP against DO storage, not Y.Doc updates, so
+// they don't ride the normal sync/broadcast wire — this frame ([type,
+// docId], docId-prefixed like SYNC/AWARENESS) just tells every connected
+// client "this document's comments changed, refetch them". Sent to
+// everyone including the acting client (a redundant refetch is harmless).
+const MESSAGE_COMMENTS = 4;
 
 const SYNC_STEP1 = 0;
 const SYNC_STEP2 = 1;
@@ -384,6 +390,13 @@ export class WorkspaceRoom {
 
   broadcastWorkspaceMeta(): void {
     this.broadcast(this.encodeWorkspaceMeta(), null);
+  }
+
+  broadcastCommentsChanged(docId: string): void {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_COMMENTS);
+    encoding.writeVarString(encoder, docId);
+    this.broadcast(encoding.toUint8Array(encoder), null);
   }
 
   async handleMetaRequest(request: Request): Promise<Response> {
@@ -864,6 +877,7 @@ export class WorkspaceRoom {
       }
       const thread = this.createThread(docId, docRoom, body.from, body.to, body.quote, auth.username || "Anonymous", body.body);
       await this.persistComments(docId, docRoom);
+      this.broadcastCommentsChanged(docId);
       return Response.json(thread);
     }
     return new Response("Method not allowed", { status: 405 });
@@ -885,6 +899,7 @@ export class WorkspaceRoom {
     const thread = this.addReply(docRoom, threadId, auth.username || "Anonymous", body.body);
     if (!thread) return new Response("Thread not found.", { status: 404 });
     await this.persistComments(docId, docRoom);
+    this.broadcastCommentsChanged(docId);
     return Response.json(thread);
   }
 
@@ -903,6 +918,7 @@ export class WorkspaceRoom {
     const thread = this.resolveThread(docRoom, threadId, body.resolved !== false);
     if (!thread) return new Response("Thread not found.", { status: 404 });
     await this.persistComments(docId, docRoom);
+    this.broadcastCommentsChanged(docId);
     return Response.json(thread);
   }
 
@@ -917,6 +933,7 @@ export class WorkspaceRoom {
     if (result === "not_found") return new Response("Thread not found.", { status: 404 });
     if (result === "forbidden") return new Response("Only the thread's author or the workspace owner can delete it.", { status: 403 });
     await this.persistComments(docId, docRoom);
+    this.broadcastCommentsChanged(docId);
     return new Response(null, { status: 204 });
   }
 

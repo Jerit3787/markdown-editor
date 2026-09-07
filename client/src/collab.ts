@@ -51,6 +51,7 @@ import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";
 import { getSuggestionsMap } from "./suggestions";
 import { pendingSuggestionCount } from "./stores/suggestions";
+import { remoteCommentsChanged } from "./stores/commentsPanel";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
@@ -65,6 +66,7 @@ const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 const MESSAGE_PRESENCE = 2;
 const MESSAGE_WORKSPACE_META = 3;
+const MESSAGE_COMMENTS = 4;
 
 const COLORS = ["#e64980", "#f76707", "#f59f00", "#40c057", "#12b886", "#228be6", "#7950f2", "#e8590c"];
 export const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
@@ -955,6 +957,15 @@ function handleServerMessage(data: Uint8Array): void {
   }
 
   const docId = decoding.readVarString(decoder);
+
+  if (messageType === MESSAGE_COMMENTS) {
+    // Another collaborator changed this document's comment threads — poke
+    // CommentsPanel.svelte to refetch (it decides whether docId is the one
+    // currently open). No binding needed; comments aren't in the Y.Doc.
+    remoteCommentsChanged.update((s) => ({ docId, n: s.n + 1 }));
+    return;
+  }
+
   // A MESSAGE_SYNC frame for a docId we've never seen before means
   // another collaborator created (or first switched to) that document
   // after this session already joined the workspace — see

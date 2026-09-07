@@ -50,6 +50,16 @@
     return !!(doc && get(workspacesStore).find((w) => w.id === doc.workspaceId)?.shared);
   }
 
+  // The Durable Object id for a shared doc's workspace. A workspace this
+  // session *joined* has a local id distinct from the room's id, so every
+  // /api/workspace/* call must address the room by ws.remoteId — the two
+  // only coincide for the workspace's original owner. (Same resolution as
+  // CommentsPanel.currentDocContext and wikilink-rename-cascade.ts.)
+  function sharedRoomId(doc: ReturnType<typeof getActiveDoc>): string {
+    const ws = doc && get(workspacesStore).find((w) => w.id === doc.workspaceId);
+    return ws?.remoteId ?? doc!.workspaceId;
+  }
+
   let versions = $state<HistoryEntry[]>([]);
   let selectedId = $state<string | null>(null);
   let selectedEntry = $state<HistoryEntry | null>(null);
@@ -192,7 +202,7 @@
     if (!doc) return undefined;
     if (entry.kind === "local") {
       if (isShared) {
-        const result = await getSharedVersionSnapshot(doc.workspaceId, doc.id, entry.id);
+        const result = await getSharedVersionSnapshot(sharedRoomId(doc), doc.id, entry.id);
         if (result === undefined) {
           showToast("Couldn't load this version's content", "error");
           return undefined;
@@ -272,7 +282,7 @@
     restoreAllowed = !isShared || !window.MDE.getEditor().state.readOnly;
     loading = true;
     if (!isShared) await fetchAndMergeRepoHistory(doc);
-    const localList = isShared ? await listSharedVersions(doc.workspaceId, doc.id) : await listVersions(doc.id);
+    const localList = isShared ? await listSharedVersions(sharedRoomId(doc), doc.id) : await listVersions(doc.id);
     // listVersions/listSharedVersions both return newest-first, but
     // groupSnapshotsIntoSessions requires oldest-first input (a negative
     // gap against a descending list always satisfies "<= sessionGapMs",
@@ -312,8 +322,8 @@
     if (isShared) {
       const ok =
         entry.kind === "local"
-          ? await restoreSharedVersion(doc.workspaceId, doc.id, entry.id)
-          : await restoreSharedVersionContent(doc.workspaceId, doc.id, content);
+          ? await restoreSharedVersion(sharedRoomId(doc), doc.id, entry.id)
+          : await restoreSharedVersionContent(sharedRoomId(doc), doc.id, content);
       if (ok) {
         showToast("Version restored", "success");
         close();

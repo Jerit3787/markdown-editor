@@ -174,6 +174,43 @@ describe("WorkspaceRoom multiplexed sync", () => {
     expect(room.docs.get("docA")?.doc.getText("content").toString()).toBe("seeded content that must reach the server");
   });
 
+  it("registers a new docId as a workspace member on its first sync frame (persisted)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const clientWs = { send: () => {} } as unknown as WebSocket;
+    room.sessions.set(clientWs, { username: "alice", role: "editor", viewingDocId: null });
+
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "brand new doc");
+    await room.handleMessage(clientWs, encodeSyncUpdate("docNew", Y.encodeStateAsUpdate(scratch)));
+
+    expect(room.docIds).toContain("docNew");
+    expect(await room.state.storage.get("docs")).toContain("docNew");
+  });
+
+  it("loading a doc room to read its comments does NOT make the doc a workspace member", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "anyone",
+      requireAccount: false,
+      role: "editor",
+      invited: [],
+    });
+
+    // Exactly what CommentsPanel fires the moment a brand-new local doc is
+    // opened — the doc has no content and was never synced.
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const res = await room.handleCommentsRequest(
+      new Request("https://example.com/w/ws1/docs/never-synced/comments", { headers: { Cookie: `mde_gh_session=${cookie}` } }),
+      "never-synced",
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([]);
+    expect(room.docIds).not.toContain("never-synced");
+    expect((await room.state.storage.get<string[]>("docs")) ?? []).not.toContain("never-synced");
+  });
+
   // Regression test for a real bug reported live: repeatedly switching
   // documents in a shared workspace made the presence avatar count creep
   // up before eventually dropping back down. Root cause (one of three

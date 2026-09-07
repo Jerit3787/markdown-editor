@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.5] - 2026-09-08
+
+### Fixed
+
+- **Opening a brand-new document in a shared workspace no longer registers it server-side before it has any content.** Loading a document's room to read its comments or version history was quietly adding that document to the workspace's membership list — so the moment you created a new local document, the comment panel's background fetch made the empty document appear in other collaborators' document lists (and, depending on timing, could stop that document's own first edits from reaching the server). Membership is now established only by a real edit-sync or an explicit add.
+
 ## [1.48.4] - 2026-09-08
 
 ### Fixed

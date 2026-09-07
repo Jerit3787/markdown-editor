@@ -10,6 +10,7 @@ import {
   planPush,
   planCreateWorkspaceFromRepo,
   linkWorkspaceAndSync,
+  pullFromRepo,
   markerMatchesWorkspace,
   decodeBase64Text,
   pushToRepo,
@@ -826,6 +827,39 @@ describe("linkWorkspaceAndSync", () => {
     const docs = get(docsStore).filter((d) => d.workspaceId === ws.id);
     const doc = docs.find((d) => d.repoPath === "notes.md")!;
     expect(doc.images?.["photo.png"]).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it("pullFromRepo reports created / updated / deleted doc ids to repoDocSyncHook", async () => {
+    const { repoDocSyncHook } = await import("../../../client/src/stores/docs");
+    const seen: { workspaceId: string; created: string[]; updated: string[]; deleted: string[] }[] = [];
+    repoDocSyncHook.onRepoDocsChanged = (c) => seen.push(c);
+
+    const ws = createWorkspace("Hook WS");
+    backend.seedRepo("alice", "notes", "main", [
+      { path: "keep.md", content: "v1" },
+      { path: "gone.md", content: "bye" },
+    ]);
+    await linkWorkspaceAndSync(ws.id, { owner: "alice", repo: "notes", branch: "main" });
+    const keepDoc = get(docsStore).find((d) => d.workspaceId === ws.id && d.repoPath === "keep.md")!;
+    const goneDoc = get(docsStore).find((d) => d.workspaceId === ws.id && d.repoPath === "gone.md")!;
+
+    // Repo changes: keep updated, gone removed, new added.
+    backend.seedRepo("alice", "notes", "main", [
+      { path: "keep.md", content: "v2" },
+      { path: "new.md", content: "fresh" },
+    ]);
+    seen.length = 0;
+    await pullFromRepo(ws.id, { owner: "alice", repo: "notes", branch: "main" }, new Set());
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.workspaceId).toBe(ws.id);
+    expect(seen[0]!.updated).toContain(keepDoc.id);
+    expect(seen[0]!.deleted).toContain(goneDoc.id);
+    expect(seen[0]!.created).toHaveLength(1);
+    const newDoc = get(docsStore).find((d) => d.workspaceId === ws.id && d.repoPath === "new.md")!;
+    expect(seen[0]!.created).toContain(newDoc.id);
+
+    repoDocSyncHook.onRepoDocsChanged = undefined;
   });
 });
 

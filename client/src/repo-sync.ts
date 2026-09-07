@@ -12,6 +12,7 @@ import {
   setDocRepoLinkById,
   ensureActiveDocInWorkspace,
   clearRepoSyncMetadata,
+  repoDocSyncHook,
 } from "./stores/docs";
 import { get } from "svelte/store";
 import { nextAvailableName } from "./doc-naming";
@@ -221,6 +222,26 @@ export async function pullFromRepo(
 
   const docSlugFor = (repoPath: string) => repoPath.replace(/\.md$/i, "").split("/").pop() || "untitled";
 
+  // Bucketed doc ids for repoDocSyncHook (E1 — a repo-linked workspace
+  // that is also live-shared needs its pull results registered with the
+  // WorkspaceRoom). fireRepoHook reports only what's accumulated since the
+  // last call, so the initial pull and a later applyResolved don't
+  // double-report.
+  const created: string[] = [];
+  const updated: string[] = [];
+  let reportedCreated = 0;
+  let reportedUpdated = 0;
+  function fireRepoHook(deleted: string[]): void {
+    repoDocSyncHook.onRepoDocsChanged?.({
+      workspaceId,
+      created: created.slice(reportedCreated),
+      updated: updated.slice(reportedUpdated),
+      deleted,
+    });
+    reportedCreated = created.length;
+    reportedUpdated = updated.length;
+  }
+
   async function fetchAndApply(repoPath: string, sha: string): Promise<void> {
     done++;
     onProgress?.(`Pulling ${done}/${total} file${total === 1 ? "" : "s"}…`);
@@ -242,26 +263,29 @@ export async function pullFromRepo(
     }
 
     const resolved = resolveImagesFromPull(rawContent, docSlug, blobs);
-    upsertDocFromRepo(workspaceId, repoPath, {
+    const result = upsertDocFromRepo(workspaceId, repoPath, {
       name: docSlug,
       content: resolved.content,
       images: Object.keys(resolved.images).length ? resolved.images : undefined,
       repoSha: sha,
     });
+    (result.created ? created : updated).push(result.id);
   }
 
   for (const create of plan.creates) await fetchAndApply(create.repoPath, create.sha);
   for (const update of plan.updates) await fetchAndApply(update.repoPath, update.sha);
-  removeDocsByRepoPaths(
+  const deleted = removeDocsByRepoPaths(
     workspaceId,
     plan.deletions.map((d) => d.repoPath),
   );
   setWorkspaceLastSynced(workspaceId, Date.now());
+  fireRepoHook(deleted);
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
     for (const conflict of plan.conflicts) {
       if (resolutions[conflict.docId] === "theirs") await fetchAndApply(conflict.repoPath, conflict.remoteSha);
     }
+    fireRepoHook([]);
   }
 
   return { plan, applyResolved };

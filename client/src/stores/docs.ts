@@ -29,6 +29,16 @@ import type { BibEntry, CitationPrefs } from "../mmd-citations";
 // from the server.
 export const docRemovalHook: { onRemoved: ((id: string, workspaceId: string) => void) | null } = { onRemoved: null };
 
+// collab.ts's init() sets onRepoDocsChanged once; repo-sync.ts's
+// pullFromRepo calls it after applying a pull so a repo-linked workspace
+// that is ALSO live-shared can propagate its owner's pulled/updated/
+// deleted docs into the WorkspaceRoom (otherwise applyWorkspaceMeta
+// deletes them — they were never registered). No-op unless that workspace
+// is the connected shared room and this session is its editor.
+export const repoDocSyncHook: {
+  onRepoDocsChanged?: (change: { workspaceId: string; created: string[]; updated: string[]; deleted: string[] }) => void;
+} = {};
+
 const STORAGE_DOCS = "mde:docs";
 const STORAGE_ACTIVE = "mde:active";
 
@@ -604,7 +614,7 @@ export function upsertDocFromRepo(
     repoSha: string;
     repoImageShas?: Record<string, string>;
   },
-): void {
+): { id: string; created: boolean } {
   const existing = docsInWorkspace(workspaceId).find((d) => d.repoPath === repoPath);
   if (existing) {
     updateDoc(existing.id, {
@@ -615,30 +625,33 @@ export function upsertDocFromRepo(
       repoImageShas: data.repoImageShas,
       updatedAt: Date.now(),
     });
-  } else {
-    const doc: Doc = {
-      id: uid(),
-      name: data.name,
-      content: data.content,
-      images: data.images,
-      diagrams: data.diagrams,
-      updatedAt: Date.now(),
-      createdAt: Date.now(),
-      workspaceId,
-      repoPath,
-      repoSha: data.repoSha,
-      repoImageShas: data.repoImageShas,
-    };
-    doc.name = ensureUniqueName(doc.name, get(docsStore));
-    docsStore.update((docs) => [doc, ...docs]);
+    persistDocs();
+    return { id: existing.id, created: false };
   }
+  const doc: Doc = {
+    id: uid(),
+    name: data.name,
+    content: data.content,
+    images: data.images,
+    diagrams: data.diagrams,
+    updatedAt: Date.now(),
+    createdAt: Date.now(),
+    workspaceId,
+    repoPath,
+    repoSha: data.repoSha,
+    repoImageShas: data.repoImageShas,
+  };
+  doc.name = ensureUniqueName(doc.name, get(docsStore));
+  docsStore.update((docs) => [doc, ...docs]);
   persistDocs();
+  return { id: doc.id, created: true };
 }
 
-export function removeDocsByRepoPaths(workspaceId: string, repoPaths: string[]): void {
+export function removeDocsByRepoPaths(workspaceId: string, repoPaths: string[]): string[] {
   const paths = new Set(repoPaths);
   const toRemove = docsInWorkspace(workspaceId).filter((d) => d.repoPath && paths.has(d.repoPath));
   for (const doc of toRemove) removeDocById(doc.id);
+  return toRemove.map((d) => d.id);
 }
 
 export function setDocRepoLinkById(id: string, repoPath: string, repoSha: string, repoImageShas: Record<string, string> | undefined): void {

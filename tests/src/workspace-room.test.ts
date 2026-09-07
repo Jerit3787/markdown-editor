@@ -459,6 +459,106 @@ describe("WorkspaceRoom version snapshots", () => {
   });
 });
 
+describe("Snapshot authorship", () => {
+  function scratchUpdateWith(text: string): Uint8Array {
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, text);
+    return Y.encodeStateAsUpdate(scratch);
+  }
+  function sessionWs(room: WorkspaceRoom, username: string | null): WebSocket {
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as unknown as { sessions: Map<WebSocket, unknown> }).sessions.set(ws, { username, role: "editor", viewingDocId: null });
+    return ws;
+  }
+
+  const setContent = (docRoom: { doc: Y.Doc }, text: string) =>
+    docRoom.doc.transact(() => {
+      const t = docRoom.doc.getText("content");
+      t.delete(0, t.length);
+      t.insert(0, text);
+    }, "storage");
+
+  it("handleDocUpdate accumulates each editing session's username into pendingAuthors, first-seen order", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const alice = sessionWs(room, "alice");
+    const bob = sessionWs(room, "bob");
+    const anon = sessionWs(room, null);
+    const docRoom = await room.loadDocRoom("d1");
+    docRoom.lastSnapshotAt = Date.now(); // suppress the first-edit auto-capture so accumulation is observable
+
+    await room.handleMessage(alice, encodeSyncUpdate("d1", scratchUpdateWith("a")));
+    await room.handleMessage(bob, encodeSyncUpdate("d1", scratchUpdateWith("a b")));
+    await room.handleMessage(anon, encodeSyncUpdate("d1", scratchUpdateWith("a b c")));
+    await room.handleMessage(alice, encodeSyncUpdate("d1", scratchUpdateWith("a b c d")));
+
+    expect([...docRoom.pendingAuthors]).toEqual(["alice", "bob"]); // anon (null username) contributes nothing
+  });
+
+  it("maybeSnapshot flushes pendingAuthors onto the snapshot and clears it", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const docRoom = await room.loadDocRoom("d1");
+    setContent(docRoom, "content");
+    docRoom.pendingAuthors = new Set(["alice", "bob"]);
+
+    await room.maybeSnapshot("d1", docRoom, 1000);
+
+    expect((await room.getSnapshots("d1")).at(-1)!.authors).toEqual(["alice", "bob"]);
+    expect(docRoom.pendingAuthors.size).toBe(0);
+  });
+
+  it("a snapshot with no recorded authors leaves the field undefined", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const docRoom = await room.loadDocRoom("d1");
+    setContent(docRoom, "content");
+    await room.maybeSnapshot("d1", docRoom, 1000);
+    expect((await room.getSnapshots("d1")).at(-1)!.authors).toBeUndefined();
+  });
+
+  it("carries authors from a throttled (skipped) capture into the next real one", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const docRoom = await room.loadDocRoom("d1");
+
+    setContent(docRoom, "one");
+    docRoom.pendingAuthors.add("alice");
+    await room.maybeSnapshot("d1", docRoom, 1000); // captures [alice], clears
+
+    setContent(docRoom, "two");
+    docRoom.pendingAuthors.add("bob");
+    await room.maybeSnapshot("d1", docRoom, 1000 + 5000); // < 30s -> skipped, pendingAuthors keeps {bob}
+
+    setContent(docRoom, "three");
+    docRoom.pendingAuthors.add("carol");
+    await room.maybeSnapshot("d1", docRoom, 1000 + 35000); // captures [bob, carol]
+
+    const snaps = await room.getSnapshots("d1");
+    expect(snaps.map((s) => s.authors)).toEqual([["alice"], ["bob", "carol"]]);
+  });
+
+  it("forceSnapshot records the given author", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const docRoom = await room.loadDocRoom("d1");
+    const snap = await room.forceSnapshot("d1", docRoom, "restored", 2000, "carol");
+    expect(snap.authors).toEqual(["carol"]);
+  });
+
+  it("the versions list returns authors, [] for a legacy author-less snapshot", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    await room.state.storage.put("doc:d1:snapshots", [
+      { id: "s1", timestamp: 1, content: "a" },
+      { id: "s2", timestamp: 2, content: "b", authors: ["alice"] },
+    ]);
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const res = await room.handleVersionsListRequest(
+      new Request("https://example.com/w/ws1/docs/d1/versions", { headers: { Cookie: `mde_gh_session=${cookie}` } }),
+      "d1",
+    );
+    const list = (await res.json()) as Array<{ id: string; authors: string[] }>;
+    expect(list.find((x) => x.id === "s1")!.authors).toEqual([]);
+    expect(list.find((x) => x.id === "s2")!.authors).toEqual(["alice"]);
+  });
+});
+
 describe("WorkspaceRoom.handleVersionRestoreRequest — images", () => {
   it("replaces the doc's images with the restored snapshot's, not merges them", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);

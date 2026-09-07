@@ -6,8 +6,8 @@
   import { syntaxHighlighting } from "@codemirror/language";
   import { editorTheme, markdownHighlightStyle } from "../editor-theme";
   import { keybindingMode, type KeybindingMode } from "../stores/keybindings";
-  import { focusMode } from "../stores/focusMode";
-  import { activeParagraphRange } from "../focus-mode";
+  import { focusMode, focusActiveLines } from "../stores/focusMode";
+  import { activeParagraphRange, activeParagraphLineRange } from "../focus-mode";
   import { getActiveDoc } from "../stores/docs";
   import { imageKey } from "../image-key";
   import { commentDraft } from "../stores/commentDraft";
@@ -157,8 +157,16 @@
     if (update.docChanged || update.selectionSet) centerCursorLine(update.view);
   });
 
+  // Publishes the cursor's paragraph as a 1-based line range so
+  // Preview.svelte can dim the matching preview blocks (B2). Only wired
+  // in while focus mode is on; the $effect below clears the store on exit.
+  const focusRangeListener = EditorView.updateListener.of((update) => {
+    if (!update.docChanged && !update.selectionSet) return;
+    focusActiveLines.set(activeParagraphLineRange(update.state.doc, update.state.selection.main.head));
+  });
+
   function focusModeExtensions(): Extension[] {
-    return [focusDimField, typewriterListener];
+    return [focusDimField, typewriterListener, focusRangeListener];
   }
 
   // ---------- Image markers ----------
@@ -500,7 +508,12 @@
     if (!view) return;
     document.body.classList.toggle("focus-mode", $focusMode);
     view.dispatch({ effects: focusModeCompartment.reconfigure($focusMode ? focusModeExtensions() : []) });
-    if ($focusMode) centerCursorLine(view);
+    if ($focusMode) {
+      centerCursorLine(view);
+      focusActiveLines.set(activeParagraphLineRange(view.state.doc, view.state.selection.main.head));
+    } else {
+      focusActiveLines.set(null);
+    }
   });
 
   function buildExtensions(): Extension[] {

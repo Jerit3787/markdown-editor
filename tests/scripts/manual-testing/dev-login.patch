@@ -1,5 +1,5 @@
 diff --git a/src/worker.ts b/src/worker.ts
-index 01e49e4..6049d01 100644
+index 719750e..308b900 100644
 --- a/src/worker.ts
 +++ b/src/worker.ts
 @@ -3,8 +3,19 @@ export { WorkspaceRoom } from "./workspace-room.js";
@@ -22,13 +22,15 @@ index 01e49e4..6049d01 100644
  const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
  const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
  const ROOM_MIGRATE_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/migrate$/;
-@@ -27,6 +38,15 @@ export default {
+@@ -29,6 +40,17 @@ export default {
    async fetch(request: Request, env: Env): Promise<Response> {
      const url = new URL(request.url);
  
 +    if (url.pathname === DEV_LOGIN_PATH) {
-+      const username = url.searchParams.get("username") || "dev-user";
-+      const cookie = await encryptSession(env, { token: "dev-fake-token", username });
++      const wantReal = url.searchParams.get("real") === "1";
++      const token = wantReal && env.TEST_GITHUB_TOKEN ? env.TEST_GITHUB_TOKEN : "dev-fake-token";
++      const username = wantReal && env.TEST_GITHUB_USERNAME ? env.TEST_GITHUB_USERNAME : url.searchParams.get("username") || "dev-user";
++      const cookie = await encryptSession(env, { token, username });
 +      return new Response(`Signed in locally as ${username}`, {
 +        status: 200,
 +        headers: { "Set-Cookie": cookieHeader(SESSION_COOKIE, cookie), "Content-Type": "text/plain" },

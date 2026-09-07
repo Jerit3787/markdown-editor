@@ -230,7 +230,11 @@ test("COLLAB-11: a reviewer withdraws their own pending suggestion, and it clear
 
   // Reviewer withdraws their own suggestion (non-editor sees a Withdraw
   // action on a suggestion they authored — see suggestion-editor.ts).
-  await reviewer.locator(".cm-suggestion-action[data-action='withdraw']").click();
+  // `.first()`: the reviewer's own insert briefly renders as two
+  // overlapping suggestion widgets during the ytext/suggestion-map
+  // reconciliation (same window `waitForExactlyOne` guards above) —
+  // either Withdraw button resolves the one suggestion.
+  await reviewer.locator(".cm-suggestion-action[data-action='withdraw']").first().click();
 
   // Gone for the reviewer AND the owner; the proposed text is removed
   // (withdraw == reject), and ytext never carried it in the first place.

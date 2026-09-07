@@ -4,7 +4,7 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
-## [1.50.0] - UNRELEASED
+## [1.50.0] - 2026-09-08
 
 ### Added
 
@@ -14,6 +14,10 @@ All notable changes to this project are documented here. Format follows
 ### Changed
 
 - **Publishing to Gist and syncing to a GitHub repo are the workspace owner's controls only.** A collaborator you share a workspace with — at any role, editor included — no longer sees Publish to Gist or the GitHub Repo menu; those actions belong to whoever owns the workspace.
+
+### Fixed
+
+- **Focus mode is easier to leave, and it now quiets the preview too.** On desktop a hint slides down from the top of the screen when you enter focus mode or move the pointer to the top edge — click it (or press Esc) to exit. And the paragraph dimming now applies to the preview pane as well, not just the editor.
 
 ## [1.49.0] - 2026-09-08
 

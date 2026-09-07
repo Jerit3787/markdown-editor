@@ -74,38 +74,40 @@ comments and the suggestion UI entirely).
 
 Roles today: owner → `editor`; link role or per-invite → `viewer` /
 `reviewer` (suggester) / `editor`. `authorize()` resolves it server-side;
-`collab.ts` mirrors it into the UI best-effort. `MenuBar` has no
-role gating yet.
+`collab.ts` mirrors it into the UI.
 
-**Group A — role-based access gaps**
+**Groups A / B / C + D6 — shipped v1.50.0** (spec
+`docs/superpowers/specs/2026-09-08-collaboration-mode-chrome-design.md`,
+plans 1–3, PR #180):
 
-- **A1** — Publish to Gist / repo must be disabled for `viewer` and
-  `reviewer`. Currently reachable.
-- **A2** _(decision needed)_ — Should a non-owner `editor` have Publish
-  to Gist / push-to-repo at all? Leaning owner-only (editors edit
-  content, they don't control external publishing targets).
-- **A3** — Viewer mode: hide (not just disable) the Edit / Format /
-  Insert menus.
-- **A4** — Viewer mode: no comments access at all — hide the panel,
-  toggle, and inline highlights.
-- **A5** — Collaborators have no signal that a workspace/document is
-  linked to a GitHub repo or Gist. Surface it (read-only badge /
-  Document Info row).
+- **D6 / A3 / A4 / C1** — `stores/collabMode.ts` mode model (`collabRole`
+  ceiling + per-`remoteId` `chosenMode`, derived `effectiveMode` clamped
+  to role), `ModeSwitcher.svelte` next to Share, `applyEditorMode` keyed
+  off `effectiveMode`. Viewing hides the Edit / Format / Insert menus,
+  the comments panel + button + highlights, and the editor pane, and adds
+  a floating sidebar re-open button (`#viewingSidebarBtn`).
+- **A1 / A2** — Publish to Gist and GitHub Repo sync are **owner-only**
+  (`publishHidden = !!$collabRole && !$collabIsOwner` — non-owner editors
+  lose them too).
+- **A5** — `repoLinked` trailing varuint on `MESSAGE_WORKSPACE_META` +
+  `PUT /meta {repoLinked}`; `workspaceRepoLinked` store drives a
+  read-only "Synced to a GitHub repo, managed by the workspace owner" row
+  in Document Info for non-owner collaborators.
+- **B1** — `#focusHint` desktop exit affordance: a pill that slides down
+  from the top edge on entry and on a top-of-viewport `mousemove`,
+  auto-hides on idle, click or Esc to exit. Mobile keeps
+  `#focusModeExitBtn`.
+- **B2** — focus-mode paragraph dimming now extends to the preview pane
+  (`focusActiveLines` store ← `Editor.svelte`; `preview-focus-dim.ts`
+  `applyFocusDim` toggles `.focus-dim` on preview blocks outside the
+  active paragraph, reusing the `data-line` tags).
 
-**Group B — focus mode**
+**Deferred** (spec Non-goals): syncing the chosen mode between
+collaborators (it's a local view preference); per-document mode (mode is
+per-workspace-session); focus mode as separate editor/preview toggles,
+persisting focus mode across reloads, or sentence-level dimming.
 
-- **B1** — No affordance for exiting focus mode. Add a Chrome-style top
-  hover toast: slides down from the top edge, auto-hides, reappears when
-  the pointer hits the top of the viewport; states the exit key.
-- **B2** _(decision needed)_ — Focus mode dims paragraphs on the editor
-  side only. Should it extend to the preview pane?
-
-**Group C — viewer-mode UI**
-
-- **C1** — In viewer mode there's no way to reach the sidebar. Add a
-  floating button to open the document sidenav.
-
-**Group D — suggesting-mode redesign** (its own brainstorm)
+**Group D — suggesting-mode redesign** (its own brainstorm — NOT in v1.50.0)
 
 - **D1** — Inline suggestion rendering looks cramped/broken. Move to a
   Google-Docs-style right-margin card model.
@@ -120,15 +122,11 @@ role gating yet.
 - **D5** — The standalone "edit" icon on suggestions is unclear. Fold
   suggestion actions into the comment-thread UI (Google Docs merges
   suggestion + comment into one card).
-- **D6** — Add the Editing / Suggesting / Viewing mode switcher
-  (top-right). Umbrella for A3/A4/C1 — the chosen mode drives which
-  chrome is visible. Today a `reviewer` is forced into suggesting; an
-  `editor` could opt into suggesting or viewing voluntarily.
+- **D6** — mode switcher. **Shipped v1.50.0** (see above).
 
-**Shape:** A1, A3, A4, C1, B1 are bounded role/UI fixes → one
-"collaboration mode chrome" spec, with D6 (the switcher) as the umbrella.
-A2, B2 are decisions to settle first. D1–D5 are a separate
-suggesting-mode redesign, the largest piece.
+**Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
+piece — its own brainstorm. D2 overlaps with the "just-inserted delete"
+regression; D4 needs its own granularity decision before a plan.
 
 ### Preview links & wikilinks
 

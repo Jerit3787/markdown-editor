@@ -268,10 +268,15 @@ export class WorkspaceRoom {
       this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin),
     );
     this.docs.set(docId, docRoom);
-    if (!this.docIds.includes(docId)) {
-      this.docIds.push(docId);
-      void this.state.storage.put("docs", this.docIds);
-    }
+    // Deliberately does NOT register `docId` as a workspace member. Loading
+    // a doc's room object (to read its comments, its version history, or to
+    // apply a migration seed) must not imply the doc belongs to this
+    // workspace — a client that opens a brand-new local document
+    // immediately fetches `GET /docs/<id>/comments`, and that must not make
+    // the empty doc show up in `GET /docs` / other collaborators' doc
+    // lists. Membership is established explicitly, in exactly two places:
+    // the first real Yjs sync frame for a docId (handleMessage's isNewDoc
+    // branch) and the `POST /docs` / `/internal/seed` endpoints.
     return docRoom;
   }
 
@@ -492,10 +497,11 @@ export class WorkspaceRoom {
       // verifies every reviewer-authored change lands with a suggestion
       // entry covering it, auto-wrapping one if a client fails to.
 
-      // A docId this instance has never seen before is about to be
-      // auto-vivified by withDocRoom below — captured now, before that
-      // mutates docIds, so the reciprocal-step1 logic further down knows
-      // whether this is the doc's first contact with this server.
+      // First Yjs sync frame for a docId this instance has never seen:
+      // this is the one signal that establishes the doc as a member of
+      // this workspace (loadDocRoom no longer does — see its comment).
+      // Captured before withDocRoom loads the room so the reciprocal-step1
+      // logic below, and the registration after, both key off it.
       const isNewDoc = !this.docIds.includes(docId);
 
       await this.withDocRoom(docId, (docRoom) => {
@@ -533,6 +539,11 @@ export class WorkspaceRoom {
           ws.send(encoding.toUint8Array(step1Encoder));
         }
       });
+
+      if (isNewDoc && !this.docIds.includes(docId)) {
+        this.docIds.push(docId);
+        await this.state.storage.put("docs", this.docIds);
+      }
     } else if (messageType === MESSAGE_AWARENESS) {
       const update = decoding.readVarUint8Array(decoder);
       await this.withDocRoom(docId, (docRoom) => {

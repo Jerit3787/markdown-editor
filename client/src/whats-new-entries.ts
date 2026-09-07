@@ -289,4 +289,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/image-picker.png",
     category: "Editing & Formatting",
   },
+  {
+    version: "1.47.0",
+    title: "Sharing, Seen Correctly",
+    description:
+      'The access level shown next to the Share button now reflects the real setting instead of always saying "Restricted." And if you open Share on a workspace someone shared with you, you\'ll see the true access, the owner, and a working Copy link — with the controls only the owner can change clearly marked, instead of a dialog that looked broken.',
+    screenshot: "/whats-new/share-collaborator-view.png",
+    category: "Collaboration",
+  },
 ];

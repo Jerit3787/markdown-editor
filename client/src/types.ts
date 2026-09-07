@@ -297,6 +297,14 @@ export interface MDEBridge {
   pushToRepoAction?(): void;
   pullFromRepoAction?(): void;
   unlinkRepo?(): void;
+  // Set by drive-files.ts at module load (Google Drive integration —
+  // client/src/drive-files.ts), same pattern as the gist/repo entries.
+  connectGoogleDrive?(): void;
+  disconnectGoogleDrive?(): Promise<void>;
+  importMarkdownFromDrive?(): Promise<void>;
+  // Fired by app.ts's popup message listener when the Google connect flow
+  // reports success — drive-files.ts chains onto it to re-check the session.
+  onGoogleAuthComplete?: () => void;
   // Set by formatting-commands.ts at module load, same pattern as
   // publishGist? above. MenuBar.svelte/CommandPalette.svelte/
   // SlashMenu.svelte call runCmd; DiagramEditor.svelte calls

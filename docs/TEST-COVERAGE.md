@@ -54,27 +54,23 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      19 |       0 |    0 |    19 |
-| 10. Workspace collab               |      45 |       1 |    0 |    46 |
+| 10. Workspace collab               |      46 |       0 |    0 |    46 |
 | 11. GitHub auth & Gist             |      22 |       1 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **312** |  **2** |  **0** | **314** |
+| **Total**                          | **313** |  **1** |  **0** | **314** |
 
 >99% of enumerated scenarios have a test asserting their outcome (was
 59/10/31 at the v1.45.2 first pass; Phases 1–14 + Buckets A/B done, plus
-the real-GitHub and WebKit harnesses). **No `gap` rows remain.** The two
-`partial` rows are both documented deferrals, not backlog:
+the real-GitHub and WebKit harnesses). **No `gap` rows remain**, and the
+single `partial` is a permanent deferral, not backlog:
 
 - **GIST-05** — the happy isomorphic-git push into a gist's own git repo.
   A push _creates_ a real gist every run and pushing over
   `gist.github.com/<id>.git`'s smart-HTTP would need a full git-server
   test double; everything up to the push (validation, `MemoryFS` write)
   is covered by `gist-images.test.ts`. See `## Deferred`.
-- **COLLAB-31** — `identityUnverified` not getting stuck `false` after a
-  _redundant_ rejoin with the same session. Unit-covered for the
-  adjacent "clears on a resolving rejoin" case; the exact
-  redundant-rejoin permutation isn't isolated.
 
 The pure-logic layers (stores, CRDT/room servers, markdown transforms,
 diff/version model, repo-sync planners) and the UI-orchestration paths
@@ -290,7 +286,7 @@ _Source: `client/src/version-grouping.ts`, `client/src/history.ts`, `client/src/
 | VER-05 | Snapshots store images alongside content; `getVersionImages` returns them or `undefined` for a no-image / unknown snapshot | unit | covered | `tests/client/src/history.test.ts`             |                                                                               |
 | VER-06 | `restoreLocalVersion` returns the stored content + images and force-appends a fresh snapshot       | unit      | covered | `tests/client/src/history.test.ts`               |                                                                               |
 | VER-07 | Restoring a version from the UI replaces the editor content + images, records a new snapshot, and toasts | component | covered | `tests/client/src/components/VersionHistory.test.ts` | re-levelled e2e→component — a full click-through (real IndexedDB round-trip via fake-indexeddb; only the live CodeMirror instance is stubbed) |
-| VER-08 | A collaborator who **joined** a shared workspace can browse its server-side version history (list + open a snapshot) | e2e-collab, component | covered | `tests/e2e/collab/version-history-collab.spec.ts`, `tests/client/src/components/VersionHistory.test.ts` | **fixed a bug in this PR:** `VersionHistory.svelte` addressed the room by `doc.workspaceId` (the local id), which 403s for every joiner — the two only coincide for the room's original owner. Now resolves `ws.remoteId`. Actual snapshot _restore_ still needs ≥2 distinct server snapshots (cadence-bound); store path covered by VER-06/COLLAB-37. |
+| VER-08 | A collaborator who **joined** a shared workspace can browse its server-side version history (list + open a snapshot) **and restore an older one** | e2e-collab, component | covered | `tests/e2e/collab/version-history-collab.spec.ts`, `tests/client/src/components/VersionHistory.test.ts` | **fixed a bug in an earlier PR:** `VersionHistory.svelte` addressed the room by `doc.workspaceId` (the local id), which 403s for every joiner — the two only coincide for the room's original owner. Now resolves `ws.remoteId`. Restore-button click-through (older, non-current shared version → `POST …/versions/<id>/restore` to the room id → toast + close) is a component test with a stubbed 2-entry version list; the server restore semantics are COLLAB-37. |
 | VER-09 | Restore is disabled when the selected entry is already the current revision / newest nested entry  | component | covered | `tests/client/src/components/VersionHistory.test.ts` | `TODO.md` item 19                                                              |
 | VER-10 | `mergeSnapshotsFromRepo` adds remote snapshots, dedupes by id, re-sorts + re-caps at 300           | unit      | covered | `tests/client/src/history.test.ts`               | cross-ref §12                                                                  |
 | VER-11 | `computeDiffRows` / `toUnifiedLines` — same/added/removed/changed rows, surplus lines, word-level intraline segments, unified expansion | unit | covered | `tests/client/src/diff-lines.test.ts`            | GitHub-style diff data model                                                   |
@@ -370,7 +366,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-28 | A viewer-access room locks the app to Preview-only with no edit surface; editable access allows typing | e2e-collab + unit | covered | `tests/e2e/collab/readonly-and-editing-mode.spec.ts`, `tests/client/src/collab.test.ts` |                                             |
 | COLLAB-29 | Undo / redo route through the collab `UndoManager` while in a shared room, and back to local history after leaving | e2e-collab | covered | `tests/e2e/collab/readonly-and-editing-mode.spec.ts`   |                                                                       |
 | COLLAB-30 | `isIdentityUnverified` true only when there's no session and general access is "anyone"; `workspaceAccessDenied` sets `no-session` / `no-access` and clears on a resolving rejoin or on switching away | unit | covered | `tests/client/src/collab.test.ts`                     |                                                                       |
-| COLLAB-31 | `identityUnverified` does not get stuck `false` after a redundant rejoin with the same session      | unit        | partial | `tests/client/src/collab.test.ts`                      | regression for `bb938d9`; the "clears on resolving rejoin" case is close but not the exact redundant-rejoin case |
+| COLLAB-31 | `identityUnverified` does not get stuck `false` after a redundant rejoin with the same session      | unit        | covered | `tests/client/src/collab.test.ts`                      | regression for `bb938d9` — `teardownWorkspace()` alone no longer resets the flag (test-surface export); an anon viewer on an anyone-link stays flagged through a double-fire `handleDocChanged`, and it resets only when the active doc leaves shared context |
 | COLLAB-32 | The connection's role is resolved once and reused for every document introduced afterward, even when `activeDocId` is null — never re-derived from another binding's fallback `editor` | unit | covered | `tests/client/src/collab.test.ts` | regression for the v1.45.0 client display bug                           |
 | COLLAB-33 | An already-joined workspace that stops granting access shows the access-denied banner and locks the editor; a fresh visit with no role shows the banner, not a blocking alert | e2e-collab + component | covered | `tests/e2e/collab/readonly-and-editing-mode.spec.ts`, `tests/client/src/components/WorkspaceAccessBanner.test.ts` |                                  |
 | COLLAB-34 | A viewer with no session sees the signed-out indicator and can start the GitHub sign-in from it     | e2e-collab + component | covered | `tests/e2e/collab/readonly-and-editing-mode.spec.ts`, `tests/client/src/components/SignedOutIndicator.test.ts` |                                    |
@@ -509,5 +505,4 @@ pointing at real bugs awaiting a fix branch.
 
 | ID     | Scenario                                                                 | Why deferred                                                                                                                                                                              |
 | ------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| VER-08 | _Restoring_ a **shared** document's version (`restoreSharedVersion` / `restoreSharedVersionContent`) — the click-through, not just the list/open now covered by `version-history-collab.spec.ts` | `e2e-collab` — the Restore button is disabled for the only snapshot the room reliably captures within an e2e's lifetime (it's the "current" one); needs ≥2 distinct server snapshots, and `WorkspaceRoom`'s 30s snapshot-capture gate isn't a quick e2e setup. Server restore route covered by COLLAB-37; local restore by VER-06/VER-07. |
 | GIST-05 | The happy isomorphic-git push into a gist's own repo | Permanently deferred — a push *creates* a real gist every run (teardown burden) and pushing over `gist.github.com/<id>.git`'s smart-HTTP protocol would need a full git-server test double. The `e2e-github` harness is read-only by design; everything up to the push — sign-in, JSON/base64 validation, the `MemoryFS` write — is covered by `gist-images.test.ts`. |

@@ -197,6 +197,55 @@ test("VER-08: a shared doc's version calls address the room by remoteId, not the
   vi.unstubAllGlobals();
 });
 
+test("VER-08: restoring an older shared version POSTs to the room's restore endpoint, toasts, and closes", async () => {
+  // Joined workspace: local id distinct from the room's Durable Object id.
+  workspacesStore.set([{ id: "local-ws-id", name: "WS", createdAt: 0, updatedAt: 0, shared: true, remoteId: "room-abc-123" }]);
+  docsStore.set([{ id: DOC_ID, name: "Test", content: "live", updatedAt: 0, createdAt: 0, workspaceId: "local-ws-id" }]);
+  activeIdStore.set(DOC_ID);
+  toasts.set([]);
+
+  const restoreCalls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      // Two snapshots 40min apart -> two separate plain rows, newest-first:
+      // s2 is the current version, s1 is an older restorable target.
+      if (u.endsWith("/versions"))
+        return jsonRes([
+          { id: "s1", timestamp: 1_000 },
+          { id: "s2", timestamp: 1_000 + 40 * 60 * 1000 },
+        ]);
+      if (/\/versions\/s\d\/restore$/.test(u)) {
+        expect(init?.method).toBe("POST");
+        restoreCalls.push(u);
+        return new Response(null, { status: 200 });
+      }
+      if (u.includes("/versions/s1")) return jsonRes({ content: "the older revision", images: {} });
+      if (u.includes("/versions/s2")) return jsonRes({ content: "live", images: {} });
+      return jsonRes([]);
+    }),
+  );
+
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.poll(() => screen.container.querySelectorAll(".version-history-row").length).toBe(2);
+
+  // Row 0 is the current version (Restore stays disabled); row 1 is the target.
+  const rows = screen.container.querySelectorAll<HTMLButtonElement>(".version-history-row");
+  rows[1]!.click();
+
+  const restoreBtn = screen.getByRole("button", { name: "Restore this version" });
+  await expect.element(restoreBtn).not.toBeDisabled();
+  await restoreBtn.click();
+
+  await expect.poll(() => restoreCalls.length).toBe(1);
+  expect(restoreCalls[0]).toBe("/api/workspace/room-abc-123/docs/vh-test-doc/versions/s1/restore");
+  expect(get(toasts).some((t) => t.message === "Version restored" && t.type === "success")).toBe(true);
+  await expect.poll(() => get(versionHistoryOpen)).toBe(false);
+  vi.unstubAllGlobals();
+});
+
 function sharedDocSetup() {
   workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0, shared: true, remoteId: "room-1" }]);
   docsStore.set([{ id: DOC_ID, name: "Test", content: "live", updatedAt: 0, createdAt: 0, workspaceId: "w1" }]);

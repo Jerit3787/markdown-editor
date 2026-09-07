@@ -25,6 +25,7 @@ import {
   decideJoinTarget,
   handleDocChanged,
   workspaceRoom,
+  teardownWorkspace,
   setAccessMode,
   isIdentityUnverified,
   DEFAULT_ACCESS,
@@ -35,7 +36,7 @@ import {
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
-import { workspaceAccessDenied } from "../../../client/src/stores/share";
+import { workspaceAccessDenied, identityUnverified } from "../../../client/src/stores/share";
 import { getSuggestionsMap } from "../../../client/src/suggestions";
 import type { Doc, Workspace } from "../../../client/src/types";
 
@@ -512,6 +513,103 @@ describe("workspaceAccessDenied", () => {
     handleDocChanged({ id: "local-doc", name: "Local", content: "", updatedAt: 0, createdAt: 0, workspaceId: "some-other-ws" });
 
     expect(get(workspaceAccessDenied)).toBeNull();
+  });
+});
+
+// COLLAB-31 — regression coverage for bb938d9. A fresh join into a shared
+// workspace fires handleDocChanged reactively more than once in quick
+// succession (switching workspace and switching doc are separate store
+// triggers), each going through teardownWorkspace() before the winning
+// rejoinKnownWorkspace() resolves. teardownWorkspace() used to
+// unconditionally reset identityUnverified to false — including on the
+// redundant cycles that fire after the real rejoin already set the correct
+// value, leaving an anonymous viewer's "identity unverified" flag stuck
+// off (so the signed-out indicator never showed). The reset now lives only
+// in the two handleDocChanged branches that leave shared context for good.
+describe("identityUnverified lifecycle", () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="shareDropdownBtn"></div><div id="body"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    identityUnverified.set(false);
+    workspaceAccessDenied.set(null);
+  });
+
+  function stubMDE(username: string | null) {
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: username,
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+    } as unknown as typeof window.MDE;
+  }
+
+  function stubAnyoneFetch() {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access"))
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        if (url.includes("/docs")) return { ok: true, json: async () => ["docA"] };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+  }
+
+  function makeSharedDoc(suffix: string) {
+    const ws = fakeSharedWorkspace({ id: `ws-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const doc = { id: `doc-${suffix}`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([doc]);
+    return doc;
+  }
+
+  it("teardownWorkspace() on its own does not reset identityUnverified (bb938d9)", () => {
+    identityUnverified.set(true);
+    teardownWorkspace();
+    expect(get(identityUnverified)).toBe(true);
+  });
+
+  it("ends up true for an anonymous viewer on an anyone-link workspace, even through a redundant rejoin", async () => {
+    stubMDE(null);
+    stubAnyoneFetch();
+    const doc = makeSharedDoc("anon");
+
+    // The real double-fire: workspace-switch and doc-switch each trigger
+    // handleDocChanged before the first rejoin's awaits settle. The second
+    // teardown supersedes the first rejoin; only the winner decides the flag.
+    handleDocChanged(doc);
+    handleDocChanged(doc);
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+
+    expect(get(identityUnverified)).toBe(true);
+    expect(workspaceRoom.workspaceId).toBe("remote-anon");
+
+    // A further redundant fire once connected must not zero it either.
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(get(identityUnverified)).toBe(true);
+  });
+
+  it("resets to false when the active doc leaves shared context for a local one", async () => {
+    stubMDE(null);
+    stubAnyoneFetch();
+    const doc = makeSharedDoc("leave");
+
+    handleDocChanged(doc);
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+    expect(get(identityUnverified)).toBe(true);
+
+    handleDocChanged({ id: "local-doc", name: "Local", content: "", updatedAt: 0, createdAt: 0, workspaceId: "plain-ws" });
+    expect(get(identityUnverified)).toBe(false);
   });
 });
 

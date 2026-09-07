@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.6] - 2026-09-08
+
+### Changed
+
+- **Test coverage — the last two soft spots in the catalogue are closed.** COLLAB-31 (an anonymous viewer's "identity unverified" flag must survive the redundant workspace/doc-switch re-join that a fresh share fires) moves from partial to covered with a direct regression test for the `teardownWorkspace()` change behind it. VER-08 (a joined collaborator restoring an older server-side version through the Version History dialog) gains a component test for the Restore click-through against the room id. Catalogued coverage is now 313 covered / 1 partial (GIST-05, permanently deferred) / 0 gaps.
+
 ## [1.48.5] - 2026-09-08
 
 ### Fixed

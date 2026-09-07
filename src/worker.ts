@@ -67,7 +67,7 @@ export default {
 
     const workspaceMatch = url.pathname.match(WORKSPACE_PATH);
     if (workspaceMatch) {
-      if (request.headers.get("Upgrade") !== "websocket") {
+      if (request.method !== "DELETE" && request.headers.get("Upgrade") !== "websocket") {
         return new Response("Expected websocket", { status: 426 });
       }
       const id = env.WORKSPACE_ROOM.idFromName(workspaceMatch[1]!);

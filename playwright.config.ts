@@ -67,6 +67,14 @@ export default defineConfig({
       name: "collab",
       testDir: "./tests/e2e/collab",
       use: { baseURL: "http://localhost:8787" },
+      // Every assertion in this suite is a cross-process round trip
+      // (browser A → WebSocket → wrangler dev → Durable Object → Yjs →
+      // WebSocket → browser B → Svelte → CodeMirror). The 5s default is
+      // the budget for a single-page DOM assertion, not this — and
+      // GitHub Actions' shared runners run it a few times slower than a
+      // dev machine. 15s gives the working-but-slow path room without
+      // hiding a genuinely broken sync (which still fails).
+      expect: { timeout: 15000 },
       // wrangler dev is started separately by tests/scripts/e2e-collab.sh
       // (Task 11), after applying the dev-login patch — outside
       // Playwright's own webServer lifecycle entirely.

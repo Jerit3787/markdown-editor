@@ -175,7 +175,24 @@ let currentAccess: typeof DEFAULT_ACCESS | null = null;
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
-  window.MDE.onBeforeDocLoad = teardownWorkspace;
+  // Tear the workspace connection down before a doc load ONLY when the
+  // load is leaving the currently-connected shared workspace. Switching
+  // between two documents of the *same* connected workspace must keep the
+  // one socket open — handleDocChanged's own "same workspace" branch then
+  // just rebinds the editor to the new doc (seeding it first if it's
+  // brand-new). An unconditional teardown here — a carryover from the
+  // pre-workspace era when every document was its own room — instead
+  // forces a full HTTP refetch + reconnect on every in-workspace doc
+  // switch and, worse, routes a just-created doc through the rejoin path
+  // where its still-empty Y.Doc overwrites the freshly-typed editor
+  // content. handleDocChanged still calls teardownWorkspace() itself in
+  // every branch that genuinely leaves the room.
+  window.MDE.onBeforeDocLoad = () => {
+    const next = getActiveDoc();
+    const ws = next ? get(workspacesStore).find((w) => w.id === next.workspaceId) : null;
+    if (ws && ws.shared && ws.remoteId && workspaceRoom.workspaceId === ws.remoteId) return;
+    teardownWorkspace();
+  };
   window.MDE.onActiveDocChanged = handleDocChanged;
   // Local image inserts (see app.ts's insertImageWithUpload) get mirrored
   // into the active document's Yjs map so collaborators receive the image

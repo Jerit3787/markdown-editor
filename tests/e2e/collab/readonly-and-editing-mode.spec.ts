@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signInAsDevUser } from "./support/dev-login";
 import { readSharedState } from "./support/share";
+import { setActiveDocContent } from "./support/collab";
 
 const BASE = "http://localhost:8787";
 
@@ -125,9 +126,8 @@ test("a viewer-access room locks the app to Preview-only, and editable access al
   // exercising the actual regression below: a locked viewer switching
   // between two documents it already has.
   await owner.evaluate(() => window.MDE.newDoc());
-  await owner.click("#editor-mount .cm-content");
-  await owner.keyboard.type("second document content");
-  await expect.poll(() => owner.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("second document content");
+  await owner.waitForSelector("#editor-mount .cm-content", { state: "visible" });
+  await setActiveDocContent(owner, "second document content");
   const secondDocId = await owner.evaluate(() => localStorage.getItem("mde:active"));
   expect(secondDocId).not.toBe(firstDocId);
   await owner.evaluate((id) => window.MDE.switchDoc(id), firstDocId);

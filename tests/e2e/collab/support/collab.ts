@@ -84,3 +84,32 @@ export function editorText(page: Page): Promise<string> {
 export async function expectEditorContains(page: Page, text: string, timeout = 15000): Promise<void> {
   await expect.poll(() => editorText(page), { timeout }).toContain(text);
 }
+
+// Sets the active document's whole content via one atomic CodeMirror
+// dispatch, retrying until it sticks. Use this instead of
+// `page.keyboard.type(...)` for content typed right after `newDoc()` in a
+// *shared* workspace: creating a doc there kicks off an async rebind
+// (handleDocChanged → seedNewDocBinding → bindActiveDoc → enterCollabMode),
+// and char-by-char keystrokes interleave with it — individual chars can
+// land in the pre-attach plain view instead of the Y.Doc. One atomic
+// dispatch can't straddle the rebind, and the poll re-applies it if the
+// bind's own view/ytext reconcile lands between dispatch and assertion —
+// the same self-healing pattern the cross-client `switchDoc`-in-poll
+// checks already use. (`keyboard.type` stays correct for tests that are
+// *about* keyboard input, e.g. a viewer's blocked keystrokes or a
+// reviewer's suggestions.)
+export async function setActiveDocContent(page: Page, text: string, timeout = 15000): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate((t) => {
+          const cm = window.MDE.getEditor();
+          if (cm.state.doc.toString() !== t) {
+            cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: t } });
+          }
+          return cm.state.doc.toString();
+        }, text),
+      { timeout },
+    )
+    .toBe(text);
+}

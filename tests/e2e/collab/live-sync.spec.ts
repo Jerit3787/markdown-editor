@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signInAsDevUser } from "./support/dev-login";
 import { readSharedState } from "./support/share";
+import { setActiveDocContent } from "./support/collab";
 
 const BASE = "http://localhost:8787";
 
@@ -205,9 +206,7 @@ test("a document created after both collaborators are already connected appears 
   // document, does Alice create a second one in the same workspace.
   await alice.evaluate(() => window.MDE.newDoc());
   await alice.waitForSelector("#editor-mount .cm-content", { state: "visible" });
-  await alice.click("#editor-mount .cm-content");
-  await alice.keyboard.type("second document content, created mid-session");
-  await expect.poll(() => alice.evaluate(() => window.MDE.getEditor().state.doc.toString())).toBe("second document content, created mid-session");
+  await setActiveDocContent(alice, "second document content, created mid-session");
 
   const secondDocId = await alice.evaluate(() => localStorage.getItem("mde:active"));
 

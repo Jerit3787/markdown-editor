@@ -73,3 +73,26 @@ test("GIST-13: signed in — the submenu is shown, the plain button hidden", asy
   expect(screen.container.querySelector("#menuPublishSignedOut")!.hasAttribute("hidden")).toBe(true);
   githubUsername.set(null);
 });
+
+test("drive: File > Open shows 'Markdown from Google Drive' when the feature is configured, hides it otherwise", async () => {
+  const { driveConfigured } = await import("../../../../client/src/stores/driveSync");
+  driveConfigured.set(true);
+  let screen = await render(MenuBar);
+  expect(screen.container.querySelector("#menuOpenDrive")).not.toBeNull();
+
+  driveConfigured.set(false);
+  screen = await render(MenuBar);
+  expect(screen.container.querySelector("#menuOpenDrive")).toBeNull();
+  driveConfigured.set(true);
+});
+
+test("drive: the Open-Drive item shows the busy label and disables while importing", async () => {
+  const { driveConfigured, driveImportBusyLabel } = await import("../../../../client/src/stores/driveSync");
+  driveConfigured.set(true);
+  driveImportBusyLabel.set("Importing…");
+  const screen = await render(MenuBar);
+  const btn = screen.container.querySelector("#menuOpenDrive") as HTMLButtonElement;
+  expect(btn.textContent?.trim()).toBe("Importing…");
+  expect(btn.disabled).toBe(true);
+  driveImportBusyLabel.set(null);
+});

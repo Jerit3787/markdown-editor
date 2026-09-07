@@ -12,6 +12,7 @@
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
+  import { driveConfigured, driveImportBusyLabel } from "../stores/driveSync";
   import { openFindBar } from "../stores/findReplace";
 
   let fileMenuBtn: HTMLButtonElement, fileMenu: HTMLDivElement;
@@ -107,6 +108,17 @@
           <button id="menuOpenRepo" type="button" onclick={() => act(() => window.MDE.openRepoModal?.())}>
             <svg class="icon"><use href="#icon-github"></use></svg> From GitHub Repo...
           </button>
+          {#if $driveConfigured}
+            <button
+              id="menuOpenDrive"
+              type="button"
+              disabled={!!$driveImportBusyLabel}
+              onclick={() => act(() => window.MDE.importMarkdownFromDrive?.())}
+            >
+              <svg class="icon"><use href="#icon-drive"></use></svg>
+              {$driveImportBusyLabel ?? "Markdown from Google Drive..."}
+            </button>
+          {/if}
         </div>
       </div>
 

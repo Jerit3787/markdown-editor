@@ -320,3 +320,42 @@ body.focus-mode #statusbar {
     flex-shrink: 0;
   }
 }
+
+/* ModeSwitcher.svelte — a compact labelled pill in the topbar actions,
+   between Version History and Share. Only rendered inside a shared
+   workspace. Matches the neighbouring .icon-btn colour/height; overrides
+   the fixed 40px square (#topbarActionsCol .icon-btn) since it carries a
+   text label. */
+#topbarActionsCol .mode-switcher {
+  position: relative;
+}
+#topbarActionsCol .mode-switcher-btn {
+  width: auto;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+#topbarActionsCol .mode-switcher-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+#topbarActionsCol .mode-switcher-btn .menu-chevron {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+.mode-switcher-menu {
+  right: 0;
+  min-width: 180px;
+}
+@media (max-width: 780px) {
+  #topbarActionsCol .mode-switcher-label {
+    display: none;
+  }
+  #topbarActionsCol .mode-switcher-btn {
+    padding: 0 8px;
+  }
+}

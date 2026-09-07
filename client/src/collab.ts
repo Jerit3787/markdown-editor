@@ -251,6 +251,18 @@ function init() {
   window.MDE.onGithubAuthComplete = () => handleDocChanged(getActiveDoc());
 }
 
+// Live mode switching: when the user picks a different mode in
+// ModeSwitcher, re-apply it to whatever document is currently bound.
+// Module-level (not inside init()) so it works regardless of DOMContentLoaded
+// timing — the activeDocId guard keeps it a no-op until a doc is actually
+// bound, by which point window.MDE is ready. Fires immediately with the
+// current value too (a harmless no-op).
+effectiveMode.subscribe((mode) => {
+  if (!mode || !workspaceRoom.activeDocId) return;
+  const binding = workspaceRoom.docs.get(workspaceRoom.activeDocId);
+  if (binding) applyEditorMode(binding, mode);
+});
+
 export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const localMatch = get(workspacesStore).find((w) => w.remoteId === workspaceId);
   const access = await fetchWorkspaceAccess(workspaceId);
@@ -867,6 +879,34 @@ let lastRequestedActiveDocId: string | null = null;
 // Y.Doc CodeMirror's yCollab extension is attached to. Async: waits for
 // the binding's first real sync before wiring up yCollab (see
 // markDocSynced for why attaching any earlier corrupts the document).
+// Applies a collab Mode to the editor surface. Called from bindActiveDoc
+// on every doc bind, and from init()'s effectiveMode subscription when the
+// user switches mode mid-session. Rebuilds the editingMode compartment via
+// enterCollabMode (which already reconfigures exactly that compartment) —
+// no dedicated bridge method needed.
+function applyEditorMode(binding: DocBinding, mode: Mode): void {
+  const viewing = mode === "viewing";
+  const undoManager = binding.undoManager || new Y.UndoManager(binding.ytext);
+  binding.undoManager = undoManager;
+  const username = window.MDE.githubUsername;
+  const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
+  const extensions = [yCollab(binding.ytext, binding.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)];
+  if (!viewing) {
+    // suggestionExtensions gates its own pieces: the decoration field
+    // always applies (so an editor sees/acts on suggestions); the
+    // edit-interception (typing → a suggestion) applies only for
+    // viewerRole "reviewer" — i.e. Suggesting mode, or an editor who
+    // chose Suggesting.
+    const viewerRole = mode === "suggesting" ? "reviewer" : "editor";
+    extensions.push(...suggestionExtensions(binding.ydoc, identity.name, { viewerRole, viewerName: identity.name }));
+  }
+  window.MDE.enterCollabMode(extensions, undoManager);
+  window.MDE.setReadOnly(viewing);
+  if (viewing) lockToPreviewOnly();
+  else unlockViewMode();
+  document.body.classList.toggle("collab-viewing", viewing);
+}
+
 async function bindActiveDoc(docId: string): Promise<void> {
   const binding = workspaceRoom.docs.get(docId);
   if (!binding) return;
@@ -921,34 +961,18 @@ async function bindActiveDoc(docId: string): Promise<void> {
     }
   }
 
-  const undoManager = binding.undoManager || new Y.UndoManager(binding.ytext);
-  binding.undoManager = undoManager;
+  // The editor surface (read-only, suggestion-interception, view lock) is
+  // now driven by the effective collab mode — the role's default, or the
+  // user's ModeSwitcher pick clamped to the role ceiling — not the raw
+  // role. applyEditorMode is also re-run by init()'s effectiveMode
+  // subscription on a mid-session switch.
+  applyEditorMode(binding, get(effectiveMode) ?? "editing");
+
   const username = window.MDE.githubUsername;
   const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
-  const extensions = [yCollab(binding.ytext, binding.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)];
-  if (binding.role === "reviewer" || binding.role === "editor") {
-    // suggestionExtensions internally gates its own pieces by role: the
-    // decoration field (so an editor can see and act on suggestions too)
-    // always applies; the edit-interception pieces (typing becomes a
-    // suggestion instead of a direct edit) apply only when viewerRole is
-    // "reviewer". A viewer never reaches this branch — Preview-only
-    // locking keeps them out of the editor surface entirely.
-    extensions.push(...suggestionExtensions(binding.ydoc, identity.name, { viewerRole: binding.role, viewerName: identity.name }));
-  }
-  window.MDE.enterCollabMode(extensions, undoManager);
-  // Only a viewer is read-only now — a reviewer has a fully live,
-  // typeable surface; their edits become suggestions instead of direct
-  // writes (suggestionExtensions above), not a disabled editor.
-  window.MDE.setReadOnly(binding.role === "viewer");
-  // A viewer gets a true look-only mode with no edit surface at all —
-  // locking to Preview removes the Editor/Split panes entirely rather
-  // than just disabling typing in a visible CodeMirror instance.
-  if (binding.role === "viewer") {
-    lockToPreviewOnly();
-  } else {
-    unlockViewMode();
-  }
-
+  // Presence still carries the TRUE role, not the self-selected mode —
+  // other collaborators see "Editor" even while this person reads in
+  // Viewing mode.
   binding.awareness.setLocalState({ user: identity, role: binding.role, username });
   binding.awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
     sendAwareness(docId, binding.awareness, added.concat(updated, removed));

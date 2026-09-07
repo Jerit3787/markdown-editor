@@ -1093,6 +1093,45 @@ describe("collab-mode role publishing", () => {
     expect(get(collabRole)).toBe("editor");
     expect(get(collabIsOwner)).toBe(false);
   });
+
+  it("re-applies the editor mode when effectiveMode changes mid-session", async () => {
+    const { doc } = setup("editor", "cm3");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    const roSpy = window.MDE.setReadOnly as unknown as ReturnType<typeof vi.fn>;
+    roSpy.mockClear();
+
+    setChosenMode("viewing");
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(roSpy).toHaveBeenCalledWith(true);
+    expect(document.body.classList.contains("collab-viewing")).toBe(true);
+    expect(get(viewModeLocked)).toBe(true);
+
+    setChosenMode("editing");
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(roSpy).toHaveBeenLastCalledWith(false);
+    expect(document.body.classList.contains("collab-viewing")).toBe(false);
+  });
+
+  it("a reviewer defaults to Suggesting (writable surface, not locked)", async () => {
+    const { doc } = setup("reviewer", "cm4", { username: "bob" });
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(effectiveMode)).toBe("suggesting");
+    expect(window.MDE.setReadOnly).toHaveBeenLastCalledWith(false);
+    expect(get(viewModeLocked)).toBe(false);
+  });
+
+  it("a viewer is locked to Preview and read-only", async () => {
+    const { doc } = setup("viewer", "cm5", { username: "bob" });
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(effectiveMode)).toBe("viewing");
+    expect(window.MDE.setReadOnly).toHaveBeenLastCalledWith(true);
+    expect(get(viewModeLocked)).toBe(true);
+  });
 });
 
 // Regression coverage: a not-yet-bound document introduced while a

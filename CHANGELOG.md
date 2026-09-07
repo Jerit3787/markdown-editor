@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.49.0] - 2026-09-08
+
+### Added
+
+- **Deleting a shared workspace now revokes access.** As the owner, deleting a shared workspace removes it for everyone you shared it with — the link stops working, connected collaborators are disconnected and their local copy is removed, with a banner explaining why. The delete confirmation spells out the consequence, and reads differently for a workspace you own versus one shared with you.
+
+### Fixed
+
+- **A workspace that is both repo-synced and live-shared no longer loses its repo-pulled documents.** Pulling from the linked repo created documents the collaboration room never knew about, so the next workspace-metadata sync deleted them locally and the next pull re-created them — sidebar rows would vanish and rebuild, and needed several clicks to open. The owner's pull results now register with the room.
+
 ## [1.48.9] - 2026-09-08
 
 ### Fixed

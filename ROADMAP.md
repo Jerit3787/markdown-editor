@@ -29,47 +29,41 @@ hasn't been touched in a while.
 
 ## Active
 
-### Shared-workspace correctness (2026-09)
+### Shared-workspace correctness (2026-09) — shipped
 
-A cluster found in a live two-browser shared-workspace pass.
+A cluster found in a live two-browser shared-workspace pass, all now
+shipped.
 
-- **F1 — workspace name resolves to "Shared workspace" on a share link.**
-  `seedWorkspaceForFirstShare()` seeded each document's content and
-  per-doc name but never the _workspace's_ own name, so
-  `WorkspaceRoom.name` stayed `""`; `/access` and the meta broadcast both
-  carried `""`, `decideJoinTarget` fell back to the placeholder, and
-  `applyWorkspaceMeta` never healed it. **Shipped v1.48.9** (PR #175):
-  push the name on first share, self-heal for an already-connected
-  editor, and a self-assigned default ("New workspace") is deliberately
-  not propagated.
-- **F2 — placeholder name in the merge/separate join prompt.** Same root
-  cause and fix as F1.
-- **F5 — a single-file workspace share named the joiner's workspace
-  after the file.** `decideJoinTarget` now prefers the real remote
-  workspace name. Shipped with F1.
+- **F1 / F2 / F5 — workspace name resolves to "Shared workspace" on a
+  share link** (and the placeholder leaking into the merge/separate join
+  prompt, and a single-file share naming the joiner's workspace after the
+  file). **Shipped v1.48.9** (PR #175): push the name on first share,
+  self-heal for an already-connected editor, `decideJoinTarget` prefers
+  the real remote name, a self-assigned default ("New workspace") is
+  deliberately not propagated.
 - **E1 — sidebar rows missing in a workspace that is both repo-synced
-  and shared.** repo-sync creates docs with client-side ids and never
-  registers them with the shared `WorkspaceRoom`, so
-  `applyWorkspaceMeta()` deletes every repo-pulled doc (absent from the
-  server `docOrder`); the next pull re-creates them with fresh ids, and a
-  click during the churn hits `switchDoc()` with a stale id →
-  `setActiveId` to a dead id → the `id === activeId` guard blocks further
-  clicks. Decision: **make repo-sync and sharing compose** — the owner's
-  pulled docs propagate through the room (repo sync stays owner-only).
-- **F3 — no warning when deleting a shared workspace.** Needs a
-  role-aware confirm dialog (owner vs a collaborator dropping a mirror).
-- **F4 — a deleted shared workspace stays reachable via its link.** Local
-  deletion never revokes the `WorkspaceRoom`. Deletion must hard-revoke:
-  server-side `deleted` flag, `410` on every route,
-  `MESSAGE_WORKSPACE_DELETED` broadcast; collaborators lose a _mirrored_
-  copy entirely (with a banner), a _merged_ workspace only loses its live
-  link.
+  and shared.** repo-sync created docs the `WorkspaceRoom` never knew
+  about, so `applyWorkspaceMeta()` deleted every repo-pulled doc and the
+  next pull re-created them with fresh ids (churn → stale-id clicks).
+  **Shipped v1.49.0**: a `repoDocSyncHook` seam registers the owner's
+  pull results with the room (create → `seedNewDocBinding`, update →
+  wholesale content replace, delete → `pushWorkspaceDocDelete`). Repo
+  sync stays owner-only.
+- **F3 — no warning when deleting a shared workspace.** **Shipped
+  v1.49.0**: role-aware confirm copy — owner ("revokes access for
+  everyone"), a collaborator dropping a mirror ("removes your local
+  copy"), a merger ("stays available to its owner").
+- **F4 — a deleted shared workspace stayed reachable via its link.**
+  **Shipped v1.49.0**: `DELETE /api/workspace/:id` (owner-only) sets a
+  persisted `deleted` tombstone, broadcasts `MESSAGE_WORKSPACE_DELETED`,
+  closes all sessions; every route on a deleted room → `410`.
+  Collaborators lose a `mirrored` copy entirely (with a "deleted by its
+  owner" banner), a `merged` workspace only loses its live link.
 
-**E1 + F3 + F4** are one spec:
-`docs/superpowers/specs/2026-09-08-shared-workspace-composition-lifecycle-design.md`
-(under review). New `Workspace.mirrored` flag; owner-vs-merger resolved
-by a fresh access fetch at delete time; immediate hard revoke, no
-soft-delete; minor version bump + What's New entry.
+Spec: `docs/superpowers/specs/2026-09-08-shared-workspace-composition-lifecycle-design.md`.
+**Deferred** (spec Non-goals): multi-party repo sync (per-user tokens,
+concurrent-pull races); soft-delete / undo for workspace deletion;
+export-before-delete prompt for a collaborator losing a mirror.
 
 ### Collaboration roles, focus mode & suggesting mode
 

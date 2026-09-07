@@ -305,4 +305,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/version-history-authors.png",
     category: "Version History",
   },
+  {
+    version: "1.49.0",
+    title: "Deleting a Shared Workspace Revokes Access",
+    description:
+      "Deleting a shared workspace you own now removes it for everyone you shared it with — the link stops working and connected collaborators are disconnected, with a banner explaining why. The confirmation dialog spells this out, and reads differently for a workspace shared with you (which just drops your local copy). A workspace that's both repo-synced and shared also keeps its repo-pulled files now, instead of losing them on the next sync.",
+    screenshot: "/whats-new/shared-workspace-delete-revoke.png",
+    category: "Collaboration",
+  },
 ];

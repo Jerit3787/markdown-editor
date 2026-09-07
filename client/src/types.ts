@@ -21,6 +21,10 @@ export interface AccessRecord {
   // for a workspace shared before this field existed, or one that was
   // never explicitly renamed. See collab.ts's decideJoinTarget/joinSharedLink.
   workspaceName?: string;
+  // Client-only: set by collab.ts's fetchWorkspaceAccess when the room
+  // responds 410 Gone (the owner deleted the workspace). The server never
+  // sends this — the status code is the signal.
+  deleted?: boolean;
 }
 
 export interface PresenceEntry {
@@ -90,6 +94,14 @@ export interface Workspace {
   // promoteEphemeralWorkspace(), the one way to make it permanent after
   // the fact.
   ephemeral?: boolean;
+  // Set when this record is a *mirror* of a workspace someone else owns —
+  // created by adoptSharedWorkspace / previewSharedWorkspace on joining a
+  // share link. Absent for a workspace this user owns, and absent for one
+  // they merged a share into (mergeSharedWorkspaceInto) — that record is
+  // still fundamentally theirs. Drives WorkspaceSwitcher's delete copy and
+  // collab.ts's "owner deleted this" teardown (remove a mirror entirely,
+  // only sever a merged one).
+  mirrored?: boolean;
 }
 
 export interface Doc {

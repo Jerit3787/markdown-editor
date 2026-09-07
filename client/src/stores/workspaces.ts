@@ -115,7 +115,7 @@ export function createWorkspace(name: string): Workspace {
 // a new workspace" — creates a fresh local Workspace record pointed at the
 // remote room, distinct from anything the user already has.
 export function adoptSharedWorkspace(remoteId: string, name: string): Workspace {
-  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), updatedAt: Date.now(), shared: true, remoteId };
+  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), updatedAt: Date.now(), shared: true, remoteId, mirrored: true };
   workspacesStore.update((all) => [ws, ...all]);
   setActiveWorkspaceId(ws.id);
   persistWorkspaces();
@@ -136,7 +136,7 @@ export function mergeSharedWorkspaceInto(workspaceId: string, remoteId: string):
 // it to storage. "Keep this workspace" (promoteEphemeralWorkspace) is
 // the only way it survives a reload.
 export function previewSharedWorkspace(remoteId: string, name: string): Workspace {
-  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), updatedAt: Date.now(), shared: true, remoteId, ephemeral: true };
+  const ws: Workspace = { id: uid(), name, createdAt: Date.now(), updatedAt: Date.now(), shared: true, remoteId, ephemeral: true, mirrored: true };
   workspacesStore.update((all) => [ws, ...all]);
   setActiveWorkspaceId(ws.id);
   // Deliberately no persistWorkspaces() call — persistWorkspacesExcluding's

@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.4] - 2026-09-08
+
+### Fixed
+
+- **Switching between documents in a shared workspace no longer drops and re-opens the live connection.** A leftover from the one-room-per-document era tore the whole workspace's collaboration socket down on every document switch, forcing a full reconnect and metadata refetch each time — and, if you created a new document moments after turning on sharing, routing it through a rejoin path that could overwrite what you had just typed with an empty copy. Doc switches within a connected shared workspace now keep the one socket open and simply rebind the editor.
+
+### Changed
+
+- **Test coverage — the chronically flaky `e2e-collab` specs are fixed at the source.** `readonly-and-editing-mode` and `live-sync`'s "second document created mid-session" cases were racing the connection-teardown bug above rather than any test-timing issue; with that fixed they pass repeatably (and roughly 10× faster). A `setActiveDocContent` test helper sets a new shared document's content in one atomic editor dispatch instead of racing per-keystroke input against the collab rebind.
+
 ## [1.48.3] - 2026-09-08
 
 ### Changed

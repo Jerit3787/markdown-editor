@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.1] - 2026-09-08
+
+### Changed
+
+- **Test coverage — live-collaboration editor behaviours.** Four new `e2e-collab` tests with a real second collaborator: a remote selection renders in the other editor (COLLAB-43); a dropped WebSocket reconnects and re-syncs with no duplicated content (COLLAB-44); a reviewer can withdraw their own pending suggestion and it clears for both sides (COLLAB-11); a comment highlight follows an insertion made above it and drops when its quoted text is deleted (CMT-14). Catalogued coverage is now 305/314. No behaviour change.
+
 ## [1.48.0] - 2026-09-08
 
 ### Added

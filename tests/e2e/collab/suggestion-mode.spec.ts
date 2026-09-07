@@ -181,3 +181,64 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   await reviewerCtx.close();
   await viewerCtx.close();
 });
+
+test("COLLAB-11: a reviewer withdraws their own pending suggestion, and it clears for both sides", async ({ browser }) => {
+  const ownerCtx = await browser.newContext();
+  const reviewerCtx = await browser.newContext();
+  const owner = await ownerCtx.newPage();
+  const reviewer = await reviewerCtx.newPage();
+
+  await signInAsDevUser(owner, "wd-owner-e2e");
+  await signInAsDevUser(reviewer, "wd-reviewer-e2e");
+
+  await owner.goto(BASE);
+  await owner.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await dismissWhatsNew(owner);
+  await createFirstWorkspaceAndDoc(owner);
+  await owner.click("#editor-mount .cm-content");
+  await owner.keyboard.type("baseline text");
+
+  await owner.click('button:has-text("Share")');
+  const moveDialog = owner.locator('button:has-text("Continue")');
+  if (await moveDialog.isVisible({ timeout: 2000 }).catch(() => false)) await moveDialog.click();
+  const addPeopleInput = owner.locator('input[aria-label="Add people by GitHub username"]');
+  await addPeopleInput.waitFor({ state: "visible" });
+  await addPeopleInput.fill("wd-reviewer-e2e");
+  await Promise.all([
+    owner.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    addPeopleInput.press("Enter"),
+  ]);
+  const roleSelect = owner.locator('select[aria-label="Access level for wd-reviewer-e2e"]');
+  await roleSelect.waitFor({ state: "visible" });
+  await Promise.all([
+    owner.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    roleSelect.selectOption({ label: "Reviewer" }),
+  ]);
+  const shareState = await readSharedState(owner);
+  const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
+  await owner.keyboard.press("Escape").catch(() => {});
+
+  await joinSharedWorkspace(reviewer, shareUrl);
+  await expect.poll(() => reviewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("baseline text");
+
+  // Reviewer proposes an insertion -> one pending suggestion on both sides.
+  await reviewer.click("#editor-mount .cm-content");
+  await reviewer.keyboard.press("Control+End");
+  await reviewer.keyboard.insertText(" reviewer idea");
+  await waitForExactlyOne(reviewer.locator(".cm-suggestion-insert"), 15000);
+  await waitForExactlyOne(owner.locator(".cm-suggestion-insert"), 10000);
+
+  // Reviewer withdraws their own suggestion (non-editor sees a Withdraw
+  // action on a suggestion they authored — see suggestion-editor.ts).
+  await reviewer.locator(".cm-suggestion-action[data-action='withdraw']").click();
+
+  // Gone for the reviewer AND the owner; the proposed text is removed
+  // (withdraw == reject), and ytext never carried it in the first place.
+  await expect(reviewer.locator(".cm-suggestion-insert")).toHaveCount(0, { timeout: 10000 });
+  await expect(owner.locator(".cm-suggestion-insert")).toHaveCount(0, { timeout: 10000 });
+  await expect.poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).not.toContain("reviewer idea");
+  await expect.poll(() => reviewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).not.toContain("reviewer idea");
+
+  await ownerCtx.close();
+  await reviewerCtx.close();
+});

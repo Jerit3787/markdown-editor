@@ -7,6 +7,46 @@
   display: none;
 }
 
+/* B1 — desktop focus-mode exit affordance. A pill that lives just above
+   the top edge and slides into view on entry / when the pointer nears
+   the top (app.ts's initFocusHint()). Hidden entirely off focus mode
+   and on mobile (which uses the always-visible .focus-mode-exit-btn). */
+.focus-hint {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, calc(-100% - 8px));
+  z-index: 60;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  background: var(--bg);
+  color: var(--text-dim);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+.focus-hint .icon {
+  width: 14px;
+  height: 14px;
+}
+body.focus-mode .focus-hint {
+  display: flex;
+}
+body.focus-mode .focus-hint.is-visible {
+  transform: translate(-50%, 0);
+}
+@media (max-width: 780px) {
+  .focus-hint {
+    display: none !important;
+  }
+}
+
 /* C1 — Viewing mode drops the toolbar (its #sidebarToggleOut), so a
    collapsed sidebar has no re-open control. This floating button fills
    that gap; shown only when in Viewing AND the sidebar is collapsed. */

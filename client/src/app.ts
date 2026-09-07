@@ -101,6 +101,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
     // — this button only ever turns focus mode off, never on, so a plain
     // set(false) is correct (unlike MenuBar.svelte's toggle button).
     document.getElementById("focusModeExitBtn")?.addEventListener("click", () => focusMode.set(false));
+    initFocusHint();
     initEmptyState();
 
     // stores/docs.ts owns docs/activeId (self-initialized from localStorage
@@ -172,6 +173,36 @@ import katexCss from "katex/dist/katex.min.css?raw";
     workspacesStore.subscribe(() => {
       updateEmptyStateVariant(!getActiveDoc());
       (document.getElementById("newDocBtn") as HTMLButtonElement).disabled = get(workspacesStore).length === 0;
+    });
+  }
+
+  // B1 — desktop focus-mode exit affordance. #focusHint is a pill parked
+  // just above the top edge; this slides it in briefly on entering focus
+  // mode and whenever the pointer nears the top of the viewport, then
+  // hides it again after a short idle. Clicking it exits focus mode.
+  // Mobile is unaffected (it keeps the always-visible #focusModeExitBtn,
+  // and .focus-hint is display:none under the mobile media query).
+  function initFocusHint() {
+    const hint = document.getElementById("focusHint");
+    if (!hint) return;
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
+    const show = (ms: number) => {
+      hint.classList.add("is-visible");
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => hint.classList.remove("is-visible"), ms);
+    };
+    hint.addEventListener("click", () => focusMode.set(false));
+    document.addEventListener("mousemove", (e) => {
+      if (!document.body.classList.contains("focus-mode")) return;
+      if (e.clientY <= 48) show(2500);
+    });
+    focusMode.subscribe((on) => {
+      if (on) {
+        show(2200);
+      } else {
+        clearTimeout(hideTimer);
+        hint.classList.remove("is-visible");
+      }
     });
   }
 

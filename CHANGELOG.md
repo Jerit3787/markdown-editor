@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.8] - 2026-09-08
+
+### Fixed
+
+- **The "Signed-Out Indicator" What's New entry showed a broken image.** Its screenshot (`signed-out-indicator.png`, added for v1.43.0) was referenced but never committed, so anyone stepping through that entry saw a broken-image icon. The screenshot is now in place, and a test fails the build if any What's New entry references a screenshot file that isn't on disk — `WhatsNew.svelte` renders the image with no fallback, so a missing file is a user-visible break, not a cosmetic gap.
+
 ## [1.48.7] - 2026-09-08
 
 ### Changed

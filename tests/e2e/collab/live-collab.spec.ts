@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ownerWithDoc, shareAnyoneLink, joinSharedWorkspace, editorText, expectEditorContains, BASE } from "./support/collab";
+import { signInAsDevUser } from "./support/dev-login";
 
 test("COLLAB-13: two collaborators editing concurrently converge in both directions", async ({ browser }) => {
   const aCtx = await browser.newContext();
@@ -63,4 +64,54 @@ test("COLLAB-25: a single-doc share link is received as its own new workspace na
 
   await aCtx.close();
   await bCtx.close();
+});
+
+test("COLLAB-23b: the topbar Share dropdown shows the real general-access level, not always 'Restricted'", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const owner = await ctx.newPage();
+
+  await ownerWithDoc(owner, "share-dropdown-e2e", "body");
+  await shareAnyoneLink(owner, "Editor"); // sets general access to "anyone with the link"
+
+  // Open the split-button dropdown next to Share.
+  await owner.click("#shareDropdownBtn");
+  await expect(owner.locator("#shareAccessTitle")).toHaveText("Anyone with the link", { timeout: 5000 });
+
+  await ctx.close();
+});
+
+test("COLLAB-23a: a joined non-owner's Share modal shows the real access and copies a room-id link", async ({ browser }) => {
+  const ownerCtx = await browser.newContext();
+  const peerCtx = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
+  const owner = await ownerCtx.newPage();
+  const peer = await peerCtx.newPage();
+
+  await ownerWithDoc(owner, "share-owner-e2e", "shared body");
+  const url = await shareAnyoneLink(owner, "Editor");
+  const roomId = url.match(/\/w\/([^/]+)\//)![1]!;
+
+  // A different signed-in GitHub user joins the link as their own new workspace.
+  await signInAsDevUser(peer, "share-peer-e2e");
+  await joinSharedWorkspace(peer, url);
+  await expectEditorContains(peer, "shared body");
+
+  const localWsId = await peer.evaluate(() => {
+    const wss = JSON.parse(localStorage.getItem("mde:workspaces") || "[]");
+    const active = localStorage.getItem("mde:activeWorkspace");
+    return wss.find((w: { id: string }) => w.id === active)?.id ?? null;
+  });
+  expect(localWsId).toBeTruthy();
+  expect(localWsId).not.toBe(roomId);
+
+  await peer.click("#shareBtn");
+  // The General-access select reflects the real setting (was always "restricted").
+  await expect(peer.locator('select[aria-label="General access"]')).toHaveValue("anyone-link", { timeout: 5000 });
+
+  await peer.locator('button.secondary-btn:has-text("Copy link")').click();
+  const copied = await peer.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain(`/w/${roomId}/`);
+  expect(copied).not.toContain(`/w/${localWsId}/`);
+
+  await ownerCtx.close();
+  await peerCtx.close();
 });

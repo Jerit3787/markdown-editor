@@ -115,6 +115,29 @@ Roles today: owner → `editor`; link role or per-invite → `viewer` /
   `WorkspaceRoom`. Deletion must revoke remote access (server-side:
   clear access record / close the room / return 404-gone on join).
 
+Decisions taken 2026-09-08 for the E1+F3+F4 spec: repo sync stays
+**owner-only** (collaborators never pull/push; the owner's pull results
+propagate through the room); deleting a shared workspace **hard-revokes
+immediately** and collaborators **lose the mirrored copy entirely**, with
+a `WorkspaceAccessBanner` "deleted by owner" notice; owner-vs-mirror is a
+new `Workspace.mirrored` flag set by `adoptSharedWorkspace` /
+`previewSharedWorkspace`.
+
+## Group G — Links & wikilinks in the preview (new, 2026-09-08)
+
+- **G1** — A markdown link `[text](target)` whose `target` isn't a URL
+  (a bare doc name / relative path) renders in the preview as
+  `<domain>/d/<target>` and navigates nowhere useful. It should resolve
+  to the matching document if one exists, and otherwise show a "that
+  document doesn't exist" affordance rather than a dead link.
+- **G2** — A non-resolving wikilink shows raw `[Name](wikilink:Name)`
+  text in the preview (seen even for `[[Name]]` written inside an inline
+  code span — the `[[…]]` → `[…](wikilink:…)` rewrite is running over
+  code spans it should skip, and the final renderer then prints the
+  unknown-scheme link literally). Wikilink rewriting must respect code
+  spans / code fences, and an unresolved wikilink needs a real rendered
+  state (styled "unresolved link"), never leaked `wikilink:` syntax.
+
 ---
 
 ## Rough shape for later
@@ -123,6 +146,9 @@ Roles today: owner → `editor`; link role or per-invite → `viewer` /
   F5) shipped as a standalone Phase-1 fix (PR #175, v1.48.9). E1, F3, F4
   go into a short spec — repo-sync↔sharing composition and
   shared-workspace deletion semantics (warn + revoke).
+- **G1, G2** are preview link-rendering bugs — a separate small cluster
+  (`wikilinks.ts` / `wikilink-rewrite.ts` / the preview renderer). Likely
+  Phase-1-ish, needs a repro pass. Not part of the E1/F3/F4 spec.
 - **A1, A3, A4, C1, B1** are bounded role/UI fixes → could be one
   "collaboration mode chrome" spec + plan, with **D6** (the mode
   switcher) as the umbrella feature they all hang off.

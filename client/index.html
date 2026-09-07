@@ -554,6 +554,14 @@
       <svg class="icon"><use href="#icon-x"></use></svg>
     </button>
 
+    <!-- Shown only in Viewing mode while the documents sidebar is
+     collapsed — Viewing hides the toolbar (with its #sidebarToggleOut),
+     so a collapsed sidebar would otherwise have no re-open control. CSS
+     in _editor-preview.scss (body.collab-viewing:has(#sidebar.collapsed)). -->
+    <button id="viewingSidebarBtn" class="viewing-sidebar-btn" type="button" aria-label="Show documents" title="Show documents">
+      <svg class="icon"><use href="#icon-menu"></use></svg>
+    </button>
+
     <!-- Share / collaborate — Svelte component, mounted in main.ts; see
      client/src/components/Share.svelte -->
     <div id="share-mount"></div>

@@ -6,6 +6,33 @@
 .focus-mode-exit-btn {
   display: none;
 }
+
+/* C1 — Viewing mode drops the toolbar (its #sidebarToggleOut), so a
+   collapsed sidebar has no re-open control. This floating button fills
+   that gap; shown only when in Viewing AND the sidebar is collapsed. */
+.viewing-sidebar-btn {
+  display: none;
+}
+body.collab-viewing:has(#sidebar.collapsed) .viewing-sidebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 50;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.viewing-sidebar-btn .icon {
+  width: 18px;
+  height: 18px;
+}
 /* Wraps Toolbar.svelte's <div id="toolbar">, Editor.svelte's
    <div id="editorWrap">, and Preview.svelte's <div id="preview"> — all
    three need to sit as direct flex children of #editorPane/#previewPane

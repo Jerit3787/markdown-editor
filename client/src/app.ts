@@ -747,6 +747,9 @@ import katexCss from "katex/dist/katex.min.css?raw";
     document.getElementById("sidebarToggleIn").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarToggleOut").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarBackdrop").addEventListener("click", toggleSidebar);
+    // C1 — floating "show documents" button, visible only in Viewing mode
+    // while the sidebar is collapsed (see _editor-preview.scss).
+    document.getElementById("viewingSidebarBtn")?.addEventListener("click", () => toggleSidebar());
 
     document.getElementById("newDocBtn").addEventListener("click", createNewDoc);
   }

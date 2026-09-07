@@ -64,5 +64,16 @@ export default defineConfig({
       // sync-heavy specs on CI's shared runners. See that script's comment.
       fullyParallel: false,
     },
+    {
+      // Opt-in real-GitHub suite (GIST-11 / REPO-19 / REPO-22). wrangler
+      // dev + the `?real=1` dev-login session are set up by
+      // tests/scripts/e2e-github.sh, which skips entirely without a
+      // configured throwaway account (see tests/e2e/github/README.md).
+      // Serial: one wrangler dev, and real GitHub is rate-limited.
+      name: "github",
+      testDir: "./tests/e2e/github",
+      use: { baseURL: "http://localhost:8787" },
+      fullyParallel: false,
+    },
   ],
 });

@@ -148,3 +148,45 @@ jobs:
           name: playwright-report-collab
           path: playwright-report/
           retention-days: 7
+
+  e2e-github:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Secrets are unavailable to fork PRs — this `if` makes the job SKIP
+    # (not fail) for them. NOT a required check: real GitHub is
+    # rate-limited and its API drifts, so a red here is a signal to look,
+    # never a merge gate. e2e-github.sh itself exits 0 (skip) if the
+    # secrets aren't configured on the repo yet.
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run GitHub e2e suite
+        run: npm run test:e2e:github
+        env:
+          TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
+          TEST_GITHUB_USERNAME: ${{ secrets.TEST_GITHUB_USERNAME }}
+          TEST_GITHUB_GIST_ID: ${{ secrets.TEST_GITHUB_GIST_ID }}
+          TEST_GITHUB_REPO: ${{ secrets.TEST_GITHUB_REPO }}
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-github
+          path: playwright-report/
+          retention-days: 7

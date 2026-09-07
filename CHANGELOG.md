@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.2] - 2026-09-08
+
+### Changed
+
+- **Test coverage — the Gist / GitHub-repo UI flows now have real end-to-end tests.** A new opt-in `e2e-github` suite drives "open a Gist" (from your list, a pasted URL, or an id) and "load a workspace from a repo" (from the menu and the empty state) against a throwaway account's fixtures through the real API-proxy endpoints — the rest of the suite mocks them. It is never part of `npm test`, and its CI job is non-blocking and skips entirely without the repo secrets. GIST-11 / REPO-19 / REPO-22 move to covered (307/314); GIST-05 (a real push, which would create a gist per run) stays permanently deferred. Stale `CMT-13` / `VER-19` Deferred rows removed — both are covered.
+
 ## [1.48.1] - 2026-09-08
 
 ### Changed

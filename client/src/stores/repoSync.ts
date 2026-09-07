@@ -18,3 +18,9 @@ export interface RepoConflictState {
 
 export const repoConflictModalOpen = writable(false);
 export const repoConflictState = writable<RepoConflictState | null>(null);
+
+// Set from the MESSAGE_WORKSPACE_META frame (collab.ts) — true when the
+// current shared workspace is linked to a GitHub repo. Lets a collaborator
+// who has no repoLink of their own still be told sync is in play
+// (DocInfoPanel.svelte). Reset to false on teardown.
+export const workspaceRepoLinked = writable(false);

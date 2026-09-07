@@ -48,7 +48,9 @@ import {
   renameWorkspace,
   deleteWorkspaceRecord,
   isDefaultWorkspaceName,
+  workspaceRepoLinkHook,
 } from "./stores/workspaces";
+import { workspaceRepoLinked } from "./stores/repoSync";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";
@@ -229,6 +231,7 @@ function init() {
   };
   docRemovalHook.onRemoved = pushWorkspaceDocDelete;
   repoDocSyncHook.onRepoDocsChanged = handleRepoDocsChanged;
+  workspaceRepoLinkHook.onChanged = (wsId, linked) => pushWorkspaceRepoLinked(wsId, linked);
 
   setupShareUI();
 
@@ -1035,6 +1038,7 @@ function teardownWorkspace(): void {
   workspaceRoom.activeDocId = null;
   workspaceRoom.role = null;
   workspaceRoom.reconnectDelay = 1000;
+  workspaceRepoLinked.set(false);
   leaveCollabRoom();
 }
 
@@ -1072,9 +1076,10 @@ function handleWorkspaceGone(localWorkspaceId: string): void {
 // greeting a freshly-opened connection gets (see WorkspaceRoom.handleSession),
 // so a stale local cache never has more than the same brief window every
 // other synced field already tolerates before the first real frame lands.
-function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: string[]): void {
+function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: string[], repoLinked: boolean): void {
   const local = get(workspacesStore).find((w) => w.remoteId === remoteWorkspaceId);
   if (!local) return;
+  workspaceRepoLinked.set(repoLinked);
   if (name) {
     renameWorkspace(local.id, name);
   } else if (!isDefaultWorkspaceName(local.name) && workspaceRoom.role === "editor") {
@@ -1147,7 +1152,10 @@ function handleServerMessage(data: Uint8Array): void {
     const count = decoding.readVarUint(decoder);
     const docOrder: string[] = [];
     for (let i = 0; i < count; i++) docOrder.push(decoding.readVarString(decoder));
-    if (workspaceRoom.workspaceId) applyWorkspaceMeta(workspaceRoom.workspaceId, name, docOrder);
+    // Trailing field — guard the read so an old-server frame without it
+    // just defaults to false rather than throwing.
+    const repoLinked = decoding.hasContent(decoder) ? decoding.readVarUint(decoder) === 1 : false;
+    if (workspaceRoom.workspaceId) applyWorkspaceMeta(workspaceRoom.workspaceId, name, docOrder, repoLinked);
     return;
   }
 
@@ -1325,6 +1333,20 @@ export function pushWorkspaceRename(workspaceId: string, name: string): void {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
+  });
+}
+
+// The owner just linked / unlinked the shared workspace's repo — tell the
+// room so collaborators (who have no repoLink of their own) can be shown
+// that sync is in play. Same shape / gate as pushWorkspaceRename; wired
+// via workspaceRepoLinkHook so stores/workspaces.ts needn't import this.
+export function pushWorkspaceRepoLinked(workspaceId: string, linked: boolean): void {
+  const ws = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (!ws || !ws.shared || !ws.remoteId) return;
+  void fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}/meta`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ repoLinked: linked }),
   });
 }
 

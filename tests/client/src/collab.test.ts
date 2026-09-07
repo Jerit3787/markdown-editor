@@ -30,6 +30,7 @@ import {
   isIdentityUnverified,
   DEFAULT_ACCESS,
   pushWorkspaceRename,
+  pushWorkspaceRepoLinked,
   pushWorkspaceDocDelete,
   addPerson,
   joinSharedLink,
@@ -39,6 +40,8 @@ import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
 import { collabRole, collabIsOwner, effectiveMode, chosenMode, setChosenMode, leaveCollabRoom } from "../../../client/src/stores/collabMode";
+import { workspaceRepoLinked } from "../../../client/src/stores/repoSync";
+
 import { workspaceAccessDenied, identityUnverified } from "../../../client/src/stores/share";
 import { getSuggestionsMap } from "../../../client/src/suggestions";
 import type { Doc, Workspace } from "../../../client/src/types";
@@ -1132,6 +1135,26 @@ describe("collab-mode role publishing", () => {
     expect(window.MDE.setReadOnly).toHaveBeenLastCalledWith(true);
     expect(get(viewModeLocked)).toBe(true);
   });
+
+  it("pushWorkspaceRepoLinked PUTs { repoLinked } for a shared workspace only", async () => {
+    const { doc } = setup("editor", "hooklink");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    const spy = fetch as unknown as { mock: { calls: [string, { method?: string; body?: string }?][] } };
+    spy.mock.calls.length = 0;
+
+    const wsId = get(workspacesStore).find((w) => w.remoteId === "remote-hooklink")!.id;
+    pushWorkspaceRepoLinked(wsId, true);
+
+    const put = spy.mock.calls.find(([u, i]) => u === "/api/workspace/remote-hooklink/meta" && i?.method === "PUT");
+    expect(put).toBeTruthy();
+    expect(JSON.parse(put![1]!.body!)).toEqual({ repoLinked: true });
+
+    // A non-shared workspace id → no request.
+    spy.mock.calls.length = 0;
+    pushWorkspaceRepoLinked("not-a-shared-ws", false);
+    expect(spy.mock.calls.length).toBe(0);
+  });
 });
 
 // Regression coverage: a not-yet-bound document introduced while a
@@ -1368,15 +1391,18 @@ describe("discovering a document created by another collaborator", () => {
 describe("incoming workspace meta sync (rename + document removal)", () => {
   const MESSAGE_WORKSPACE_META = 3;
 
-  function sendWorkspaceMeta(name: string, docOrder: string[]) {
+  function sendWorkspaceMeta(name: string, docOrder: string[], repoLinked = false) {
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_WORKSPACE_META);
     encoding.writeVarString(encoder, name);
     encoding.writeVarUint(encoder, docOrder.length);
     for (const id of docOrder) encoding.writeVarString(encoder, id);
+    encoding.writeVarUint(encoder, repoLinked ? 1 : 0);
     const buffer = encoding.toUint8Array(encoder).buffer;
     MockWebSocket.instances[0].onmessage!({ data: buffer } as MessageEvent);
   }
+
+  beforeEach(() => workspaceRepoLinked.set(false));
 
   async function setup(suffix: string) {
     document.body.innerHTML = '<div id="shareBtn"></div>';
@@ -1481,6 +1507,27 @@ describe("incoming workspace meta sync (rename + document removal)", () => {
 
     expect(get(docsStore).find((d) => d.id === "repo-doc")).toBeDefined();
     expect(workspaceRoom.docs.has("repo-doc")).toBe(true);
+  });
+
+  it("sets workspaceRepoLinked from the meta frame's trailing bool", async () => {
+    const { docA, docB } = await setup("metarepolink");
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id], true);
+    expect(get(workspaceRepoLinked)).toBe(true);
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id], false);
+    expect(get(workspaceRepoLinked)).toBe(false);
+  });
+
+  it("tolerates an old-server frame with no trailing bool (defaults false)", async () => {
+    const { docA, docB } = await setup("metaoldframe");
+    workspaceRepoLinked.set(true);
+    const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, 3);
+    encoding.writeVarString(enc, "Old Name");
+    encoding.writeVarUint(enc, 2);
+    encoding.writeVarString(enc, docA.id);
+    encoding.writeVarString(enc, docB.id);
+    MockWebSocket.instances[0].onmessage!({ data: encoding.toUint8Array(enc).buffer } as MessageEvent);
+    expect(get(workspaceRepoLinked)).toBe(false);
   });
 });
 

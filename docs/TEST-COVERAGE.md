@@ -20,6 +20,7 @@ exercises the real risk):
 | `integration`| Worker / Durable Object in-process, network faked | `tests/src/*.test.ts`                               |
 | `e2e`        | full built client, no Worker                      | `tests/e2e/local/*.spec.ts`                         |
 | `e2e-collab` | full client + real `wrangler dev` Worker + DOs    | `tests/e2e/collab/*.spec.ts`                        |
+| `e2e-github` | full client + Worker + **real GitHub** (opt-in, secret-gated, non-blocking CI) | `tests/e2e/github/*.spec.ts` |
 
 **Status** — `covered` (a test asserts the outcome) · `partial` (a test
 touches the path but not the outcome, or tests it at the wrong level) ·
@@ -53,11 +54,11 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      19 |       0 |    0 |    19 |
 | 10. Workspace collab               |      44 |       1 |    1 |    46 |
-| 11. GitHub auth & Gist             |      21 |       1 |    1 |    23 |
-| 12. GitHub repo sync               |      23 |       0 |    1 |    24 |
+| 11. GitHub auth & Gist             |      22 |       1 |    0 |    23 |
+| 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      14 |       0 |    1 |    15 |
 | 14. App shell                      |      19 |       1 |    1 |    21 |
-| **Total**                          | **305** |  **3** |  **6** | **314** |
+| **Total**                          | **307** |  **3** |  **4** | **314** |
 
 ~93% of enumerated scenarios have a test asserting their outcome, ~2%
 are partial, ~5% are gaps (was 59/10/31 at the v1.45.2 first pass;
@@ -409,7 +410,7 @@ _Source: `src/github-auth.ts`, `src/auth.ts`, `src/env.ts`, `client/src/gist.ts`
 | GIST-08  | `parseGistId` accepts a bare id, a full URL, and a URL with a `#file-…` fragment                  | unit        | covered | `tests/client/src/gist.test.ts`                 |                                                                      |
 | GIST-09  | `extractInlineImages` converts a base64 image in an opened Gist back into a local image ref       | unit        | covered | `tests/client/src/gist.test.ts`                 | one distinct ref per inline image; plain links untouched              |
 | GIST-10  | `formatGistDate` renders a Gist ISO timestamp                                                     | unit        | covered | `tests/client/src/gist.test.ts`                 |                                                                      |
-| GIST-11  | Opening a Gist (own list / pasted URL / id) creates a new local document                          | e2e         | gap     | —                                             | needs a fake `/api/gist*` backend; no OAuth in e2e                    |
+| GIST-11  | Opening a Gist (own list / pasted URL / id) creates a new local document                          | e2e-github  | covered | `tests/e2e/github/gist.spec.ts`                | all three entry points, against a fixture gist on a throwaway account |
 | GIST-12  | The GistVisibilityDialog defaults to Secret, resolves the chosen visibility on Publish, and resolves `null` on Cancel | component | covered | `tests/client/src/components/GistVisibilityDialog.test.ts` |                                                          |
 | GIST-13  | Gist / repo menu actions are disabled or hidden when signed out                                   | component   | covered | `tests/client/src/components/MenuBar.test.ts`  | signed-out shows the plain Publish button + hides the submenu; signed-in the reverse |
 | GIST-14  | `MemoryFS` implements the filesystem surface isomorphic-git needs (read / write / readdir / stat / symlink) | unit | covered | `tests/src/memory-fs.test.ts`               | direct: write→read (bytes/string), auto-mkdir, readdir sort, unlink, ENOENT/ENOSYS, `.`/`..` normalization |
@@ -441,10 +442,10 @@ _Source: `client/src/repo-sync.ts`, `client/src/repo-sync-ui.ts`, `src/github-re
 | REPO-16 | Worker repo endpoints (`list` / `create` / `tree` / `blob` / `commits` / `file-at-ref` / `push`) — 401 when signed out, correct upstream URL construction, branch→sha resolution, empty-tree not error, first-commit vs subsequent commit, 409 on non-fast-forward, `Link` header forwarding | integration | covered | `tests/src/github-repo.test.ts`           |                                                                     |
 | REPO-17 | Repo endpoints reject path-traversal / injection in owner / repo / branch / sha / contents-path / push-blob-path, while still accepting real dotted repo names     | integration | covered | `tests/src/github-repo.test.ts`           | code-scanning hardening                                              |
 | REPO-18 | `handleRepoPush` against the fake GitHub server lands a real commit a later tree fetch reflects, including a genuine first commit to a never-seeded repo           | integration | covered | `tests/src/github-repo.test.ts`, `tests/client/src/test-support/fake-repo-backend.test.ts` |                             |
-| REPO-19 | Linking a workspace to a repo through the UI (OpenRepoModal / RepoLinkModal / RepoPicker) pulls every `.md` recursively and dismisses the modal for a progress toast | e2e     | gap     | —                                         | `TODO.md` items 15 + 20; orchestration functions are integration-covered, the UI is not |
+| REPO-19 | Linking a workspace to a repo through the UI (OpenRepoModal / RepoPicker) pulls every `.md` recursively and dismisses the modal for a progress toast | e2e-github | covered | `tests/e2e/github/repo.spec.ts` | manual owner/repo entry against a fixture repo; asserts exactly the 3 `.md` files, non-`.md` skipped, `repoLink` recorded |
 | REPO-20 | A per-file SHA conflict routes through RepoConflictModal and applies the chosen side per file (never a silent overwrite)                                          | component | covered | `tests/client/src/components/RepoConflictModal.test.ts` | per-file select defaults to `mine`; Apply → `onResolve({docId: side})`; Cancel resolves nothing |
 | REPO-21 | Version History merges repo commits into the timeline, diffs a commit against current content, restores from a commit, and follows a rename across commits (`findRenamedPathAtRef`) | component | covered | `tests/client/src/components/VersionHistoryRepoCommits.test.ts` | select a commit → its content loads → Diff shows it as `before`; Restore dispatches it into the editor |
-| REPO-22 | The no-workspace empty state offers "load a workspace from a repo" and it works end-to-end          | e2e         | gap     | —                                         | `TODO.md` item 14                                                    |
+| REPO-22 | The no-workspace empty state offers "load a workspace from a repo" and it works end-to-end          | e2e-github  | covered | `tests/e2e/github/repo.spec.ts`            | `#emptyOpenRepoBtn` → the same RepoPicker flow → 1 workspace, the fixture repo's 3 docs |
 | REPO-23 | "Synced to" / last-push-or-pull time shows in the File > Repo submenu                              | component   | covered | `tests/client/src/components/MenuBar.test.ts`  | `repoLastSyncedLabel` renders "Synced <relative>" when set, nothing when unset |
 | REPO-24 | Repo-commits / repo-dates requests are skipped entirely when signed out                             | unit + integration + component | covered | `tests/client/src/repo-doc-dates.test.ts`, `tests/src/github-repo.test.ts`, `tests/client/src/components/VersionHistory.test.ts` | dates skip + server 401 + VersionHistory's `/commits` skip |
 
@@ -507,8 +508,6 @@ pointing at real bugs awaiting a fix branch.
 
 | ID     | Scenario                                                                 | Why deferred                                                                                                                                                                              |
 | ------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CMT-13 | Reply-to / resolve a comment thread is "broken in practice" (`IMPROVEMENTS.md` Phase 1, confirmed 2026-08-13) | Server routes have passing tests; no repro found by code review. Needs an `e2e-collab` test with two GitHub-authenticated roles (reviewer + editor) exercising reply + resolve on a real shared doc to either reproduce or close it. Write that test in the §10 phase; if it fails, it becomes a bug-fix branch of its own. |
 | IMG-06 | The `![Encoding name…]()` placeholder tracks its position as a collaborator's concurrent edits land during the `FileReader` window | `e2e-collab`, deferred to the §10 phase — needs a second live editor making edits while the file reads. The single-editor half (a doc switch mid-read drops the pending image, `if (!range) return`) is covered by IMG-07. |
 | VER-08 | _Restoring_ a **shared** document's version (`restoreSharedVersion` / `restoreSharedVersionContent`) — the click-through, not just the list/open now covered by `version-history-collab.spec.ts` | `e2e-collab` — the Restore button is disabled for the only snapshot the room reliably captures within an e2e's lifetime (it's the "current" one); needs ≥2 distinct server snapshots, and `WorkspaceRoom`'s 30s snapshot-capture gate isn't a quick e2e setup. Server restore route covered by COLLAB-37; local restore by VER-06/VER-07. |
-| GIST-05 | The happy isomorphic-git push into a gist's own repo | Permanently deferred — pushing over `gist.github.com/<id>.git`'s smart-HTTP protocol would need a full git-server test double (the `fake-github-server` harness speaks only the REST data API). Everything up to the push — sign-in, JSON/base64 validation, the `MemoryFS` write — is covered by `gist-images.test.ts`. |
-| VER-19 | A normalized image-reference format does not surface as a spurious diff | Deferred to the §12 phase — the root cause is repo-sync pull-ref determinism (`resolveImagesFromPull` must round-trip a pushed ref to the exact same text), a repo-sync serialization property rather than a diff-model one. `computeDiffRows` treating identical image lines as `same` is already covered by VER-11. |
+| GIST-05 | The happy isomorphic-git push into a gist's own repo | Permanently deferred — a push *creates* a real gist every run (teardown burden) and pushing over `gist.github.com/<id>.git`'s smart-HTTP protocol would need a full git-server test double. The `e2e-github` harness is read-only by design; everything up to the push — sign-in, JSON/base64 validation, the `MemoryFS` write — is covered by `gist-images.test.ts`. |

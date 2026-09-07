@@ -60,6 +60,16 @@ for local dev. Then:
 Setting these up for a production deployment is covered separately in
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
+## Real-GitHub e2e suite (optional)
+
+The Gist and GitHub-repo **UI flows** have their own opt-in end-to-end
+suite that drives the real API proxy endpoints (the rest of the test
+suite mocks them). It runs against a throwaway account's fixtures and is
+never part of `npm test` / `npm run test:e2e`. To set it up, see
+[tests/e2e/github/README.md](tests/e2e/github/README.md). Its CI job
+(`e2e-github`) is non-blocking and skips entirely without the repo
+secrets.
+
 ## How the app works, file structure, dependencies
 
 See [ARCHITECTURE.md](ARCHITECTURE.md).

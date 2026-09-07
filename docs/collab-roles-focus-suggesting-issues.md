@@ -102,6 +102,10 @@ Roles today: owner → `editor`; link role or per-invite → `viewer` /
   prompt (`JoinWorkspaceModal`) when opening a link while you already
   have a local workspace reads *"Shared workspace is shared with you"* —
   the placeholder name leaking into modal copy. Fixed by F1.
+- **F5** — Sharing a single-file workspace named the joiner's workspace
+  after the *file*, not the workspace (`decideJoinTarget`'s single-doc
+  branches used `validDocs[0].name`). Fixed alongside F1 —
+  `decideJoinTarget` now prefers the real remote workspace name.
 - **F3** — Deleting a shared workspace gives no warning that
   collaborators on the other side will lose access to its documents.
   Needs a confirm dialog spelling out the consequence for a shared
@@ -115,10 +119,10 @@ Roles today: owner → `editor`; link role or per-invite → `viewer` /
 
 ## Rough shape for later
 
-- **E1 / F1–F4** are a "shared-workspace correctness" cluster. F1 (+F2)
-  ships now as a standalone Phase-1 fix. E1, F3, F4 go into a short
-  spec — repo-sync↔sharing composition and shared-workspace deletion
-  semantics (warn + revoke).
+- **E1 / F1–F5** are a "shared-workspace correctness" cluster. F1 (+F2,
+  F5) shipped as a standalone Phase-1 fix (PR #175, v1.48.9). E1, F3, F4
+  go into a short spec — repo-sync↔sharing composition and
+  shared-workspace deletion semantics (warn + revoke).
 - **A1, A3, A4, C1, B1** are bounded role/UI fixes → could be one
   "collaboration mode chrome" spec + plan, with **D6** (the mode
   switcher) as the umbrella feature they all hang off.

@@ -55,28 +55,26 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      19 |       0 |    0 |    19 |
 | 10. Workspace collab               |      46 |       0 |    0 |    46 |
-| 11. GitHub auth & Gist             |      22 |       1 |    0 |    23 |
+| 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **313** |  **1** |  **0** | **314** |
+| **Total**                          | **314** |  **0** |  **0** | **314** |
 
->99% of enumerated scenarios have a test asserting their outcome (was
-59/10/31 at the v1.45.2 first pass; Phases 1–14 + Buckets A/B done, plus
-the real-GitHub and WebKit harnesses). **No `gap` rows remain**, and the
-single `partial` is a permanent deferral, not backlog:
-
-- **GIST-05** — the happy isomorphic-git push into a gist's own git repo.
-  A push _creates_ a real gist every run and pushing over
-  `gist.github.com/<id>.git`'s smart-HTTP would need a full git-server
-  test double; everything up to the push (validation, `MemoryFS` write)
-  is covered by `gist-images.test.ts`. See `## Deferred`.
+**Every enumerated scenario now has a test asserting its outcome —
+314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
+first pass). Phases 1–14 + Buckets A/B, the real-GitHub and WebKit
+harnesses, the legacy-share migration and image-marker races, and the
+last soft spots (COLLAB-31, VER-08, GIST-05) are all closed.
 
 The pure-logic layers (stores, CRDT/room servers, markdown transforms,
 diff/version model, repo-sync planners) and the UI-orchestration paths
 (modals, menus, the Command Palette, DiagramEditor, the Share modal,
 live collaboration, the legacy-share migration) all have outcome-level
-tests.
+tests. Where a behavior can't be exercised end to end — a real git
+smart-HTTP push, a true iOS `<select>` — the catalogue row says which
+layer stands in (a mocked isomorphic-git surface, the WebKit engine) and
+why.
 
 ---
 
@@ -401,7 +399,7 @@ _Source: `src/github-auth.ts`, `src/auth.ts`, `src/env.ts`, `client/src/gist.ts`
 | GIST-02  | `handleGistUpdate` updates the linked Gist; renaming then updating does not create a duplicate file | integration + unit | covered | `tests/src/github-auth.test.ts`, `tests/client/src/gist.test.ts` | handler forwarding + `gistUpdatePayload` uses GitHub's rename form (old key + `filename` prop) so no second file is created |
 | GIST-03  | `handleGistList` / `handleGistGet` return the user's gists / one gist by id                       | integration | covered | `tests/src/github-auth.test.ts`                 | list → `/gists?per_page=100`, get → `/gists/:id`                     |
 | GIST-04  | `handleGistImageUpload` — requires sign-in, and rejects malformed JSON / missing filename / missing `contentBase64` / invalid base64 with diagnostic detail | integration | covered | `tests/src/gist-images.test.ts`               |                                                                      |
-| GIST-05  | A valid image is pushed into the Gist's own git repo as a real binary blob (isomorphic-git → `MemoryFS`), and the markdown is rewritten to reference it | integration | partial | `tests/src/gist-images.test.ts` | validation + MemoryFS write covered; the actual isomorphic-git push over gist.github.com's smart-HTTP protocol has no test double — see `## Deferred` |
+| GIST-05  | A valid image is pushed into the Gist's own git repo as a real binary blob (isomorphic-git → `MemoryFS`), and the markdown is rewritten to reference it | integration | covered | `tests/src/gist-images.test.ts` | validation + `MemoryFS` write, plus the push orchestration with a mocked isomorphic-git: `gist.github.com/<id>.git` clone (shallow, single-branch), OAuth-token-as-git-password `onAuth`, `Add <file>` commit, push, `.../raw/<file>` URL construction, and ref-error / transport-error → 502. The pkt-line wire protocol itself is isomorphic-git's own concern |
 | GIST-06  | `pushImagesAndRewrite` skips a non-base64 data URI, pushes a real inline base64 URI and a real ref-based image resolved against `doc.images` | unit | covered | `tests/client/src/gist.test.ts`               |                                                                      |
 | GIST-07  | `errorMessage` extracts GitHub's JSON `message`, falling back to raw text / bare status sensibly   | unit        | covered | `tests/client/src/gist.test.ts`                 |                                                                      |
 | GIST-08  | `parseGistId` accepts a bare id, a full URL, and a URL with a `#file-…` fragment                  | unit        | covered | `tests/client/src/gist.test.ts`                 |                                                                      |
@@ -503,6 +501,6 @@ _Source: `client/src/components/MenuBar.svelte`, `client/src/components/CommandP
 Scenarios deliberately not tested, and `it.skip` / `test.fixme` rows
 pointing at real bugs awaiting a fix branch.
 
-| ID     | Scenario                                                                 | Why deferred                                                                                                                                                                              |
-| ------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GIST-05 | The happy isomorphic-git push into a gist's own repo | Permanently deferred — a push *creates* a real gist every run (teardown burden) and pushing over `gist.github.com/<id>.git`'s smart-HTTP protocol would need a full git-server test double. The `e2e-github` harness is read-only by design; everything up to the push — sign-in, JSON/base64 validation, the `MemoryFS` write — is covered by `gist-images.test.ts`. |
+_None._ Every catalogued scenario has an outcome-level test as of v1.48.7.
+When a new behavior can only be partially tested, add its row here with
+the reason rather than marking it `covered`.

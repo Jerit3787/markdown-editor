@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.7] - 2026-09-08
+
+### Changed
+
+- **Test coverage — the catalogue is now fully covered (314 / 314, zero gaps, zero partials).** The last open row, GIST-05 (pushing a pasted image into a Gist's own git repo as a real binary blob), moves from partial to covered: with a mocked isomorphic-git surface, the tests now pin the push orchestration — the `gist.github.com/<id>.git` clone, the OAuth-token-as-git-password auth, the `Add <file>` commit, the push, the resulting `raw` URL, and ref-error / transport-error → HTTP 502 — while leaving the pkt-line wire protocol itself to isomorphic-git. The `## Deferred` section of `docs/TEST-COVERAGE.md` is now empty.
+
 ## [1.48.6] - 2026-09-08
 
 ### Changed

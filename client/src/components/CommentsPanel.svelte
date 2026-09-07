@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { get } from "svelte/store";
   import { commentsPanelOpen, unresolvedCommentCount, remoteCommentsChanged } from "../stores/commentsPanel";
+  import { effectiveMode } from "../stores/collabMode";
   import { commentDraft } from "../stores/commentDraft";
   import { activeIdStore, getActiveDoc, addDocNote, deleteDocNote } from "../stores/docs";
   import { fetchAndMergeRepoHistory } from "../repo-history-sync";
@@ -172,6 +173,16 @@
   // is needed here any more.
   $effect(() => {
     document.getElementById("commentsBtn")?.classList.toggle("active", $commentsPanelOpen);
+  });
+
+  // A4 — Viewing mode has no comments surface at all: hide the topbar
+  // button and force the panel shut. (Inline editor highlights need no
+  // handling — Viewing locks the layout to preview-only, so there's no
+  // editor showing them.)
+  $effect(() => {
+    const viewing = $effectiveMode === "viewing";
+    document.getElementById("commentsBtn")?.toggleAttribute("hidden", viewing);
+    if (viewing) commentsPanelOpen.set(false);
   });
 
   // #commentsBadge is plain HTML (index.html), not this component's own

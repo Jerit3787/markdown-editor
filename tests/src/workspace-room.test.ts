@@ -1021,6 +1021,60 @@ describe("WorkspaceRoom.handleInternalSeedRequest", () => {
     expect(await room.getAccess()).toMatchObject({ owner: "alice" });
     expect(await room.getSnapshots("docA")).toHaveLength(1);
   });
+
+  it("names the workspace and the document after a migration payload's docName when neither is set", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "body");
+    const request = new Request("https://example.com/internal/seed", {
+      method: "POST",
+      body: JSON.stringify({
+        docId: "docA",
+        docName: "Release Notes",
+        update: Array.from(Y.encodeStateAsUpdate(scratch)),
+        access: { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] },
+      }),
+    });
+    const res = await room.handleInternalSeedRequest(request);
+    expect(res.status).toBe(204);
+    expect(await room.state.storage.get("name")).toBe("Release Notes");
+    const docRoom = await room.loadDocRoom("docA");
+    expect(docRoom.doc.getMap("meta").get("name")).toBe("Release Notes");
+  });
+
+  it("does not overwrite a meta.name the migrated Y.Doc already carries", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "body");
+    scratch.getMap("meta").set("name", "Real Name");
+    const request = new Request("https://example.com/internal/seed", {
+      method: "POST",
+      body: JSON.stringify({
+        docId: "docA",
+        docName: "Fallback Name",
+        update: Array.from(Y.encodeStateAsUpdate(scratch)),
+      }),
+    });
+    await room.handleInternalSeedRequest(request);
+    const docRoom = await room.loadDocRoom("docA");
+    expect(docRoom.doc.getMap("meta").get("name")).toBe("Real Name");
+    // The workspace had no name of its own, so the payload's docName still lands there.
+    expect(await room.state.storage.get("name")).toBe("Fallback Name");
+  });
+
+  it("leaves names alone when the migration payload carries no docName", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "body");
+    const request = new Request("https://example.com/internal/seed", {
+      method: "POST",
+      body: JSON.stringify({ docId: "docA", update: Array.from(Y.encodeStateAsUpdate(scratch)) }),
+    });
+    await room.handleInternalSeedRequest(request);
+    expect(await room.state.storage.get("name")).toBeUndefined();
+    const docRoom = await room.loadDocRoom("docA");
+    expect(docRoom.doc.getMap("meta").get("name")).toBeUndefined();
+  });
 });
 
 describe("reviewer writes", () => {

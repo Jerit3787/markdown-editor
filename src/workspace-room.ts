@@ -983,7 +983,7 @@ export class WorkspaceRoom {
   // from worker.ts's routing (see src/worker.ts's WORKSPACE_* patterns,
   // none of which match "/internal/...").
   async handleInternalSeedRequest(request: Request): Promise<Response> {
-    let body: { docId?: unknown; update?: unknown; access?: unknown; snapshots?: unknown; comments?: unknown };
+    let body: { docId?: unknown; docName?: unknown; update?: unknown; access?: unknown; snapshots?: unknown; comments?: unknown };
     try {
       body = await request.json();
     } catch (err) {
@@ -993,11 +993,28 @@ export class WorkspaceRoom {
       return new Response("Invalid seed payload.", { status: 400 });
     }
     const docId = body.docId;
+    const docName = typeof body.docName === "string" ? body.docName.trim() : "";
 
     if (body.access) await this.state.storage.put("access", body.access);
 
+    // A legacy /d/ migration: name the fresh workspace after its one
+    // document (the CollabRoom had no workspace concept), so joiners don't
+    // fall back to the literal "Shared workspace". Only when we actually
+    // have a name and this workspace hasn't been named some other way.
+    if (docName && !this.name) {
+      this.name = docName;
+      await this.state.storage.put("name", this.name);
+    }
+
     const docRoom = await this.loadDocRoom(docId);
     docRoom.doc.transact(() => Y.applyUpdate(docRoom.doc, new Uint8Array(body.update as number[]), "storage"), "storage");
+    // Seed the document's own name into its Y.Doc meta map if the migrated
+    // update didn't already carry one (older CollabRooms never wrote it) —
+    // the client's fetchRemoteDocContent reads meta.name and otherwise
+    // shows "Shared document".
+    if (docName && !docRoom.doc.getMap<string>("meta").get("name")) {
+      docRoom.doc.transact(() => docRoom.doc.getMap<string>("meta").set("name", docName), "storage");
+    }
     if (Array.isArray(body.snapshots)) {
       docRoom.snapshots = body.snapshots as Snapshot[];
       await this.state.storage.put(docStorageKey(docId, "snapshots"), body.snapshots);

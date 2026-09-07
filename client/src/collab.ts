@@ -413,7 +413,13 @@ async function migrateLegacyDoc(docId: string) {
     if (!doc) return;
 
     const existingLocal = get(workspacesStore).find((w) => w.remoteId === workspaceId);
-    const targetWorkspaceId = existingLocal ? existingLocal.id : adoptSharedWorkspace(workspaceId, doc.name || "Untitled").id;
+    // Don't seed the local workspace with the doc's own placeholder name
+    // ("Shared document-5") — "Untitled workspace" at least reads as
+    // rename-me. A real name arrives via applyWorkspaceMeta once the room
+    // has one (the seed sets it for fresh migrations; the block at the end
+    // of this function pushes one for already-migrated legacy rooms).
+    const adoptName = doc.name && !isPlaceholderDocName(doc.name) ? doc.name : "Untitled workspace";
+    const targetWorkspaceId = existingLocal ? existingLocal.id : adoptSharedWorkspace(workspaceId, adoptName).id;
     if (targetWorkspaceId !== doc.workspaceId) {
       // Fold this doc into the migrated workspace instead of leaving a
       // duplicate behind — the migrate endpoint already copied its
@@ -427,9 +433,37 @@ async function migrateLegacyDoc(docId: string) {
     }
 
     await rejoinKnownWorkspace(workspaceId, docId);
+
+    // Heal names for a legacy share whose room predates name-syncing (its
+    // WorkspaceRoom.name / the doc's meta.name were never set — the seed
+    // only carries a name forward when the CollabRoom's Y.Doc already had
+    // one). The person triggering the migration is usually the original
+    // owner opening their own old link, so their local doc.name is the
+    // best source of truth we have. Editor-gated both sides: a non-editor's
+    // meta write is dropped by the server, and pushWorkspaceRename's PUT is
+    // 403'd — so this is a no-op for a random visitor, and a random
+    // visitor's local doc.name is a placeholder anyway (guarded below).
+    if (workspaceRoom.role === "editor" && doc.name && !isPlaceholderDocName(doc.name)) {
+      const binding = workspaceRoom.docs.get(docId);
+      if (binding && !binding.metaMap.get("name")) {
+        binding.ydoc.transact(() => binding.metaMap.set("name", doc.name), "local");
+      }
+      // pushWorkspaceRename resolves the room id from the *local* workspace
+      // record, so pass the local id, not `workspaceId` (the remote one).
+      const acc = await fetchWorkspaceAccess(workspaceId);
+      if (!acc.workspaceName) pushWorkspaceRename(targetWorkspaceId, doc.name);
+    }
   } catch (err) {
     syncShareStores();
   }
+}
+
+// "Shared document" / "Shared workspace" (with the -2, -3… dedupe suffix
+// ensureUniqueName / decideJoinTarget may have appended) are the literal
+// placeholders shown when a name is genuinely missing — never propagate
+// one as if it were a real name.
+function isPlaceholderDocName(name: string): boolean {
+  return /^Shared document(-\d+)?$/.test(name.trim());
 }
 
 // Opens the one WebSocket for a whole shared workspace and creates a

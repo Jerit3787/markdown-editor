@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.1] - 2026-09-08
+
+### Fixed
+
+- **A shared workspace opened through an old single-document link showed "Shared workspace" and "Shared document" instead of real names.** The one-time migration that folds a legacy link into the new workspace model now carries the document's name forward — into the workspace name and the document's own synced name — so a fresh visitor sees the real titles. Migrations whose original room predates name-syncing self-heal the next time an editor opens the link.
+
 ## [1.47.0] - 2026-09-07
 
 ### Fixed

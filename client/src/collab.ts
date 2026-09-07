@@ -1262,7 +1262,17 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
       if (type !== MESSAGE_SYNC) return;
       const gotDocId = decoding.readVarString(decoder);
       if (gotDocId !== docId) return;
-      syncProtocol.readSyncMessage(decoder, encoding.createEncoder(), scratchDoc, "server");
+      const syncType = syncProtocol.readSyncMessage(decoder, encoding.createEncoder(), scratchDoc, "server");
+      // WorkspaceRoom.handleSession greets every new connection with its
+      // own SyncStep1 for each document — a frame that asks for *our*
+      // state and carries none of the document's own. Finishing on it
+      // hands back an empty scratchDoc, i.e. the "Shared document"
+      // fallback name and empty content, even for a fully-populated
+      // document. Wait for the SyncStep2 reply to our own step1 (or a
+      // later Update, or a step1 that only arrives after real state has
+      // already landed) before resolving.
+      const hasState = !!scratchDoc.getMap<string>("meta").get("name") || scratchDoc.getText("content").length > 0;
+      if (syncType === syncProtocol.messageYjsSyncStep1 && !hasState) return;
       const now = Date.now();
       const name = scratchDoc.getMap<string>("meta").get("name") || "Shared document";
       finish({ id: docId, name, content: scratchDoc.getText("content").toString(), updatedAt: now, createdAt: now });

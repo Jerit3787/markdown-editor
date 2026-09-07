@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.2] - 2026-09-08
+
+### Fixed
+
+- **A collaborator joining a shared workspace saw its documents named "Shared document".** The one-time content fetch that fills the join preview resolved on the collaboration room's greeting handshake frame — which carries none of a document's own state — instead of waiting for the reply that actually contains its name and text. Every joined document now shows its real title.
+
 ## [1.47.1] - 2026-09-08
 
 ### Fixed

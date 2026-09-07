@@ -3,6 +3,7 @@
   import Modal from "./Modal.svelte";
   import Toggletip from "./Toggletip.svelte";
   import { githubUsername } from "../stores/github";
+  import { driveConnected, driveConfigured } from "../stores/driveSync";
   import { keybindingMode, setKeybindingMode } from "../stores/keybindings";
 
   const STORAGE_THEME = "mde:theme";
@@ -109,6 +110,27 @@
         </button>
       {/if}
     </div>
+
+    {#if $driveConfigured}
+      <div class="setting-row">
+        <div class="setting-label">
+          <span class="setting-title">Google Drive</span>
+          <span class="setting-desc">
+            <span class="status-dot {$driveConnected ? 'status-shared' : 'status-idle'}"></span>
+            {$driveConnected ? "Connected" : "Not connected"}
+          </span>
+        </div>
+        {#if !$driveConnected}
+          <button class="secondary-btn" type="button" onclick={() => window.MDE.connectGoogleDrive?.()} style="margin: 0; width: auto;">
+            <svg class="icon"><use href="#icon-drive"></use></svg> Connect
+          </button>
+        {:else}
+          <button class="secondary-btn" type="button" onclick={() => window.MDE.disconnectGoogleDrive?.()} style="margin: 0; width: auto;">
+            <svg class="icon"><use href="#icon-log-out"></use></svg> Disconnect
+          </button>
+        {/if}
+      </div>
+    {/if}
 
     <div class="setting-row stacked">
       <div class="setting-label">

@@ -38,6 +38,7 @@ import {
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
+import { collabRole, collabIsOwner, effectiveMode, chosenMode, setChosenMode, leaveCollabRoom } from "../../../client/src/stores/collabMode";
 import { workspaceAccessDenied, identityUnverified } from "../../../client/src/stores/share";
 import { getSuggestionsMap } from "../../../client/src/suggestions";
 import type { Doc, Workspace } from "../../../client/src/types";
@@ -1023,6 +1024,74 @@ describe("suggestion-mode role wiring", () => {
     await Promise.resolve();
 
     expect(mde.updatePreview).toHaveBeenCalled();
+  });
+});
+
+describe("collab-mode role publishing", () => {
+  function setup(role: "reviewer" | "viewer" | "editor", suffix: string, opts: { username?: string } = {}) {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="body"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role, invited: [] }) };
+        }
+        if (url.includes("/docs")) return { ok: true, json: async () => [`doc-${suffix}`] };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: opts.username ?? "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+      updatePreview: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const doc = { id: `doc-${suffix}`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([doc]);
+    activeIdStore.set(doc.id);
+    return { doc };
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    leaveCollabRoom();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("publishes the role and ownership on join, clears on teardown", async () => {
+    const { doc } = setup("editor", "cm1"); // githubUsername "alice" === access.owner
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(collabRole)).toBe("editor");
+    expect(get(collabIsOwner)).toBe(true);
+    expect(get(effectiveMode)).toBe("editing");
+
+    teardownWorkspace();
+    expect(get(collabRole)).toBeNull();
+    expect(get(collabIsOwner)).toBe(false);
+    expect(get(effectiveMode)).toBeNull();
+  });
+
+  it("marks a non-owner collaborator isOwner=false", async () => {
+    const { doc } = setup("editor", "cm2", { username: "bob" });
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(collabRole)).toBe("editor");
+    expect(get(collabIsOwner)).toBe(false);
   });
 });
 

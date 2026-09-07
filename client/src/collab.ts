@@ -56,6 +56,7 @@ import { getSuggestionsMap } from "./suggestions";
 import { pendingSuggestionCount } from "./stores/suggestions";
 import { remoteCommentsChanged } from "./stores/commentsPanel";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
+import { enterCollabRoom, leaveCollabRoom, effectiveMode, type Mode, type Role } from "./stores/collabMode";
 import { COLORS, colorForUsername } from "./user-color";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
@@ -274,7 +275,7 @@ export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
     // Already joined this remote workspace before — just switch to it.
     switchWorkspace(localMatch.id);
     switchDoc(landOnDocId);
-    await joinWorkspace(workspaceId, { role });
+    await joinWorkspace(workspaceId, { role, isOwner: !!username && access.owner === username });
     bindActiveDoc(landOnDocId);
     return;
   }
@@ -423,7 +424,10 @@ async function rejoinKnownWorkspace(remoteId: string, docId: string) {
   }
   workspaceAccessDenied.set(null);
   identityUnverified.set(isIdentityUnverified(access, window.MDE.githubUsername));
-  const joined = await joinWorkspace(remoteId, { role });
+  const joined = await joinWorkspace(remoteId, {
+    role,
+    isOwner: !!window.MDE.githubUsername && access.owner === window.MDE.githubUsername,
+  });
   if (joined !== joinGeneration) return;
   bindActiveDoc(docId);
   syncShareStores();
@@ -517,11 +521,15 @@ function isPlaceholderDocName(name: string): boolean {
 // Returns the generation number this attempt claimed (via its own
 // teardownWorkspace() call below) so callers that awaited this can tell
 // whether a newer attempt has since superseded it — see rejoinKnownWorkspace.
-async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: string; seedDocId?: string }): Promise<number> {
+async function joinWorkspace(
+  workspaceId: string,
+  { role, seedDocId, isOwner = false }: { role: string; seedDocId?: string; isOwner?: boolean },
+): Promise<number> {
   teardownWorkspace();
   const myGeneration = joinGeneration;
   workspaceRoom.workspaceId = workspaceId;
   workspaceRoom.role = role;
+  enterCollabRoom(workspaceId, role as Role, isOwner);
 
   const docIds = await fetchWorkspaceDocIds(workspaceId);
   if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-fetch — leave workspaceRoom to the newer attempt
@@ -662,7 +670,7 @@ function handleRepoDocsChanged({
 async function seedWorkspaceForFirstShare(activeDoc: Doc): Promise<void> {
   const siblings = get(docsStore).filter((d) => d.workspaceId === activeDoc.workspaceId && d.id !== activeDoc.id);
   await Promise.all(siblings.map((d) => registerDocWithRoom(activeDoc.workspaceId, d.id)));
-  await joinWorkspace(activeDoc.workspaceId, { role: "editor", seedDocId: activeDoc.id });
+  await joinWorkspace(activeDoc.workspaceId, { role: "editor", seedDocId: activeDoc.id, isOwner: true });
   bindActiveDoc(activeDoc.id);
   for (const sibling of siblings) seedNewDocBinding(sibling.id, sibling, "editor");
 
@@ -1003,6 +1011,7 @@ function teardownWorkspace(): void {
   workspaceRoom.activeDocId = null;
   workspaceRoom.role = null;
   workspaceRoom.reconnectDelay = 1000;
+  leaveCollabRoom();
 }
 
 // The owner deleted this shared workspace (a live MESSAGE_WORKSPACE_DELETED

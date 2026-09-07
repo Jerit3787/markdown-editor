@@ -51,6 +51,18 @@ test("B1: the desktop focus hint shows on entry and on a top-of-screen mouse mov
   await expect(page.locator("body")).not.toHaveClass(/focus-mode/);
 });
 
+test("B2: focus mode dims preview blocks outside the active paragraph", async ({ page }) => {
+  await page.click("#editor-mount .cm-content");
+  await page.keyboard.type("# Heading\n\nfirst paragraph\n\nsecond paragraph");
+  // Cursor is now in "second paragraph".
+  await page.click("#viewMenuBtn");
+  await page.click('text="Focus Mode"');
+  await expect(page.locator("body")).toHaveClass(/focus-mode/);
+
+  await expect(page.locator('#preview [data-line="0"]')).toHaveClass(/focus-dim/);
+  await expect(page.locator('#preview [data-line="4"]')).not.toHaveClass(/focus-dim/);
+});
+
 test("undo and redo round-trip an edit", async ({ page }) => {
   await page.click("#editor-mount .cm-content");
   await page.keyboard.type("hello");

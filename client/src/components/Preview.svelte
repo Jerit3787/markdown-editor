@@ -17,6 +17,8 @@
   import { transformSuggestions } from "../suggestion-preview";
   import { listResolvedSuggestions } from "../suggestions";
   import { workspaceRoom } from "../collab";
+  import { focusMode, focusActiveLines } from "../stores/focusMode";
+  import { applyFocusDim } from "../preview-focus-dim";
 
   // Registered once, at module scope — marked.use() mutates the shared
   // marked singleton permanently, so this must never run inside
@@ -158,9 +160,29 @@
         liEls[j].setAttribute("data-line", String(itemLines[j]));
       }
     }
+    // B2 — re-apply focus-mode dimming against the freshly-tagged blocks.
+    dimForFocus();
+
     mermaidRenderScheduler.trigger();
     mathRenderScheduler.trigger();
   }
+
+  // Dims every top-level preview block outside the cursor's paragraph
+  // while focus mode is on. Called both from updatePreview() (fresh
+  // data-line tags) and from the $effect below (cursor moved, no
+  // re-render).
+  function dimForFocus() {
+    if (!hostEl) return;
+    applyFocusDim(Array.from(hostEl.children), get(focusMode) ? get(focusActiveLines) : null);
+  }
+
+  $effect(() => {
+    // Track both stores so a cursor move (focusActiveLines) or toggling
+    // focus mode re-runs the dimming even without a preview re-render.
+    void $focusMode;
+    void $focusActiveLines;
+    dimForFocus();
+  });
 
   // Runs after every mermaid render pass — adds a hover-revealed "Edit"
   // button to each diagram backed by a real ref (see mermaid-preview.ts's

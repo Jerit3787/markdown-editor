@@ -220,6 +220,14 @@ body.collab-viewing:has(#sidebar.collapsed) .viewing-sidebar-btn {
   font-size: 15.5px;
   overflow-wrap: break-word;
 
+  /* B2 — focus mode dims preview blocks outside the cursor's paragraph,
+     mirroring the editor's own .cm-dimmed-line (editor-theme.ts). Toggled
+     per top-level child by preview-focus-dim.ts's applyFocusDim(). */
+  & > .focus-dim {
+    opacity: 0.35;
+    transition: opacity 0.15s ease;
+  }
+
   /* Scoped under #preview, matching (not just relying on coincidental
      color overlap with) #preview a's specificity — otherwise that
      generic rule's `color` wins over a plain .wikilink-missing class

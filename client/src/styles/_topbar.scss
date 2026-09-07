@@ -347,7 +347,11 @@ body.focus-mode #statusbar {
   height: 14px;
   opacity: 0.7;
 }
-.mode-switcher-menu {
+/* Two classes so it beats `.dropdown-menu { display: none }` on
+   specificity regardless of stylesheet order — ModeSwitcher.svelte only
+   renders this while open ({#if open}), so no `.open` class to toggle. */
+.dropdown-menu.mode-switcher-menu {
+  display: block;
   right: 0;
   min-width: 180px;
 }

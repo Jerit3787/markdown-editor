@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.50.0] - UNRELEASED
+
+### Added
+
+- **Editing / Suggesting / Viewing mode switcher.** In a shared workspace, a switcher next to Share lets you work below your granted role — an editor can review as a suggester or read as a viewer, a reviewer can drop to viewing. Viewing mode hides the editing menus, the comments panel and button, and the editor pane, and adds a floating button to reopen the documents sidebar. More in this release — see `docs/superpowers/plans/`.
+
 ## [1.49.0] - 2026-09-08
 
 ### Added

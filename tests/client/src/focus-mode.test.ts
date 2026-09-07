@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Text } from "@codemirror/state";
-import { activeParagraphRange } from "../../../client/src/focus-mode";
+import { activeParagraphRange, activeParagraphLineRange } from "../../../client/src/focus-mode";
 
 describe("activeParagraphRange", () => {
   it("returns the whole document when it's a single paragraph", () => {
@@ -53,5 +53,24 @@ describe("activeParagraphRange", () => {
     const line3 = doc.line(3);
     const range = activeParagraphRange(doc, line3.from);
     expect(range).toEqual({ from: line3.from, to: doc.length });
+  });
+});
+
+describe("activeParagraphLineRange", () => {
+  it("returns the 1-based inclusive line range of a multi-line paragraph", () => {
+    const doc = Text.of(["para one line a", "para one line b", "", "para two"]);
+    // cursor inside paragraph one (lines 1-2)
+    expect(activeParagraphLineRange(doc, 2)).toEqual({ from: 1, to: 2 });
+    // cursor in the single-line paragraph two (line 4)
+    expect(activeParagraphLineRange(doc, doc.line(4).from)).toEqual({ from: 4, to: 4 });
+  });
+
+  it("returns just the blank line's number when the cursor sits on it", () => {
+    const doc = Text.of(["alpha", "", "beta"]);
+    expect(activeParagraphLineRange(doc, doc.line(2).from)).toEqual({ from: 2, to: 2 });
+  });
+
+  it("handles an empty document", () => {
+    expect(activeParagraphLineRange(Text.of([""]), 0)).toEqual({ from: 1, to: 1 });
   });
 });

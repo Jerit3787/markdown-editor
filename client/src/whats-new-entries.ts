@@ -313,4 +313,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/shared-workspace-delete-revoke.png",
     category: "Collaboration",
   },
+  {
+    version: "1.50.0",
+    title: "Work Below Your Role, and a Calmer Focus Mode",
+    description:
+      "A shared workspace now has an Editing / Suggesting / Viewing switcher next to Share — work below the access you were granted, and Viewing mode strips the app down to just the document. Publishing and repo sync are the workspace owner's controls only, collaborators can see when a workspace syncs to a repo, and on desktop a hint now tells you how to leave focus mode — which also dims the preview pane now, not just the editor.",
+    screenshot: "/whats-new/focus-mode-polish.png",
+    category: "Collaboration",
+  },
 ];

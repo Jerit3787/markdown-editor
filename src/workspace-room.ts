@@ -149,6 +149,7 @@ export class WorkspaceRoom {
   docIds: string[];
   name: string;
   deleted: boolean;
+  repoLinked: boolean;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -158,6 +159,7 @@ export class WorkspaceRoom {
     this.docIds = [];
     this.name = "";
     this.deleted = false;
+    this.repoLinked = false;
 
     this.state.blockConcurrencyWhile(async () => {
       const storedDocIds = await this.state.storage.get<string[]>("docs");
@@ -167,6 +169,7 @@ export class WorkspaceRoom {
       }
       this.name = (await this.state.storage.get<string>("name")) || "";
       this.deleted = (await this.state.storage.get<boolean>("deleted")) === true;
+      this.repoLinked = (await this.state.storage.get<boolean>("repoLinked")) === true;
     });
   }
 
@@ -413,6 +416,9 @@ export class WorkspaceRoom {
     encoding.writeVarString(encoder, this.name);
     encoding.writeVarUint(encoder, this.docIds.length);
     for (const id of this.docIds) encoding.writeVarString(encoder, id);
+    // Trailing field — an older client stops reading before it (harmless);
+    // a newer client guards the read with decoding.hasContent().
+    encoding.writeVarUint(encoder, this.repoLinked ? 1 : 0);
     return encoding.toUint8Array(encoder);
   }
 
@@ -431,18 +437,27 @@ export class WorkspaceRoom {
     if (request.method !== "PUT") return new Response("Method not allowed", { status: 405 });
     const auth = await this.authorize(request);
     if (!auth.ok) return new Response(auth.message, { status: auth.status });
-    if (auth.role !== "editor") return new Response("Only an editor can rename this workspace.", { status: 403 });
-    let body: { name?: unknown };
+    if (auth.role !== "editor") return new Response("Only an editor can change workspace metadata.", { status: 403 });
+    let body: { name?: unknown; repoLinked?: unknown };
     try {
       body = await request.json();
     } catch (err) {
       return new Response("Invalid JSON.", { status: 400 });
     }
-    if (typeof body.name !== "string") return new Response("Invalid name.", { status: 400 });
-    this.name = body.name;
-    await this.state.storage.put("name", this.name);
+    const hasName = typeof body.name === "string";
+    const hasRepoLinked = typeof body.repoLinked === "boolean";
+    if (!hasName && !hasRepoLinked) return new Response("Nothing to update.", { status: 400 });
+
+    if (hasName) {
+      this.name = body.name as string;
+      await this.state.storage.put("name", this.name);
+    }
+    if (hasRepoLinked) {
+      this.repoLinked = body.repoLinked as boolean;
+      await this.state.storage.put("repoLinked", this.repoLinked);
+    }
     this.broadcastWorkspaceMeta();
-    return Response.json({ name: this.name });
+    return Response.json({ name: this.name, repoLinked: this.repoLinked });
   }
 
   // Owner-only hard revoke. Sets a persisted `deleted` tombstone (a DO

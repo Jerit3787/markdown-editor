@@ -293,6 +293,10 @@
         <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
         <path d="m15 5 4 4" />
       </symbol>
+      <symbol id="icon-eye" viewBox="0 0 24 24">
+        <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+        <circle cx="12" cy="12" r="3" />
+      </symbol>
       <symbol id="icon-chevron-right" viewBox="0 0 24 24">
         <path d="m9 18 6-6-6-6" />
       </symbol>
@@ -360,6 +364,9 @@
             <button id="versionHistoryBtn" class="icon-btn" type="button" title="Version history" aria-label="Version history">
               <svg class="icon"><use href="#icon-history"></use></svg>
             </button>
+            <!-- ModeSwitcher.svelte (Editing / Suggesting / Viewing) — mounted in main.ts;
+                 renders only inside a shared workspace. -->
+            <div id="mode-switcher-mount"></div>
             <div class="share-btn-group" id="shareBtnGroup">
               <button id="shareBtn" class="share-pill share-pill-main" type="button" title="Share">
                 <svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span>
@@ -545,6 +552,23 @@
      element's pattern in this app. -->
     <button id="focusModeExitBtn" class="focus-mode-exit-btn" type="button" aria-label="Exit Focus Mode" title="Exit Focus Mode">
       <svg class="icon"><use href="#icon-x"></use></svg>
+    </button>
+
+    <!-- Desktop focus-mode exit hint — slides down from the top edge on a
+     top-of-viewport mouse move, and once briefly on entry. Mobile keeps
+     the always-visible #focusModeExitBtn above instead. See app.ts's
+     initFocusHint() + _editor-preview.scss. -->
+    <button id="focusHint" class="focus-hint" type="button">
+      <svg class="icon"><use href="#icon-x"></use></svg>
+      <span>Focus mode — press Esc or click here to exit</span>
+    </button>
+
+    <!-- Shown only in Viewing mode while the documents sidebar is
+     collapsed — Viewing hides the toolbar (with its #sidebarToggleOut),
+     so a collapsed sidebar would otherwise have no re-open control. CSS
+     in _editor-preview.scss (body.collab-viewing:has(#sidebar.collapsed)). -->
+    <button id="viewingSidebarBtn" class="viewing-sidebar-btn" type="button" aria-label="Show documents" title="Show documents">
+      <svg class="icon"><use href="#icon-menu"></use></svg>
     </button>
 
     <!-- Share / collaborate — Svelte component, mounted in main.ts; see

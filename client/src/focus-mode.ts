@@ -16,3 +16,11 @@ export function activeParagraphRange(doc: Text, pos: number): { from: number; to
   while (endLn < doc.lines && doc.line(endLn + 1).text.trim() !== "") endLn++;
   return { from: doc.line(startLn).from, to: doc.line(endLn).to };
 }
+
+// Same paragraph, expressed as an inclusive 1-based line range instead of
+// character offsets — what Editor.svelte publishes to the focusActiveLines
+// store for Preview.svelte's preview-pane dimming (B2).
+export function activeParagraphLineRange(doc: Text, pos: number): { from: number; to: number } {
+  const { from, to } = activeParagraphRange(doc, pos);
+  return { from: doc.lineAt(from).number, to: doc.lineAt(to).number };
+}

@@ -162,14 +162,24 @@ export function promoteEphemeralWorkspace(id: string): void {
   if (get(activeWorkspaceIdStore) === id) setActiveWorkspaceId(id);
 }
 
+// collab.ts's init() sets onChanged once; setWorkspaceRepoLink /
+// clearWorkspaceRepoLink call it so the owner can broadcast "this
+// workspace (is / is no longer) repo-linked" to collaborators over the
+// workspace-meta frame. This module can't import collab.ts (see the
+// module-doc comment at the top of this file), hence the hook — same
+// pattern as stores/docs.ts's docRemovalHook / repoDocSyncHook.
+export const workspaceRepoLinkHook: { onChanged?: (workspaceId: string, linked: boolean) => void } = {};
+
 export function setWorkspaceRepoLink(id: string, repoLink: { owner: string; repo: string; branch: string }): void {
   workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink, updatedAt: Date.now() } : w)));
   persistWorkspaces();
+  workspaceRepoLinkHook.onChanged?.(id, true);
 }
 
 export function clearWorkspaceRepoLink(id: string): void {
   workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, repoLink: undefined, repoLastSyncedAt: undefined, updatedAt: Date.now() } : w)));
   persistWorkspaces();
+  workspaceRepoLinkHook.onChanged?.(id, false);
 }
 
 export function setWorkspaceLastSynced(id: string, timestamp: number): void {

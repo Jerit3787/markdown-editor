@@ -4,6 +4,21 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.50.0] - 2026-09-08
+
+### Added
+
+- **Editing / Suggesting / Viewing mode switcher.** In a shared workspace, a switcher next to Share lets you work below your granted role — an editor can review as a suggester or read as a viewer, a reviewer can drop to viewing. Viewing mode hides the editing menus, the comments panel and button, and the editor pane, and adds a floating button to reopen the documents sidebar. More in this release — see `docs/superpowers/plans/`.
+- **Collaborators can see when a workspace syncs to a GitHub repo.** Document Info shows a read-only "Synced to a GitHub repo, managed by the workspace owner" line for people you've shared a repo-linked workspace with.
+
+### Changed
+
+- **Publishing to Gist and syncing to a GitHub repo are the workspace owner's controls only.** A collaborator you share a workspace with — at any role, editor included — no longer sees Publish to Gist or the GitHub Repo menu; those actions belong to whoever owns the workspace.
+
+### Fixed
+
+- **Focus mode is easier to leave, and it now quiets the preview too.** On desktop a hint slides down from the top of the screen when you enter focus mode or move the pointer to the top edge — click it (or press Esc) to exit. And the paragraph dimming now applies to the preview pane as well, not just the editor.
+
 ## [1.49.0] - 2026-09-08
 
 ### Added

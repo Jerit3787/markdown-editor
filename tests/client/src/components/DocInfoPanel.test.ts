@@ -69,3 +69,25 @@ test("MDX-03: shows the 'No backlinks' empty state when nothing links here", asy
   const screen = await render(DocInfoPanel);
   await expect.element(screen.getByText("No backlinks", { exact: true })).toBeVisible();
 });
+
+test("A5: a non-owner collaborator sees a read-only repo-linked row", async () => {
+  const { workspaceRepoLinked } = await import("../../../../client/src/stores/repoSync");
+  const { collabIsOwner, leaveCollabRoom } = await import("../../../../client/src/stores/collabMode");
+  leaveCollabRoom();
+  workspaceRepoLinked.set(true);
+  collabIsOwner.set(false);
+  const screen = await render(DocInfoPanel);
+  await expect.element(screen.getByText(/managed by the workspace owner/i)).toBeVisible();
+  workspaceRepoLinked.set(false);
+});
+
+test("A5: the owner does not get the read-only row", async () => {
+  const { workspaceRepoLinked } = await import("../../../../client/src/stores/repoSync");
+  const { collabIsOwner } = await import("../../../../client/src/stores/collabMode");
+  workspaceRepoLinked.set(true);
+  collabIsOwner.set(true);
+  const screen = await render(DocInfoPanel);
+  expect((await screen.getByText(/managed by the workspace owner/i).all()).length).toBe(0);
+  workspaceRepoLinked.set(false);
+  collabIsOwner.set(false);
+});

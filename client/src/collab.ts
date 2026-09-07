@@ -48,7 +48,9 @@ import {
   renameWorkspace,
   deleteWorkspaceRecord,
   isDefaultWorkspaceName,
+  workspaceRepoLinkHook,
 } from "./stores/workspaces";
+import { workspaceRepoLinked } from "./stores/repoSync";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";
@@ -56,6 +58,7 @@ import { getSuggestionsMap } from "./suggestions";
 import { pendingSuggestionCount } from "./stores/suggestions";
 import { remoteCommentsChanged } from "./stores/commentsPanel";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
+import { enterCollabRoom, leaveCollabRoom, effectiveMode, type Mode, type Role } from "./stores/collabMode";
 import { COLORS, colorForUsername } from "./user-color";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
@@ -228,6 +231,7 @@ function init() {
   };
   docRemovalHook.onRemoved = pushWorkspaceDocDelete;
   repoDocSyncHook.onRepoDocsChanged = handleRepoDocsChanged;
+  workspaceRepoLinkHook.onChanged = (wsId, linked) => pushWorkspaceRepoLinked(wsId, linked);
 
   setupShareUI();
 
@@ -249,6 +253,18 @@ function init() {
   // overwriting it.
   window.MDE.onGithubAuthComplete = () => handleDocChanged(getActiveDoc());
 }
+
+// Live mode switching: when the user picks a different mode in
+// ModeSwitcher, re-apply it to whatever document is currently bound.
+// Module-level (not inside init()) so it works regardless of DOMContentLoaded
+// timing — the activeDocId guard keeps it a no-op until a doc is actually
+// bound, by which point window.MDE is ready. Fires immediately with the
+// current value too (a harmless no-op).
+effectiveMode.subscribe((mode) => {
+  if (!mode || !workspaceRoom.activeDocId) return;
+  const binding = workspaceRoom.docs.get(workspaceRoom.activeDocId);
+  if (binding) applyEditorMode(binding, mode);
+});
 
 export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const localMatch = get(workspacesStore).find((w) => w.remoteId === workspaceId);
@@ -274,7 +290,7 @@ export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
     // Already joined this remote workspace before — just switch to it.
     switchWorkspace(localMatch.id);
     switchDoc(landOnDocId);
-    await joinWorkspace(workspaceId, { role });
+    await joinWorkspace(workspaceId, { role, isOwner: !!username && access.owner === username });
     bindActiveDoc(landOnDocId);
     return;
   }
@@ -423,7 +439,10 @@ async function rejoinKnownWorkspace(remoteId: string, docId: string) {
   }
   workspaceAccessDenied.set(null);
   identityUnverified.set(isIdentityUnverified(access, window.MDE.githubUsername));
-  const joined = await joinWorkspace(remoteId, { role });
+  const joined = await joinWorkspace(remoteId, {
+    role,
+    isOwner: !!window.MDE.githubUsername && access.owner === window.MDE.githubUsername,
+  });
   if (joined !== joinGeneration) return;
   bindActiveDoc(docId);
   syncShareStores();
@@ -517,11 +536,15 @@ function isPlaceholderDocName(name: string): boolean {
 // Returns the generation number this attempt claimed (via its own
 // teardownWorkspace() call below) so callers that awaited this can tell
 // whether a newer attempt has since superseded it — see rejoinKnownWorkspace.
-async function joinWorkspace(workspaceId: string, { role, seedDocId }: { role: string; seedDocId?: string }): Promise<number> {
+async function joinWorkspace(
+  workspaceId: string,
+  { role, seedDocId, isOwner = false }: { role: string; seedDocId?: string; isOwner?: boolean },
+): Promise<number> {
   teardownWorkspace();
   const myGeneration = joinGeneration;
   workspaceRoom.workspaceId = workspaceId;
   workspaceRoom.role = role;
+  enterCollabRoom(workspaceId, role as Role, isOwner);
 
   const docIds = await fetchWorkspaceDocIds(workspaceId);
   if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-fetch — leave workspaceRoom to the newer attempt
@@ -662,7 +685,7 @@ function handleRepoDocsChanged({
 async function seedWorkspaceForFirstShare(activeDoc: Doc): Promise<void> {
   const siblings = get(docsStore).filter((d) => d.workspaceId === activeDoc.workspaceId && d.id !== activeDoc.id);
   await Promise.all(siblings.map((d) => registerDocWithRoom(activeDoc.workspaceId, d.id)));
-  await joinWorkspace(activeDoc.workspaceId, { role: "editor", seedDocId: activeDoc.id });
+  await joinWorkspace(activeDoc.workspaceId, { role: "editor", seedDocId: activeDoc.id, isOwner: true });
   bindActiveDoc(activeDoc.id);
   for (const sibling of siblings) seedNewDocBinding(sibling.id, sibling, "editor");
 
@@ -859,6 +882,34 @@ let lastRequestedActiveDocId: string | null = null;
 // Y.Doc CodeMirror's yCollab extension is attached to. Async: waits for
 // the binding's first real sync before wiring up yCollab (see
 // markDocSynced for why attaching any earlier corrupts the document).
+// Applies a collab Mode to the editor surface. Called from bindActiveDoc
+// on every doc bind, and from init()'s effectiveMode subscription when the
+// user switches mode mid-session. Rebuilds the editingMode compartment via
+// enterCollabMode (which already reconfigures exactly that compartment) —
+// no dedicated bridge method needed.
+function applyEditorMode(binding: DocBinding, mode: Mode): void {
+  const viewing = mode === "viewing";
+  const undoManager = binding.undoManager || new Y.UndoManager(binding.ytext);
+  binding.undoManager = undoManager;
+  const username = window.MDE.githubUsername;
+  const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
+  const extensions = [yCollab(binding.ytext, binding.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)];
+  if (!viewing) {
+    // suggestionExtensions gates its own pieces: the decoration field
+    // always applies (so an editor sees/acts on suggestions); the
+    // edit-interception (typing → a suggestion) applies only for
+    // viewerRole "reviewer" — i.e. Suggesting mode, or an editor who
+    // chose Suggesting.
+    const viewerRole = mode === "suggesting" ? "reviewer" : "editor";
+    extensions.push(...suggestionExtensions(binding.ydoc, identity.name, { viewerRole, viewerName: identity.name }));
+  }
+  window.MDE.enterCollabMode(extensions, undoManager);
+  window.MDE.setReadOnly(viewing);
+  if (viewing) lockToPreviewOnly();
+  else unlockViewMode();
+  document.body.classList.toggle("collab-viewing", viewing);
+}
+
 async function bindActiveDoc(docId: string): Promise<void> {
   const binding = workspaceRoom.docs.get(docId);
   if (!binding) return;
@@ -913,34 +964,18 @@ async function bindActiveDoc(docId: string): Promise<void> {
     }
   }
 
-  const undoManager = binding.undoManager || new Y.UndoManager(binding.ytext);
-  binding.undoManager = undoManager;
+  // The editor surface (read-only, suggestion-interception, view lock) is
+  // now driven by the effective collab mode — the role's default, or the
+  // user's ModeSwitcher pick clamped to the role ceiling — not the raw
+  // role. applyEditorMode is also re-run by init()'s effectiveMode
+  // subscription on a mid-session switch.
+  applyEditorMode(binding, get(effectiveMode) ?? "editing");
+
   const username = window.MDE.githubUsername;
   const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
-  const extensions = [yCollab(binding.ytext, binding.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)];
-  if (binding.role === "reviewer" || binding.role === "editor") {
-    // suggestionExtensions internally gates its own pieces by role: the
-    // decoration field (so an editor can see and act on suggestions too)
-    // always applies; the edit-interception pieces (typing becomes a
-    // suggestion instead of a direct edit) apply only when viewerRole is
-    // "reviewer". A viewer never reaches this branch — Preview-only
-    // locking keeps them out of the editor surface entirely.
-    extensions.push(...suggestionExtensions(binding.ydoc, identity.name, { viewerRole: binding.role, viewerName: identity.name }));
-  }
-  window.MDE.enterCollabMode(extensions, undoManager);
-  // Only a viewer is read-only now — a reviewer has a fully live,
-  // typeable surface; their edits become suggestions instead of direct
-  // writes (suggestionExtensions above), not a disabled editor.
-  window.MDE.setReadOnly(binding.role === "viewer");
-  // A viewer gets a true look-only mode with no edit surface at all —
-  // locking to Preview removes the Editor/Split panes entirely rather
-  // than just disabling typing in a visible CodeMirror instance.
-  if (binding.role === "viewer") {
-    lockToPreviewOnly();
-  } else {
-    unlockViewMode();
-  }
-
+  // Presence still carries the TRUE role, not the self-selected mode —
+  // other collaborators see "Editor" even while this person reads in
+  // Viewing mode.
   binding.awareness.setLocalState({ user: identity, role: binding.role, username });
   binding.awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
     sendAwareness(docId, binding.awareness, added.concat(updated, removed));
@@ -1003,6 +1038,8 @@ function teardownWorkspace(): void {
   workspaceRoom.activeDocId = null;
   workspaceRoom.role = null;
   workspaceRoom.reconnectDelay = 1000;
+  workspaceRepoLinked.set(false);
+  leaveCollabRoom();
 }
 
 // The owner deleted this shared workspace (a live MESSAGE_WORKSPACE_DELETED
@@ -1039,9 +1076,10 @@ function handleWorkspaceGone(localWorkspaceId: string): void {
 // greeting a freshly-opened connection gets (see WorkspaceRoom.handleSession),
 // so a stale local cache never has more than the same brief window every
 // other synced field already tolerates before the first real frame lands.
-function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: string[]): void {
+function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: string[], repoLinked: boolean): void {
   const local = get(workspacesStore).find((w) => w.remoteId === remoteWorkspaceId);
   if (!local) return;
+  workspaceRepoLinked.set(repoLinked);
   if (name) {
     renameWorkspace(local.id, name);
   } else if (!isDefaultWorkspaceName(local.name) && workspaceRoom.role === "editor") {
@@ -1114,7 +1152,10 @@ function handleServerMessage(data: Uint8Array): void {
     const count = decoding.readVarUint(decoder);
     const docOrder: string[] = [];
     for (let i = 0; i < count; i++) docOrder.push(decoding.readVarString(decoder));
-    if (workspaceRoom.workspaceId) applyWorkspaceMeta(workspaceRoom.workspaceId, name, docOrder);
+    // Trailing field — guard the read so an old-server frame without it
+    // just defaults to false rather than throwing.
+    const repoLinked = decoding.hasContent(decoder) ? decoding.readVarUint(decoder) === 1 : false;
+    if (workspaceRoom.workspaceId) applyWorkspaceMeta(workspaceRoom.workspaceId, name, docOrder, repoLinked);
     return;
   }
 
@@ -1292,6 +1333,20 @@ export function pushWorkspaceRename(workspaceId: string, name: string): void {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
+  });
+}
+
+// The owner just linked / unlinked the shared workspace's repo — tell the
+// room so collaborators (who have no repoLink of their own) can be shown
+// that sync is in play. Same shape / gate as pushWorkspaceRename; wired
+// via workspaceRepoLinkHook so stores/workspaces.ts needn't import this.
+export function pushWorkspaceRepoLinked(workspaceId: string, linked: boolean): void {
+  const ws = get(workspacesStore).find((w) => w.id === workspaceId);
+  if (!ws || !ws.shared || !ws.remoteId) return;
+  void fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}/meta`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ repoLinked: linked }),
   });
 }
 

@@ -32,6 +32,37 @@ test("SHELL-13: Focus Mode does not persist across a reload", async ({ page }) =
   await expect(page.locator("body")).not.toHaveClass(/focus-mode/);
 });
 
+test("B1: the desktop focus hint shows on entry and on a top-of-screen mouse move, and exits on click", async ({ page }) => {
+  await page.click("#viewMenuBtn");
+  await page.click('text="Focus Mode"');
+  await expect(page.locator("body")).toHaveClass(/focus-mode/);
+
+  // Flashed on entry.
+  await expect(page.locator("#focusHint")).toHaveClass(/is-visible/);
+  // Auto-hides after the idle timeout.
+  await expect(page.locator("#focusHint")).not.toHaveClass(/is-visible/, { timeout: 4000 });
+
+  // A move to the top edge brings it back.
+  await page.mouse.move(400, 4);
+  await expect(page.locator("#focusHint")).toHaveClass(/is-visible/);
+
+  // Clicking it exits focus mode.
+  await page.click("#focusHint");
+  await expect(page.locator("body")).not.toHaveClass(/focus-mode/);
+});
+
+test("B2: focus mode dims preview blocks outside the active paragraph", async ({ page }) => {
+  await page.click("#editor-mount .cm-content");
+  await page.keyboard.type("# Heading\n\nfirst paragraph\n\nsecond paragraph");
+  // Cursor is now in "second paragraph".
+  await page.click("#viewMenuBtn");
+  await page.click('text="Focus Mode"');
+  await expect(page.locator("body")).toHaveClass(/focus-mode/);
+
+  await expect(page.locator('#preview [data-line="0"]')).toHaveClass(/focus-dim/);
+  await expect(page.locator('#preview [data-line="4"]')).not.toHaveClass(/focus-dim/);
+});
+
 test("undo and redo round-trip an edit", async ({ page }) => {
   await page.click("#editor-mount .cm-content");
   await page.keyboard.type("hello");

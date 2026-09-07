@@ -30,6 +30,7 @@ import {
   isIdentityUnverified,
   DEFAULT_ACCESS,
   pushWorkspaceRename,
+  pushWorkspaceRepoLinked,
   pushWorkspaceDocDelete,
   addPerson,
   joinSharedLink,
@@ -38,6 +39,9 @@ import {
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
+import { collabRole, collabIsOwner, effectiveMode, chosenMode, setChosenMode, leaveCollabRoom } from "../../../client/src/stores/collabMode";
+import { workspaceRepoLinked } from "../../../client/src/stores/repoSync";
+
 import { workspaceAccessDenied, identityUnverified } from "../../../client/src/stores/share";
 import { getSuggestionsMap } from "../../../client/src/suggestions";
 import type { Doc, Workspace } from "../../../client/src/types";
@@ -1026,6 +1030,133 @@ describe("suggestion-mode role wiring", () => {
   });
 });
 
+describe("collab-mode role publishing", () => {
+  function setup(role: "reviewer" | "viewer" | "editor", suffix: string, opts: { username?: string } = {}) {
+    document.body.innerHTML = '<div id="shareBtn"></div><div id="body"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role, invited: [] }) };
+        }
+        if (url.includes("/docs")) return { ok: true, json: async () => [`doc-${suffix}`] };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      githubUsername: opts.username ?? "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+      updatePreview: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const doc = { id: `doc-${suffix}`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([doc]);
+    activeIdStore.set(doc.id);
+    return { doc };
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    leaveCollabRoom();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("publishes the role and ownership on join, clears on teardown", async () => {
+    const { doc } = setup("editor", "cm1"); // githubUsername "alice" === access.owner
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(collabRole)).toBe("editor");
+    expect(get(collabIsOwner)).toBe(true);
+    expect(get(effectiveMode)).toBe("editing");
+
+    teardownWorkspace();
+    expect(get(collabRole)).toBeNull();
+    expect(get(collabIsOwner)).toBe(false);
+    expect(get(effectiveMode)).toBeNull();
+  });
+
+  it("marks a non-owner collaborator isOwner=false", async () => {
+    const { doc } = setup("editor", "cm2", { username: "bob" });
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(collabRole)).toBe("editor");
+    expect(get(collabIsOwner)).toBe(false);
+  });
+
+  it("re-applies the editor mode when effectiveMode changes mid-session", async () => {
+    const { doc } = setup("editor", "cm3");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    const roSpy = window.MDE.setReadOnly as unknown as ReturnType<typeof vi.fn>;
+    roSpy.mockClear();
+
+    setChosenMode("viewing");
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(roSpy).toHaveBeenCalledWith(true);
+    expect(document.body.classList.contains("collab-viewing")).toBe(true);
+    expect(get(viewModeLocked)).toBe(true);
+
+    setChosenMode("editing");
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(roSpy).toHaveBeenLastCalledWith(false);
+    expect(document.body.classList.contains("collab-viewing")).toBe(false);
+  });
+
+  it("a reviewer defaults to Suggesting (writable surface, not locked)", async () => {
+    const { doc } = setup("reviewer", "cm4", { username: "bob" });
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(effectiveMode)).toBe("suggesting");
+    expect(window.MDE.setReadOnly).toHaveBeenLastCalledWith(false);
+    expect(get(viewModeLocked)).toBe(false);
+  });
+
+  it("a viewer is locked to Preview and read-only", async () => {
+    const { doc } = setup("viewer", "cm5", { username: "bob" });
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(get(effectiveMode)).toBe("viewing");
+    expect(window.MDE.setReadOnly).toHaveBeenLastCalledWith(true);
+    expect(get(viewModeLocked)).toBe(true);
+  });
+
+  it("pushWorkspaceRepoLinked PUTs { repoLinked } for a shared workspace only", async () => {
+    const { doc } = setup("editor", "hooklink");
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    const spy = fetch as unknown as { mock: { calls: [string, { method?: string; body?: string }?][] } };
+    spy.mock.calls.length = 0;
+
+    const wsId = get(workspacesStore).find((w) => w.remoteId === "remote-hooklink")!.id;
+    pushWorkspaceRepoLinked(wsId, true);
+
+    const put = spy.mock.calls.find(([u, i]) => u === "/api/workspace/remote-hooklink/meta" && i?.method === "PUT");
+    expect(put).toBeTruthy();
+    expect(JSON.parse(put![1]!.body!)).toEqual({ repoLinked: true });
+
+    // A non-shared workspace id → no request.
+    spy.mock.calls.length = 0;
+    pushWorkspaceRepoLinked("not-a-shared-ws", false);
+    expect(spy.mock.calls.length).toBe(0);
+  });
+});
+
 // Regression coverage: a not-yet-bound document introduced while a
 // workspace is already connected used to derive its role by reading
 // *some other* binding's own .role (falling back to "editor" the moment
@@ -1260,15 +1391,18 @@ describe("discovering a document created by another collaborator", () => {
 describe("incoming workspace meta sync (rename + document removal)", () => {
   const MESSAGE_WORKSPACE_META = 3;
 
-  function sendWorkspaceMeta(name: string, docOrder: string[]) {
+  function sendWorkspaceMeta(name: string, docOrder: string[], repoLinked = false) {
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_WORKSPACE_META);
     encoding.writeVarString(encoder, name);
     encoding.writeVarUint(encoder, docOrder.length);
     for (const id of docOrder) encoding.writeVarString(encoder, id);
+    encoding.writeVarUint(encoder, repoLinked ? 1 : 0);
     const buffer = encoding.toUint8Array(encoder).buffer;
     MockWebSocket.instances[0].onmessage!({ data: buffer } as MessageEvent);
   }
+
+  beforeEach(() => workspaceRepoLinked.set(false));
 
   async function setup(suffix: string) {
     document.body.innerHTML = '<div id="shareBtn"></div>';
@@ -1373,6 +1507,27 @@ describe("incoming workspace meta sync (rename + document removal)", () => {
 
     expect(get(docsStore).find((d) => d.id === "repo-doc")).toBeDefined();
     expect(workspaceRoom.docs.has("repo-doc")).toBe(true);
+  });
+
+  it("sets workspaceRepoLinked from the meta frame's trailing bool", async () => {
+    const { docA, docB } = await setup("metarepolink");
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id], true);
+    expect(get(workspaceRepoLinked)).toBe(true);
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id], false);
+    expect(get(workspaceRepoLinked)).toBe(false);
+  });
+
+  it("tolerates an old-server frame with no trailing bool (defaults false)", async () => {
+    const { docA, docB } = await setup("metaoldframe");
+    workspaceRepoLinked.set(true);
+    const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, 3);
+    encoding.writeVarString(enc, "Old Name");
+    encoding.writeVarUint(enc, 2);
+    encoding.writeVarString(enc, docA.id);
+    encoding.writeVarString(enc, docB.id);
+    MockWebSocket.instances[0].onmessage!({ data: encoding.toUint8Array(enc).buffer } as MessageEvent);
+    expect(get(workspaceRepoLinked)).toBe(false);
   });
 });
 

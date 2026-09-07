@@ -8,3 +8,8 @@ import { writable } from "svelte/store";
 // localStorage — always starts false on load, a session toggle rather
 // than a sticky preference.
 export const focusMode = writable<boolean>(false);
+
+// The 1-based line range of the paragraph the cursor is in, published by
+// Editor.svelte while focus mode is on (null otherwise). Preview.svelte
+// reads it to dim the corresponding preview blocks (B2).
+export const focusActiveLines = writable<{ from: number; to: number } | null>(null);

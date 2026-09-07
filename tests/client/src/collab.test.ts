@@ -1363,6 +1363,26 @@ describe("incoming workspace meta sync (rename + document removal)", () => {
     expect(get(docsStore).find((d) => d.id === docB.id)).toBeDefined();
     expect(workspaceRoom.docs.has(docB.id)).toBe(true);
   });
+
+  // E1 regression: a repo-linked-AND-shared workspace used to lose its
+  // repo-pulled docs — they were never registered with the room, so this
+  // frame's docOrder omitted them and applyWorkspaceMeta deleted them.
+  // Now handleRepoDocsChanged seeds them first, so a later frame that
+  // includes them leaves them alone.
+  it("keeps a repo-pulled doc once the repo hook has seeded it into the room", async () => {
+    const { ws, docA, docB } = await setup("metarepo");
+    docsStore.update((d) => [
+      ...d,
+      { id: "repo-doc", name: "Repo Doc", content: "x", updatedAt: 0, createdAt: 0, workspaceId: ws.id, repoPath: "r.md" },
+    ]);
+    handleRepoDocsChanged({ workspaceId: ws.id, created: ["repo-doc"], updated: [], deleted: [] });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id, "repo-doc"]);
+
+    expect(get(docsStore).find((d) => d.id === "repo-doc")).toBeDefined();
+    expect(workspaceRoom.docs.has("repo-doc")).toBe(true);
+  });
 });
 
 describe("owner-deleted-the-workspace teardown", () => {

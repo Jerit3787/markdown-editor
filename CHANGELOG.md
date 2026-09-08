@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.54.0] - 2026-09-08
+
+### Added
+
+- **Your GitHub account in the top bar.** When you're signed in, your avatar sits at the end of the top bar — click it to see your username or sign out. Signed out, it's a sign-in button.
+
+### Changed
+
+- **The top bar looks a little more like Google Docs.** Icon buttons are round, buttons show a small label when you hover or tab to them, and the Editing/Suggesting/Viewing switcher is more compact when you can switch.
+
 ## [1.53.0] - 2026-09-08
 
 ### Added

@@ -159,53 +159,42 @@ not a link in marked, needs `%20` / `<>`.
 ### Google-Docs-style top bar & version history (2026-09-08)
 
 Cosmetic/chrome pass, benchmarked against Google Docs, reported with
-screenshots. A `feedback_topbar_sizing_locked` note previously froze
-topbar sizing/colour to commit `08065f4` — the user has now explicitly
-authorised the shape/avatar changes below; keep the locked **sizes**
-(40px buttons) and **accent colours**, change only border-radius and add
-the avatar.
+screenshots. **UI-1 / UI-2 / UI-4 / UI-5 shipped v1.54.0** (spec
+`docs/superpowers/specs/2026-09-08-topbar-chrome-design.md`, plan
+`.../plans/2026-09-08-topbar-chrome.md`). `feedback_topbar_sizing_locked`
+was respected — the 40px box and accent tokens are unchanged; only
+`border-radius` moved and one item (the avatar) was added.
 
-- **UI-1 — topbar icon buttons should be circular** (`border-radius: 50%`
-  with a circular grey hover/press fill), like Google Docs' comments /
-  version-history / call buttons. `.icon-btn` base is `border-radius: 6px`
-  today (`_utilities.scss:75`); in `#topbarActionsCol` it's already
-  40×40. "Application-wide" per the request — audit non-topbar
-  `.icon-btn` uses (toolbar overflow, share-workspace rows, menu bar) so
-  a global circle doesn't break a rectangular context; may need to scope
-  to `#topbarActionsCol .icon-btn` + wherever else reads right.
-- **UI-2 — signed-in GitHub avatar in the topbar.** Today sign-in state
-  shows only in Settings + `SignedOutIndicator.svelte`
-  (`#signed-out-indicator-mount`, in the sidebar footer). Add the user's
-  GitHub avatar as the last topbar item: fills the whole 40px circle
-  (image `object-fit: cover`, no padding), hover shows the username
-  (title or a toggletip). Needs the avatar URL — `githubUsername` is in
-  `stores/github.ts`; the auth `/me` response may already carry an avatar
-  URL, else derive `https://github.com/<user>.png`.
-- **UI-3 — Version History redesign toward the Google Docs layout.**
-  `VersionHistory.svelte` (534 lines) already has a right-rail list with
-  per-version author avatars, session grouping, a diff toggle and a
-  "Highlight changes" style. Gap vs. Google Docs: date-header grouping
-  ("Today" / "August"), "Current version" label, the collapse/expand
-  disclosure per group, the named-vs-anonymous distinction. Assess
-  against the current component; likely Phase-1-sized, possibly its own
-  spec if it's a real restructure.
-- **UI-4 — compact mode switcher.** `ModeSwitcher.svelte` (shipped
-  v1.50.0) shows the current mode's icon **plus its text label**
-  ("Editing" / "Suggesting" / "Viewing") plus a chevron. Google Docs
-  shows just an outlined mode glyph + a dropdown caret (no label) as a
-  circular/pill control. Drop the `.mode-switcher-label` span (keep it in
-  the open dropdown's menu items), leave icon + chevron; adjust
-  `_topbar.scss`'s `.mode-switcher-btn` width/padding. Small — a copy/CSS
-  tweak, fold into the UI-1 pass.
-- **UI-5 — hover tooltip chips on topbar buttons.** Google Docs shows a
-  small floating label under each icon button on hover (comments,
-  version history, mode, settings, avatar). The app has `Toggletip.svelte`
-  but those are click-triggered info bubbles, not hover tooltips; today
-  the topbar buttons rely on the native `title=` attribute (slow, ugly,
-  inconsistent). Add a lightweight hover-tooltip (CSS-only or a tiny
-  shared component) for `#topbarActionsCol` buttons. Overlaps the
-  accessibility pass below — a real tooltip also needs `aria-label` /
-  `aria-describedby` wiring.
+- **UI-1 — circular topbar icon buttons — shipped v1.54.0.** `.icon-btn`
+  base `border-radius: 6px` → `50%` (application-wide, per the request).
+  Only walkback: `.toolbar-overflow` / `#sidebarToggleOut` menu-list
+  triggers keep their explicit small radius (already overridden). A
+  visual pass over topbar / sidebar / menu / modal contexts found no
+  other override needed.
+- **UI-2 — GitHub avatar + account menu — shipped v1.54.0.**
+  `TopbarAccount.svelte`, last item in `#topbarActionsCol`. Signed in: a
+  circular avatar (`https://github.com/<user>.png`, `#icon-user` fallback
+  on load error) → a menu with the username + Sign out (reusing
+  `POST /api/auth/github/logout`). Signed out: a person-icon button →
+  `openGithubSignInPopup()`. No server change; `SignedOutIndicator`
+  (the `$identityUnverified` sidebar prompt) is untouched and still shows
+  alongside.
+- **UI-3 — closed (2026-09-08), no code change.** `VersionHistory.svelte`
+  already implements every gap the original note listed: "Today"/short-
+  date labels, a `(current)` marker, session grouping, per-group
+  expand/collapse chevron, and author avatars with a `+N` overflow. Any
+  further Google-Docs polish there is a small fix, tracked ad hoc if it
+  comes up.
+- **UI-4 — compact mode switcher — shipped v1.54.0.** `ModeSwitcher`
+  drops the `.mode-switcher-label` when the collaborator has 2+ modes to
+  pick (icon + caret only; a mode-name `aria-label` + `data-tooltip`
+  keep it identifiable); a single-mode viewer keeps the "Viewing" label.
+- **UI-5 — hover/focus tooltip chips — shipped v1.54.0.** New
+  `_tooltip.scss`: a CSS-only `[data-tooltip]::after` chip on `:hover` /
+  `:focus-visible`, theme-aware, `prefers-reduced-motion` guarded. The
+  topbar buttons migrated `title=` → `data-tooltip=` (`aria-label`
+  unchanged). A JS-positioned tooltip and real `aria-describedby` wiring
+  are deferred to the accessibility pass (see Deferred considerations).
 
 ### Collab-mode chrome v2 — Google Docs parity (2026-09-08)
 
@@ -513,6 +502,15 @@ turn out to matter later.
       progress toasts cover only the initial push/pull/publish
       operation; the conflict-resolution modal's own "Applying…" button
       state is the only in-progress feedback during that step today
+- [ ] JS-positioned / portalled tooltip primitive with real
+      `role="tooltip"` + `aria-describedby` wiring — v1.54.0's UI-5
+      tooltip is CSS-only (`[data-tooltip]::after`), decorative, and
+      clips inside any future `overflow: hidden` ancestor; the
+      Accessibility pass owns the upgrade
+- [ ] A server-side avatar URL on `/api/auth/github/me` — v1.54.0's
+      topbar avatar (UI-2) derives `https://github.com/<user>.png`
+      client-side instead; revisit only if that redirect proves
+      unreliable or a non-GitHub identity provider is added
 
 ---
 

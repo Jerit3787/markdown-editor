@@ -1607,6 +1607,10 @@ export function decideJoinTarget(validDocs: { name: string }[], existingWorkspac
 }
 
 export async function openShareModal() {
+  // CV2-2 backstop — the #shareBtn is greyed in Viewing mode and for a
+  // viewer/reviewer (Share.svelte's $effect), but guard here too so a
+  // stale click / programmatic call can't open the dialog.
+  if (get(effectiveMode) === "viewing" || workspaceRoom.role === "viewer" || workspaceRoom.role === "reviewer") return;
   await window.MDE.githubSessionReady;
   if (!window.MDE.githubUsername) {
     window.MDE.requireGithubSignIn("Sharing needs a connected GitHub account. Sign in to continue.");

@@ -480,3 +480,13 @@ select:not(.share-access-select):not(.share-role-select) {
 .workspace-access-banner .primary-btn {
   flex-shrink: 0;
 }
+
+/* CV2-5 — the "Requests" rows in the Share dialog. */
+.share-request .share-request-note {
+  display: block;
+  margin-top: 2px;
+}
+.share-request .share-request-approve {
+  padding: 4px 10px;
+  font-size: 12.5px;
+}

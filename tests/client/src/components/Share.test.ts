@@ -85,3 +85,38 @@ test("COLLAB-23: a not-yet-claimed workspace (owner null) is treated as the loca
   await expect.element(screen.getByLabelText("General access")).not.toBeDisabled();
   await expect.element(screen.getByText("bob")).toBeVisible(); // owner row falls back to the local user
 });
+
+test("CV2-5: an owner with pending requests sees a Requests section with the note", async () => {
+  shareAccess.set({
+    owner: "alice",
+    generalAccess: "anyone",
+    requireAccount: false,
+    role: "viewer",
+    invited: [],
+    accessRequests: [{ username: "bob", message: "need to fix a typo", createdAt: 1 }],
+  });
+  githubUsername.set("alice");
+  enterCollabRoom("rq1", "editor", true); // collabIsOwner → true
+
+  const screen = await render(Share);
+  await expect.element(screen.getByText("Requests")).toBeVisible();
+  await expect.element(screen.getByText("need to fix a typo")).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+  await expect.element(screen.getByLabelText("Deny bob")).toBeVisible();
+});
+
+test("CV2-5: no Requests section for a non-owner even if the payload somehow carries it", async () => {
+  shareAccess.set({
+    owner: "alice",
+    generalAccess: "anyone",
+    requireAccount: false,
+    role: "viewer",
+    invited: [],
+    accessRequests: [{ username: "bob", message: "", createdAt: 1 }],
+  });
+  githubUsername.set("bob");
+  enterCollabRoom("rq2", "viewer", false);
+
+  const screen = await render(Share);
+  expect(screen.container.textContent).not.toContain("Requests");
+});

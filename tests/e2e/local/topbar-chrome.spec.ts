@@ -89,3 +89,15 @@ test("v2: the mode-switcher button is an outlined pill", async ({ page }) => {
   expect(cs.style).toBe("solid");
   expect(cs.width).toBeGreaterThanOrEqual(1);
 });
+
+test("v2: the account avatar is a 32px image inset in the 40px button", async ({ page }) => {
+  const pad = await page.locator("#topbar-account-mount .topbar-account-btn").evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
+  expect(pad).toBeGreaterThanOrEqual(3);
+
+  await page.evaluate(async () => {
+    const g = await import("/src/stores/github.ts");
+    g.githubUsername.set("octocat");
+  });
+  const w = await page.locator("#topbar-account-mount img.topbar-account-avatar").evaluate((el) => el.getBoundingClientRect().width);
+  expect(w).toBeLessThanOrEqual(34);
+});

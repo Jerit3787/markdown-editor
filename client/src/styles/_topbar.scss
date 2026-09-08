@@ -400,16 +400,16 @@ body.focus-mode #statusbar {
 }
 
 /* UI-2 — the GitHub account button / avatar, last item in the top-bar
-   actions. 40px circle to match the neighbouring #topbarActionsCol
-   .icon-btn; the avatar image fills it edge to edge. */
+   actions. A 40px circular hover target (like the neighbouring
+   #topbarActionsCol .icon-btn) with a 32px avatar inset by 4px — matches
+   Google's account button, not a full-bleed image. */
 .topbar-account {
   position: relative;
 }
 #topbarActionsCol .topbar-account-btn {
   width: 40px;
   height: 40px;
-  padding: 0;
-  overflow: hidden;
+  padding: 4px;
 }
 #topbarActionsCol .topbar-account-avatar {
   width: 100%;

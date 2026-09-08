@@ -186,6 +186,54 @@ the avatar.
   the open dropdown's menu items), leave icon + chevron; adjust
   `_topbar.scss`'s `.mode-switcher-btn` width/padding. Small — a copy/CSS
   tweak, fold into the UI-1 pass.
+- **UI-5 — hover tooltip chips on topbar buttons.** Google Docs shows a
+  small floating label under each icon button on hover (comments,
+  version history, mode, settings, avatar). The app has `Toggletip.svelte`
+  but those are click-triggered info bubbles, not hover tooltips; today
+  the topbar buttons rely on the native `title=` attribute (slow, ugly,
+  inconsistent). Add a lightweight hover-tooltip (CSS-only or a tiny
+  shared component) for `#topbarActionsCol` buttons. Overlaps the
+  accessibility pass below — a real tooltip also needs `aria-label` /
+  `aria-describedby` wiring.
+
+### Collab-mode chrome v2 — disable, don't hide (2026-09-08)
+
+Revises the v1.50.0 approach (Groups A/B/C above). Reported with Google
+Docs screenshots. **Governing principle:** a control a collaborator
+can't use should be **greyed + disabled but still visible**, not removed
+— "it helps the user learn the interface even without access." Google
+Docs greys (not hides) almost everything: File-menu items, Share,
+formatting.
+
+- **CV2-1 — Viewing/Suggesting hides the Edit / Format / Insert menus
+  and the comments button entirely (v1.50.0 A3/A4).** Change to:
+  disabled + greyed, menu still shown, dropdown won't open (or opens
+  with every item greyed — decide during spec). `MenuBar.svelte` uses
+  `hidden={viewing}` today; becomes `disabled` + a `.is-disabled` style.
+- **CV2-2 — Share button greyed + disabled for viewer / reviewer**
+  (currently always active). Google greys Share for non-editors. Keep
+  the button, `disabled`, greyed, maybe a tooltip ("Only the owner can
+  change sharing").
+- **CV2-3 — Version history unavailable for viewer / reviewer.** Google
+  Docs: viewers have no version history. Greyed + disabled `#versionHistoryBtn`
+  (per the principle above — confirm greyed vs removed in spec).
+- **CV2-4 — Delete document unavailable for viewer / reviewer.** The
+  File-menu "Delete document" item greyed + disabled for non-editors.
+- **CV2-5 — "Request access" flow** (Google Docs style). A viewer /
+  reviewer who wants a higher role clicks a "Request edit access"
+  affordance (on a greyed control, or in the Share dialog) → the owner
+  gets the request and can approve/deny, bumping that username's entry
+  in `invited`. Needs server work: a `POST /api/workspace/:id/access-request`
+  endpoint on `WorkspaceRoom`, storage for pending requests, and owner
+  notification (a badge on Share + a row in the Share dialog — there's
+  no push channel to the owner otherwise, so surface it on next open /
+  via a `MESSAGE_*` frame if the owner is connected). Bigger than the
+  rest of CV2 — could be its own sub-spec.
+- Needs its own spec (revises a shipped design; touches `MenuBar`,
+  `Share`, the version-history button, `collabMode` gating, a new shared
+  disabled-control style, and — for CV2-5 — a server endpoint). The
+  `effectiveMode` / `collabRole` / `collabIsOwner` stores from v1.50.0
+  already provide the client signal.
 
 ### Other open bugs
 
@@ -223,6 +271,16 @@ New infrastructure, backend, or scope — each its own project.
 - [ ] End-to-end encryption
 - [ ] True WYSIWYG toggle
 - [ ] Direct blog publishing (Blogger/WordPress)
+- [ ] **Accessibility pass** (2026-09-08) — a dedicated audit + remediation
+      sweep: keyboard reachability of every control (menus, toolbar,
+      sidebar, modals, the CodeMirror surface), visible focus rings,
+      `aria-label` / `aria-describedby` / `role` on the icon-only topbar
+      and toolbar buttons, `aria-live` for toasts / save status / preview
+      updates, dialog focus-trapping and `aria-modal`, colour-contrast
+      check of the theme tokens, `prefers-reduced-motion` for the focus
+      hint / mode transitions, screen-reader pass over the preview and
+      the comments/suggestions flows. Overlaps UI-5 (hover tooltips need
+      the aria wiring anyway). Likely its own spec, phased by subsystem.
 
 ---
 

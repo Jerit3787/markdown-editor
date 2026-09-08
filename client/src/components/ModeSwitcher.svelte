@@ -35,9 +35,19 @@
 
 {#if $collabRole && $effectiveMode}
   <div class="mode-switcher dropdown">
-    <button type="button" class="mode-switcher-btn icon-btn" onclick={toggle} aria-haspopup="menu" aria-expanded={open}>
+    <button
+      type="button"
+      class="mode-switcher-btn icon-btn"
+      onclick={toggle}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      aria-label={LABELS[$effectiveMode]}
+      data-tooltip={LABELS[$effectiveMode]}
+    >
       <svg class="icon"><use href="#{ICONS[$effectiveMode]}"></use></svg>
-      <span class="mode-switcher-label">{LABELS[$effectiveMode]}</span>
+      {#if $modesAllowed.length < 2}
+        <span class="mode-switcher-label">{LABELS[$effectiveMode]}</span>
+      {/if}
       {#if $modesAllowed.length > 1}<svg class="icon menu-chevron"><use href="#icon-chevron-down"></use></svg>{/if}
     </button>
     {#if open && $modesAllowed.length > 1}

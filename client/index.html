@@ -171,6 +171,10 @@
         <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
         <circle cx="9" cy="7" r="4" />
       </symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24">
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </symbol>
       <symbol id="icon-x" viewBox="0 0 24 24">
         <path d="M18 6 6 18" />
         <path d="m6 6 12 12" />
@@ -332,7 +336,7 @@
           <span id="docTitleMirror" aria-hidden="true"></span>
 
           <div class="dropdown">
-            <button id="saveStatusBtn" class="icon-btn" type="button" title="Saved locally" aria-label="Save status">
+            <button id="saveStatusBtn" class="icon-btn" type="button" data-tooltip="Saved locally" aria-label="Save status">
               <svg class="icon"><use id="saveStatusIcon" href="#icon-cloud-check"></use></svg>
             </button>
             <div id="saveStatusPopup" class="dropdown-menu save-status-popup">
@@ -353,22 +357,22 @@
         <div id="topbarActionsCol">
           <div id="presenceBar" class="presence-bar" hidden></div>
           <div class="topbar-actions">
-            <button id="commentsBtn" class="icon-btn" type="button" title="Comments" aria-label="Comments">
+            <button id="commentsBtn" class="icon-btn" type="button" data-tooltip="Comments" aria-label="Comments">
               <svg class="icon"><use href="#icon-message-square"></use></svg>
               <span id="commentsBadge" class="comment-badge" hidden></span>
             </button>
-            <button id="suggestionsBtn" class="icon-btn" type="button" title="Suggestions" aria-label="Suggestions" hidden>
+            <button id="suggestionsBtn" class="icon-btn" type="button" data-tooltip="Suggestions" aria-label="Suggestions" hidden>
               <svg class="icon"><use href="#icon-pencil"></use></svg>
               <span id="suggestionsBadge" class="comment-badge" hidden></span>
             </button>
-            <button id="versionHistoryBtn" class="icon-btn" type="button" title="Version history" aria-label="Version history">
+            <button id="versionHistoryBtn" class="icon-btn" type="button" data-tooltip="Version history" aria-label="Version history">
               <svg class="icon"><use href="#icon-history"></use></svg>
             </button>
             <!-- ModeSwitcher.svelte (Editing / Suggesting / Viewing) — mounted in main.ts;
                  renders only inside a shared workspace. -->
             <div id="mode-switcher-mount"></div>
             <div class="share-btn-group" id="shareBtnGroup">
-              <button id="shareBtn" class="share-pill share-pill-main" type="button" title="Share">
+              <button id="shareBtn" class="share-pill share-pill-main" type="button">
                 <svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span>
                 <span id="shareRequestBadge" class="comment-badge" hidden></span>
               </button>
@@ -393,9 +397,10 @@
                 </div>
               </div>
             </div>
-            <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">
+            <button id="settingsBtn" class="icon-btn" data-tooltip="Settings" aria-label="Settings">
               <svg class="icon"><use href="#icon-settings"></use></svg>
             </button>
+            <div id="topbar-account-mount"></div>
           </div>
         </div>
       </header>
@@ -431,14 +436,14 @@
                 <!-- Naturally laid out inside the panel (Google-Docs style) —
                collapses off-screen along with the rest of #sidebar, no
                manual positioning needed. -->
-                <button id="sidebarToggleIn" class="icon-btn" title="Hide documents panel" aria-label="Hide documents panel">
+                <button id="sidebarToggleIn" class="icon-btn" data-tooltip="Hide documents panel" aria-label="Hide documents panel">
                   <svg class="icon"><use href="#icon-chevron-left"></use></svg>
                 </button>
                 <!-- WorkspaceSwitcher Svelte component mounts here — see
                client/src/components/WorkspaceSwitcher.svelte -->
                 <div id="workspace-switcher-mount"></div>
               </div>
-              <button id="newDocBtn" class="icon-btn" title="New document" aria-label="New document">
+              <button id="newDocBtn" class="icon-btn" data-tooltip="New document" aria-label="New document">
                 <svg class="icon"><use href="#icon-plus"></use></svg>
               </button>
             </div>

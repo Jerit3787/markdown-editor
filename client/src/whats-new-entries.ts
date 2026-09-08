@@ -345,4 +345,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/request-access.png",
     category: "Collaboration",
   },
+  {
+    version: "1.54.0",
+    title: "A Tidier Top Bar",
+    description:
+      "The top bar picks up a few Google-Docs habits: round icon buttons, a small label when you hover or keyboard-focus one, and a more compact Editing/Suggesting/Viewing switcher. When you're signed in with GitHub, your avatar now sits at the end of the bar — click it for your username or to sign out.",
+    screenshot: "/whats-new/topbar-chrome.png",
+    category: "Organization & Navigation",
+  },
 ];

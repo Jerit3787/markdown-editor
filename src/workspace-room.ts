@@ -12,7 +12,7 @@ import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, rec
 import type { ResolvedSuggestion } from "./suggestions";
 import type { Env } from "./env";
 import { resolveRole } from "./access-role";
-import { verifyTurnstileToken, mintJoinTicket } from "./turnstile.js";
+import { verifyTurnstileToken, mintJoinTicket, verifyJoinTicket } from "./turnstile.js";
 import type { Role, InvitedPerson, AccessRecord, AccessRequest } from "./access-role";
 
 export type { Role, InvitedPerson, AccessRecord, AccessRequest };
@@ -427,6 +427,18 @@ export class WorkspaceRoom {
         return { ok: false, status: 401, message: "Sign in with GitHub to join this workspace." };
       }
       return { ok: false, status: 403, message: "You don't have access to this workspace." };
+    }
+    // Turnstile: an anonymous connection to an "anyone with the link"
+    // room must carry a valid join ticket on the WS-upgrade URL, when the
+    // Turnstile secret is configured. Signed-in users, requireAccount
+    // links (which force a session), and restricted links (which never
+    // resolve a role for an anon user, so we never get here) are
+    // unaffected.
+    if (!session?.username && this.env.TURNSTILE_SECRET_KEY && access.generalAccess === "anyone") {
+      const url = new URL(request.url);
+      const wsId = this.workspaceIdFromUrl(url);
+      const ok = await verifyJoinTicket(url.searchParams.get("ticket"), wsId, this.env.SESSION_SECRET, Date.now());
+      if (!ok) return { ok: false, status: 401, message: "turnstile-required" };
     }
     return { ok: true, username: session?.username ?? null, role };
   }

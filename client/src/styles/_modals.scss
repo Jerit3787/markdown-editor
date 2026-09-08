@@ -448,6 +448,23 @@
     font-size: 13.5px;
   }
 }
+/* CV2-5 — the note field in the "Request edit access" modal. Matches
+   `.modal-field input` / the comment-draft textarea rather than the
+   browser's default form-control box. */
+.request-access-note {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  resize: vertical;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

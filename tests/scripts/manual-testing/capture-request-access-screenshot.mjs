@@ -11,7 +11,9 @@ const BASE = "http://localhost:8787";
 const OUT = "client/public/whats-new/request-access.png";
 
 async function signIn(page, username) {
-  await page.route("**/api/auth/github/me", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ connected: true, username }) }));
+  await page.route("**/api/auth/github/me", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ connected: true, username }) }),
+  );
   await page.goto(`${BASE}/api/dev/login?username=${username}`);
 }
 async function dismissWhatsNew(page) {

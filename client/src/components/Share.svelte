@@ -184,19 +184,21 @@
         {#each accessRequests as req (req.username)}
           <div class="share-person share-request">
             <span class="presence-avatar" style:background="var(--text-dim)">{initial(req.username)}</span>
-            <span class="share-person-name">
+            <span class="share-person-name share-request-name">
               {req.username}
               {#if req.message}<span class="modal-hint share-request-note">{req.message}</span>{/if}
             </span>
-            <select class="share-role-select" aria-label={`Grant ${req.username}`} bind:value={requestRole[req.username]}>
-              <option value="viewer">Viewer</option>
-              <option value="reviewer">Reviewer</option>
-              <option value="editor" selected>Editor</option>
-            </select>
-            <button type="button" class="primary-btn share-request-approve" onclick={() => approveAccessRequest(requestRemoteId(), req.username, requestRole[req.username] || "editor")}>Approve</button>
-            <button type="button" class="share-person-remove" aria-label={`Deny ${req.username}`} onclick={() => denyAccessRequest(requestRemoteId(), req.username)}>
-              <svg class="icon"><use href="#icon-x"></use></svg>
-            </button>
+            <div class="share-request-actions">
+              <select class="share-role-select" aria-label={`Grant ${req.username}`} bind:value={requestRole[req.username]}>
+                <option value="viewer">Viewer</option>
+                <option value="reviewer">Reviewer</option>
+                <option value="editor" selected>Editor</option>
+              </select>
+              <button type="button" class="primary-btn share-request-approve" onclick={() => approveAccessRequest(requestRemoteId(), req.username, requestRole[req.username] || "editor")}>Approve</button>
+              <button type="button" class="share-person-remove" aria-label={`Deny ${req.username}`} onclick={() => denyAccessRequest(requestRemoteId(), req.username)}>
+                <svg class="icon"><use href="#icon-x"></use></svg>
+              </button>
+            </div>
           </div>
         {/each}
       </div>

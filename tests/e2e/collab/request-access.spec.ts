@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ownerWithDoc, shareAnyoneLink, joinSharedWorkspace } from "./support/collab";
+import { signInAsDevUser } from "./support/dev-login";
 
 // CV2-5 — a viewer asks for edit access; the owner approves; the viewer's
 // editor surface unlocks live, no reload.
@@ -11,6 +12,8 @@ test("a viewer requests edit access and an approval takes effect immediately", a
 
   await ownerWithDoc(a, "req-owner-e2e", "the shared body");
   const url = await shareAnyoneLink(a, "Viewer");
+  // The requester must be a signed-in account (a joined viewer/reviewer).
+  await signInAsDevUser(b, "req-viewer-e2e");
   await joinSharedWorkspace(b, url);
   await expect.poll(() => b.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("the shared body");
 

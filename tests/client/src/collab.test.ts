@@ -35,6 +35,7 @@ import {
   addPerson,
   joinSharedLink,
   handleRepoDocsChanged,
+  openShareModal,
 } from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
@@ -42,7 +43,7 @@ import { viewMode, viewModeLocked } from "../../../client/src/stores/view";
 import { collabRole, collabIsOwner, effectiveMode, chosenMode, setChosenMode, leaveCollabRoom } from "../../../client/src/stores/collabMode";
 import { workspaceRepoLinked } from "../../../client/src/stores/repoSync";
 
-import { workspaceAccessDenied, identityUnverified } from "../../../client/src/stores/share";
+import { workspaceAccessDenied, identityUnverified, shareModalOpen } from "../../../client/src/stores/share";
 import { getSuggestionsMap } from "../../../client/src/suggestions";
 import type { Doc, Workspace } from "../../../client/src/types";
 
@@ -1095,6 +1096,16 @@ describe("collab-mode role publishing", () => {
 
     expect(get(collabRole)).toBe("editor");
     expect(get(collabIsOwner)).toBe(false);
+  });
+
+  it("CV2-2: openShareModal() is a no-op for a viewer / reviewer", async () => {
+    const { doc } = setup("viewer", "cm-share", { username: "bob" });
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    shareModalOpen.set(false);
+    await openShareModal();
+    expect(get(shareModalOpen)).toBe(false);
   });
 
   it("re-applies the editor mode when effectiveMode changes mid-session", async () => {

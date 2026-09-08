@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.52.0] - 2026-09-08
+
+### Changed
+
+- **View-only and suggesting modes now track Google Docs more closely.** Version history is an editing-mode tool — it greys out while you're suggesting or viewing. The Edit menu keeps Find and Copy in Viewing instead of disappearing. Share and the comments button grey out for people who can't use them rather than vanishing. Deleting a document is the workspace owner's call. And the mode switcher now explains what each mode does.
+
 ## [1.51.0] - 2026-09-08
 
 ### Fixed

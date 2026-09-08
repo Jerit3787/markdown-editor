@@ -39,3 +39,12 @@ test("a viewer's switcher shows Viewing and its menu is inert", async () => {
   await screen.getByRole("button").click();
   expect((await screen.getByRole("menuitem").all()).length).toBe(0);
 });
+
+test("D-modedesc: the dropdown shows a one-line description under each mode", async () => {
+  enterCollabRoom("r1", "editor", true);
+  const screen = await render(ModeSwitcher);
+  await screen.getByRole("button", { name: /Editing/i }).click();
+  expect(screen.container.textContent).toContain("Edit document directly");
+  expect(screen.container.textContent).toContain("Edits become suggestions");
+  expect(screen.container.textContent).toContain("Read or print final document");
+});

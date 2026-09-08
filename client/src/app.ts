@@ -432,10 +432,10 @@ import katexCss from "katex/dist/katex.min.css?raw";
     (document.getElementById("docTitle") as HTMLInputElement).disabled = empty;
     document.getElementById("saveStatusBtn").hidden = empty;
     (document.getElementById("sidebarToggleIn") as HTMLButtonElement).disabled = empty;
-    (document.getElementById("shareBtn") as HTMLButtonElement).disabled = empty;
-    (document.getElementById("shareDropdownBtn") as HTMLButtonElement).disabled = empty;
-    (document.getElementById("commentsBtn") as HTMLButtonElement).disabled = empty;
-    (document.getElementById("versionHistoryBtn") as HTMLButtonElement).disabled = empty;
+    // #shareBtn / #shareDropdownBtn / #commentsBtn / #versionHistoryBtn
+    // own their own disabled state now (Share.svelte / CommentsPanel.svelte
+    // / VersionHistory.svelte $effects, which combine no-active-doc with
+    // the collab mode/role gate) — see the collab-chrome-v2 spec.
   }
 
   // Replaces the whole document and resets the local (non-collab) undo

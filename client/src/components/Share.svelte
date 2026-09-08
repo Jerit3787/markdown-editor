@@ -4,6 +4,8 @@
   import Toggletip from "./Toggletip.svelte";
   import { githubUsername } from "../stores/github";
   import { shareModalOpen, shareAccess, shareTargetName } from "../stores/share";
+  import { effectiveMode, collabRole } from "../stores/collabMode";
+  import { activeIdStore } from "../stores/docs";
   import { closeShareModal, setAccessMode, setRole, setInviteRole, buildShareLink, addPerson, removeInvite, DEFAULT_ACCESS, type AccessMode } from "../collab";
   import { colorForUsername } from "../user-color";
   import { showToast } from "../stores/toast";
@@ -57,6 +59,24 @@
         ? `Anyone with a GitHub account and this link can ${ROLE_VERBS[access.role] || "edit"}`
         : "Only people with access can open with the link"
   );
+
+  // CV2-2 — the Share button (plain HTML in index.html, opened via
+  // collab.ts) is greyed & inert in Viewing mode and for a viewer /
+  // reviewer, matching Google Docs. An editor keeps it in Editing /
+  // Suggesting. This $effect also owns the button's no-active-doc
+  // disabled state (moved out of app.ts — one owner per button). CV2-5's
+  // "Request edit access" affordance will attach to the non-editor
+  // branch. The greyed button keeps a title describing current access.
+  $effect(() => {
+    const nonEditor = !!$collabRole && $collabRole !== "editor";
+    const disabled = !$activeIdStore || $effectiveMode === "viewing" || nonEditor;
+    for (const id of ["shareBtn", "shareDropdownBtn"]) {
+      (document.getElementById(id) as HTMLButtonElement | null)?.toggleAttribute("disabled", disabled);
+    }
+    const btn = document.getElementById("shareBtn");
+    if (btn && disabled && $shareAccess) btn.title = hint;
+    else btn?.removeAttribute("title");
+  });
 
   function onInviteRoleChange(username: string, e: Event) {
     setInviteRole(username, (e.target as HTMLSelectElement).value);

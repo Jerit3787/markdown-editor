@@ -16,6 +16,13 @@
   import { effectiveMode, collabRole, collabIsOwner } from "../stores/collabMode";
 
   const viewing = $derived($effectiveMode === "viewing");
+  // Google Docs parity (spec 2026-09-08-collab-chrome-v2): the effective
+  // mode is the primary gate. `null` = a plain local doc, treated as
+  // Editing. Version history is an Editing-mode-only tool; deleting a doc
+  // is the owner's call (and only in Editing).
+  const editingMode = $derived($effectiveMode === "editing" || $effectiveMode == null);
+  const nonEditorCollaborator = $derived(!!$collabRole && $collabRole !== "editor");
+  const canDeleteDoc = $derived((!$collabRole || $collabIsOwner) && editingMode);
   // Publish to Gist / repo push are the workspace owner's call — a
   // non-owner collaborator (viewer, reviewer, or editor) doesn't control
   // the document's external publishing targets. (spec §5) Unchanged for a
@@ -203,7 +210,7 @@
       </button>
 
       <div class="menu-divider"></div>
-      <button id="menuComments" type="button" hidden={viewing} disabled={!hasActiveDoc} onclick={() => act(() => commentsPanelOpen.set(true))}>
+      <button id="menuComments" type="button" disabled={viewing || !hasActiveDoc} onclick={() => act(() => commentsPanelOpen.set(true))}>
         <svg class="icon"><use href="#icon-message-square"></use></svg> Comments
         {#if $unresolvedCommentCount > 0}
           <span class="menu-badge">{$unresolvedCommentCount > 99 ? "99+" : $unresolvedCommentCount}</span>
@@ -211,7 +218,7 @@
       </button>
 
       <div class="menu-divider"></div>
-      <button id="menuVersionHistory" type="button" disabled={!hasActiveDoc} onclick={() => act(() => versionHistoryOpen.set(true))}>
+      <button id="menuVersionHistory" type="button" disabled={!editingMode || !hasActiveDoc} onclick={() => act(() => versionHistoryOpen.set(true))}>
         <svg class="icon"><use href="#icon-history"></use></svg> Version history
       </button>
 
@@ -221,24 +228,28 @@
       </button>
 
       <div class="menu-divider"></div>
-      <button id="menuDeleteDoc" type="button" disabled={!hasActiveDoc} onclick={() => act(() => deleteDoc($activeIdStore ?? ""))}>
+      <button id="menuDeleteDoc" type="button" disabled={!canDeleteDoc || !hasActiveDoc} onclick={() => act(() => deleteDoc($activeIdStore ?? ""))}>
         <svg class="icon"><use href="#icon-trash-2"></use></svg> Delete document
       </button>
     </div>
   </div>
 
-  <div class="dropdown" hidden={viewing}>
-    <button bind:this={editMenuBtn} id="editMenuBtn" class="menubar-btn" type="button" hidden={viewing}>Edit</button>
+  <!-- Viewing mode condenses the Edit menu to the read-only-safe items
+       (Find, Copy) rather than hiding it wholesale — Google Docs parity
+       (spec 2026-09-08-collab-chrome-v2). Format & Insert are dropped
+       entirely below (they'd be 100% dead). -->
+  <div class="dropdown">
+    <button bind:this={editMenuBtn} id="editMenuBtn" class="menubar-btn" type="button">Edit</button>
     <div bind:this={editMenu} id="editMenu" class="dropdown-menu menubar-menu">
-      <button id="menuUndo" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.undo())}><svg class="icon"><use href="#icon-undo-2"></use></svg> Undo <kbd>Ctrl+Z</kbd></button>
-      <button id="menuRedo" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.redo())}><svg class="icon"><use href="#icon-redo-2"></use></svg> Redo <kbd>Ctrl+Shift+Z</kbd></button>
-      <div class="menu-divider"></div>
+      <button id="menuUndo" type="button" hidden={viewing} disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.undo())}><svg class="icon"><use href="#icon-undo-2"></use></svg> Undo <kbd>Ctrl+Z</kbd></button>
+      <button id="menuRedo" type="button" hidden={viewing} disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.redo())}><svg class="icon"><use href="#icon-redo-2"></use></svg> Redo <kbd>Ctrl+Shift+Z</kbd></button>
+      <div class="menu-divider" hidden={viewing}></div>
       <button id="menuFind" type="button" disabled={!hasActiveDoc} onclick={() => act(() => openFindBar("find"))}><svg class="icon"><use href="#icon-search"></use></svg> Find... <kbd>Ctrl+F</kbd></button>
-      <button id="menuFindReplace" type="button" disabled={!hasActiveDoc} onclick={() => act(() => openFindBar("replace"))}><svg class="icon"><use href="#icon-search"></use></svg> Find and Replace... <kbd>Ctrl+H</kbd></button>
-      <div class="menu-divider"></div>
-      <button id="menuCut" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.cutSelection())}><svg class="icon"><use href="#icon-scissors"></use></svg> Cut <kbd>Ctrl+X</kbd></button>
+      <button id="menuFindReplace" type="button" hidden={viewing} disabled={!hasActiveDoc} onclick={() => act(() => openFindBar("replace"))}><svg class="icon"><use href="#icon-search"></use></svg> Find and Replace... <kbd>Ctrl+H</kbd></button>
+      <div class="menu-divider" hidden={viewing}></div>
+      <button id="menuCut" type="button" hidden={viewing} disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.cutSelection())}><svg class="icon"><use href="#icon-scissors"></use></svg> Cut <kbd>Ctrl+X</kbd></button>
       <button id="menuCopy" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.copySelection())}><svg class="icon"><use href="#icon-copy"></use></svg> Copy <kbd>Ctrl+C</kbd></button>
-      <button id="menuPaste" type="button" disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.pasteClipboard())}><svg class="icon"><use href="#icon-clipboard"></use></svg> Paste <kbd>Ctrl+V</kbd></button>
+      <button id="menuPaste" type="button" hidden={viewing} disabled={!hasActiveDoc} onclick={() => act(() => window.MDE.pasteClipboard())}><svg class="icon"><use href="#icon-clipboard"></use></svg> Paste <kbd>Ctrl+V</kbd></button>
     </div>
   </div>
 

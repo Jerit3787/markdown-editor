@@ -207,44 +207,38 @@ the avatar.
   accessibility pass below — a real tooltip also needs `aria-label` /
   `aria-describedby` wiring.
 
-### Collab-mode chrome v2 — disable, don't hide (2026-09-08)
+### Collab-mode chrome v2 — Google Docs parity (2026-09-08)
 
-Revises the v1.50.0 approach (Groups A/B/C above). Reported with Google
-Docs screenshots. **Governing principle:** a control a collaborator
-can't use should be **greyed + disabled but still visible**, not removed
-— "it helps the user learn the interface even without access." Google
-Docs greys (not hides) almost everything: File-menu items, Share,
-formatting.
+Revises the v1.50.0 Viewing-mode chrome, grounded in a live walk-through
+of Google Docs' viewer / commenter / editor experience. **CV2-1..4 shipped
+v1.52.0** (spec `docs/superpowers/specs/2026-09-08-collab-chrome-v2-design.md`,
+plan `.../plans/2026-09-08-collab-chrome-v2-plan.md`, PR #185). Model:
+every gate keys off `$effectiveMode`; role only clamps which modes are
+pickable + the Share button.
 
-- **CV2-1 — Viewing/Suggesting hides the Edit / Format / Insert menus
-  and the comments button entirely (v1.50.0 A3/A4).** Change to:
-  disabled + greyed, menu still shown, dropdown won't open (or opens
-  with every item greyed — decide during spec). `MenuBar.svelte` uses
-  `hidden={viewing}` today; becomes `disabled` + a `.is-disabled` style.
-- **CV2-2 — Share button greyed + disabled for viewer / reviewer**
-  (currently always active). Google greys Share for non-editors. Keep
-  the button, `disabled`, greyed, maybe a tooltip ("Only the owner can
-  change sharing").
-- **CV2-3 — Version history unavailable for viewer / reviewer.** Google
-  Docs: viewers have no version history. Greyed + disabled `#versionHistoryBtn`
-  (per the principle above — confirm greyed vs removed in spec).
-- **CV2-4 — Delete document unavailable for viewer / reviewer.** The
-  File-menu "Delete document" item greyed + disabled for non-editors.
-- **CV2-5 — "Request access" flow** (Google Docs style). A viewer /
-  reviewer who wants a higher role clicks a "Request edit access"
-  affordance (on a greyed control, or in the Share dialog) → the owner
-  gets the request and can approve/deny, bumping that username's entry
-  in `invited`. Needs server work: a `POST /api/workspace/:id/access-request`
-  endpoint on `WorkspaceRoom`, storage for pending requests, and owner
-  notification (a badge on Share + a row in the Share dialog — there's
-  no push channel to the owner otherwise, so surface it on next open /
-  via a `MESSAGE_*` frame if the owner is connected). Bigger than the
-  rest of CV2 — could be its own sub-spec.
-- Needs its own spec (revises a shipped design; touches `MenuBar`,
-  `Share`, the version-history button, `collabMode` gating, a new shared
-  disabled-control style, and — for CV2-5 — a server endpoint). The
-  `effectiveMode` / `collabRole` / `collabIsOwner` stores from v1.50.0
-  already provide the client signal.
+- **CV2-1 — Edit menu condenses in Viewing** (keeps Find + Copy, hides
+  the rest); Format/Insert stay hidden (Google drops them). Comments
+  button greys (not hidden) in Viewing.
+- **CV2-2 — Share button greyed & inert** in Viewing mode and for a
+  viewer / reviewer; an editor keeps it in Editing / Suggesting. Greyed
+  button keeps an access-summary `title`. CV2-5's "Request edit access"
+  attaches here.
+- **CV2-3 — Version history is an editing-mode tool** — `#versionHistoryBtn`
+  - the File-menu entry grey unless `$effectiveMode === "editing"`, for
+    every role (an editor in Suggesting/Viewing loses it too).
+- **CV2-4 — Delete document is owner-only + editing-mode** (`#menuDeleteDoc`).
+- Also: the mode-switcher dropdown gained Google's one-line descriptions;
+  the three topbar buttons' empty-state disable moved from `app.ts` into
+  their owning components' `$effect`s.
+
+**CV2-5 — "Request access" flow** (still pending, its own spec). A viewer /
+reviewer who wants a higher role clicks a "Request edit access" affordance
+(Google: a pill near the title for viewers, a field in the Share dialog
+for commenters) → the owner approves/denies, bumping that username's
+`invited` entry. Needs server work: a `POST /api/workspace/:id/access-request`
+endpoint on `WorkspaceRoom`, pending-request storage, and owner
+notification (Share badge + a dialog row + a `MESSAGE_*` frame for a
+connected owner).
 
 ### Other open bugs
 
@@ -292,6 +286,44 @@ New infrastructure, backend, or scope — each its own project.
       hint / mode transitions, screen-reader pass over the preview and
       the comments/suggestions flows. Overlaps UI-5 (hover tooltips need
       the aria wiring anyway). Likely its own spec, phased by subsystem.
+
+### Google Docs parity — features we don't have yet (2026-09-08)
+
+Surfaced by a live walk-through of Google Docs' viewer / commenter /
+editor experience while writing the collab-chrome-v2 spec. Not committed
+— candidates, roughly biggest-first.
+
+- [ ] **Format-as-suggestion.** In Google's Suggesting mode, _every_
+      change — bold, alignment, list, insert, delete — becomes a tracked
+      suggestion, not just typed text. This app's suggestions are
+      text-only. Large; entangled with the D1–D5 suggesting-mode
+      redesign.
+- [ ] **Request edit access** (CV2-5, already an Active item) — a
+      viewer/reviewer asks the owner for a higher role; owner
+      approves/denies. Google surfaces it as a pill near the title
+      (viewers) and a field in the Share dialog (commenters).
+- [ ] **Owner restriction of download / print / copy** for viewers &
+      commenters (Google's "disable options to download, print, and
+      copy"). Would gate File ▸ Export / Print and the copy path.
+- [ ] **Persistent mode badge on the document.** Google shows a small
+      "You're viewing" / "You're suggesting" chip pinned to the document
+      surface, separate from the mode switcher. A clearer at-a-glance
+      signal than the switcher alone.
+- [ ] **Document tabs within a single document** (Google's left-rail
+      "Document tabs" — sub-documents/sections in one file). This app has
+      multi-doc workspaces but no in-document tabs. Big scope; unclear
+      it fits a markdown editor.
+- [ ] **`View ▸ Mode` menu entry** mirroring the topbar mode switcher
+      (Google has both). Minor — the topbar `ModeSwitcher` is the
+      equivalent; only worth it for menu/keyboard discoverability.
+- [ ] **Email the document** (Google's File ▸ Email — send as
+      attachment / paste into email body). Niche.
+- [ ] **Friendly identities for anonymous link viewers** (Google's
+      "Anonymous Hedgehog" etc. in presence + version history). This app
+      shows a username or nothing; an anon collaborator on an
+      "anyone with link" workspace has no distinguishing label.
+- [ ] **Print layout / show non-printing characters toggles**
+      (Google's View menu). Low value for a markdown preview.
 
 ---
 

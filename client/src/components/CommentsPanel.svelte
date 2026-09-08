@@ -175,13 +175,14 @@
     document.getElementById("commentsBtn")?.classList.toggle("active", $commentsPanelOpen);
   });
 
-  // A4 — Viewing mode has no comments surface at all: hide the topbar
-  // button and force the panel shut. (Inline editor highlights need no
-  // handling — Viewing locks the layout to preview-only, so there's no
-  // editor showing them.)
+  // CV2-1b — Viewing mode has no comments surface: grey (not hide) the
+  // topbar button and force the panel shut. Also owns the button's
+  // no-active-doc disabled state (moved out of app.ts's empty-state
+  // handler — one owner per button). (Inline editor highlights need no
+  // handling — Viewing locks the layout to preview-only.)
   $effect(() => {
     const viewing = $effectiveMode === "viewing";
-    document.getElementById("commentsBtn")?.toggleAttribute("hidden", viewing);
+    document.getElementById("commentsBtn")?.toggleAttribute("disabled", !$activeIdStore || viewing);
     if (viewing) commentsPanelOpen.set(false);
   });
 

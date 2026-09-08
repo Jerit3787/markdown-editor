@@ -70,6 +70,7 @@ import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
 import { enterCollabRoom, leaveCollabRoom, effectiveMode, collabIsOwner, type Mode, type Role } from "./stores/collabMode";
 import { initModeAnnounce } from "./mode-announce";
 import { track } from "./analytics";
+import { turnstileEnabled, getJoinTicket, clearJoinTicket } from "./turnstile";
 import { COLORS, colorForUsername } from "./user-color";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
@@ -143,6 +144,11 @@ const workspaceRoom = {
   // an editor-looking binding for a document their real role never
   // granted them write access to.
   role: null as string | null,
+  // A Cloudflare Turnstile join ticket for an anonymous connection to an
+  // "anyone with the link" workspace (see turnstile.ts). null when signed
+  // in or Turnstile isn't configured — connectWorkspace() then omits the
+  // ?ticket= param and the server's authorize() gate is a no-op.
+  joinTicket: null as string | null,
   reconnectTimer: null as ReturnType<typeof setTimeout> | null,
   reconnectDelay: 1000,
 };
@@ -633,6 +639,26 @@ async function joinWorkspace(
     if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-register
   }
 
+  // Turnstile: an anonymous connection to an "anyone with the link"
+  // workspace must carry a signed join ticket on the WS upgrade. Solve
+  // the challenge (or reuse a cached ticket) now, before the socket
+  // opens. A no-op when signed in or Turnstile is unconfigured.
+  if (!window.MDE.githubUsername && turnstileEnabled) {
+    try {
+      workspaceRoom.joinTicket = await getJoinTicket(workspaceId);
+    } catch {
+      // The visitor dismissed the challenge — stay disconnected, in
+      // read-only preview, the same as a link with no access.
+      workspaceAccessDenied.set("no-session");
+      window.MDE.setReadOnly(true);
+      lockToPreviewOnly();
+      return myGeneration;
+    }
+    if (myGeneration !== joinGeneration) return myGeneration; // superseded while solving
+  } else {
+    workspaceRoom.joinTicket = null;
+  }
+
   connectWorkspace();
   return myGeneration;
 }
@@ -1103,6 +1129,7 @@ function teardownWorkspace(): void {
   workspaceRoom.ws = null;
   workspaceRoom.activeDocId = null;
   workspaceRoom.role = null;
+  workspaceRoom.joinTicket = null;
   workspaceRoom.reconnectDelay = 1000;
   workspaceRepoLinked.set(false);
   myAccessRequestPending.set(false);
@@ -1174,11 +1201,15 @@ function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: s
 
 function connectWorkspace(): void {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const ws = new WebSocket(`${proto}//${location.host}/api/workspace/${encodeURIComponent(workspaceRoom.workspaceId!)}`);
+  const base = `${proto}//${location.host}/api/workspace/${encodeURIComponent(workspaceRoom.workspaceId!)}`;
+  const url = workspaceRoom.joinTicket ? `${base}?ticket=${encodeURIComponent(workspaceRoom.joinTicket)}` : base;
+  const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
   workspaceRoom.ws = ws;
+  let everOpened = false;
 
   ws.onopen = () => {
+    everOpened = true;
     workspaceRoom.reconnectDelay = 1000;
     for (const [docId, binding] of workspaceRoom.docs.entries()) {
       const encoder = encoding.createEncoder();
@@ -1192,7 +1223,26 @@ function connectWorkspace(): void {
   };
 
   ws.onmessage = (event) => handleServerMessage(new Uint8Array(event.data as ArrayBuffer));
-  ws.onclose = () => scheduleReconnect();
+  ws.onclose = () => {
+    // Closed before it ever opened, while anonymous with a Turnstile
+    // ticket in hand → the ticket was most likely rejected (expired or
+    // stale). Drop it and solve a fresh challenge before reconnecting.
+    // A genuine network drop also lands here; re-solving from cache is
+    // cheap and usually invisible.
+    if (!everOpened && turnstileEnabled && !window.MDE.githubUsername && workspaceRoom.joinTicket) {
+      const id = workspaceRoom.workspaceId!;
+      clearJoinTicket(id);
+      workspaceRoom.joinTicket = null;
+      void getJoinTicket(id)
+        .then((t) => {
+          workspaceRoom.joinTicket = t;
+        })
+        .catch(() => {})
+        .finally(() => scheduleReconnect());
+      return;
+    }
+    scheduleReconnect();
+  };
   ws.onerror = () => ws.close();
 }
 

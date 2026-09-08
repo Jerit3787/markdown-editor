@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.0] - 2026-09-09
+
+### Added
+
+- **A heads-up when your mode changes in a shared document.** Switching between Editing, Suggesting, and Viewing — or opening a shared workspace — now flashes a brief "You're now suggesting" / "You're now viewing" message, so it's clear what your edits will do.
+
 ## [1.54.0] - 2026-09-08
 
 ### Added

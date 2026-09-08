@@ -353,4 +353,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/topbar-chrome.png",
     category: "Organization & Navigation",
   },
+  {
+    version: "1.55.0",
+    title: "Know Which Mode You're In",
+    description:
+      "In a shared document, switching between Editing, Suggesting, and Viewing — or just opening the workspace — now flashes a quick note like \"You're now suggesting\". A small reminder that your keystrokes become tracked suggestions, or that you're read-only, without hunting for the mode switcher in the corner.",
+    screenshot: "/whats-new/mode-announce.png",
+    category: "Collaboration",
+  },
 ];

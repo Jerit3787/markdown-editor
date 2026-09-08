@@ -298,10 +298,14 @@ editor experience while writing the collab-chrome-v2 spec. Not committed
 - [ ] **Owner restriction of download / print / copy** for viewers &
       commenters (Google's "disable options to download, print, and
       copy"). Would gate File ▸ Export / Print and the copy path.
-- [ ] **Persistent mode badge on the document.** Google shows a small
-      "You're viewing" / "You're suggesting" chip pinned to the document
-      surface, separate from the mode switcher. A clearer at-a-glance
-      signal than the switcher alone.
+- [x] **Transient mode indicator — shipped v1.55.0.** The original
+      "persistent chip pinned to the document" wording was wrong —
+      Google's indicator is momentary. Shipped as a toast: a mode
+      switch, or first entry to a shared workspace per page-load,
+      flashes "You're now editing / suggesting / viewing" (spec
+      `docs/superpowers/specs/2026-09-09-mode-announce-design.md`). A
+      dedicated on-document badge component was considered and deferred
+      (see that spec's Non-goals + Deferred considerations below).
 - [ ] **Document tabs within a single document** (Google's left-rail
       "Document tabs" — sub-documents/sections in one file). This app has
       multi-doc workspaces but no in-document tabs. Big scope; unclear
@@ -511,6 +515,9 @@ turn out to matter later.
       topbar avatar (UI-2) derives `https://github.com/<user>.png`
       client-side instead; revisit only if that redirect proves
       unreliable or a non-GitHub identity provider is added
+- [ ] An on-document mode badge component (top-centre pill, mode icon,
+      slide-in) instead of the plain toast shipped in v1.55.0 — revisit
+      if the toast proves too easy to miss
 
 ---
 

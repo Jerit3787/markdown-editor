@@ -68,6 +68,7 @@ import { pendingSuggestionCount } from "./stores/suggestions";
 import { remoteCommentsChanged } from "./stores/commentsPanel";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
 import { enterCollabRoom, leaveCollabRoom, effectiveMode, collabIsOwner, type Mode, type Role } from "./stores/collabMode";
+import { initModeAnnounce } from "./mode-announce";
 import { COLORS, colorForUsername } from "./user-color";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
@@ -281,6 +282,10 @@ effectiveMode.subscribe((mode) => {
   const binding = workspaceRoom.docs.get(workspaceRoom.activeDocId);
   if (binding) applyEditorMode(binding, mode);
 });
+
+// Flash a toast when the collab mode changes, or on first entry to a
+// shared workspace this page-load. See mode-announce.ts.
+initModeAnnounce();
 
 export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const localMatch = get(workspacesStore).find((w) => w.remoteId === workspaceId);

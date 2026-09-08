@@ -78,4 +78,13 @@ describe("regular toasts (SHELL-05)", () => {
     dismissToast(first!.id);
     expect(get(toasts).map((t) => t.message)).toEqual(["b"]);
   });
+
+  it("returns the new toast's id, which dismissToast accepts", () => {
+    const id = showToast("hello");
+    expect(typeof id).toBe("number");
+    expect(id).toBeGreaterThan(0);
+    expect(get(toasts).some((t) => t.id === id)).toBe(true);
+    dismissToast(id);
+    expect(get(toasts)).toHaveLength(0);
+  });
 });

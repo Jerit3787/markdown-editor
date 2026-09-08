@@ -1,0 +1,136 @@
+import { turnstilePromptOpen, turnstilePromptError } from "./stores/turnstile";
+
+const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
+export const turnstileEnabled = !!SITE_KEY;
+
+const CACHE_TTL_MS = 14 * 60 * 1000;
+const cacheKey = (remoteId: string) => `mde:joinTicket:${remoteId}`;
+
+function readCachedTicket(remoteId: string): string | null {
+  try {
+    const raw = sessionStorage.getItem(cacheKey(remoteId));
+    if (!raw) return null;
+    const { ticket, exp } = JSON.parse(raw) as { ticket?: unknown; exp?: unknown };
+    return typeof ticket === "string" && typeof exp === "number" && exp > Date.now() + 30_000 ? ticket : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearJoinTicket(remoteId: string): void {
+  try {
+    sessionStorage.removeItem(cacheKey(remoteId));
+  } catch {
+    /* private mode — nothing to clear */
+  }
+}
+
+let scriptPromise: Promise<void> | null = null;
+function loadTurnstileScript(): Promise<void> {
+  if (scriptPromise) return scriptPromise;
+  scriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    s.async = true;
+    s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("turnstile script failed to load"));
+    document.head.appendChild(s);
+  });
+  return scriptPromise;
+}
+
+interface TurnstileApi {
+  render: (
+    el: string | HTMLElement,
+    opts: {
+      sitekey: string;
+      callback: (token: string) => void;
+      "error-callback": () => void;
+      "expired-callback": () => void;
+      appearance?: string;
+    },
+  ) => string;
+  remove: (id: string) => void;
+}
+
+// Opens the prompt modal, renders the widget, resolves with the token.
+// Rejects on widget error/expiry (leaving the prompt open in its error
+// state) or if the user cancels (TurnstilePrompt clears turnstilePromptOpen).
+async function solveTurnstile(): Promise<string> {
+  if (!SITE_KEY) throw new Error("turnstile not configured");
+  turnstilePromptError.set(false);
+  turnstilePromptOpen.set(true);
+  await loadTurnstileScript();
+  const api = (window as unknown as { turnstile?: TurnstileApi }).turnstile;
+  const container = document.getElementById("turnstile-widget");
+  if (!api || !container) {
+    turnstilePromptError.set(true);
+    throw new Error("turnstile unavailable");
+  }
+  return new Promise<string>((resolve, reject) => {
+    let widgetId: string | null = null;
+    const cleanup = () => {
+      if (widgetId) {
+        try {
+          api.remove(widgetId);
+        } catch {
+          /* already gone */
+        }
+      }
+    };
+    widgetId = api.render(container, {
+      sitekey: SITE_KEY,
+      appearance: "interaction-only",
+      callback: (token) => {
+        cleanup();
+        turnstilePromptOpen.set(false);
+        resolve(token);
+      },
+      "error-callback": () => {
+        cleanup();
+        turnstilePromptError.set(true);
+        reject(new Error("turnstile error"));
+      },
+      "expired-callback": () => {
+        cleanup();
+        turnstilePromptError.set(true);
+        reject(new Error("turnstile expired"));
+      },
+    });
+  });
+}
+
+// For an anonymous connection to an "anyone with the link" workspace,
+// return a valid join ticket — reusing a cached one, else solving a fresh
+// Turnstile challenge and exchanging the widget token at the Worker.
+// null when Turnstile is unconfigured or the server says to skip
+// (signed-in) — the caller then connects without a ticket.
+export async function getJoinTicket(remoteId: string): Promise<string | null> {
+  if (!turnstileEnabled) return null;
+  const cached = readCachedTicket(remoteId);
+  if (cached) return cached;
+
+  const token = await solveTurnstile();
+  const res = await fetch(`/api/workspace/${encodeURIComponent(remoteId)}/join-ticket`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    turnstilePromptError.set(true);
+    turnstilePromptOpen.set(true);
+    return null;
+  }
+  const data = (await res.json()) as { ticket?: string; skip?: boolean; enabled?: boolean };
+  if (data.enabled === false || data.skip) return null;
+  if (typeof data.ticket === "string") {
+    try {
+      sessionStorage.setItem(cacheKey(remoteId), JSON.stringify({ ticket: data.ticket, exp: Date.now() + CACHE_TTL_MS }));
+    } catch {
+      /* private mode — the returned ticket still works for this connection */
+    }
+    return data.ticket;
+  }
+  return null;
+}

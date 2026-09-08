@@ -4,6 +4,10 @@
 // only. Unset everywhere else → the analytics module is fully inert.
 interface ImportMetaEnv {
   readonly VITE_GA_MEASUREMENT_ID?: string;
+  // Cloudflare Turnstile site key, set in the production Cloudflare build
+  // only. Unset → the client Turnstile module is inert and anonymous
+  // joins skip the challenge. Pairs with the Worker's TURNSTILE_SECRET_KEY.
+  readonly VITE_TURNSTILE_SITE_KEY?: string;
 }
 interface ImportMeta {
   readonly env: ImportMetaEnv;

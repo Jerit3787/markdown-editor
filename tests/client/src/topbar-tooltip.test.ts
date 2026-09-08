@@ -6,7 +6,7 @@ import { dirname, resolve } from "node:path";
 const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../client/index.html"), "utf8");
 
 describe("UI-5: top-bar tooltip attribute migration", () => {
-  const ids = ["commentsBtn", "versionHistoryBtn", "settingsBtn", "newDocBtn"];
+  const ids = ["commentsBtn", "versionHistoryBtn", "newDocBtn"];
   for (const id of ids) {
     it(`#${id} has data-tooltip and no title=`, () => {
       const tag = html.match(new RegExp(`<button[^>]*\\bid="${id}"[^>]*>`))?.[0] ?? "";

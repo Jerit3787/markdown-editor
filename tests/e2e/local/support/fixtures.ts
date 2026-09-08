@@ -37,3 +37,10 @@ export const test = base.extend<{ docId: string }>({
   ],
 });
 export { expect } from "@playwright/test";
+
+// Settings moved into the top-bar account menu (v1.56.0). The local
+// suite is always signed-out; its account menu carries "Settings".
+export async function openSettings(page: import("@playwright/test").Page): Promise<void> {
+  await page.click("#topbar-account-mount .topbar-account-btn");
+  await page.click('.topbar-account-menu [role="menuitem"]:has-text("Settings")');
+}

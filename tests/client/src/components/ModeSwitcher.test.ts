@@ -59,3 +59,26 @@ test("D-modedesc: the dropdown shows a one-line description under each mode", as
   expect(screen.container.textContent).toContain("Edits become suggestions");
   expect(screen.container.textContent).toContain("Read or print final document");
 });
+
+test("v2: each dropdown item has the icon and the two-line text block as siblings", async () => {
+  // Structural only — the flex layout that puts them on one row is
+  // verified against the real stylesheet in the e2e suite
+  // (tests/e2e/local/topbar-chrome.spec.ts), since component tests run
+  // without the app CSS or the #topbarActionsCol wrapper the rule scopes to.
+  enterCollabRoom("r1", "editor", true);
+  const screen = await render(ModeSwitcher);
+  await screen.getByRole("button", { name: /Editing/i }).click();
+
+  const item = screen.container.querySelector(".mode-switcher-item") as HTMLElement;
+  expect(item.querySelector(":scope > .icon")).not.toBeNull();
+  expect(item.querySelector(":scope > .mode-switcher-item-text > .mode-switcher-item-label")?.textContent).toBe("Editing");
+  expect(item.querySelector(":scope > .mode-switcher-item-text > .mode-switcher-desc")?.textContent).toBe("Edit document directly");
+});
+
+test("v2: the caret uses its own class, not the menu-bar's .menu-chevron", async () => {
+  enterCollabRoom("r1", "editor", true);
+  const screen = await render(ModeSwitcher);
+  const btn = await screen.getByRole("button", { name: /Editing/i }).element();
+  expect(btn.querySelector("svg.mode-switcher-caret")).not.toBeNull();
+  expect(btn.querySelector("svg.menu-chevron")).toBeNull();
+});

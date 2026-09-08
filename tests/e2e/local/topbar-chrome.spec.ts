@@ -10,8 +10,8 @@ test("UI-1: top-bar icon buttons are circular", async ({ page }) => {
   const vh = await radius("#versionHistoryBtn");
   expect(vh.br).toBeGreaterThanOrEqual(vh.w * 0.4); // ~50% → half the box
 
-  const settings = await radius("#settingsBtn");
-  expect(settings.br).toBeGreaterThanOrEqual(settings.w * 0.4);
+  const comments = await radius("#commentsBtn");
+  expect(comments.br).toBeGreaterThanOrEqual(comments.w * 0.4);
 
   // The formatting-toolbar overflow ("⋯") button — forced visible by a
   // narrow viewport — keeps a small radius (it's a dropdown-list trigger,
@@ -35,10 +35,72 @@ test("UI-5: hovering a top-bar icon button shows its tooltip chip", async ({ pag
   await expect.poll(chipOpacity).toBe("1");
 });
 
-test("UI-2: signed-out account button shows a person icon and a 'Sign in' tooltip", async ({ page }) => {
+test("v2: the account button opens a menu with Settings + Sign in (signed out)", async ({ page }) => {
   const btn = page.locator("#topbar-account-mount .topbar-account-btn");
   await expect(btn).toBeVisible();
-  await expect(btn).toHaveAttribute("data-tooltip", "Sign in");
-  await expect(btn).toHaveAttribute("aria-label", "Sign in with GitHub");
+  await expect(btn).toHaveAttribute("data-tooltip", "Account");
   expect(await btn.locator('use[href="#icon-user"]').count()).toBe(1);
+
+  await btn.click();
+  await expect(page.locator('.topbar-account-menu [role="menuitem"]:has-text("Sign in with GitHub")')).toBeVisible();
+  await expect(page.locator('.topbar-account-menu [role="menuitem"]:has-text("Settings")')).toBeVisible();
+});
+
+// The mode switcher only renders inside a collab room — seed one via the
+// store (no real connection needed; it just gates the {#if} and the mode).
+async function enterCollabRoom(page: import("@playwright/test").Page) {
+  await page.evaluate(async () => {
+    const m = await import("/src/stores/collabMode.ts");
+    m.enterCollabRoom("tcv2-e2e", "editor", true);
+  });
+  await page.locator(".mode-switcher-btn").waitFor();
+}
+
+test("v2: mode-switcher dropdown lays the icon beside the two-line text", async ({ page }) => {
+  await enterCollabRoom(page);
+  await page.click(".mode-switcher-btn");
+
+  const geom = await page
+    .locator(".mode-switcher-item")
+    .first()
+    .evaluate((item) => {
+      const icon = item.querySelector(".icon") as HTMLElement;
+      const text = item.querySelector(".mode-switcher-item-text") as HTMLElement;
+      return {
+        display: getComputedStyle(item).display,
+        sameRow: Math.abs(icon.getBoundingClientRect().top - text.getBoundingClientRect().top) < 8,
+      };
+    });
+  expect(geom.display).toBe("flex");
+  expect(geom.sameRow).toBe(true);
+});
+
+test("v2: the mode-switcher caret is not rotated on a phone-width viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await enterCollabRoom(page);
+  const transform = await page.locator(".mode-switcher-caret").evaluate((el) => getComputedStyle(el).transform);
+  // "none" or an identity matrix — a rotate(90deg) would be matrix(0,1,-1,0,0,0).
+  expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(transform);
+});
+
+test("v2: the mode-switcher button is an outlined pill", async ({ page }) => {
+  await enterCollabRoom(page);
+  const cs = await page.locator(".mode-switcher-btn").evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { style: s.borderTopStyle, width: parseFloat(s.borderTopWidth) };
+  });
+  expect(cs.style).toBe("solid");
+  expect(cs.width).toBeGreaterThanOrEqual(1);
+});
+
+test("v2: the account avatar is a 32px image inset in the 40px button", async ({ page }) => {
+  const pad = await page.locator("#topbar-account-mount .topbar-account-btn").evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
+  expect(pad).toBeGreaterThanOrEqual(3);
+
+  await page.evaluate(async () => {
+    const g = await import("/src/stores/github.ts");
+    g.githubUsername.set("octocat");
+  });
+  const w = await page.locator("#topbar-account-mount img.topbar-account-avatar").evaluate((el) => el.getBoundingClientRect().width);
+  expect(w).toBeLessThanOrEqual(34);
 });

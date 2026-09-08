@@ -1,4 +1,4 @@
-import { test, expect } from "./support/fixtures";
+import { test, expect, openSettings } from "./support/fixtures";
 import type { Page } from "@playwright/test";
 
 // Replace the whole document in one dispatch — verbatim, so newlines and
@@ -68,7 +68,7 @@ test("theme toggle re-renders mermaid diagrams", async ({ page }) => {
   // Node — evaluateHandle() keeps it as a live in-page reference instead,
   // which a later evaluate() can compare against by identity.
   const svgBefore = await page.evaluateHandle(() => document.querySelector("#preview svg"));
-  await page.click("#settingsBtn");
+  await openSettings(page);
   await page.click('button:has-text("Dark")');
   await page.keyboard.press("Escape");
   await expect.poll(() => page.evaluate((prev) => document.querySelector("#preview svg") !== prev, svgBefore)).toBe(true);

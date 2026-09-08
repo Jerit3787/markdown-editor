@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.56.0] - 2026-09-09
+
+### Fixed
+
+- **The mode switcher's dropdown** laid its icons above the text instead of beside it.
+- **On a phone, the mode switcher's arrow** pointed sideways instead of down.
+
+### Changed
+
+- **The Editing / Suggesting / Viewing switcher** is now an outlined button, matching Google Docs.
+- **Your avatar in the top bar** is a touch smaller, sitting inside the button rather than filling it.
+- **Settings moved into the account menu** (click your avatar) — freeing a slot in the top bar. The menu now shows who you're signed in as.
+
 ## [1.55.0] - 2026-09-09
 
 ### Added

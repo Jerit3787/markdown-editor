@@ -1,4 +1,4 @@
-import { test, expect } from "./support/fixtures";
+import { test, expect, openSettings } from "./support/fixtures";
 
 test.describe("keybinding modes", () => {
   test.afterEach(async ({ page }) => {
@@ -12,7 +12,7 @@ test.describe("keybinding modes", () => {
   });
 
   test("switching to Vim mode via Settings shows the status indicator and enables vim motions", async ({ page }) => {
-    await page.click("#settingsBtn");
+    await openSettings(page);
     await page.click('button:has-text("Vim")');
     await page.keyboard.press("Escape"); // close Settings
     await page.click("#editor-mount .cm-content");
@@ -23,14 +23,14 @@ test.describe("keybinding modes", () => {
   });
 
   test("switching to Emacs mode via Settings shows the status indicator", async ({ page }) => {
-    await page.click("#settingsBtn");
+    await openSettings(page);
     await page.click('button:has-text("Emacs")');
     await page.keyboard.press("Escape");
     await expect(page.locator("#keybindingMode")).toHaveText("EMACS");
   });
 
   test("switching back to Normal hides the status indicator", async ({ page }) => {
-    await page.click("#settingsBtn");
+    await openSettings(page);
     await page.click('button:has-text("Vim")');
     await page.click('button:has-text("Normal")');
     await page.keyboard.press("Escape");
@@ -38,7 +38,7 @@ test.describe("keybinding modes", () => {
   });
 
   test("the vim status indicator tracks NORMAL / INSERT / VISUAL", async ({ page }) => {
-    await page.click("#settingsBtn");
+    await openSettings(page);
     await page.click('button:has-text("Vim")');
     await page.keyboard.press("Escape"); // close Settings
     await page.click("#editor-mount .cm-content");

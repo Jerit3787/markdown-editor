@@ -545,7 +545,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
     const btn = document.getElementById("saveStatusBtn");
     const saving = /ing…$/.test(text);
     btn.classList.toggle("saving", saving);
-    btn.title = text;
+    btn.dataset.tooltip = text;
     btn.setAttribute("aria-label", text);
     document.getElementById("saveStatusIcon").setAttribute("href", saving ? "#icon-cloud" : "#icon-cloud-check");
     renderSaveStatusPopup(saving);

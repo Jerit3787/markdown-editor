@@ -23,3 +23,14 @@ test("UI-1: top-bar icon buttons are circular", async ({ page }) => {
   const r = await overflowBtn.evaluate((el) => parseFloat(getComputedStyle(el).borderRadius));
   expect(r).toBeLessThan(12);
 });
+
+test("UI-5: hovering a top-bar icon button shows its tooltip chip", async ({ page }) => {
+  const btn = page.locator("#versionHistoryBtn");
+  await expect(btn).toHaveAttribute("data-tooltip", "Version history");
+
+  const chipOpacity = () => btn.evaluate((el) => getComputedStyle(el, "::after").opacity);
+
+  expect(await chipOpacity()).toBe("0");
+  await btn.hover();
+  await expect.poll(chipOpacity).toBe("1");
+});

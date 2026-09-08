@@ -12,6 +12,8 @@
   --radius: 8px;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --tooltip-bg: #1f2430;
+  --tooltip-fg: #ffffff;
 }
 
 [data-theme="dark"] {
@@ -24,6 +26,8 @@
   --accent: #4d8dff;
   --accent-dim: #1b2a44;
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --tooltip-bg: #3a3d42;
+  --tooltip-fg: #f3f3f3;
 }
 
 * {

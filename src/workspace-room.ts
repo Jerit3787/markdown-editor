@@ -345,6 +345,8 @@ export class WorkspaceRoom {
     }
     const auth = await this.authorize(request);
     if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const ticket = await this.requireJoinTicket(request);
+    if (!ticket.ok) return new Response(ticket.message, { status: ticket.status });
 
     const pair = new WebSocketPair();
     const client = pair[0];
@@ -428,19 +430,27 @@ export class WorkspaceRoom {
       }
       return { ok: false, status: 403, message: "You don't have access to this workspace." };
     }
-    // Turnstile: an anonymous connection to an "anyone with the link"
-    // room must carry a valid join ticket on the WS-upgrade URL, when the
-    // Turnstile secret is configured. Signed-in users, requireAccount
-    // links (which force a session), and restricted links (which never
-    // resolve a role for an anon user, so we never get here) are
-    // unaffected.
-    if (!session?.username && this.env.TURNSTILE_SECRET_KEY && access.generalAccess === "anyone") {
-      const url = new URL(request.url);
-      const wsId = this.workspaceIdFromUrl(url);
-      const ok = await verifyJoinTicket(url.searchParams.get("ticket"), wsId, this.env.SESSION_SECRET, Date.now());
-      if (!ok) return { ok: false, status: 401, message: "turnstile-required" };
-    }
     return { ok: true, username: session?.username ?? null, role };
+  }
+
+  // Turnstile enforcement — the live-sync boundary only. An anonymous
+  // connection to an "anyone with the link" room must carry a valid join
+  // ticket on the WS-upgrade URL when TURNSTILE_SECRET_KEY is configured.
+  // Deliberately NOT part of authorize(): the read-only pre-join HTTP
+  // fetches (GET /access, GET /docs, GET /meta) call authorize() too and
+  // must stay reachable without a challenge (see the design's non-goals).
+  // Signed-in users, requireAccount links (which force a session) and
+  // restricted links (no anon role at all) never reach a failing check.
+  async requireJoinTicket(request: Request): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+    if (!this.env.TURNSTILE_SECRET_KEY) return { ok: true };
+    const session = await this.getSession(request);
+    if (session?.username) return { ok: true };
+    const access = await this.getAccess();
+    if (access.generalAccess !== "anyone") return { ok: true };
+    const url = new URL(request.url);
+    const wsId = this.workspaceIdFromUrl(url);
+    const ok = await verifyJoinTicket(url.searchParams.get("ticket"), wsId, this.env.SESSION_SECRET, Date.now());
+    return ok ? { ok: true } : { ok: false, status: 401, message: "turnstile-required" };
   }
 
   async handleAccessRequest(request: Request): Promise<Response> {

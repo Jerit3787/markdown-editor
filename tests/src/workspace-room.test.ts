@@ -305,48 +305,59 @@ describe("WorkspaceRoom.authorize", () => {
     expect(result).toEqual({ ok: true, username: null, role: "viewer" });
   });
 
-  it("turnstile: anonymous on an 'anyone' link needs a valid ticket when configured", async () => {
+  it("turnstile: authorize() itself no longer gates — the anon 'anyone' role still resolves", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
-    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
-
-    const noTicket = await room.authorize(new Request("https://example.com/api/workspace/ws1"));
-    expect(noTicket).toEqual({ ok: false, status: 401, message: "turnstile-required" });
-
-    const { mintJoinTicket } = await import("../../src/turnstile");
-    const good = await mintJoinTicket("ws1", "test-secret-key-not-real", Date.now());
-    const withTicket = await room.authorize(new Request(`https://example.com/api/workspace/ws1?ticket=${encodeURIComponent(good)}`));
-    expect(withTicket).toEqual({ ok: true, username: null, role: "viewer" });
-  });
-
-  it("turnstile: a ticket for another workspace is rejected", async () => {
-    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
-    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
-    const { mintJoinTicket } = await import("../../src/turnstile");
-    const wrong = await mintJoinTicket("other-ws", "test-secret-key-not-real", Date.now());
-    const res = await room.authorize(new Request(`https://example.com/api/workspace/ws1?ticket=${encodeURIComponent(wrong)}`));
-    expect(res.ok).toBe(false);
-  });
-
-  it("turnstile: a signed-in visitor bypasses the ticket check", async () => {
-    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
-    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
-    const cookie = await encryptSession(fakeEnvWithTurnstile, { token: "t", username: "carol" });
-    const res = await room.authorize(new Request("https://example.com/api/workspace/ws1", { headers: { Cookie: `mde_gh_session=${cookie}` } }));
-    expect(res).toEqual({ ok: true, username: "carol", role: "viewer" });
-  });
-
-  it("turnstile: no check when TURNSTILE_SECRET_KEY is unset", async () => {
-    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
     const res = await room.authorize(new Request("https://example.com/api/workspace/ws1"));
     expect(res).toEqual({ ok: true, username: null, role: "viewer" });
   });
+});
 
-  it("turnstile: a restricted link still rejects an anon user before the ticket is consulted", async () => {
+describe("WorkspaceRoom.requireJoinTicket", () => {
+  const anyoneAccess = { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] };
+
+  it("anonymous on an 'anyone' link needs a valid ticket when configured", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
+    await room.state.storage.put("access", anyoneAccess);
+
+    const noTicket = await room.requireJoinTicket(new Request("https://example.com/api/workspace/ws1"));
+    expect(noTicket).toEqual({ ok: false, status: 401, message: "turnstile-required" });
+
+    const { mintJoinTicket } = await import("../../src/turnstile");
+    const good = await mintJoinTicket("ws1", "test-secret-key-not-real", Date.now());
+    const withTicket = await room.requireJoinTicket(new Request(`https://example.com/api/workspace/ws1?ticket=${encodeURIComponent(good)}`));
+    expect(withTicket).toEqual({ ok: true });
+  });
+
+  it("a ticket for another workspace is rejected", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
+    await room.state.storage.put("access", anyoneAccess);
+    const { mintJoinTicket } = await import("../../src/turnstile");
+    const wrong = await mintJoinTicket("other-ws", "test-secret-key-not-real", Date.now());
+    const res = await room.requireJoinTicket(new Request(`https://example.com/api/workspace/ws1?ticket=${encodeURIComponent(wrong)}`));
+    expect(res.ok).toBe(false);
+  });
+
+  it("a signed-in visitor bypasses the ticket check", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
+    await room.state.storage.put("access", anyoneAccess);
+    const cookie = await encryptSession(fakeEnvWithTurnstile, { token: "t", username: "carol" });
+    const res = await room.requireJoinTicket(new Request("https://example.com/api/workspace/ws1", { headers: { Cookie: `mde_gh_session=${cookie}` } }));
+    expect(res).toEqual({ ok: true });
+  });
+
+  it("no check when TURNSTILE_SECRET_KEY is unset", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", anyoneAccess);
+    const res = await room.requireJoinTicket(new Request("https://example.com/api/workspace/ws1"));
+    expect(res).toEqual({ ok: true });
+  });
+
+  it("no check on a restricted link — the existing role check already stops anon there", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
     await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
-    const res = await room.authorize(new Request("https://example.com/api/workspace/ws1"));
-    expect(res).toEqual({ ok: false, status: 401, message: "Sign in with GitHub to join this workspace." });
+    const res = await room.requireJoinTicket(new Request("https://example.com/api/workspace/ws1"));
+    expect(res).toEqual({ ok: true });
   });
 });
 

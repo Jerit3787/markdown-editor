@@ -18,6 +18,18 @@ describe("transformWikilinks", () => {
   it("converts multiple wikilinks in the same string", () => {
     expect(transformWikilinks("[[A]] and [[B]]")).toBe("[A](wikilink:A) and [B](wikilink:B)");
   });
+
+  it("leaves [[X]] inside an inline code span verbatim", () => {
+    expect(transformWikilinks("run `[[Secret]]` now")).toBe("run `[[Secret]]` now");
+  });
+
+  it("leaves [[X]] inside a fenced block verbatim", () => {
+    expect(transformWikilinks("```\n[[InFence]]\n```")).toBe("```\n[[InFence]]\n```");
+  });
+
+  it("still rewrites [[X]] outside code on a line with a code span", () => {
+    expect(transformWikilinks("`code` then [[Doc]]")).toBe("`code` then [Doc](wikilink:Doc)");
+  });
 });
 
 describe("resolveWikilinkTarget", () => {
@@ -29,6 +41,17 @@ describe("resolveWikilinkTarget", () => {
 
   it("returns undefined for no match", () => {
     expect(resolveWikilinkTarget("Nope", docs)).toBeUndefined();
+  });
+});
+
+describe("findBacklinks — code awareness", () => {
+  const docs: Doc[] = [
+    { id: "1", name: "Target", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w" },
+    { id: "2", name: "RealRef", content: "see [[Target]]", updatedAt: 0, createdAt: 0, workspaceId: "w" },
+    { id: "3", name: "CodeOnly", content: "example: `[[Target]]`", updatedAt: 0, createdAt: 0, workspaceId: "w" },
+  ];
+  it("counts a prose [[Target]] but not a code-only one", () => {
+    expect(findBacklinks("Target", docs).map((d) => d.id)).toEqual(["2"]);
   });
 });
 

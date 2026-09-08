@@ -17,4 +17,8 @@ describe("rewriteWikilinkReferences (Worker copy)", () => {
   it("returns the input unchanged when the name never appears", () => {
     expect(rewriteWikilinkReferences("no links here", "Old", "New")).toBe("no links here");
   });
+
+  it("does not rewrite [[Old]] inside a code span (Worker copy)", () => {
+    expect(rewriteWikilinkReferences("`[[Old]]` and [[Old]]", "Old", "New")).toBe("`[[Old]]` and [[New]]");
+  });
 });

@@ -20,7 +20,16 @@ import { Transaction } from "@codemirror/state";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
-import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified, workspaceAccessDenied } from "./stores/share";
+import {
+  shareModalOpen,
+  shareAccess,
+  shareTargetName,
+  sharePresence,
+  identityUnverified,
+  workspaceAccessDenied,
+  myAccessRequestPending,
+  requestAccessModalOpen,
+} from "./stores/share";
 import { showToast } from "./stores/toast";
 import {
   getActiveDoc,
@@ -58,7 +67,7 @@ import { getSuggestionsMap } from "./suggestions";
 import { pendingSuggestionCount } from "./stores/suggestions";
 import { remoteCommentsChanged } from "./stores/commentsPanel";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
-import { enterCollabRoom, leaveCollabRoom, effectiveMode, type Mode, type Role } from "./stores/collabMode";
+import { enterCollabRoom, leaveCollabRoom, effectiveMode, collabIsOwner, type Mode, type Role } from "./stores/collabMode";
 import { COLORS, colorForUsername } from "./user-color";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
@@ -75,6 +84,13 @@ const MESSAGE_PRESENCE = 2;
 const MESSAGE_WORKSPACE_META = 3;
 const MESSAGE_COMMENTS = 4;
 const MESSAGE_WORKSPACE_DELETED = 5;
+const MESSAGE_ACCESS_REQUEST = 6; // [type, username, message] — only the owner acts (a toast)
+const MESSAGE_ACCESS_CHANGED = 7; // [type] — every client re-fetches /access, rejoins if its own role changed
+
+// CV2-5 — remoteIds this session has already nudged the owner about
+// ("N people waiting for edit access"). Cleared on teardownWorkspace so
+// re-joining re-arms it. Module-level: init() never runs in jsdom.
+const ownerNudgedRemoteIds = new Set<string>();
 
 export const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", reviewer: "Reviewer", editor: "Editor" };
 const ROLE_VERBS: Record<string, string> = { viewer: "view", reviewer: "comment", editor: "edit" };
@@ -318,14 +334,19 @@ export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   pendingJoin.set({ remoteId: workspaceId, workspaceName: access.workspaceName || "Shared workspace", docs: validDocs, landOnDocId });
 }
 
+// Mirrors src/access-role.ts's resolveRole() — kept in sync by hand.
+const ROLE_RANK: Record<string, number> = { viewer: 0, reviewer: 1, editor: 2 };
+function higherRole(a: string, b: string): string {
+  return (ROLE_RANK[a] ?? 0) >= (ROLE_RANK[b] ?? 0) ? a : b;
+}
 function computeMyRole(access: typeof DEFAULT_ACCESS, username: string | null): string | null {
   if (username && access.owner === username) return "editor";
+  const invited = username ? access.invited.find((p) => p.username === username) : undefined;
   if (access.generalAccess === "anyone") {
     if (access.requireAccount && !username) return null;
-    return access.role;
+    return invited ? higherRole(invited.role, access.role) : access.role;
   }
   if (!username) return null;
-  const invited = access.invited.find((p) => p.username === username);
   return invited ? invited.role : null;
 }
 
@@ -444,8 +465,47 @@ async function rejoinKnownWorkspace(remoteId: string, docId: string) {
     isOwner: !!window.MDE.githubUsername && access.owner === window.MDE.githubUsername,
   });
   if (joined !== joinGeneration) return;
+  currentAccess = access; // so the Share dialog / owner nudge see fresh access on open
   bindActiveDoc(docId);
   syncShareStores();
+}
+
+// CV2-5 — a MESSAGE_ACCESS_CHANGED frame landed (owner approved/denied a
+// request, or edited a role). Re-fetch access; if this session's own
+// resolved role changed, rejoin the room so the WebSocket reconnects at
+// the new server-side role (and the mode chrome follows).
+async function handleAccessChanged(local: Workspace, remoteId: string): Promise<void> {
+  const hadPending = get(myAccessRequestPending);
+  const access = await fetchWorkspaceAccess(remoteId);
+  currentAccess = access;
+  syncShareStores();
+  myAccessRequestPending.set(access.myAccessRequestPending ?? false);
+
+  const newRole = computeMyRole(access, window.MDE.githubUsername);
+  if (newRole !== workspaceRoom.role) {
+    if (newRole === "editor") showToast("You now have edit access", "info");
+    else if (newRole) showToast("Your access to this workspace changed", "info");
+    const docId = workspaceRoom.activeDocId ?? get(docsStore).find((d) => d.workspaceId === local.id)?.id;
+    if (docId) {
+      teardownWorkspace();
+      await rejoinKnownWorkspace(remoteId, docId);
+    }
+    return;
+  }
+  if (hadPending && !(access.myAccessRequestPending ?? false)) {
+    showToast("Your access request was declined", "info");
+  }
+}
+
+// CV2-5 — once per session, tell an owner who just joined a workspace that
+// has requests waiting from before they connected. The live path
+// (MESSAGE_ACCESS_REQUEST) covers requests that arrive while they're here.
+function maybeNudgeOwnerAboutRequests(remoteId: string | null): void {
+  if (!remoteId || !get(collabIsOwner) || ownerNudgedRemoteIds.has(remoteId)) return;
+  const n = currentAccess?.accessRequests?.length ?? 0;
+  if (n === 0) return;
+  ownerNudgedRemoteIds.add(remoteId);
+  showToast(`${n} ${n === 1 ? "person is" : "people are"} waiting for edit access — open Share to review`, "info");
 }
 
 // A document still carrying the legacy per-document `shared` flag (see
@@ -1039,6 +1099,9 @@ function teardownWorkspace(): void {
   workspaceRoom.role = null;
   workspaceRoom.reconnectDelay = 1000;
   workspaceRepoLinked.set(false);
+  myAccessRequestPending.set(false);
+  ownerNudgedRemoteIds.clear();
+  requestAccessModalOpen.set(false);
   leaveCollabRoom();
 }
 
@@ -1164,6 +1227,20 @@ function handleServerMessage(data: Uint8Array): void {
     const local = remoteId ? get(workspacesStore).find((w) => w.remoteId === remoteId) : null;
     if (local) handleWorkspaceGone(local.id);
     else teardownWorkspace();
+    return;
+  }
+
+  if (messageType === MESSAGE_ACCESS_REQUEST) {
+    const username = decoding.readVarString(decoder);
+    decoding.readVarString(decoder); // message — not surfaced in the toast
+    if (get(collabIsOwner)) showToast(`${username} requested edit access`, "info");
+    return;
+  }
+
+  if (messageType === MESSAGE_ACCESS_CHANGED) {
+    const remoteId = workspaceRoom.workspaceId;
+    const local = remoteId ? get(workspacesStore).find((w) => w.remoteId === remoteId) : null;
+    if (local && remoteId) void handleAccessChanged(local, remoteId);
     return;
   }
 
@@ -1486,7 +1563,19 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
 export { handleDocChanged, workspaceRoom, teardownWorkspace, handleRepoDocsChanged };
 
 function setupShareUI() {
-  document.getElementById("shareBtn").addEventListener("click", openShareModal);
+  // CV2-5 — a viewer/reviewer's greyed Share button is their entry point
+  // for "Request edit access" instead of the (owner-only) Share dialog.
+  document.getElementById("shareBtn").addEventListener("click", () => {
+    if (workspaceRoom.role === "viewer" || workspaceRoom.role === "reviewer") {
+      if (get(myAccessRequestPending)) {
+        showToast("Your access request is still pending", "info");
+        return;
+      }
+      requestAccessModalOpen.set(true);
+      return;
+    }
+    void openShareModal();
+  });
 
   const dropdownBtn = document.getElementById("shareDropdownBtn");
   const dropdownMenu = document.getElementById("shareDropdownMenu");
@@ -1718,6 +1807,41 @@ export function buildShareLink(): string | null {
   return `${location.origin}/w/${encodeURIComponent(shareRoomId(doc.workspaceId))}/${encodeURIComponent(doc.id)}/${segment}`;
 }
 
+// ---------- CV2-5 access-request wrappers ----------
+// Thin fetch helpers so the Svelte components don't build URLs — same
+// pattern as addPerson / removeInvite.
+
+export async function requestAccessFromOwner(remoteId: string, message: string): Promise<boolean> {
+  const res = await fetch(`/api/workspace/${encodeURIComponent(remoteId)}/access-request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  if (res.ok) myAccessRequestPending.set(true);
+  return res.ok;
+}
+
+async function respondToAccessRequest(remoteId: string, username: string, body: Record<string, unknown>): Promise<boolean> {
+  const res = await fetch(`/api/workspace/${encodeURIComponent(remoteId)}/access-request/${encodeURIComponent(username)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    currentAccess = await fetchWorkspaceAccess(remoteId);
+    syncShareStores();
+  }
+  return res.ok;
+}
+
+export function approveAccessRequest(remoteId: string, username: string, role: string): Promise<boolean> {
+  return respondToAccessRequest(remoteId, username, { action: "approve", role });
+}
+
+export function denyAccessRequest(remoteId: string, username: string): Promise<boolean> {
+  return respondToAccessRequest(remoteId, username, { action: "deny" });
+}
+
 export async function addPerson(rawUsername: string) {
   const username = rawUsername.trim().replace(/^@/, "");
   if (!username) return;
@@ -1798,6 +1922,7 @@ export async function removeInvite(username: string) {
 function syncShareStores() {
   const access = currentAccess || DEFAULT_ACCESS;
   shareAccess.set(access);
+  maybeNudgeOwnerAboutRequests(workspaceRoom.workspaceId);
   const doc = getActiveDoc();
   const workspace = doc && get(workspacesStore).find((w) => w.id === doc.workspaceId);
   shareTargetName.set(workspace?.name || "Untitled workspace");

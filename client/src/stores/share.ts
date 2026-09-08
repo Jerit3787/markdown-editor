@@ -6,6 +6,13 @@ import type { AccessRecord, PresenceEntry } from "../types";
 
 export const shareModalOpen = writable(false);
 export const shareAccess = writable<AccessRecord | null>(null);
+// CV2-5. `myAccessRequestPending` — this session has a "request edit
+// access" in flight (seeded from GET /access, kept fresh on
+// MESSAGE_ACCESS_CHANGED). `requestAccessModalOpen` — the little
+// RequestAccessModal, opened when a viewer/reviewer clicks the greyed
+// #shareBtn.
+export const myAccessRequestPending = writable(false);
+export const requestAccessModalOpen = writable(false);
 // Named for what it actually is since workspace-level sharing (v1.21.0):
 // every share is a *workspace* share, even the "just this document" path
 // (isolate-then-share creates a new single-document workspace named

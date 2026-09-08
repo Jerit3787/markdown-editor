@@ -8,6 +8,14 @@ export interface InvitedPerson {
   role: string;
 }
 
+// A pending "request edit access" (CV2-5). Hand-synced with
+// src/access-role.ts's copy.
+export interface AccessRequest {
+  username: string;
+  message: string;
+  createdAt: number;
+}
+
 export interface AccessRecord {
   owner: string | null;
   generalAccess: "restricted" | "anyone";
@@ -17,6 +25,11 @@ export interface AccessRecord {
   requireAccount: boolean;
   role: string;
   invited: InvitedPerson[];
+  // CV2-5: present only on the owner's own GET /access (the full list of
+  // pending edit-access requests) / a requester's own GET /access (just
+  // the boolean). Absent for everyone else.
+  accessRequests?: AccessRequest[];
+  myAccessRequestPending?: boolean;
   // The sharer's real workspace name, as of the last fetch — empty/absent
   // for a workspace shared before this field existed, or one that was
   // never explicitly renamed. See collab.ts's decideJoinTarget/joinSharedLink.

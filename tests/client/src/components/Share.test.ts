@@ -21,28 +21,33 @@ beforeEach(() => {
   }
 });
 
-test("CV2-2: #shareBtn / #shareDropdownBtn disabled in Viewing or for a viewer / reviewer; enabled otherwise", async () => {
+test("CV2-2/5: #shareBtn is greyed-but-clickable for a viewer/reviewer, hard-disabled for an editor-in-Viewing / no doc", async () => {
   await render(Share);
   const share = () => document.getElementById("shareBtn") as HTMLButtonElement;
   const dropdown = () => document.getElementById("shareDropdownBtn") as HTMLButtonElement;
 
-  await expect.poll(() => share().disabled).toBe(false); // plain local doc
+  await expect.poll(() => share().disabled).toBe(false); // plain local doc, not muted
+  expect(share().classList.contains("is-muted")).toBe(false);
 
   enterCollabRoom("r1", "viewer", false);
-  await expect.poll(() => share().disabled).toBe(true);
-  expect(dropdown().disabled).toBe(true);
+  // greyed but STILL clickable — it's the Request-edit-access entry point.
+  await expect.poll(() => share().classList.contains("is-muted")).toBe(true);
+  expect(share().disabled).toBe(false);
+  expect(dropdown().disabled).toBe(true); // the chevron has nothing to offer
 
   enterCollabRoom("r2", "reviewer", false);
-  await expect.poll(() => share().disabled).toBe(true);
+  await expect.poll(() => share().classList.contains("is-muted")).toBe(true);
+  expect(share().disabled).toBe(false);
 
-  enterCollabRoom("r3", "editor", false); // non-owner editor keeps it
+  enterCollabRoom("r3", "editor", false); // non-owner editor — normal
   await expect.poll(() => share().disabled).toBe(false);
+  expect(share().classList.contains("is-muted")).toBe(false);
 
-  setChosenMode("viewing"); // editor, but Viewing mode
+  setChosenMode("viewing"); // editor in Viewing → hard-disabled (opens the owner dialog, nothing to do)
   await expect.poll(() => share().disabled).toBe(true);
 
   setChosenMode("editing");
-  activeIdStore.set(null); // no active doc
+  activeIdStore.set(null);
   await expect.poll(() => share().disabled).toBe(true);
 });
 
@@ -84,4 +89,39 @@ test("COLLAB-23: a not-yet-claimed workspace (owner null) is treated as the loca
 
   await expect.element(screen.getByLabelText("General access")).not.toBeDisabled();
   await expect.element(screen.getByText("bob")).toBeVisible(); // owner row falls back to the local user
+});
+
+test("CV2-5: an owner with pending requests sees a Requests section with the note", async () => {
+  shareAccess.set({
+    owner: "alice",
+    generalAccess: "anyone",
+    requireAccount: false,
+    role: "viewer",
+    invited: [],
+    accessRequests: [{ username: "bob", message: "need to fix a typo", createdAt: 1 }],
+  });
+  githubUsername.set("alice");
+  enterCollabRoom("rq1", "editor", true); // collabIsOwner → true
+
+  const screen = await render(Share);
+  await expect.element(screen.getByText("Requests")).toBeVisible();
+  await expect.element(screen.getByText("need to fix a typo")).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+  await expect.element(screen.getByLabelText("Deny bob")).toBeVisible();
+});
+
+test("CV2-5: no Requests section for a non-owner even if the payload somehow carries it", async () => {
+  shareAccess.set({
+    owner: "alice",
+    generalAccess: "anyone",
+    requireAccount: false,
+    role: "viewer",
+    invited: [],
+    accessRequests: [{ username: "bob", message: "", createdAt: 1 }],
+  });
+  githubUsername.set("bob");
+  enterCollabRoom("rq2", "viewer", false);
+
+  const screen = await render(Share);
+  expect(screen.container.textContent).not.toContain("Requests");
 });

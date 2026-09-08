@@ -12,9 +12,9 @@ import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, rec
 import type { ResolvedSuggestion } from "./suggestions";
 import type { Env } from "./env";
 import { resolveRole } from "./access-role";
-import type { Role, InvitedPerson, AccessRecord } from "./access-role";
+import type { Role, InvitedPerson, AccessRecord, AccessRequest } from "./access-role";
 
-export type { Role, InvitedPerson, AccessRecord };
+export type { Role, InvitedPerson, AccessRecord, AccessRequest };
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -42,6 +42,15 @@ const MESSAGE_COMMENTS = 4;
 // MESSAGE_WORKSPACE_META greeting. The client tears down and drops its
 // local mirror; sessions are closed right after the broadcast.
 const MESSAGE_WORKSPACE_DELETED = 5;
+// CV2-5. Broadcast to every live session when a viewer/reviewer submits
+// "request edit access" ([type, username, message], no docId). Only the
+// owner's client acts on it (a toast); everyone else ignores it.
+const MESSAGE_ACCESS_REQUEST = 6;
+// CV2-5. Broadcast (bare varuint, no docId) whenever the access record or
+// the pending-requests list changes through an owner action — approve,
+// deny, or a plain PUT /access role edit. Every client re-fetches
+// GET /access and, if its own resolved role changed, rejoins the room.
+const MESSAGE_ACCESS_CHANGED = 7;
 
 const SYNC_STEP1 = 0;
 const SYNC_STEP2 = 1;
@@ -297,6 +306,12 @@ export class WorkspaceRoom {
     if (request.method === "DELETE" && /\/api\/workspace\/[^/]+$/.test(url.pathname)) {
       return this.handleDeleteRequest(request);
     }
+    // CV2-5 — check the more specific /access-request routes before the
+    // bare /access one (`.endsWith("/access")` is false for these, but
+    // keep them grouped).
+    const accessRequestActionMatch = url.pathname.match(/\/access-request\/([^/]+)$/);
+    if (accessRequestActionMatch) return this.handleAccessRequestAction(request, decodeURIComponent(accessRequestActionMatch[1]!));
+    if (url.pathname.endsWith("/access-request")) return this.handleAccessRequestSubmit(request);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
     if (url.pathname.endsWith("/docs")) return this.handleDocsRequest(request);
     if (url.pathname.endsWith("/meta")) return this.handleMetaRequest(request);
@@ -349,6 +364,14 @@ export class WorkspaceRoom {
     return { ...DEFAULT_ACCESS, ...stored, invited } as AccessRecord;
   }
 
+  // CV2-5 — pending "request edit access" entries, stored separately from
+  // the access record so the roster-editing path (PUT /access) and the
+  // request flow never entangle.
+  async getAccessRequests(): Promise<AccessRequest[]> {
+    const stored = await this.state.storage.get<AccessRequest[]>("accessRequests");
+    return Array.isArray(stored) ? stored : [];
+  }
+
   async getSession(request: Request) {
     const cookie = getCookie(request, SESSION_COOKIE);
     if (!cookie) return null;
@@ -379,7 +402,17 @@ export class WorkspaceRoom {
       // roster — see access-visibility.ts.
       const auth = await this.authorize(request);
       const body = auth.ok ? access : redactAccessForOutsider(access);
-      return Response.json({ ...body, workspaceName: this.name });
+      // CV2-5 — the pending-request roster (usernames + free-text notes)
+      // is the owner's alone; an authed non-owner learns only whether
+      // *they* have a request in flight; an outsider learns nothing.
+      const extra: Record<string, unknown> = {};
+      if (auth.ok && auth.username && auth.username === access.owner) {
+        extra.accessRequests = await this.getAccessRequests();
+      } else if (auth.ok && auth.username) {
+        const requests = await this.getAccessRequests();
+        extra.myAccessRequestPending = requests.some((r) => r.username === auth.username);
+      }
+      return Response.json({ ...body, ...extra, workspaceName: this.name });
     }
     if (request.method === "PUT") {
       let body: { generalAccess?: unknown; requireAccount?: unknown; role?: unknown; invited?: unknown };
@@ -405,9 +438,81 @@ export class WorkspaceRoom {
         invited: Array.isArray(body.invited) ? normalizeInvited(body.invited) : access.invited,
       };
       await this.state.storage.put("access", next);
+      this.broadcastAccessChanged();
       return Response.json(next);
     }
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  broadcastAccessChanged(): void {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_ACCESS_CHANGED);
+    this.broadcast(encoding.toUint8Array(encoder), null);
+  }
+
+  // CV2-5 — the owner approves or denies a pending request.
+  async handleAccessRequestAction(request: Request, username: string): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const session = await this.getSession(request);
+    const access = await this.getAccess();
+    if (!session?.username || session.username !== access.owner) {
+      return new Response("Only the owner can respond to access requests.", { status: 403 });
+    }
+    let body: { action?: unknown; role?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      body = {};
+    }
+    const action = body.action === "approve" ? "approve" : body.action === "deny" ? "deny" : null;
+    if (!action) return new Response("action must be 'approve' or 'deny'.", { status: 400 });
+
+    const requests = await this.getAccessRequests();
+    if (!requests.some((r) => r.username === username)) return new Response("No such pending request.", { status: 404 });
+    await this.state.storage.put(
+      "accessRequests",
+      requests.filter((r) => r.username !== username),
+    );
+
+    if (action === "approve") {
+      const role: Role = (["viewer", "reviewer", "editor"] as const).includes(body.role as Role) ? (body.role as Role) : "editor";
+      const invited = access.invited.filter((p) => p.username !== username);
+      invited.push({ username, role });
+      await this.state.storage.put("access", { ...access, invited });
+    }
+    this.broadcastAccessChanged();
+    return Response.json({ ok: true });
+  }
+
+  // CV2-5 — a joined viewer/reviewer asks the owner for edit access.
+  async handleAccessRequestSubmit(request: Request): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    // authorize() returns role "editor" for the owner too — both hit this.
+    if (auth.role === "editor") return new Response("You already have edit access.", { status: 400 });
+    if (!auth.username) return new Response("Sign in with GitHub first.", { status: 401 });
+
+    let body: { message?: unknown };
+    try {
+      body = await request.json();
+    } catch (err) {
+      body = {};
+    }
+    const message = (typeof body.message === "string" ? body.message : "").trim().slice(0, 500);
+
+    const requests = await this.getAccessRequests();
+    const next = requests.filter((r) => r.username !== auth.username);
+    next.push({ username: auth.username, message, createdAt: Date.now() });
+    await this.state.storage.put("accessRequests", next);
+
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_ACCESS_REQUEST);
+    encoding.writeVarString(encoder, auth.username);
+    encoding.writeVarString(encoder, message);
+    this.broadcast(encoding.toUint8Array(encoder), null);
+
+    return Response.json({ ok: true });
   }
 
   encodeWorkspaceMeta(): Uint8Array {

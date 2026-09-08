@@ -1166,6 +1166,56 @@ describe("collab-mode role publishing", () => {
     pushWorkspaceRepoLinked("not-a-shared-ws", false);
     expect(spy.mock.calls.length).toBe(0);
   });
+
+  function sendFrame(bytes: Uint8Array) {
+    MockWebSocket.instances.at(-1)!.onmessage!({ data: bytes.buffer } as MessageEvent);
+  }
+
+  it("CV2-5: MESSAGE_ACCESS_REQUEST toasts only for the owner", async () => {
+    const toast = await import("../../../client/src/stores/toast");
+    const spy = vi.spyOn(toast, "showToast");
+    const { doc } = setup("editor", "ar1"); // githubUsername "alice" === owner → collabIsOwner true
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    spy.mockClear();
+
+    const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, 6);
+    encoding.writeVarString(enc, "bob");
+    encoding.writeVarString(enc, "a note");
+    sendFrame(encoding.toUint8Array(enc));
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("bob"), expect.anything());
+  });
+
+  it("CV2-5: MESSAGE_ACCESS_CHANGED rejoins when this session's role changed", async () => {
+    const { doc } = setup("viewer", "ar2", { username: "bob" });
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(get(collabRole)).toBe("viewer");
+
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.includes("/access")) {
+        return {
+          ok: true,
+          json: async () => ({
+            owner: "alice",
+            generalAccess: "anyone",
+            requireAccount: false,
+            role: "viewer",
+            invited: [{ username: "bob", role: "editor" }],
+            myAccessRequestPending: false,
+          }),
+        };
+      }
+      if (url.includes("/docs")) return { ok: true, json: async () => [doc.id] };
+      return { ok: false, json: async () => ({}) };
+    });
+
+    const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, 7);
+    sendFrame(encoding.toUint8Array(enc));
+    await expect.poll(() => get(collabRole)).toBe("editor");
+  });
 });
 
 // Regression coverage: a not-yet-bound document introduced while a

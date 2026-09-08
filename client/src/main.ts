@@ -38,6 +38,7 @@ import GistVisibilityDialog from "./components/GistVisibilityDialog.svelte";
 import ShareChoiceModal from "./components/ShareChoiceModal.svelte";
 import MoveToWorkspaceModal from "./components/MoveToWorkspaceModal.svelte";
 import GithubSignInModal from "./components/GithubSignInModal.svelte";
+import RequestAccessModal from "./components/RequestAccessModal.svelte";
 import LinkModal from "./components/LinkModal.svelte";
 import ImagePickerModal from "./components/ImagePickerModal.svelte";
 import ManageImagesModal from "./components/ManageImagesModal.svelte";
@@ -75,6 +76,7 @@ mount(GistVisibilityDialog, { target: document.getElementById("gist-visibility-d
 mount(ShareChoiceModal, { target: document.getElementById("share-choice-modal-mount")! });
 mount(MoveToWorkspaceModal, { target: document.getElementById("move-to-workspace-modal-mount")! });
 mount(GithubSignInModal, { target: document.getElementById("github-signin-modal-mount")! });
+mount(RequestAccessModal, { target: document.getElementById("request-access-modal-mount")! });
 mount(LinkModal, { target: document.getElementById("link-modal-mount")! });
 mount(ImagePickerModal, { target: document.getElementById("image-picker-modal-mount")! });
 mount(ManageImagesModal, { target: document.getElementById("manage-images-modal-mount")! });

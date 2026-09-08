@@ -25,7 +25,7 @@ test("a collaborator switches Editing → Viewing and the chrome follows", async
   await expect(b.locator("#formatMenuBtn")).toBeHidden();
   await expect(b.locator("#commentsBtn")).toBeDisabled(); // greyed, not hidden (CV2-1b)
   await expect(b.locator("#versionHistoryBtn")).toBeDisabled(); // editing-mode tool (CV2-3)
-  await expect(b.locator("#shareBtn")).toBeDisabled(); // greyed & inert in Viewing (CV2-2)
+  await expect(b.locator("#shareBtn")).toBeDisabled(); // an editor-in-Viewing → hard-disabled (CV2-2)
   await expect(b.locator("#body.mode-preview")).toBeVisible(); // editor pane gone
 
   // Collapse the sidebar → the floating button appears.
@@ -77,7 +77,10 @@ test("a viewer-role link only offers Viewing", async ({ browser }) => {
   await expect(b.locator("#menuUndo")).toBeHidden();
   await b.keyboard.press("Escape");
   await expect(b.locator("#versionHistoryBtn")).toBeDisabled();
-  await expect(b.locator("#shareBtn")).toBeDisabled();
+  // A viewer's Share button is greyed but still clickable — it's their
+  // "Request edit access" entry point (CV2-5).
+  await expect(b.locator("#shareBtn")).toHaveClass(/is-muted/);
+  await expect(b.locator("#shareBtn")).toBeEnabled();
 
   await aCtx.close();
   await bCtx.close();

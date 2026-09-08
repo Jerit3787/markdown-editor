@@ -31,6 +31,14 @@ describe("resolveRole", () => {
     expect(resolveRole(access, "bob")).toBe("reviewer");
   });
 
+  it("an explicit invite raises access above an 'anyone' link role, never lowers it (CV2-5)", () => {
+    const anyoneViewer: AccessRecord = { ...base, generalAccess: "anyone", role: "viewer", invited: [{ username: "bob", role: "editor" }] };
+    expect(resolveRole(anyoneViewer, "bob")).toBe("editor"); // invited higher wins
+    expect(resolveRole(anyoneViewer, "carol")).toBe("viewer"); // uninvited → link role
+    const anyoneEditor: AccessRecord = { ...base, generalAccess: "anyone", role: "editor", invited: [{ username: "bob", role: "viewer" }] };
+    expect(resolveRole(anyoneEditor, "bob")).toBe("editor"); // link role higher → not lowered
+  });
+
   it("denies a signed-in stranger not on the invited list", () => {
     const access: AccessRecord = { ...base, invited: [{ username: "bob", role: "reviewer" }] };
     expect(resolveRole(access, "carol")).toBeNull();

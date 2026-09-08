@@ -231,14 +231,22 @@ pickable + the Share button.
   the three topbar buttons' empty-state disable moved from `app.ts` into
   their owning components' `$effect`s.
 
-**CV2-5 — "Request access" flow** (still pending, its own spec). A viewer /
-reviewer who wants a higher role clicks a "Request edit access" affordance
-(Google: a pill near the title for viewers, a field in the Share dialog
-for commenters) → the owner approves/denies, bumping that username's
-`invited` entry. Needs server work: a `POST /api/workspace/:id/access-request`
-endpoint on `WorkspaceRoom`, pending-request storage, and owner
-notification (Share badge + a dialog row + a `MESSAGE_*` frame for a
-connected owner).
+**CV2-5 — "Request access" flow — shipped v1.53.0** (spec
+`docs/superpowers/specs/2026-09-08-request-access-design.md`, plan
+`.../plans/2026-09-08-request-access-plan.md`, PR #186). A joined
+viewer/reviewer clicks the greyed Share button → a `RequestAccessModal`
+(optional note) → `POST /api/workspace/:id/access-request` → the owner
+gets a live toast (`MESSAGE_ACCESS_REQUEST`), a badge on Share, and a
+"Requests" section in the Share dialog with Approve (role picker) / Deny.
+Approve/deny (and any role edit) broadcasts `MESSAGE_ACCESS_CHANGED`;
+every client re-fetches `/access` and rejoins if its own role changed, so
+an approval unlocks the editor live. `resolveRole` / `computeMyRole` now
+take the higher of an explicit invite and the link role.
+
+**Deferred:** a self "cancel my request" (`DELETE /access-request`); the
+denied-outsider ("let me in at all") flow; email / out-of-app
+notification (this app has no server mail — a once-per-session toast for
+the owner is the stand-in).
 
 ### Other open bugs
 
@@ -298,10 +306,6 @@ editor experience while writing the collab-chrome-v2 spec. Not committed
       suggestion, not just typed text. This app's suggestions are
       text-only. Large; entangled with the D1–D5 suggesting-mode
       redesign.
-- [ ] **Request edit access** (CV2-5, already an Active item) — a
-      viewer/reviewer asks the owner for a higher role; owner
-      approves/denies. Google surfaces it as a pill near the title
-      (viewers) and a field in the Share dialog (commenters).
 - [ ] **Owner restriction of download / print / copy** for viewers &
       commenters (Google's "disable options to download, print, and
       copy"). Would gate File ▸ Export / Print and the copy path.

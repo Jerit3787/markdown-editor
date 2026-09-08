@@ -34,6 +34,14 @@
   background: var(--accent-dim);
   color: var(--accent);
 }
+/* CV2-2 / CV2-5 — the greyed-but-clickable Share button for a
+   viewer/reviewer (their "Request edit access" entry point). Looks
+   disabled; still takes a click. */
+.share-pill.is-muted {
+  opacity: 0.55;
+  background: var(--bg-alt);
+  color: var(--text-dim);
+}
 /* Collaboration: presence bar, share menu, remote cursors */
 .presence-bar {
   display: flex;
@@ -479,4 +487,36 @@ select:not(.share-access-select):not(.share-role-select) {
 }
 .workspace-access-banner .primary-btn {
   flex-shrink: 0;
+}
+
+/* CV2-5 — the "Requests" rows in the Share dialog. The row wraps: avatar
+   + name/note on the first line, the role select + Approve/Deny on their
+   own line, so a longer note never gets clipped to one ellipsised line. */
+.share-request {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.share-request .share-request-name {
+  overflow: visible;
+  white-space: normal;
+}
+.share-request .share-request-note {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+}
+.share-request .share-request-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding-left: 46px; /* line up under the name, past the 36px avatar + gap */
+  box-sizing: border-box;
+}
+.share-request .share-request-actions .share-person-remove {
+  margin-left: auto;
+}
+.share-request .share-request-approve {
+  padding: 4px 10px;
+  font-size: 12.5px;
 }

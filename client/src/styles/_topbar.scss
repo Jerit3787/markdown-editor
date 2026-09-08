@@ -345,10 +345,11 @@ body.focus-mode #statusbar {
   width: 18px;
   height: 18px;
 }
-#topbarActionsCol .mode-switcher-btn .menu-chevron {
+#topbarActionsCol .mode-switcher-btn .mode-switcher-caret {
   width: 14px;
   height: 14px;
   opacity: 0.7;
+  flex-shrink: 0;
 }
 /* Two classes so it beats `.dropdown-menu { display: none }` on
    specificity regardless of stylesheet order — ModeSwitcher.svelte only

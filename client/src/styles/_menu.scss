@@ -50,7 +50,7 @@
 .menu-submenu {
   position: relative;
 }
-.menu-chevron {
+#menuBar .menu-chevron {
   margin-left: auto;
   width: 12px;
   height: 12px;
@@ -220,13 +220,15 @@
   /* Desktop's chevron points right, toward where the flyout appears.
      On mobile the panel instead expands inline below the trigger, so
      rotate the same icon to point down (collapsed) / up (open) —
-     standard accordion affordance — rather than swapping icons. */
-  .menu-chevron {
+     standard accordion affordance — rather than swapping icons.
+     Scoped to #menuBar: the mode switcher reuses a caret glyph too and
+     must not be rotated (see .mode-switcher-caret). */
+  #menuBar .menu-chevron {
     transform: rotate(90deg);
   }
 }
 @media (max-width: 780px) {
-  .menu-submenu-trigger.active .menu-chevron {
+  #menuBar .menu-submenu-trigger.active .menu-chevron {
     transform: rotate(-90deg);
   }
 }

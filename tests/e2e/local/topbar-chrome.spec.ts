@@ -71,3 +71,11 @@ test("v2: mode-switcher dropdown lays the icon beside the two-line text", async 
   expect(geom.display).toBe("flex");
   expect(geom.sameRow).toBe(true);
 });
+
+test("v2: the mode-switcher caret is not rotated on a phone-width viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await enterCollabRoom(page);
+  const transform = await page.locator(".mode-switcher-caret").evaluate((el) => getComputedStyle(el).transform);
+  // "none" or an identity matrix — a rotate(90deg) would be matrix(0,1,-1,0,0,0).
+  expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(transform);
+});

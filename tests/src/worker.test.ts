@@ -42,6 +42,13 @@ describe("worker routing", () => {
     expect(assetsFetch).not.toHaveBeenCalled();
   });
 
+  it("dispatches /api/workspace/:id/join-ticket to the WorkspaceRoom DO", async () => {
+    const { env, doFetch, assetsFetch } = fakeEnv();
+    await worker.fetch(new Request("https://app.example.com/api/workspace/ws123/join-ticket", { method: "POST" }), env);
+    expect(doFetch).toHaveBeenCalledTimes(1);
+    expect(assetsFetch).not.toHaveBeenCalled();
+  });
+
   it("dispatches /api/collab/:id/comments/... to the CollabRoom DO", async () => {
     const { env, doFetch } = fakeEnv();
     await worker.fetch(new Request("https://app.example.com/api/collab/room1/comments/t1/reply", { method: "POST" }), env);

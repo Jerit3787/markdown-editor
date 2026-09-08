@@ -12,6 +12,7 @@ import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, rec
 import type { ResolvedSuggestion } from "./suggestions";
 import type { Env } from "./env";
 import { resolveRole } from "./access-role";
+import { verifyTurnstileToken, mintJoinTicket, verifyJoinTicket } from "./turnstile.js";
 import type { Role, InvitedPerson, AccessRecord, AccessRequest } from "./access-role";
 
 export type { Role, InvitedPerson, AccessRecord, AccessRequest };
@@ -312,6 +313,7 @@ export class WorkspaceRoom {
     const accessRequestActionMatch = url.pathname.match(/\/access-request\/([^/]+)$/);
     if (accessRequestActionMatch) return this.handleAccessRequestAction(request, decodeURIComponent(accessRequestActionMatch[1]!));
     if (url.pathname.endsWith("/access-request")) return this.handleAccessRequestSubmit(request);
+    if (url.pathname.endsWith("/join-ticket")) return this.handleJoinTicket(request);
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
     if (url.pathname.endsWith("/docs")) return this.handleDocsRequest(request);
     if (url.pathname.endsWith("/meta")) return this.handleMetaRequest(request);
@@ -343,6 +345,8 @@ export class WorkspaceRoom {
     }
     const auth = await this.authorize(request);
     if (!auth.ok) return new Response(auth.message, { status: auth.status });
+    const ticket = await this.requireJoinTicket(request);
+    if (!ticket.ok) return new Response(ticket.message, { status: ticket.status });
 
     const pair = new WebSocketPair();
     const client = pair[0];
@@ -378,6 +382,41 @@ export class WorkspaceRoom {
     return decryptSession(this.env, cookie);
   }
 
+  private workspaceIdFromUrl(url: URL): string {
+    return url.pathname.match(/^\/api\/workspace\/([A-Za-z0-9_-]{1,128})(?:\/|$)/)?.[1] ?? "";
+  }
+
+  // Turnstile — verify a widget token with Cloudflare and mint a
+  // short-lived, workspace-scoped join ticket the client puts on the WS
+  // upgrade URL. A no-op ({ enabled: false }) when TURNSTILE_SECRET_KEY
+  // isn't configured; { skip: true } for a signed-in visitor (the ticket
+  // gate in authorize() only bites anonymous connections).
+  async handleJoinTicket(request: Request): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+    const secret = this.env.TURNSTILE_SECRET_KEY;
+    if (!secret) return Response.json({ enabled: false });
+
+    const session = await this.getSession(request);
+    if (session?.username) return Response.json({ skip: true });
+
+    let body: { token?: unknown };
+    try {
+      body = (await request.json()) as { token?: unknown };
+    } catch {
+      return Response.json({ error: "bad-request" }, { status: 400 });
+    }
+    if (typeof body.token !== "string" || !body.token) {
+      return Response.json({ error: "bad-request" }, { status: 400 });
+    }
+
+    const ok = await verifyTurnstileToken(body.token, request.headers.get("CF-Connecting-IP"), secret);
+    if (!ok) return Response.json({ error: "turnstile-failed" }, { status: 403 });
+
+    const wsId = this.workspaceIdFromUrl(new URL(request.url));
+    const ticket = await mintJoinTicket(wsId, this.env.SESSION_SECRET, Date.now());
+    return Response.json({ ticket });
+  }
+
   async authorize(request: Request): Promise<{ ok: true; username: string | null; role: Role } | { ok: false; status: number; message: string }> {
     const session = await this.getSession(request);
     const access = await this.getAccess();
@@ -392,6 +431,26 @@ export class WorkspaceRoom {
       return { ok: false, status: 403, message: "You don't have access to this workspace." };
     }
     return { ok: true, username: session?.username ?? null, role };
+  }
+
+  // Turnstile enforcement — the live-sync boundary only. An anonymous
+  // connection to an "anyone with the link" room must carry a valid join
+  // ticket on the WS-upgrade URL when TURNSTILE_SECRET_KEY is configured.
+  // Deliberately NOT part of authorize(): the read-only pre-join HTTP
+  // fetches (GET /access, GET /docs, GET /meta) call authorize() too and
+  // must stay reachable without a challenge (see the design's non-goals).
+  // Signed-in users, requireAccount links (which force a session) and
+  // restricted links (no anon role at all) never reach a failing check.
+  async requireJoinTicket(request: Request): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+    if (!this.env.TURNSTILE_SECRET_KEY) return { ok: true };
+    const session = await this.getSession(request);
+    if (session?.username) return { ok: true };
+    const access = await this.getAccess();
+    if (access.generalAccess !== "anyone") return { ok: true };
+    const url = new URL(request.url);
+    const wsId = this.workspaceIdFromUrl(url);
+    const ok = await verifyJoinTicket(url.searchParams.get("ticket"), wsId, this.env.SESSION_SECRET, Date.now());
+    return ok ? { ok: true } : { ok: false, status: 401, message: "turnstile-required" };
   }
 
   async handleAccessRequest(request: Request): Promise<Response> {

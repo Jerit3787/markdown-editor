@@ -66,7 +66,7 @@ Setting these up for a production deployment is covered separately in
 
 ## Build-time variables (optional, production)
 
-Both are read at build time (Cloudflare's build environment for the
+These are read at build time (Cloudflare's build environment for the
 maintainer's deploy); leave them unset for local dev, tests, and
 self-hosting.
 
@@ -78,6 +78,17 @@ self-hosting.
   The pages are generated from `legal/*.html` by
   `scripts/generate-legal.mjs` (runs as `prebuild` / `predev:client`);
   the generated `client/public/{privacy,terms}.html` are git-ignored.
+- **`VITE_TURNSTILE_SITE_KEY`** (build) **+ `TURNSTILE_SECRET_KEY`**
+  (a `wrangler secret` / `.dev.vars`) — when **both** are set, an
+  anonymous visitor opening an "anyone with the link" workspace must
+  pass a Cloudflare Turnstile check before live sync starts. Either one
+  missing → no widget, no server check; anonymous joins behave exactly
+  as before (the dev / test / self-host default). Create a
+  non-interactive widget in the Cloudflare dashboard → Turnstile. To
+  experiment locally, Cloudflare's always-passes test pair is site
+  `1x00000000000000000000AA` / secret
+  `1x0000000000000000000000000000000AA` (both stamp a visible
+  "testing only" banner on the widget).
 
 ## Real-GitHub e2e suite (optional)
 

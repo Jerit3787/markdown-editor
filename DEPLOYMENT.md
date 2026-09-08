@@ -48,3 +48,17 @@ Once you have the app's credentials:
 
 Without these, the app still deploys and works — sign-in, Gist, and
 Share just won't be available.
+
+### Optional: Cloudflare Turnstile on anonymous joins
+
+To make an anonymous visitor pass a bot check before joining an "anyone
+with the link" workspace, create a non-interactive widget in the
+Cloudflare dashboard → **Turnstile**, then set **both**:
+
+- `VITE_TURNSTILE_SITE_KEY` — the widget's **site key**, in the
+  Cloudflare **build** environment (it is baked into the client bundle).
+- `TURNSTILE_SECRET_KEY` — the widget's **secret key**, as a Worker
+  secret: `npx wrangler secret put TURNSTILE_SECRET_KEY`.
+
+Leave both unset to disable the check entirely (signed-in collaborators
+are never challenged either way).

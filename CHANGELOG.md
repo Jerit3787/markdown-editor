@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.58.0] - 2026-09-09
+
+### Added
+
+- **Bot protection on public share links.** Opening an "anyone with the link" shared workspace while signed out now runs a brief Cloudflare Turnstile check ("just checking you're human") before the document loads. It's usually invisible and only happens once per shared link per browser session. Signed-in collaborators are never challenged, and self-hosted deployments without Turnstile keys configured are unaffected.
+
 ## [1.57.1] - 2026-09-09
 
 ### Fixed

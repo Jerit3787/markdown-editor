@@ -205,6 +205,23 @@ was respected — the 40px box and accent tokens are unchanged; only
   top-bar button into a redesigned account menu (new `settingsModalOpen`
   store, a header with avatar + name + status).
 
+### Analytics & legal (2026-09-09) — shipped v1.57.0
+
+Spec `docs/superpowers/specs/2026-09-09-analytics-and-legal-pages-design.md`,
+plan `.../plans/2026-09-09-analytics-and-legal-pages.md`.
+Standalone `/privacy` and `/terms` pages (the form Google OAuth
+verification needs for the future Drive integration); opt-in GA4 behind
+Consent Mode v2, a consent banner, and a Settings toggle — content-free
+events only (`exported_doc`, `published_gist`, `linked_repo`,
+`shared_workspace`, `opened_command_palette`) plus a `signed_in: yes/no`
+property. Nothing loads without a build-time `VITE_GA_MEASUREMENT_ID`.
+
+**Next:** **Cloudflare Turnstile on anonymous workspace joins** — gate
+not-signed-in "anyone with the link" joins (and possibly the
+request-access POST) with a Turnstile challenge verified in the Worker.
+Its own spec; must account for the collab e2e suite (Turnstile test
+keys / bypass so every anonymous `joinSharedWorkspace` still works).
+
 ### Collab-mode chrome v2 — Google Docs parity (2026-09-08)
 
 Revises the v1.50.0 Viewing-mode chrome, grounded in a live walk-through
@@ -527,6 +544,16 @@ turn out to matter later.
 - [ ] An on-document mode badge component (top-centre pill, mode icon,
       slide-in) instead of the plain toast shipped in v1.55.0 — revisit
       if the toast proves too easy to miss
+- [ ] A Content-Security-Policy — the app has none; adding GA (v1.57.0)
+      didn't force one, but a CSP is worthwhile hardening on its own
+- [ ] A general cookie-consent banner — v1.57.0's banner is
+      analytics-only; the one functional cookie (GitHub session) is
+      strictly necessary and needs no consent, so this is only relevant
+      if a non-essential cookie is ever added
+- [ ] Lawyer review of the Terms / Privacy text (v1.57.0) — currently a
+      good-faith, accurate self-description; `drive.file` is a
+      non-sensitive OAuth scope so standard verification should suffice,
+      but a review is prudent before any restricted-scope work
 
 ---
 

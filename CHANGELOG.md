@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.57.0] - 2026-09-09
+
+### Added
+
+- **Privacy-respecting analytics, off by default.** A one-time banner lets you opt in to anonymous, content-free usage analytics (which features get used, roughly how many visitors) — decline and nothing is collected. Change your mind any time in Settings. Documents, titles, and your GitHub username are never sent anywhere.
+- **Full Privacy Policy and Terms of Service pages** at `/privacy` and `/terms`.
+
+### Changed
+
+- Terms of Service and Privacy Policy now open as proper pages in a new tab, instead of small in-app dialogs.
+
 ## [1.56.0] - 2026-09-09
 
 ### Fixed

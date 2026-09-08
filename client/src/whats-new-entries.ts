@@ -369,4 +369,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/topbar-chrome-v2.png",
     category: "Organization & Navigation",
   },
+  {
+    version: "1.57.0",
+    title: "Analytics, Opt-In Only",
+    description:
+      "The app now has a Privacy Policy and Terms of Service as full pages (at /privacy and /terms), and an optional, privacy-respecting analytics setup: a one-time banner asks before anything is collected, you can toggle it in Settings, and it never sees your document content, titles, or username.",
+    screenshot: "/whats-new/analytics-consent.png",
+    category: "Organization & Navigation",
+  },
 ];

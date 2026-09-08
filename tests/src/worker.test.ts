@@ -61,4 +61,19 @@ describe("worker routing", () => {
     expect(res.status).toBe(200);
     expect(((await res.json()) as { connected: boolean }).connected).toBe(false);
   });
+
+  it("serves the privacy document at /privacy (and /privacy/)", async () => {
+    for (const path of ["/privacy", "/privacy/"]) {
+      const { env, assetsFetch } = fakeEnv();
+      await worker.fetch(new Request(`https://app.example.com${path}`), env);
+      expect(assetsFetch).toHaveBeenCalledTimes(1);
+      expect(((assetsFetch.mock.calls[0] as unknown[])[0] as Request).url).toBe("https://app.example.com/privacy.html");
+    }
+  });
+
+  it("serves the terms document at /terms", async () => {
+    const { env, assetsFetch } = fakeEnv();
+    await worker.fetch(new Request("https://app.example.com/terms"), env);
+    expect(((assetsFetch.mock.calls[0] as unknown[])[0] as Request).url).toBe("https://app.example.com/terms.html");
+  });
 });

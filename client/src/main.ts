@@ -12,6 +12,9 @@ import "./formatting-commands";
 import "./style.scss";
 
 import { mount } from "svelte";
+import { initAnalytics, track } from "./analytics";
+import { commandPaletteOpen } from "./stores/commandPalette";
+import ConsentBanner from "./components/ConsentBanner.svelte";
 import Settings from "./components/Settings.svelte";
 import Share from "./components/Share.svelte";
 import DiagramEditor from "./components/DiagramEditor.svelte";
@@ -47,8 +50,6 @@ import ShortcutsModal from "./components/ShortcutsModal.svelte";
 import SignedOutIndicator from "./components/SignedOutIndicator.svelte";
 import WorkspaceAccessBanner from "./components/WorkspaceAccessBanner.svelte";
 import AboutModal from "./components/AboutModal.svelte";
-import TermsModal from "./components/TermsModal.svelte";
-import PrivacyModal from "./components/PrivacyModal.svelte";
 import LicensesModal from "./components/LicensesModal.svelte";
 import OpenGistModal from "./components/OpenGistModal.svelte";
 import RepoLinkModal from "./components/RepoLinkModal.svelte";
@@ -66,6 +67,19 @@ import OpenRepoModal from "./components/OpenRepoModal.svelte";
 // forward-clicks, initSyncScroll's cm.scrollDOM) still rely on. Editor in
 // particular hands its EditorView back to app.ts via
 // window.MDE.registerEditor() as part of this same synchronous mount.
+initAnalytics();
+mount(ConsentBanner, { target: document.getElementById("consent-banner-mount")! });
+// opened_command_palette — the one event that's cleanly store-driven.
+// track() no-ops until consent + GA are both live, so wire unconditionally.
+let paletteSeen = false;
+commandPaletteOpen.subscribe((open) => {
+  if (open && !paletteSeen) {
+    paletteSeen = true;
+    track("opened_command_palette");
+  }
+  if (!open) paletteSeen = false;
+});
+
 mount(Settings, { target: document.getElementById("settings-mount")! });
 mount(Share, { target: document.getElementById("share-mount")! });
 mount(RenameCollisionModal, { target: document.getElementById("rename-collision-mount")! });
@@ -83,8 +97,6 @@ mount(ImagePickerModal, { target: document.getElementById("image-picker-modal-mo
 mount(ManageImagesModal, { target: document.getElementById("manage-images-modal-mount")! });
 mount(ShortcutsModal, { target: document.getElementById("shortcuts-modal-mount")! });
 mount(AboutModal, { target: document.getElementById("about-modal-mount")! });
-mount(TermsModal, { target: document.getElementById("terms-modal-mount")! });
-mount(PrivacyModal, { target: document.getElementById("privacy-modal-mount")! });
 mount(LicensesModal, { target: document.getElementById("licenses-modal-mount")! });
 mount(OpenGistModal, { target: document.getElementById("open-gist-modal-mount")! });
 mount(RepoLinkModal, { target: document.getElementById("repo-link-modal-mount")! });

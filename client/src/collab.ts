@@ -69,6 +69,7 @@ import { remoteCommentsChanged } from "./stores/commentsPanel";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
 import { enterCollabRoom, leaveCollabRoom, effectiveMode, collabIsOwner, type Mode, type Role } from "./stores/collabMode";
 import { initModeAnnounce } from "./mode-announce";
+import { track } from "./analytics";
 import { COLORS, colorForUsername } from "./user-color";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
@@ -1748,6 +1749,7 @@ const ACCESS_MODE_TOAST: Record<AccessMode, string> = {
 export async function setAccessMode(mode: AccessMode, fallbackRole: string): Promise<boolean> {
   const doc = getActiveDoc();
   if (!doc) return false;
+  const wasUnshared = !workspaceRoom.workspaceId;
   const wantAnyone = mode !== "restricted";
   const access = await putWorkspaceAccess(shareRoomId(doc.workspaceId), {
     generalAccess: wantAnyone ? "anyone" : "restricted",
@@ -1776,6 +1778,7 @@ export async function setAccessMode(mode: AccessMode, fallbackRole: string): Pro
   if (!wantAnyone && access.invited.length === 0) teardownWorkspace();
   syncShareStores();
   showToast(ACCESS_MODE_TOAST[mode], "info");
+  if (wantAnyone && wasUnshared) track("shared_workspace");
   return true;
 }
 

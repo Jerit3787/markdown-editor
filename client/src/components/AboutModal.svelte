@@ -1,18 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
-  import { aboutModalOpen, termsModalOpen, privacyModalOpen, licensesModalOpen } from "../stores/aboutModals";
+  import { aboutModalOpen, licensesModalOpen } from "../stores/aboutModals";
 
   function close() {
     aboutModalOpen.set(false);
-  }
-  function openTerms() {
-    close();
-    termsModalOpen.set(true);
-  }
-  function openPrivacy() {
-    close();
-    privacyModalOpen.set(true);
   }
   function openLicenses() {
     close();
@@ -38,8 +30,8 @@
       </div>
     </div>
     <div class="about-links">
-      <button class="menu-link-item" type="button" onclick={openTerms}><svg class="icon"><use href="#icon-file"></use></svg> Terms of Service</button>
-      <button class="menu-link-item" type="button" onclick={openPrivacy}><svg class="icon"><use href="#icon-lock"></use></svg> Privacy Policy</button>
+      <a class="menu-link-item" href="/terms" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-file"></use></svg> Terms of Service</a>
+      <a class="menu-link-item" href="/privacy" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-lock"></use></svg> Privacy Policy</a>
       <button class="menu-link-item" type="button" onclick={openLicenses}><svg class="icon"><use href="#icon-file"></use></svg> Open Source Licenses</button>
       <a class="menu-link-item" href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-github"></use></svg> View Source on GitHub</a>
     </div>

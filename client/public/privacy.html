@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy — Markdown Editor</title>
+    <link rel="canonical" href="https://editor.danplace.tech/privacy" />
+    <meta name="robots" content="index, follow" />
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        padding: 48px 20px 96px;
+        font:
+          16px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        color: #1f2328;
+        background: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          color: #e6e6e6;
+          background: #1e1f22;
+        }
+        a {
+          color: #4d8dff;
+        }
+        .updated {
+          color: #9aa0a6;
+        }
+      }
+      .doc {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        color: inherit;
+        font-weight: 700;
+        margin-bottom: 32px;
+      }
+      .brand span {
+        display: inline-grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: #2563eb;
+        color: #fff;
+        font-size: 13px;
+      }
+      h1 {
+        font-size: 26px;
+        margin: 0 0 4px;
+      }
+      .updated {
+        color: #6b7280;
+        font-size: 14px;
+        margin: 0 0 32px;
+      }
+      h2 {
+        font-size: 18px;
+        margin: 32px 0 8px;
+      }
+      a {
+        color: #2563eb;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="doc">
+      <a class="brand" href="/"><span>Md</span> Markdown Editor</a>
+      <h1>Privacy Policy</h1>
+      <p class="updated">Last updated: 2026-09-09</p>
+
+      <p>
+        Markdown Editor ("the app", at <code>editor.danplace.tech</code>) is a free, open-source markdown editor. This policy explains what happens to your data
+        when you use it. The app is operated by the project's maintainer as a personal project; there is no company behind it.
+      </p>
+
+      <h2>1. Your documents stay on your device.</h2>
+      <p>
+        Documents, workspaces, version history, and personal notes are stored in your browser's <code>localStorage</code>, on your device only. They are never
+        sent to or stored on the app's servers unless you take one of the explicit actions in sections 3–5. Clearing your browser storage deletes them
+        permanently; nothing is backed up for you.
+      </p>
+
+      <h2>2. Signing in with GitHub.</h2>
+      <p>
+        Connecting a GitHub account (optional; needed only for Publish to Gist, repo sync, and being identified in a shared workspace) runs GitHub's standard
+        OAuth flow. GitHub returns an access token to the app's server, which encrypts it into an <code>HttpOnly</code>
+        cookie stored by your browser. That cookie is never readable by this page's JavaScript and is used only to call GitHub's API on your behalf (create/read
+        Gists, read/write the repos you choose, read your username and avatar). Signing out (or the token being revoked) clears it. We store no GitHub data on
+        our servers.
+      </p>
+
+      <h2>3. Sharing a workspace / real-time collaboration.</h2>
+      <p>
+        When you share a workspace, its documents' live contents, plus comment threads, version snapshots, and the access list, are held in a Cloudflare Durable
+        Object for as long as that shared workspace exists, so collaborators can sync. Who can read it is governed by the access settings you choose (specific
+        GitHub users, or anyone with the link). Deleting the shared workspace deletes that server-side copy. If you never share, nothing here applies.
+      </p>
+
+      <h2>4. Publishing to a GitHub Gist or syncing to a repository.</h2>
+      <p>
+        These actions send the document content (and pasted images) to GitHub under your account, at your request. From that point GitHub's terms and privacy
+        policy govern that copy.
+      </p>
+
+      <h2>5. Analytics.</h2>
+      <p>
+        The app uses Google Analytics 4 to understand which features are used and roughly how many people visit —
+        <strong>only if you accept</strong> via the consent banner shown on your first visit. If you decline (or your browser sends a "Do Not Track" / Global
+        Privacy Control signal), no analytics cookies are set and no analytics data is collected beyond an anonymous, cookieless ping that records the decline.
+      </p>
+      <p>
+        When enabled, Google Analytics collects: pages viewed, approximate location (country/region, from your IP — which Google does not store), device and
+        browser type, and a random client identifier stored in a cookie. The app additionally sends a small number of
+        <strong>feature events with no content</strong> — for example that a workspace was shared or a document exported — and a single yes/no property for
+        whether a GitHub account is connected.
+        <strong>The app never sends Google your document names, your document contents, your GitHub username, or any other identifying information.</strong> You
+        can change your choice any time under Settings → Analytics. Google's handling of the data it receives is covered by
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.
+      </p>
+
+      <h2>6. Google Drive — not yet available.</h2>
+      <p>
+        A Google Drive integration is planned but <strong>not currently part of the app</strong>. When it ships, it will request only the
+        <code>drive.file</code> scope, which limits the app to files you specifically open or create with it — it cannot see the rest of your Drive. Files you
+        open or save through that feature would be read from and written to your Drive at your request only. Google user data obtained this way will never be
+        sold, never used for advertising, and never used to train AI models. This section will be finalised before the feature is released.
+      </p>
+
+      <h2>7. Hosting.</h2>
+      <p>
+        The app is hosted on Cloudflare. Cloudflare processes each request to deliver the app and keeps standard, short-lived server logs (IP address,
+        timestamp, requested URL, user agent) to operate and protect the service — the same as any web host. See Cloudflare's privacy documentation for details.
+      </p>
+
+      <h2>8. Data retention and deletion.</h2>
+      <p>
+        Local documents: until you clear them. The GitHub session cookie: until you sign out or it expires. A shared workspace's server copy: until you delete
+        that workspace. Analytics: per Google Analytics' configured retention (set to the minimum, 2 months, for event data). To delete everything the app holds
+        for you: sign out, delete any shared workspaces you own, and clear the site's browser storage.
+      </p>
+
+      <h2>9. Children.</h2>
+      <p>The app is not directed at children under 13 and does not knowingly collect their data.</p>
+
+      <h2>10. Changes.</h2>
+      <p>Material changes to this policy will be reflected here with a new "Last updated" date. Continued use after a change means you accept it.</p>
+
+      <h2>11. Contact.</h2>
+      <p>
+        Open an issue at
+        <a href="https://github.com/Jerit3787/markdown-editor/issues" target="_blank" rel="noopener">github.com/Jerit3787/markdown-editor</a>.
+      </p>
+    </div>
+  </body>
+</html>

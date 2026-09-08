@@ -638,6 +638,8 @@
     <!-- Toast notifications — Svelte component, mounted in main.ts; see
      client/src/components/Toast.svelte -->
     <div id="toast-mount"></div>
+    <!-- Analytics consent banner — only renders when GA is configured -->
+    <div id="consent-banner-mount"></div>
 
     <!-- Generic GitHub sign-in gate, reused by Publish-to-Gist and Share —
      Svelte component, mounted in main.ts; see
@@ -679,12 +681,10 @@
      client/src/components/ShortcutsModal.svelte -->
     <div id="shortcuts-modal-mount"></div>
 
-    <!-- About / Terms / Privacy / Licenses — Svelte components, mounted in
-     main.ts; see client/src/components/AboutModal.svelte,
-     TermsModal.svelte, PrivacyModal.svelte, LicensesModal.svelte -->
+    <!-- About / Licenses — Svelte components, mounted in main.ts; see
+     client/src/components/AboutModal.svelte, LicensesModal.svelte.
+     Terms & Privacy are standalone pages at /terms and /privacy. -->
     <div id="about-modal-mount"></div>
-    <div id="terms-modal-mount"></div>
-    <div id="privacy-modal-mount"></div>
     <div id="licenses-modal-mount"></div>
 
     <script type="module" src="/src/main.ts"></script>

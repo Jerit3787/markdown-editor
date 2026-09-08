@@ -8,6 +8,7 @@
   import { docsInWorkspace } from "../stores/docs";
   import { linkWorkspaceAndSync } from "../repo-sync";
   import { finishProgressToast, dismissToast } from "../stores/toast";
+  import { track } from "../analytics";
 
   function close() {
     repoLinkModalOpen.set(false);
@@ -53,6 +54,7 @@
         repoConflictModalOpen.set(true);
       } else {
         finishProgressToast(progressToastId, `Linked to ${owner}/${repo}`, "success");
+        track("linked_repo");
       }
     } catch (err: any) {
       // linkWorkspaceAndSync already finished the progress toast as an

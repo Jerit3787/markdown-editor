@@ -28,6 +28,7 @@ import { ensureUniqueName } from "./doc-naming";
 import { workspacesStore, createWorkspace } from "./stores/workspaces";
 import { initRouter, pushDocUrl, replaceDocUrl, replaceToRoot } from "./router";
 import { showToast } from "./stores/toast";
+import { track } from "./analytics";
 import { findWikilinkOccurrences } from "./wikilink-rewrite";
 import { runWikilinkRenameCascade } from "./wikilink-rename-cascade";
 import { viewMode } from "./stores/view";
@@ -1018,6 +1019,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
 
   async function exportAs(format: string) {
     saveNow();
+    track("exported_doc");
     const base = currentFileBase();
     const raw = cm.state.doc.toString();
 

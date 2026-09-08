@@ -5,6 +5,8 @@
   import { githubUsername } from "../stores/github";
   import { keybindingMode, setKeybindingMode } from "../stores/keybindings";
   import { settingsModalOpen } from "../stores/settingsModal";
+  import { analyticsAvailable } from "../analytics";
+  import { analyticsConsent, setConsent } from "../stores/analyticsConsent";
 
   const STORAGE_THEME = "mde:theme";
   const STORAGE_CUSTOM_CSS = "mde:customExportCss";
@@ -108,6 +110,37 @@
         </button>
       {/if}
     </div>
+
+    {#if analyticsAvailable}
+      <div class="setting-row">
+        <div class="setting-label">
+          <span class="setting-title">Analytics</span>
+          <span class="setting-desc">Help improve the app by sharing anonymous, content-free usage data.</span>
+        </div>
+        <div class="tab-switch" role="tablist" aria-label="Analytics" style="margin: 0; min-width: 140px;">
+          <button
+            type="button"
+            class="tab-switch-btn"
+            class:active={$analyticsConsent === "granted"}
+            role="tab"
+            aria-selected={$analyticsConsent === "granted"}
+            onclick={() => setConsent("granted")}
+          >
+            On
+          </button>
+          <button
+            type="button"
+            class="tab-switch-btn"
+            class:active={$analyticsConsent !== "granted"}
+            role="tab"
+            aria-selected={$analyticsConsent !== "granted"}
+            onclick={() => setConsent("denied")}
+          >
+            Off
+          </button>
+        </div>
+      </div>
+    {/if}
 
     <div class="setting-row stacked">
       <div class="setting-label">

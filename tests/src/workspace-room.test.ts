@@ -1505,3 +1505,127 @@ describe("WorkspaceRoom.getAccessRequests (CV2-5)", () => {
     expect(await room.getAccessRequests()).toEqual([{ username: "bob", message: "pls", createdAt: 1 }]);
   });
 });
+
+describe("WorkspaceRoom POST /access-request (CV2-5, requester)", () => {
+  async function roomWithRole(role: "viewer" | "reviewer" | "editor") {
+    const r = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await r.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role, invited: [] });
+    return r;
+  }
+  function submitReq(cookie: string | null, body: unknown) {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (cookie) headers.Cookie = `mde_gh_session=${cookie}`;
+    return new Request("https://x/api/workspace/w1/access-request", { method: "POST", headers, body: JSON.stringify(body) });
+  }
+
+  it("a viewer's request is stored and broadcast as MESSAGE_ACCESS_REQUEST", async () => {
+    const r = await roomWithRole("viewer");
+    const sent: ArrayBuffer[] = [];
+    const ws = { send: (m: ArrayBuffer) => sent.push(m), accept() {}, addEventListener() {} } as unknown as WebSocket;
+    r.handleSession(ws, "alice", "editor");
+    sent.length = 0;
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "t", username: "bob" });
+    const res = await r.fetch(submitReq(cookie, { message: "  need to fix a typo  " }));
+    expect(res.status).toBe(200);
+    const list = await r.getAccessRequests();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ username: "bob", message: "need to fix a typo" });
+    const d = decoding.createDecoder(new Uint8Array(sent.at(-1)!));
+    expect(decoding.readVarUint(d)).toBe(6);
+    expect(decoding.readVarString(d)).toBe("bob");
+    expect(decoding.readVarString(d)).toBe("need to fix a typo");
+  });
+
+  it("re-requesting replaces the prior entry", async () => {
+    const r = await roomWithRole("viewer");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "t", username: "bob" });
+    await r.fetch(submitReq(cookie, { message: "first" }));
+    await r.fetch(submitReq(cookie, { message: "second" }));
+    const list = await r.getAccessRequests();
+    expect(list).toHaveLength(1);
+    expect(list[0]!.message).toBe("second");
+  });
+
+  it("an editor gets 400; an outsider 403; no session 401", async () => {
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "t", username: "bob" });
+    expect((await (await roomWithRole("editor")).fetch(submitReq(cookie, {}))).status).toBe(400);
+    const restricted = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await restricted.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    expect((await restricted.fetch(submitReq(cookie, {}))).status).toBe(403);
+    expect((await restricted.fetch(submitReq(null, {}))).status).toBe(401);
+  });
+
+  it("caps the message at 500 chars", async () => {
+    const r = await roomWithRole("reviewer");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "t", username: "bob" });
+    await r.fetch(submitReq(cookie, { message: "x".repeat(1000) }));
+    expect((await r.getAccessRequests())[0]!.message).toHaveLength(500);
+  });
+});
+
+describe("WorkspaceRoom POST /access-request/:username (CV2-5, owner)", () => {
+  async function seededRoom() {
+    const r = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await r.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    await r.state.storage.put("accessRequests", [{ username: "bob", message: "", createdAt: 1 }]);
+    return r;
+  }
+  const ownerCookie = () => encryptSession(fakeEnvWithSecret, { token: "t", username: "alice" });
+  function actionReq(cookie: string, username: string, body: unknown) {
+    return new Request(`https://x/api/workspace/w1/access-request/${username}`, {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("approve adds the invite, clears the request, broadcasts MESSAGE_ACCESS_CHANGED", async () => {
+    const r = await seededRoom();
+    const sent: ArrayBuffer[] = [];
+    const ws = { send: (m: ArrayBuffer) => sent.push(m), accept() {}, addEventListener() {} } as unknown as WebSocket;
+    r.handleSession(ws, "carol", "viewer");
+    sent.length = 0;
+    const res = await r.fetch(actionReq(await ownerCookie(), "bob", { action: "approve" }));
+    expect(res.status).toBe(200);
+    expect((await r.getAccess()).invited).toEqual([{ username: "bob", role: "editor" }]);
+    expect(await r.getAccessRequests()).toEqual([]);
+    expect(decoding.readVarUint(decoding.createDecoder(new Uint8Array(sent.at(-1)!)))).toBe(7);
+  });
+
+  it("approve honours an explicit role", async () => {
+    const r = await seededRoom();
+    await r.fetch(actionReq(await ownerCookie(), "bob", { action: "approve", role: "reviewer" }));
+    expect((await r.getAccess()).invited).toEqual([{ username: "bob", role: "reviewer" }]);
+  });
+
+  it("deny just clears the request", async () => {
+    const r = await seededRoom();
+    await r.fetch(actionReq(await ownerCookie(), "bob", { action: "deny" }));
+    expect(await r.getAccessRequests()).toEqual([]);
+    expect((await r.getAccess()).invited).toEqual([]);
+  });
+
+  it("non-owner → 403; unknown username → 404; bad action → 400", async () => {
+    const r = await seededRoom();
+    const carol = await encryptSession(fakeEnvWithSecret, { token: "t", username: "carol" });
+    expect((await r.fetch(actionReq(carol, "bob", { action: "deny" }))).status).toBe(403);
+    expect((await r.fetch(actionReq(await ownerCookie(), "nobody", { action: "deny" }))).status).toBe(404);
+    expect((await r.fetch(actionReq(await ownerCookie(), "bob", { action: "wat" }))).status).toBe(400);
+  });
+
+  it("PUT /access also broadcasts MESSAGE_ACCESS_CHANGED", async () => {
+    const r = await seededRoom();
+    const sent: ArrayBuffer[] = [];
+    const ws = { send: (m: ArrayBuffer) => sent.push(m), accept() {}, addEventListener() {} } as unknown as WebSocket;
+    r.handleSession(ws, "carol", "viewer");
+    sent.length = 0;
+    await r.fetch(
+      new Request("https://x/api/workspace/w1/access", {
+        method: "PUT",
+        headers: { Cookie: `mde_gh_session=${await ownerCookie()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ generalAccess: "anyone", role: "reviewer", invited: [] }),
+      }),
+    );
+    expect(sent.some((m) => decoding.readVarUint(decoding.createDecoder(new Uint8Array(m))) === 7)).toBe(true);
+  });
+});

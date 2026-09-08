@@ -158,15 +158,13 @@ export default {
     const repoPushMatch = url.pathname.match(REPO_PUSH_PATH);
     if (repoPushMatch && request.method === "POST") return handleRepoPush(request, env, repoPushMatch[1]!, repoPushMatch[2]!);
 
-    // Terms / Privacy are standalone documents (client/public/*.html),
-    // served at clean URLs — the stable links Google's OAuth consent
-    // screen points at. This must run before the SPA asset fallback,
-    // which would otherwise hand back index.html.
-    const legalMatch = url.pathname.match(/^\/(privacy|terms)\/?$/);
-    if (legalMatch) {
-      return env.ASSETS.fetch(new Request(new URL(`/${legalMatch[1]}.html`, url), request));
-    }
-
+    // Terms / Privacy (client/public/{privacy,terms}.html) are served at
+    // the clean URLs /privacy and /terms directly by the asset layer's
+    // html_handling (it maps /privacy → privacy.html). No worker route:
+    // an explicit rewrite to `/privacy.html` gets 307'd back to
+    // `/privacy` by that same html_handling, which is an infinite loop.
+    // `not_found_handling: single-page-application` only fires for paths
+    // with NO matching asset, so it never shadows these two.
     return env.ASSETS.fetch(request);
   },
 } satisfies ExportedHandler<Env>;

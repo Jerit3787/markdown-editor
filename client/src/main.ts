@@ -12,6 +12,9 @@ import "./formatting-commands";
 import "./style.scss";
 
 import { mount } from "svelte";
+import { initAnalytics, track } from "./analytics";
+import { commandPaletteOpen } from "./stores/commandPalette";
+import ConsentBanner from "./components/ConsentBanner.svelte";
 import Settings from "./components/Settings.svelte";
 import Share from "./components/Share.svelte";
 import DiagramEditor from "./components/DiagramEditor.svelte";
@@ -64,6 +67,19 @@ import OpenRepoModal from "./components/OpenRepoModal.svelte";
 // forward-clicks, initSyncScroll's cm.scrollDOM) still rely on. Editor in
 // particular hands its EditorView back to app.ts via
 // window.MDE.registerEditor() as part of this same synchronous mount.
+initAnalytics();
+mount(ConsentBanner, { target: document.getElementById("consent-banner-mount")! });
+// opened_command_palette — the one event that's cleanly store-driven.
+// track() no-ops until consent + GA are both live, so wire unconditionally.
+let paletteSeen = false;
+commandPaletteOpen.subscribe((open) => {
+  if (open && !paletteSeen) {
+    paletteSeen = true;
+    track("opened_command_palette");
+  }
+  if (!open) paletteSeen = false;
+});
+
 mount(Settings, { target: document.getElementById("settings-mount")! });
 mount(Share, { target: document.getElementById("share-mount")! });
 mount(RenameCollisionModal, { target: document.getElementById("rename-collision-mount")! });

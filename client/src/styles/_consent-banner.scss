@@ -1,0 +1,49 @@
+.consent-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 12px 20px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+  color: var(--text);
+}
+.consent-banner-text {
+  margin: 0;
+  max-width: 640px;
+}
+.consent-banner-text a {
+  color: var(--accent);
+}
+.consent-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.consent-banner-actions button {
+  width: auto;
+  margin: 0;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .consent-banner {
+    animation: consent-slide-up 0.2s ease-out;
+  }
+  @keyframes consent-slide-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+}

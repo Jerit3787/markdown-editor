@@ -40,6 +40,17 @@ test("a viewer's switcher shows Viewing and its menu is inert", async () => {
   expect((await screen.getByRole("menuitem").all()).length).toBe(0);
 });
 
+test("UI-4: the label is hidden when the collaborator can switch modes, shown when they can't", async () => {
+  enterCollabRoom("r1", "editor", true); // 3 modes
+  let screen = await render(ModeSwitcher);
+  await expect.poll(() => screen.container.querySelector(".mode-switcher-label")).toBeNull();
+
+  leaveCollabRoom();
+  enterCollabRoom("r3", "viewer", false); // 1 mode
+  screen = await render(ModeSwitcher);
+  await expect.poll(() => screen.container.querySelector(".mode-switcher-label")?.textContent?.trim()).toBe("Viewing");
+});
+
 test("D-modedesc: the dropdown shows a one-line description under each mode", async () => {
   enterCollabRoom("r1", "editor", true);
   const screen = await render(ModeSwitcher);

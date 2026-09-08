@@ -334,9 +334,12 @@ body.focus-mode #statusbar {
   height: 40px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  border-radius: 10px;
+  gap: 4px;
+  padding: 0 10px;
+  /* A pill in both states (icon + caret, or icon + label for a
+     single-mode viewer) — never let .icon-btn's 50% turn the wider box
+     into an oval. */
+  border-radius: 20px;
 }
 #topbarActionsCol .mode-switcher-btn .icon {
   width: 18px;

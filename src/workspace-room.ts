@@ -402,7 +402,17 @@ export class WorkspaceRoom {
       // roster — see access-visibility.ts.
       const auth = await this.authorize(request);
       const body = auth.ok ? access : redactAccessForOutsider(access);
-      return Response.json({ ...body, workspaceName: this.name });
+      // CV2-5 — the pending-request roster (usernames + free-text notes)
+      // is the owner's alone; an authed non-owner learns only whether
+      // *they* have a request in flight; an outsider learns nothing.
+      const extra: Record<string, unknown> = {};
+      if (auth.ok && auth.username && auth.username === access.owner) {
+        extra.accessRequests = await this.getAccessRequests();
+      } else if (auth.ok && auth.username) {
+        const requests = await this.getAccessRequests();
+        extra.myAccessRequestPending = requests.some((r) => r.username === auth.username);
+      }
+      return Response.json({ ...body, ...extra, workspaceName: this.name });
     }
     if (request.method === "PUT") {
       let body: { generalAccess?: unknown; requireAccount?: unknown; role?: unknown; invited?: unknown };

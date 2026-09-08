@@ -1629,3 +1629,44 @@ describe("WorkspaceRoom POST /access-request/:username (CV2-5, owner)", () => {
     expect(sent.some((m) => decoding.readVarUint(decoding.createDecoder(new Uint8Array(m))) === 7)).toBe(true);
   });
 });
+
+describe("GET /access — access-request visibility (CV2-5)", () => {
+  async function seededRoom() {
+    const r = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await r.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "anyone",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "bob", role: "viewer" }],
+    });
+    await r.state.storage.put("accessRequests", [{ username: "bob", message: "hi", createdAt: 1 }]);
+    return r;
+  }
+  const getReq = (cookie?: string) =>
+    new Request("https://x/api/workspace/w1/access", cookie ? { headers: { Cookie: `mde_gh_session=${cookie}` } } : {});
+
+  it("the owner sees the full accessRequests list", async () => {
+    const r = await seededRoom();
+    const body = (await (await r.fetch(getReq(await encryptSession(fakeEnvWithSecret, { token: "t", username: "alice" })))).json()) as Record<string, unknown>;
+    expect(body.accessRequests).toEqual([{ username: "bob", message: "hi", createdAt: 1 }]);
+    expect(body.myAccessRequestPending).toBeUndefined();
+  });
+
+  it("an invited non-owner sees only myAccessRequestPending (bool), not the list", async () => {
+    const r = await seededRoom();
+    const body = (await (await r.fetch(getReq(await encryptSession(fakeEnvWithSecret, { token: "t", username: "bob" })))).json()) as Record<string, unknown>;
+    expect(body.accessRequests).toBeUndefined();
+    expect(body.myAccessRequestPending).toBe(true);
+  });
+
+  it("an outsider sees neither field (and the redacted roster)", async () => {
+    const r = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await r.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    await r.state.storage.put("accessRequests", [{ username: "bob", message: "hi", createdAt: 1 }]);
+    const body = (await (await r.fetch(getReq())).json()) as Record<string, unknown>;
+    expect(body.accessRequests).toBeUndefined();
+    expect(body.myAccessRequestPending).toBeUndefined();
+    expect(body.owner).toBeNull();
+  });
+});

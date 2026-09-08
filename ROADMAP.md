@@ -145,6 +145,96 @@ regression; D4 needs its own granularity decision before a plan.
 Small cluster in `wikilinks.ts` / `wikilink-rewrite.ts` / the preview
 renderer. Needs a repro pass; likely Phase-1-sized.
 
+### Google-Docs-style top bar & version history (2026-09-08)
+
+Cosmetic/chrome pass, benchmarked against Google Docs, reported with
+screenshots. A `feedback_topbar_sizing_locked` note previously froze
+topbar sizing/colour to commit `08065f4` — the user has now explicitly
+authorised the shape/avatar changes below; keep the locked **sizes**
+(40px buttons) and **accent colours**, change only border-radius and add
+the avatar.
+
+- **UI-1 — topbar icon buttons should be circular** (`border-radius: 50%`
+  with a circular grey hover/press fill), like Google Docs' comments /
+  version-history / call buttons. `.icon-btn` base is `border-radius: 6px`
+  today (`_utilities.scss:75`); in `#topbarActionsCol` it's already
+  40×40. "Application-wide" per the request — audit non-topbar
+  `.icon-btn` uses (toolbar overflow, share-workspace rows, menu bar) so
+  a global circle doesn't break a rectangular context; may need to scope
+  to `#topbarActionsCol .icon-btn` + wherever else reads right.
+- **UI-2 — signed-in GitHub avatar in the topbar.** Today sign-in state
+  shows only in Settings + `SignedOutIndicator.svelte`
+  (`#signed-out-indicator-mount`, in the sidebar footer). Add the user's
+  GitHub avatar as the last topbar item: fills the whole 40px circle
+  (image `object-fit: cover`, no padding), hover shows the username
+  (title or a toggletip). Needs the avatar URL — `githubUsername` is in
+  `stores/github.ts`; the auth `/me` response may already carry an avatar
+  URL, else derive `https://github.com/<user>.png`.
+- **UI-3 — Version History redesign toward the Google Docs layout.**
+  `VersionHistory.svelte` (534 lines) already has a right-rail list with
+  per-version author avatars, session grouping, a diff toggle and a
+  "Highlight changes" style. Gap vs. Google Docs: date-header grouping
+  ("Today" / "August"), "Current version" label, the collapse/expand
+  disclosure per group, the named-vs-anonymous distinction. Assess
+  against the current component; likely Phase-1-sized, possibly its own
+  spec if it's a real restructure.
+- **UI-4 — compact mode switcher.** `ModeSwitcher.svelte` (shipped
+  v1.50.0) shows the current mode's icon **plus its text label**
+  ("Editing" / "Suggesting" / "Viewing") plus a chevron. Google Docs
+  shows just an outlined mode glyph + a dropdown caret (no label) as a
+  circular/pill control. Drop the `.mode-switcher-label` span (keep it in
+  the open dropdown's menu items), leave icon + chevron; adjust
+  `_topbar.scss`'s `.mode-switcher-btn` width/padding. Small — a copy/CSS
+  tweak, fold into the UI-1 pass.
+- **UI-5 — hover tooltip chips on topbar buttons.** Google Docs shows a
+  small floating label under each icon button on hover (comments,
+  version history, mode, settings, avatar). The app has `Toggletip.svelte`
+  but those are click-triggered info bubbles, not hover tooltips; today
+  the topbar buttons rely on the native `title=` attribute (slow, ugly,
+  inconsistent). Add a lightweight hover-tooltip (CSS-only or a tiny
+  shared component) for `#topbarActionsCol` buttons. Overlaps the
+  accessibility pass below — a real tooltip also needs `aria-label` /
+  `aria-describedby` wiring.
+
+### Collab-mode chrome v2 — disable, don't hide (2026-09-08)
+
+Revises the v1.50.0 approach (Groups A/B/C above). Reported with Google
+Docs screenshots. **Governing principle:** a control a collaborator
+can't use should be **greyed + disabled but still visible**, not removed
+— "it helps the user learn the interface even without access." Google
+Docs greys (not hides) almost everything: File-menu items, Share,
+formatting.
+
+- **CV2-1 — Viewing/Suggesting hides the Edit / Format / Insert menus
+  and the comments button entirely (v1.50.0 A3/A4).** Change to:
+  disabled + greyed, menu still shown, dropdown won't open (or opens
+  with every item greyed — decide during spec). `MenuBar.svelte` uses
+  `hidden={viewing}` today; becomes `disabled` + a `.is-disabled` style.
+- **CV2-2 — Share button greyed + disabled for viewer / reviewer**
+  (currently always active). Google greys Share for non-editors. Keep
+  the button, `disabled`, greyed, maybe a tooltip ("Only the owner can
+  change sharing").
+- **CV2-3 — Version history unavailable for viewer / reviewer.** Google
+  Docs: viewers have no version history. Greyed + disabled `#versionHistoryBtn`
+  (per the principle above — confirm greyed vs removed in spec).
+- **CV2-4 — Delete document unavailable for viewer / reviewer.** The
+  File-menu "Delete document" item greyed + disabled for non-editors.
+- **CV2-5 — "Request access" flow** (Google Docs style). A viewer /
+  reviewer who wants a higher role clicks a "Request edit access"
+  affordance (on a greyed control, or in the Share dialog) → the owner
+  gets the request and can approve/deny, bumping that username's entry
+  in `invited`. Needs server work: a `POST /api/workspace/:id/access-request`
+  endpoint on `WorkspaceRoom`, storage for pending requests, and owner
+  notification (a badge on Share + a row in the Share dialog — there's
+  no push channel to the owner otherwise, so surface it on next open /
+  via a `MESSAGE_*` frame if the owner is connected). Bigger than the
+  rest of CV2 — could be its own sub-spec.
+- Needs its own spec (revises a shipped design; touches `MenuBar`,
+  `Share`, the version-history button, `collabMode` gating, a new shared
+  disabled-control style, and — for CV2-5 — a server endpoint). The
+  `effectiveMode` / `collabRole` / `collabIsOwner` stores from v1.50.0
+  already provide the client signal.
+
 ### Other open bugs
 
 - **Comment reply / resolve reported broken in practice** (2026-08-13).
@@ -181,6 +271,16 @@ New infrastructure, backend, or scope — each its own project.
 - [ ] End-to-end encryption
 - [ ] True WYSIWYG toggle
 - [ ] Direct blog publishing (Blogger/WordPress)
+- [ ] **Accessibility pass** (2026-09-08) — a dedicated audit + remediation
+      sweep: keyboard reachability of every control (menus, toolbar,
+      sidebar, modals, the CodeMirror surface), visible focus rings,
+      `aria-label` / `aria-describedby` / `role` on the icon-only topbar
+      and toolbar buttons, `aria-live` for toasts / save status / preview
+      updates, dialog focus-trapping and `aria-modal`, colour-contrast
+      check of the theme tokens, `prefers-reduced-motion` for the focus
+      hint / mode transitions, screen-reader pass over the preview and
+      the comments/suggestions flows. Overlaps UI-5 (hover tooltips need
+      the aria wiring anyway). Likely its own spec, phased by subsystem.
 
 ---
 

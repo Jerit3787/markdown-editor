@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.53.0] - 2026-09-08
+
+### Added
+
+- **Request edit access.** On a shared document you can only view or comment on, the Share button now lets you ask the owner for edit access, with an optional note. The owner sees the request in the Share dialog (and a badge on the button) and can approve it at any level or decline it — and if they approve while you're still in the document, your editing tools unlock right away, no reload.
+
+### Changed
+
+- **A change to your role in a shared workspace now takes effect immediately** instead of on the next reload. And an explicit invite to a higher role now always wins over a lower "anyone with the link" role.
+
 ## [1.52.0] - 2026-09-08
 
 ### Changed

@@ -337,4 +337,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/collab-chrome-v2.png",
     category: "Collaboration",
   },
+  {
+    version: "1.53.0",
+    title: "Ask for Edit Access",
+    description:
+      "Viewing or commenting on a shared document and need to make a change? The Share button now lets you request edit access from the owner, with an optional note. They approve or decline from the Share dialog — and an approval unlocks your editing tools on the spot, no reload.",
+    screenshot: "/whats-new/request-access.png",
+    category: "Collaboration",
+  },
 ];

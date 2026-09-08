@@ -16,11 +16,14 @@ Let a shared-workspace collaborator who joined at `viewer` or `reviewer` ask the
 | **Requested role** | Always **editor** — one button, "Request edit access", matching Google's viewer flow. The owner can still approve at a lower role via a role picker on the approve control. |
 | **Owner notification** | A **count badge** on the Share button whenever requests are pending; a **live toast** (new `MESSAGE_ACCESS_REQUEST` frame) if the owner is connected; a **"Requests" section** at the top of the Share dialog to approve/deny. No email — flagged as the known gap vs Google. |
 | **Live effect** | Approve/deny/any-role-change broadcasts a new **`MESSAGE_ACCESS_CHANGED`** frame; every client re-fetches `GET /access` and, if its own resolved role changed, **rejoins the workspace** (reconnecting the WebSocket at the new server-side role). Also fixes the pre-existing gap where a mid-session role edit needs a manual reload. |
+| **Cancel a pending request** | Not in v1. The requester's button reads "Edit access requested" and a re-click toasts "still pending". A self `DELETE /access-request` + "Cancel request" affordance is a clean follow-up — see Non-goals. |
+| **Owner-offline attention** | A **one-time, once-per-session toast** for the owner ("N people are waiting for edit access — open Share to review") the first time `GET /access` resolves for them with a non-empty `accessRequests`. The badge + Requests section carry it after that. This is the app's stand-in for Google's email nudge. |
 
 ## Non-goals / deferred
 
 - **Denied-outsider requests** ("let me in at all" from the access-denied screen).
 - **Email / any out-of-app notification.** This app has no server-side mail (Gist/repo use the user's own GitHub token). In-app only.
+- **Cancelling a pending request.** No self `DELETE /api/workspace/:id/access-request` in v1. Follow-up: add the endpoint + a "Cancel request" affordance where the button currently just shows "Edit access requested".
 - **A request queue / history.** A denied request is simply removed; there's no "declined" record. The requester can request again.
 - **`CollabRoom` (legacy).** Migration-path-only; not touched.
 - **Requester picks a role**, per-document requests, request expiry.
@@ -103,6 +106,7 @@ Optionally, `PUT /access` also `broadcast(MESSAGE_ACCESS_CHANGED)` on a successf
 ### 5. Client — owner side
 
 - `MESSAGE_ACCESS_REQUEST` handler: if `get(collabIsOwner)` → `showToast(\`${username} requested edit access\`, "info")`. (The badge count comes from `shareAccess`.)
+- **Once-per-session nudge:** a module-level `Set<string>` of remoteIds already nudged this session. In `syncShareStores()` / wherever the owner's `currentAccess` is set, if `collabIsOwner` and `currentAccess.accessRequests?.length` and the remoteId isn't in the set → `showToast(\`${n} ${n === 1 ? "person is" : "people are"} waiting for edit access — open Share to review\`, "info")` and add to the set. Cleared by `teardownWorkspace()` (leaving the workspace) so re-joining re-arms it.
 - `shareAccess` store gains `accessRequests?: AccessRequest[]` (owner only). `syncShareStores()` carries it through from `currentAccess`.
 - `#shareBtn` badge: a new `<span id="shareRequestBadge" class="comment-badge" hidden>` inside `#shareBtn` in `index.html`; a `Share.svelte` `$effect` sets its text/`hidden` from `$shareAccess.accessRequests?.length` when `$collabIsOwner`. (Does not show while the button itself is greyed — it never is for an owner.)
 - `Share.svelte` dialog — new **"Requests"** section rendered above "People with access" when `$collabIsOwner && accessRequests?.length`:
@@ -186,6 +190,7 @@ every client on MESSAGE_ACCESS_CHANGED:
 | `#shareBtn` dispatch | a `nonEditorCollaborator` click opens `RequestAccessModal` not the share modal; an editor/owner/local click still opens the share modal | `tests/client/src/collab.test.ts` |
 | `RequestAccessModal` | renders the textarea + buttons; Send posts and toasts; a pending request short-circuits to a toast | `tests/client/src/components/RequestAccessModal.test.ts` |
 | `Share.svelte` Requests section | shown only for an owner with pending requests; Approve/Deny call the wrappers with the right args; badge reflects the count | `tests/client/src/components/Share.test.ts` |
+| owner once-per-session nudge | fires once when `currentAccess.accessRequests` is first non-empty for an owner; not again that session; re-arms after `teardownWorkspace` | `tests/client/src/collab.test.ts` |
 | e2e | owner shares as Viewer → B joins → B clicks Share → sends a request → A sees the toast + badge → A opens Share, approves → B's editor surface unlocks live (no reload) | `tests/e2e/collab/request-access.spec.ts` (new) |
 
 ## Rollout
@@ -194,7 +199,9 @@ User-facing → **minor bump**. `CHANGELOG.md` `### Added` (request edit access 
 
 `dev-login.patch` note: this adds routes to `src/workspace-room.ts` (not `src/worker.ts`), so the e2e-collab/e2e-github dev-login patch is unaffected — but double-check `git apply --check` still passes after the change, per `project_dev_login_patch_fragility`.
 
-## Open questions
+## Decisions on the earlier open questions
 
-1. **A pending request the requester wants to cancel.** v1 has no "cancel my request" — the button just says "Edit access requested" and a re-click toasts "still pending". Add a `DELETE /access-request` (self) + a "Cancel request" affordance, or leave it?
-2. **Owner offline when the request lands.** The badge + Requests section surface it on next Share open — but nothing pulls the owner's attention if they never open Share. Acceptable for v1 (matches "no email" being the known gap), or add a one-time app-load toast for the owner when `accessRequests` is non-empty?
+Both resolved (folded into the Decisions table above):
+
+1. **Cancel a pending request** → **not in v1** (Non-goal; the button reads "Edit access requested"). A self `DELETE /access-request` is a small, clean follow-up.
+2. **Owner-offline attention** → **a once-per-session toast** for the owner when `GET /access` first resolves with pending requests. Cheap, non-nagging, and the app's stand-in for Google's email.

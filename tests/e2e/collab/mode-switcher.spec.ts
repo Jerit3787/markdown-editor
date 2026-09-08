@@ -23,7 +23,9 @@ test("a collaborator switches Editing → Viewing and the chrome follows", async
   await b.click('.mode-switcher-menu [role="menuitem"]:has-text("Viewing")');
 
   await expect(b.locator("#formatMenuBtn")).toBeHidden();
-  await expect(b.locator("#commentsBtn")).toBeHidden();
+  await expect(b.locator("#commentsBtn")).toBeDisabled(); // greyed, not hidden (CV2-1b)
+  await expect(b.locator("#versionHistoryBtn")).toBeDisabled(); // editing-mode tool (CV2-3)
+  await expect(b.locator("#shareBtn")).toBeDisabled(); // greyed & inert in Viewing (CV2-2)
   await expect(b.locator("#body.mode-preview")).toBeVisible(); // editor pane gone
 
   // Collapse the sidebar → the floating button appears.
@@ -36,8 +38,18 @@ test("a collaborator switches Editing → Viewing and the chrome follows", async
   await b.click(".mode-switcher-btn");
   await b.click('.mode-switcher-menu [role="menuitem"]:has-text("Editing")');
   await expect(b.locator("#formatMenuBtn")).toBeVisible();
-  await expect(b.locator("#commentsBtn")).toBeVisible();
+  await expect(b.locator("#commentsBtn")).toBeEnabled();
+  await expect(b.locator("#versionHistoryBtn")).toBeEnabled();
+  await expect(b.locator("#shareBtn")).toBeEnabled();
   await expect(b.locator("#viewingSidebarBtn")).toBeHidden();
+
+  // Suggesting keeps the menus but greys version history (editing-mode tool).
+  await b.click(".mode-switcher-btn");
+  await b.click('.mode-switcher-menu [role="menuitem"]:has-text("Suggesting")');
+  await expect(b.locator("#formatMenuBtn")).toBeVisible();
+  await expect(b.locator("#commentsBtn")).toBeEnabled();
+  await expect(b.locator("#versionHistoryBtn")).toBeDisabled();
+  await expect(b.locator("#shareBtn")).toBeEnabled(); // an editor keeps Share in Suggesting
 
   await aCtx.close();
   await bCtx.close();
@@ -56,6 +68,16 @@ test("a viewer-role link only offers Viewing", async ({ browser }) => {
   await expect(b.locator(".mode-switcher-btn")).toContainText("Viewing");
   await b.click(".mode-switcher-btn");
   await expect(b.locator(".mode-switcher-menu")).toHaveCount(0); // inert for a single option
+
+  // CV2 — a viewer's chrome: Edit menu opens condensed (Find/Copy present,
+  // Undo hidden); version history + share greyed.
+  await b.click("#editMenuBtn");
+  await expect(b.locator("#menuFind")).toBeVisible();
+  await expect(b.locator("#menuCopy")).toBeVisible();
+  await expect(b.locator("#menuUndo")).toBeHidden();
+  await b.keyboard.press("Escape");
+  await expect(b.locator("#versionHistoryBtn")).toBeDisabled();
+  await expect(b.locator("#shareBtn")).toBeDisabled();
 
   await aCtx.close();
   await bCtx.close();

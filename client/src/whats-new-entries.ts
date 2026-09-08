@@ -329,4 +329,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/preview-links.png",
     category: "Organization & Navigation",
   },
+  {
+    version: "1.52.0",
+    title: "A Clearer View-Only Mode",
+    description:
+      "When you're viewing or suggesting on a shared document, controls you can't use are greyed out instead of hidden — so the menu still teaches you the interface, the way Google Docs does. Version history is now an editing-mode tool, the Edit menu keeps Find and Copy in Viewing, deleting a document is the owner's call, and the mode switcher explains what each mode does.",
+    screenshot: "/whats-new/collab-chrome-v2.png",
+    category: "Collaboration",
+  },
 ];

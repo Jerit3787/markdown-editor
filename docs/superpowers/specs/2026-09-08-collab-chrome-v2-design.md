@@ -1,163 +1,173 @@
 # Collaboration mode chrome v2 — Google Docs parity for the non-editor experience — design
 
-**Status:** draft for review (v2 — revised after Google Docs research)
+**Status:** draft for review (v3 — revised after a live walk-through of Google Docs)
 **Date:** 2026-09-08
-**Related backlog:** `ROADMAP.md` → Active → "Collab-mode chrome v2 — disable, don't hide" — items **CV2-1, CV2-2, CV2-3, CV2-4**. (CV2-5, the "Request access" flow, is its own spec — see Non-goals.)
+**Related backlog:** `ROADMAP.md` → Active → "Collab-mode chrome v2" — items **CV2-1, CV2-2, CV2-3, CV2-4**. (CV2-5, "Request access", is its own spec — see Non-goals.)
 
 ## Goal
 
-Bring the shared-workspace collaborator experience closer to Google Docs. v1.50.0 **hid** the editing menus and comments button in Viewing mode. This spec (a) makes unavailable controls **visible-but-greyed** rather than hidden where that aids learnability, and (b) fixes the substance — which roles actually lose which capabilities — to match Google Docs.
+Bring the shared-workspace collaborator chrome in line with how Google Docs actually behaves, verified by walking three real shared docs (viewer / commenter / editor links) in Sep 2026. The headline correction: **the effective mode is the primary gate; role only decides which modes you can pick.** v1.50.0 got the *hiding* mostly right for Viewing but gated Version History and the comments button by the wrong thing.
 
-## Google Docs parity reference
+## What Google Docs actually does (observed)
 
-Researched Sep 2026 (sources at the end). Google Docs has **three view modes** (Editing / Suggesting / Viewing) chosen from a top-right pill, gated by the viewer's **Drive role** (Editor / Commenter / Viewer):
+Walked a view-only link, a comment link, and an edit link, and switched the editor between all three modes.
 
-| | **Editor** | **Commenter** | **Viewer** |
-|---|---|---|---|
-| Mode switcher | all 3 modes | Suggesting + Viewing | no switcher (Viewing only) |
-| In **Suggesting** mode | full menus + toolbar **active** — every edit (incl. formatting, insert, delete) becomes a *tracked suggestion* | same | n/a |
-| In **Viewing** mode | menu bar **condenses** to essentials (File with a reduced set, View, Help, plus word-count / print-preview); toolbar formatting controls **greyed/disabled**; a "Viewing" indicator | same | this is the only state |
-| **Version history** | ✅ | ❌ greyed / unavailable | ❌ greyed / unavailable |
-| **Make a copy / Download / Print** | ✅ | ✅ (unless owner disabled copy/print/download) | ✅ (unless owner disabled) |
-| **Delete / Move to trash** | ❌ owner only | ❌ | ❌ |
-| **Share button** | opens full dialog | opens dialog — sees the people-with-access list, management controls disabled, can **request** a role change from within it | opens dialog — same read-only view; also a prominent **"Request edit access"** affordance near the document title |
-| **Comments** | ✅ | ✅ (add + reply) | ❌ can't see or add comments |
+| Effective mode | Menu bar | Toolbar | Comments | **Version history** | Share button (as an editor) |
+|---|---|---|---|---|---|
+| **Editing** | full (File Edit View Insert Format Tools Extensions Help) | full | ✅ | ✅ | ✅ enabled |
+| **Suggesting** | full | full (a few *structural* items greyed: Columns / Table / Image / Borders — can't be a suggestion) | ✅ | **❌ greyed** | ✅ enabled |
+| **Viewing** | **condensed** — Insert & Format menus **gone**; Edit reduced to *Copy* + *Select all*; File keeps its items but **greys** the unavailable ones (Make a copy, Share, Email, Rename, Move to bin, **Version history**, Details); View keeps *Mode* & *Comments* **greyed** | **gone entirely** | ❌ | **❌ greyed** | **❌ greyed** |
 
-**Takeaways that change this spec vs. its first draft:**
+Role differences layered on top:
 
-1. **Suggesting mode does NOT grey the editing menus in Google Docs** — formatting/insert/delete all work and become suggestions. This app has no format-as-suggestion yet (text-only suggestions), so true parity is blocked on the D1–D5 redesign. → the editing-menu gate is **Viewing-only** here; Suggesting is left alone (see Open Questions for the interim).
-2. **Google *condenses* the menu bar in Viewing**, it doesn't show Edit/Format/Insert greyed. The user's stated preference ("grey + keep visible, helps the user learn the interface") is a **deliberate divergence** — kept, but flagged.
-3. **Google keeps the Share button working for viewers/commenters** (read-only dialog + request path). Fully disabling it (first-draft decision) diverges and removes a real capability. → **recommend reverting to: Share stays clickable, opens the existing read-only dialog.**
-4. **Version history greyed for Commenter + Viewer** — matches this spec. ✅
-5. **Delete is owner-only in Google** (editors can't either). This spec greys it for viewer/reviewer; whether to also gate non-owner editors is a separate call (Open Questions).
+- **Viewer:** stuck in Viewing (no mode switcher — *View ▸ Mode* is greyed). A prominent **"Request edit access"** pill sits top-right, left of the avatar. The Share button is a greyed, **inert** status indicator (hover shows the current link-access description as a tooltip).
+- **Commenter:** mode switcher offers **Suggesting + Viewing**. In Suggesting they get the full menu bar + toolbar (formatting becomes a tracked suggestion). Share button same inert/greyed state.
+- **Editor:** all three modes. Mode switcher dropdown = three rows, each **icon + name + one-line description**: ✏️ *Editing* "Edit document directly" / 📝 *Suggesting* "Edits become suggestions" / 👁 *Viewing* "Read or print final document". Collapsed control = icon + caret (label shown when the toolbar has room).
 
-## The governing distinction: mode vs role
+**Key takeaways:**
 
-| Signal | Source | Gates | Why |
-|---|---|---|---|
-| **effective mode** | `$effectiveMode` (`stores/collabMode.ts`) | the **editing** chrome: Edit / Format / Insert menus, comments button | An `editor` who picks Viewing is choosing a lens — greyed while on, restored on switch back. |
-| **server role** | `$collabRole` (`viewer` / `reviewer` / `editor`) | the **permission** chrome: Share, Version History, Delete | A permission, not a view — an `editor`-in-Viewing keeps these; a `viewer` never has them. |
+1. **Version history is Editing-mode-only.** Greyed in Suggesting *and* Viewing, for *everyone* — an editor who picks Suggesting loses the menu entry until they switch back. Not a permission, a mode lens.
+2. **The Viewing menu bar condenses** — Insert & Format disappear (they'd be 100% dead), Edit collapses to the two read-only items, and the *remaining* menus (File, View) keep their items but grey the unusable ones. This is a **hybrid**: drop a menu that would be entirely greyed; grey items inside a menu that is only partly greyed.
+3. **The Share button is greyed/inert in Viewing mode and for viewers/commenters.** An editor keeps it in Editing + Suggesting. (This matches the user's *original* CV2-2 instinct — v2 of this spec was wrong to recommend reverting it.)
+4. **The toolbar is gone in Viewing** — this app already does that (`{#if !$viewModeLocked}`). ✅ no change.
+5. **Comments** available in Editing + Suggesting, gone in Viewing. v1.50.0 already gates the button/panel/highlights on `viewing`. ✅ (just change hide → the button greys; panel + highlights still suppressed).
+
+## The gating model
+
+Everything keys off **`$effectiveMode`**, plus one role predicate for Share and Delete:
 
 ```ts
-const viewingMode = $derived($effectiveMode === "viewing");
-// viewer or reviewer in a shared workspace — never a plain local doc or an editor
-const nonEditorCollaborator = $derived(!!$collabRole && $collabRole !== "editor");
+const mode = $derived($effectiveMode);                 // "editing" | "suggesting" | "viewing" | null
+const viewing   = $derived(mode === "viewing");
+const editingMode = $derived(mode === "editing" || mode == null); // null = plain local doc
+const nonEditorCollaborator = $derived(!!$collabRole && $collabRole !== "editor"); // viewer / reviewer
 ```
 
-(Note: no `editingLocked = viewing || suggesting` — Suggesting is deliberately not gated here, per parity takeaway 1.)
+| Control | Disabled / hidden when |
+|---|---|
+| Edit / Format / Insert menus | `viewing` — **hidden** (Format/Insert) or **greyed-open** (Edit); see CV2-1 |
+| Comments button (`#commentsBtn`, `#menuComments`) | `viewing` — greyed (button) / disabled (menu item); panel forced closed, highlights off |
+| **Version history** (`#versionHistoryBtn`, `#menuVersionHistory`) | **`!editingMode`** — greyed in Suggesting *and* Viewing, for every role |
+| Share button (`#shareBtn`, `#shareDropdownBtn`) | `viewing || nonEditorCollaborator` — greyed & inert |
+| Delete document (`#menuDeleteDoc`) | `nonEditorCollaborator` (Open Question: also `!editingMode`, and/or owner-only) |
+| Mode switcher options | already role-clamped by `modesAllowed` (v1.50.0) — unchanged |
+
+No new store, bridge method, or server change — `$effectiveMode` and `$collabRole` are already reactive from v1.50.0.
 
 ## Non-goals / deferred
 
-- **CV2-5 — "Request access" flow.** The viewer/reviewer → owner role-request path. Needs a `WorkspaceRoom` endpoint, pending-request storage, an owner notification channel, and approve/deny UI. Google surfaces it two ways (a "Request edit access" affordance near the title for viewers; a request field inside the Share dialog for commenters) — CV2-5 should do both. **Its own spec, next.**
-- **Format-as-suggestion.** Making the Format / Insert menus actually produce suggestions in Suggesting mode — D1–D5 (suggesting-mode redesign).
-- **The editor pane in Viewing.** Preview-only (`lockToPreviewOnly()`), unchanged.
-- **Owner-controlled copy/print/download restriction** (Google's "disable downloading for viewers"). Not a feature this app has; out of scope.
-- **Server-side enforcement.** `authorize()` already rejects non-editor writes / restores / access-PUTs; unchanged.
+- **CV2-5 — "Request access" flow.** A `WorkspaceRoom` endpoint, pending-request storage, owner notification, approve/deny UI, and the two surfacing points Google uses (a "Request edit access" pill near the title for viewers; a request field inside the Share dialog for commenters). **Its own spec, next.** This spec should leave a hook: when the Share button is greyed for a `nonEditorCollaborator`, that's where CV2-5's "request access" affordance will attach.
+- **Format-as-suggestion** — making Format/Insert actually produce suggestions in Suggesting mode (Google does; this app doesn't yet). D1–D5.
+- **The editor pane / preview-only in Viewing** — unchanged.
+- **Structural-item greying inside the Format menu in Suggesting** (Google greys Table/Image/Columns/Borders for a commenter). This app's Insert menu is small and different; skip unless it falls out naturally.
+- **Owner-controlled download/print/copy restriction** — not a feature here.
+- **Server-side enforcement** — `authorize()` already covers it.
 
 ## Background — current state (v1.50.0)
 
-- `MenuBar.svelte`: `hidden={viewing}` on the Edit / Format / Insert `<div class="dropdown">` wrappers **and** their trigger `<button>`s; `hidden={viewing}` on `#menuComments`. `viewing = $effectiveMode === "viewing"`.
-- `CommentsPanel.svelte` (`$effect`): `#commentsBtn.toggleAttribute("hidden", viewing)` + forces the panel closed; inline highlights suppressed in Viewing.
-- `#menuVersionHistory`, `#menuDeleteDoc` — only `disabled={!hasActiveDoc}`, no role awareness.
-- Topbar `#versionHistoryBtn` — no role awareness; `app.ts:438` sets `.disabled` only when no active doc. Same pattern for `#shareBtn` at `app.ts:435`.
-- `#shareBtn` (plain HTML) → `collab.ts` `openShareModal`. `Share.svelte` already renders a **read-only** dialog for a non-owner (`isReadOnly` derived) — people-with-access list, greyed controls, working Copy link.
-- Existing `:disabled` styling covers every case: `.dropdown-menu button:…:disabled { opacity:.5; cursor:not-allowed }` (`_utilities.scss:196`), `.icon-btn:disabled { opacity:.4 }` (`_utilities.scss:101`), `.share-pill:disabled` (`_share-workspace.scss:31`).
+- `MenuBar.svelte`: `hidden={viewing}` on the Edit / Format / Insert `<div class="dropdown">` wrappers + their triggers; `hidden={viewing}` on `#menuComments`. `viewing = $effectiveMode === "viewing"`.
+- `CommentsPanel.svelte` `$effect`: `#commentsBtn.toggleAttribute("hidden", viewing)` + panel forced closed; inline highlights suppressed in Viewing.
+- `#menuVersionHistory`, `#menuDeleteDoc` — only `disabled={!hasActiveDoc}`.
+- `#versionHistoryBtn` / `#shareBtn` — `app.ts:438` / `app.ts:435` set `.disabled` only when there is no active doc.
+- `Share.svelte` — already renders a read-only dialog for a non-owner (`isReadOnly`).
+- `:disabled` styling already exists: `.dropdown-menu button:…:disabled { opacity:.5; cursor:not-allowed }` (`_utilities.scss:196`), `.icon-btn:disabled { opacity:.4 }` (`_utilities.scss:101`), `.share-pill:disabled` (`_share-workspace.scss:31`).
 
 ## Design
 
-### CV2-1a — Edit / Format / Insert menus: open, every item greyed — in Viewing only
+### CV2-1 — Viewing menu bar: match Google's hybrid condense
+
+**Recommendation:** keep v1.50.0's behaviour for **Format & Insert** (hidden in Viewing — Google drops them too), and for the **Edit** menu switch from hidden to **greyed-open** so the two read-only items (Find, Copy — this app has no "Select all" menu item) stay reachable and the rest grey. Net change from v1.50.0 is small.
 
 `MenuBar.svelte`:
 
-- Remove `hidden={viewing}` from the three `<div class="dropdown">` wrappers and their trigger `<button>`s (`#editMenuBtn` / `#formatMenuBtn` / `#insertMenuBtn`). Triggers open their dropdowns in every mode.
-- Each action `<button>` inside those three menus adds `viewingMode` to its disable expression: `disabled={viewingMode || !hasActiveDoc}` (keeping existing `gistBusy` / etc. terms).
-- The `bind:this` refs are always defined again — the v1.50.0 null-check audit note is **reversed**; restore non-optional access and verify no `?.` now masks a real bug.
-- **Suggesting mode: unchanged.** Menus fully active (parity takeaway 1). The interim gap — formatting doesn't yet produce a suggestion — is noted in Open Questions and owned by D1–D5.
+- **Format, Insert** `<div class="dropdown">` + triggers: keep `hidden={viewing}`.
+- **Edit** `<div class="dropdown">` + `#editMenuBtn`: remove `hidden={viewing}` — the menu opens in Viewing. Grey the editing items (`#menuUndo`, `#menuRedo`, `#menuFindReplace`, `#menuCut`, `#menuPaste`) with `disabled={viewing || !hasActiveDoc}`; leave `#menuFind` and `#menuCopy` enabled (`disabled={!hasActiveDoc}` only).
+- `bind:this` refs for Format/Insert stay conditionally-undefined (unchanged from v1.50.0); `editMenuBtn` becomes always-defined again — restore its non-optional handler access and re-verify the v1.50.0 audit note.
 
-Divergence from Google (which condenses the menu bar in Viewing): deliberate, per the user's "keep it visible and greyed" preference.
+*(If the user prefers "grey everything, hide nothing" for full learnability, the alternative is: un-hide Format & Insert too and grey every item. Recorded, not recommended — Google drops them, and a 100%-greyed menu is noise.)*
 
-### CV2-1b — comments button + panel: greyed in Viewing
+### CV2-1 — comments button + panel: greyed in Viewing (not hidden)
 
-- `MenuBar.svelte` `#menuComments`: `hidden={viewing}` → `disabled={viewingMode || !hasActiveDoc}`.
-- `CommentsPanel.svelte` `$effect`: `toggleAttribute("hidden", viewing)` → `toggleAttribute("disabled", viewingMode)` on `#commentsBtn`; keep forcing the panel closed and suppressing inline highlights when `viewingMode` (a viewer has no comments in Google Docs).
-- Suggesting keeps full comments access — unchanged.
+- `MenuBar.svelte` `#menuComments`: `hidden={viewing}` → `disabled={viewing || !hasActiveDoc}`.
+- `CommentsPanel.svelte` `$effect`: `toggleAttribute("hidden", viewing)` → `toggleAttribute("disabled", viewing)` on `#commentsBtn`; keep forcing the panel closed and suppressing inline highlights in Viewing.
+- Suggesting keeps full comments — unchanged.
 
-### CV2-2 — Share button: stays clickable, opens the read-only dialog (revised)
+### CV2-2 — Share button: greyed & inert in Viewing, and for a viewer / reviewer
 
-**Revised recommendation (was: fully disable):** match Google — the Share button stays enabled for a viewer/reviewer and opens the **existing read-only dialog** (`Share.svelte`'s `isReadOnly` path: people-with-access list, greyed management controls, working Copy link). This:
+Matches Google (and the user's original instinct).
 
-- keeps parity with Google (viewers/commenters can open Share and see access);
-- preserves a real capability (see who has access, copy the link);
-- is the natural host for CV2-5's in-dialog "request access" field.
+- An always-mounted `$effect` (in `MenuBar.svelte`, or move `app.ts:435`'s logic there) sets `#shareBtn` / `#shareDropdownBtn` `disabled` from **`viewing || nonEditorCollaborator`**, composed with the existing no-active-doc predicate — one place computes all three terms so none clobbers another.
+- `collab.ts openShareModal()` early-returns when `workspaceRoom.role` is `viewer`/`reviewer` **or** the effective mode is `viewing` (best-effort UI backstop).
+- **Editor in Editing or Suggesting → Share stays enabled** (opens today's dialog — read-only if they're a non-owner, full if owner). Only Viewing mode, or a viewer/reviewer role, greys it.
+- The greyed button keeps its **hover tooltip** describing current access (Google does this) — nice-to-have, can lean on the UI-5 tooltip work; a plain `title=` is an acceptable interim.
+- **CV2-5 hook:** the greyed-for-`nonEditorCollaborator` state is where "Request edit access" will live.
+- `.share-pill:disabled` already styles it.
 
-So **CV2-2 becomes: no button gating; instead, tighten the read-only dialog** — audit `Share.svelte` so *every* mutating control is `disabled` under `isReadOnly` (spot-check: the access-mode `<select>`, per-person role `<select>`s, remove buttons, add-people input, the general-link role `<select>` — most already are), and make the dialog's copy for a non-owner explicit ("You can view who has access. Only the owner can change sharing."). `isReadOnly` currently keys off `access.owner !== $githubUsername`; confirm it also holds for an anonymous (not-signed-in) link viewer.
+### CV2-3 — Version History: greyed unless effective mode is Editing
 
-If the user still wants Share fully hidden/disabled for viewer/reviewer, that path is: `#shareBtn`/`#shareDropdownBtn` get `disabled` via an always-mounted `$effect` composed with `app.ts:435`'s no-doc predicate, plus a `collab.ts openShareModal()` early-return. Recorded here but **not recommended**.
+**Corrected from v2** (was "role-gated; editor-in-Viewing keeps it"). Google greys it in Suggesting *and* Viewing for everyone.
 
-### CV2-3 — Version History: greyed for a viewer / reviewer
-
-Gated on **role** (matches Google — Commenter + Viewer both lose it).
-
-- `MenuBar.svelte` `#menuVersionHistory`: `disabled={nonEditorCollaborator || !hasActiveDoc}`.
-- Topbar `#versionHistoryBtn`: an always-mounted `$effect` (`VersionHistory.svelte` is always mounted) sets `disabled` from `nonEditorCollaborator`, **composed** with `app.ts:438`'s no-doc predicate — move that predicate into one place that reads both, so neither clobbers the other.
-- Defense in depth: `VersionHistory.svelte` `open()` early-returns for `viewer` / `reviewer`.
+- `MenuBar.svelte` `#menuVersionHistory`: `disabled={!editingMode || !hasActiveDoc}`.
+- `#versionHistoryBtn` (topbar): always-mounted `$effect` (`VersionHistory.svelte` is always mounted) sets `disabled` from `!editingMode`, composed with `app.ts:438`'s no-doc predicate.
+- `VersionHistory.svelte` `open()` early-returns when `!editingMode`.
+- Result: a `viewer`/`reviewer` never sees it enabled (their modes are viewing/suggesting); an `editor` sees it only while in Editing mode. Exactly Google.
 
 ### CV2-4 — Delete document: greyed for a viewer / reviewer
 
 - `MenuBar.svelte` `#menuDeleteDoc`: `disabled={nonEditorCollaborator || !hasActiveDoc}`.
-- No topbar Delete control exists.
-- Google is stricter (owner-only). Whether to also grey Delete for a **non-owner editor** is an Open Question — this spec's default leaves it available to them (consistent with an editor being able to change workspace structure elsewhere in this app).
+- Google is stricter (greyed in Suggesting/Viewing for editors too — "Move to bin" was greyed in every non-Editing state I saw, and is owner-only anyway). **Open Question:** match that with `!editingMode`, and/or gate to `collabIsOwner`.
+- No topbar Delete control.
 
 ### Styling
 
-Audit only — no new rules expected:
+Audit only:
 
 - `.dropdown-menu button:disabled` — covers every greyed menu item.
 - `.icon-btn:disabled` — covers `#versionHistoryBtn`, `#commentsBtn`.
-- Menu **triggers** stay active (dropdown opens) → no `.menubar-btn:disabled` rule needed.
-- Greyed-control tooltips ("why is this greyed") — deferred to UI-5 / the accessibility pass; an opportunistic `title=` is fine but not required.
+- `.share-pill:disabled` — covers `#shareBtn` / `#shareDropdownBtn`.
+- Menu **triggers** that stay open (Edit) don't need a `:disabled` rule.
+- Greyed-control tooltips — lean on UI-5 / a11y pass; `title=` interim is fine.
 
 ### Data flow
 
 ```
-$effectiveMode ─▶ viewingMode ─▶ MenuBar: Edit/Format/Insert items `disabled`, #menuComments `disabled`
-                             └─▶ CommentsPanel $effect: #commentsBtn `disabled` + panel closed + highlights off
-$collabRole ────▶ nonEditorCollaborator ─▶ MenuBar: #menuVersionHistory / #menuDeleteDoc `disabled`
-                                        └─▶ VersionHistory $effect: #versionHistoryBtn `disabled`
-                                             + open() early-return
-Share: no button gate — Share.svelte isReadOnly path tightened + copy clarified
+$effectiveMode ─▶ viewing ──▶ MenuBar: Edit greyed-open (Format/Insert stay hidden), #menuComments disabled
+                          ├─▶ CommentsPanel $effect: #commentsBtn disabled + panel closed + highlights off
+                          └─▶ Share $effect: #shareBtn / #shareDropdownBtn disabled
+               ─▶ !editing ─▶ MenuBar: #menuVersionHistory disabled
+                          └─▶ VersionHistory $effect: #versionHistoryBtn disabled + open() early-return
+$collabRole ───▶ nonEditorCollaborator ─▶ MenuBar: #menuDeleteDoc disabled
+                                       └─▶ Share $effect: (also) #shareBtn disabled  + CV2-5 hook
 ```
-
-No new store, bridge method, or server change — `$effectiveMode` and `$collabRole` are already reactive from v1.50.0.
 
 ## Testing
 
 | Area | Test | File |
 |---|---|---|
-| CV2-1a | Viewing → Edit/Format/Insert triggers still open, every item `disabled`; editing + **suggesting** → items enabled; File/View/Help unaffected | `tests/client/src/components/MenuBar.test.ts` (v1.50.0 "hidden" assertions → "disabled", and add the suggesting-still-enabled case) |
-| CV2-1b | `#menuComments` disabled in Viewing only; `CommentsPanel` sets `#commentsBtn` `disabled` (not `hidden`) + closes panel in Viewing; Suggesting unaffected | `MenuBar.test.ts`, `CommentsPanel.test.ts` |
-| CV2-2 | `Share.svelte` under `isReadOnly`: every mutating control `disabled`; non-owner copy string present; anon link-viewer also `isReadOnly`. Share button NOT disabled for viewer/reviewer | `tests/client/src/components/Share.test.ts` (extend) |
-| CV2-3/4 | `#menuVersionHistory` / `#menuDeleteDoc` / `#versionHistoryBtn` disabled for viewer + reviewer, enabled for editor (incl. editor-in-Viewing) / owner / local; `VersionHistory.open()` early-returns for viewer/reviewer | `MenuBar.test.ts`, `VersionHistory` test, `tests/client/src/collab.test.ts` |
-| e2e | A `viewer` collaborator: Format menu opens greyed, Version History greyed, Share opens the read-only dialog; an `editor` switched to Viewing: menus greyed but Version History / Share / Delete still active | `tests/e2e/collab/mode-switcher.spec.ts` (extend) |
+| CV2-1 Edit menu | Viewing → `#editMenuBtn` still opens; `#menuUndo`/`#menuRedo`/`#menuFindReplace`/`#menuCut`/`#menuPaste` `disabled`, `#menuFind`/`#menuCopy` enabled; Suggesting + Editing → all enabled. Format/Insert still `hidden` in Viewing | `tests/client/src/components/MenuBar.test.ts` (extend — some v1.50.0 "hidden" cases become "disabled") |
+| CV2-1 comments | `#menuComments` disabled (not hidden) in Viewing; `CommentsPanel` sets `#commentsBtn` `disabled` + closes panel in Viewing; Suggesting unaffected | `MenuBar.test.ts`, `CommentsPanel.test.ts` |
+| CV2-2 Share | `#shareBtn`/`#shareDropdownBtn` `disabled` when `viewing` OR `nonEditorCollaborator`; enabled for an editor in editing/suggesting, for the owner, and for a plain local doc; `openShareModal()` early-returns in those cases; composes with no-active-doc | `MenuBar.test.ts` / a Share effect test, `tests/client/src/collab.test.ts` |
+| CV2-3 | `#menuVersionHistory` / `#versionHistoryBtn` `disabled` unless `effectiveMode === "editing"` — incl. greyed for an *editor* who switched to Suggesting/Viewing; `open()` early-returns; enabled for a plain local doc | `MenuBar.test.ts`, `VersionHistory` test, `collab.test.ts` |
+| CV2-4 | `#menuDeleteDoc` `disabled` for viewer/reviewer, enabled for editor / owner / local | `MenuBar.test.ts` |
+| e2e | `viewer` collaborator: Edit menu opens greyed, Version History greyed, Share greyed & inert, comments button greyed. `editor` → Suggesting: menus full, but Version History greyed and comments live. `editor` → Viewing: Edit greyed-open, Format/Insert gone, Version History + Share + comments all greyed | `tests/e2e/collab/mode-switcher.spec.ts` (extend) |
 
 ## Rollout
 
-User-facing → **minor bump**. `CHANGELOG.md` `### Changed` ("controls a viewer/suggester can't use are greyed instead of hidden; viewers and suggesters can open Share to see who has access and copy the link; version history and delete are correctly unavailable to them"). One `whats-new-entries.ts` entry ("A Clearer View-Only Mode" — "Collaboration") with a real screenshot (a viewer session, Format menu open with greyed items). `docs/TEST-COVERAGE.md` — update COLLAB-55/56 from "hidden"→"disabled" + add Share / version-history / delete rows. `ROADMAP.md` — CV2-1..4 → shipped; CV2-5 stays pending.
+User-facing → **minor bump**. `CHANGELOG.md` `### Changed` ("view-only and suggesting modes now match Google Docs more closely — version history is an editing-mode tool, the Edit menu greys its editing items rather than vanishing, and Share / comments grey out for people who can't use them"). One `whats-new-entries.ts` entry ("A Clearer View-Only Mode" — "Collaboration") with a real screenshot (a viewer session: Edit menu open with greyed items, Version History + Share greyed). `docs/TEST-COVERAGE.md` — update COLLAB-55/56, add Share / version-history / delete rows. `ROADMAP.md` — CV2-1..4 → shipped; CV2-5 stays pending.
 
 ## Open questions
 
-1. **CV2-2 direction.** Recommend **reverting** the first-draft "fully disable Share" to "Share stays clickable → read-only dialog" (Google parity + keeps copy-link / access visibility + hosts CV2-5's request field). Confirm, or keep it fully disabled.
-2. **Suggesting-mode editing menus.** Google keeps them fully active (format → suggestion); this app can't yet. Options: (a) leave active as this spec does, gap tracked in D1–D5; (b) grey Format + Insert (not Edit) in Suggesting as an interim, with a tooltip. Leaning (a).
-3. **Delete for a non-owner editor.** Google is owner-only. This spec greys Delete for viewer/reviewer only. Also gate non-owner editors (full Google parity), or leave as-is?
-4. **Menu bar in Viewing: condense vs. greyed-open.** Google condenses (Edit/Format/Insert gone, File reduced). This spec keeps them visible+greyed per the user's earlier preference. Keep the divergence, or move toward Google's condensed bar?
+1. **CV2-1 Edit menu.** Recommend: Format/Insert stay hidden in Viewing (Google drops them), Edit becomes greyed-open (keeps Find/Copy reachable). Accept, or grey-open all three for maximum learnability?
+2. **CV2-4 Delete.** Match Google fully — grey Delete in Suggesting/Viewing for editors too (`!editingMode`) and/or gate to the owner? Or keep it simple (viewer/reviewer only)?
+3. **Version history for a reviewer, ever.** Confirmed correct that it's greyed for them in all their modes (their ceiling is Suggesting, and VH is Editing-only). No action — just confirming the model.
+4. **Mode switcher rows.** Google's dropdown shows icon + name + a one-line description per mode. This app's `ModeSwitcher` shows icon + name only. Add the descriptions (small copy change), or leave for UI-4's compaction pass?
 
 ## Sources
 
+Primary: live walk-through (Sep 2026) of three shared Google Docs — view-only, comment, and edit links — including switching the editor between Editing / Suggesting / Viewing and opening File / Edit / View / Format menus in each state.
+
+Secondary:
 - [Switch view mode — Google Docs Editors Help](https://support.google.com/docs/answer/14917995)
-- [Can't edit a file (Request edit access) — Google Docs Editors Help](https://support.google.com/docs/answer/6239515)
-- [Share files from Google Drive — Google Docs Editors Help](https://support.google.com/docs/answer/2494822)
-- [Learn more about access to Google files — Google Drive Help](https://support.google.com/drive/answer/16722399)
-- [Can commenters see edit history on Google Docs? — CLRN](https://www.clrn.org/can-commenters-see-edit-history-on-google-docs/)
+- [Can't edit a file / Request edit access — Google Docs Editors Help](https://support.google.com/docs/answer/6239515)
 - [Who can see version history — Google Docs Editors Community](https://support.google.com/docs/thread/4361422/who-can-see-version-history-and-how-far-does-it-go-back)
-- [How to track changes in Google Docs — PCWorld](https://www.pcworld.com/article/606677/how-to-track-changes-in-google-docs.html)
-- [How to make a Google Doc view only — How-To Geek](https://www.howtogeek.com/752615/how-to-make-a-google-doc-view-only/)
+- [Can commenters see edit history? — CLRN](https://www.clrn.org/can-commenters-see-edit-history-on-google-docs/)

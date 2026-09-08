@@ -358,8 +358,18 @@ body.focus-mode #statusbar {
   right: 0;
   min-width: 220px;
 }
-.mode-switcher-menu .mode-switcher-item {
+/* .dropdown-item is really display:block app-wide (a _utilities.scss rule
+   shadows its own display:flex — see the NOTE there). The mode rows need
+   a real flex box so the icon sits beside the two-line text; scope it by
+   #id so it can't lose the specificity race. */
+#topbarActionsCol .mode-switcher-menu .mode-switcher-item {
+  display: flex;
   align-items: flex-start;
+  gap: 10px;
+}
+#topbarActionsCol .mode-switcher-menu .mode-switcher-item .icon {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 .mode-switcher-menu .mode-switcher-item-text {
   display: flex;

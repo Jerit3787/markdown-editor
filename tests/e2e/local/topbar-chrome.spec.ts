@@ -42,3 +42,32 @@ test("UI-2: signed-out account button shows a person icon and a 'Sign in' toolti
   await expect(btn).toHaveAttribute("aria-label", "Sign in with GitHub");
   expect(await btn.locator('use[href="#icon-user"]').count()).toBe(1);
 });
+
+// The mode switcher only renders inside a collab room — seed one via the
+// store (no real connection needed; it just gates the {#if} and the mode).
+async function enterCollabRoom(page: import("@playwright/test").Page) {
+  await page.evaluate(async () => {
+    const m = await import("/src/stores/collabMode.ts");
+    m.enterCollabRoom("tcv2-e2e", "editor", true);
+  });
+  await page.locator(".mode-switcher-btn").waitFor();
+}
+
+test("v2: mode-switcher dropdown lays the icon beside the two-line text", async ({ page }) => {
+  await enterCollabRoom(page);
+  await page.click(".mode-switcher-btn");
+
+  const geom = await page
+    .locator(".mode-switcher-item")
+    .first()
+    .evaluate((item) => {
+      const icon = item.querySelector(".icon") as HTMLElement;
+      const text = item.querySelector(".mode-switcher-item-text") as HTMLElement;
+      return {
+        display: getComputedStyle(item).display,
+        sameRow: Math.abs(icon.getBoundingClientRect().top - text.getBoundingClientRect().top) < 8,
+      };
+    });
+  expect(geom.display).toBe("flex");
+  expect(geom.sameRow).toBe(true);
+});

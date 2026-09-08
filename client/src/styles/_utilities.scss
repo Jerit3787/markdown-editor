@@ -180,7 +180,12 @@
 }
 /* Excludes .primary-btn/.secondary-btn (e.g. Start/Stop collaborating,
    Copy) — those keep their real button styling; this flat/transparent
-   look is only for plain list-style items like the export menu rows. */
+   look is only for plain list-style items like the export menu rows.
+   NOTE: `display: block` below also matches .dropdown-item and shadows
+   its own `display: flex` a few lines up — harmless for plain <svg> Text
+   rows, but any .dropdown-item with a block/flex child needs its own
+   scoped override (see the mode switcher in _topbar.scss). A broad
+   re-base is deferred — 2026-09-09 topbar-chrome-v2 spec. */
 .dropdown-menu button.dropdown-item,
 .dropdown-menu button:not(.primary-btn):not(.secondary-btn) {
   display: block;

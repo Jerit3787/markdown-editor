@@ -4,7 +4,7 @@ import MenuBar from "../../../../client/src/components/MenuBar.svelte";
 import { docsStore, activeIdStore } from "../../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../../client/src/stores/workspaces";
 import { unresolvedCommentCount } from "../../../../client/src/stores/commentsPanel";
-import { enterCollabRoom, leaveCollabRoom } from "../../../../client/src/stores/collabMode";
+import { enterCollabRoom, leaveCollabRoom, setChosenMode } from "../../../../client/src/stores/collabMode";
 
 beforeEach(() => {
   leaveCollabRoom();
@@ -76,24 +76,73 @@ test("GIST-13: signed in — the submenu is shown, the plain button hidden", asy
   githubUsername.set(null);
 });
 
-test("A3: Edit / Format / Insert menus + the Comments item are hidden in Viewing mode", async () => {
+test("CV2-1: Viewing condenses the Edit menu (keeps Find/Copy) and hides Format/Insert; Suggesting keeps all three", async () => {
   const screen = await render(MenuBar);
   const hidden = (sel: string) => screen.container.querySelector(sel)?.hasAttribute("hidden");
-  expect(hidden("#editMenuBtn")).toBe(false);
 
-  enterCollabRoom("r1", "viewer", false); // effectiveMode → "viewing"
-  await expect.poll(() => hidden("#editMenuBtn")).toBe(true);
-  expect(hidden("#formatMenuBtn")).toBe(true);
+  // editing / local — everything present
+  expect(hidden("#editMenuBtn")).toBe(false);
+  expect(hidden("#menuUndo")).toBe(false);
+
+  enterCollabRoom("r1", "viewer", false); // → viewing
+  await expect.poll(() => hidden("#formatMenuBtn")).toBe(true);
   expect(hidden("#insertMenuBtn")).toBe(true);
-  expect(hidden("#menuComments")).toBe(true);
+  expect(hidden("#editMenuBtn")).toBe(false); // Edit menu stays, condensed
+  expect(hidden("#menuFind")).toBe(false);
+  expect(hidden("#menuCopy")).toBe(false);
+  expect(hidden("#menuUndo")).toBe(true);
+  expect(hidden("#menuRedo")).toBe(true);
+  expect(hidden("#menuFindReplace")).toBe(true);
+  expect(hidden("#menuCut")).toBe(true);
+  expect(hidden("#menuPaste")).toBe(true);
   // File / View / Help stay
   expect(hidden("#fileMenuBtn")).toBe(false);
   expect(hidden("#viewMenuBtn")).toBe(false);
   expect(hidden("#helpMenuBtn")).toBe(false);
 
-  enterCollabRoom("r2", "editor", true);
-  await expect.poll(() => hidden("#editMenuBtn")).toBe(false);
-  expect(hidden("#menuComments")).toBe(false);
+  enterCollabRoom("r2", "reviewer", false); // → suggesting (a reviewer's default)
+  await expect.poll(() => hidden("#formatMenuBtn")).toBe(false);
+  expect(hidden("#insertMenuBtn")).toBe(false);
+  expect(hidden("#menuUndo")).toBe(false);
+});
+
+test("CV2-1b: #menuComments is disabled (not hidden) in Viewing, enabled in Suggesting/Editing", async () => {
+  const screen = await render(MenuBar);
+  const el = () => screen.container.querySelector("#menuComments") as HTMLButtonElement;
+  expect(el().disabled).toBe(false);
+  enterCollabRoom("r1", "viewer", false);
+  await expect.poll(() => el().disabled).toBe(true);
+  expect(el().hasAttribute("hidden")).toBe(false);
+  enterCollabRoom("r2", "reviewer", false);
+  await expect.poll(() => el().disabled).toBe(false);
+});
+
+test("CV2-3: #menuVersionHistory is enabled only when effective mode is editing (or a plain local doc)", async () => {
+  const screen = await render(MenuBar);
+  const el = () => screen.container.querySelector("#menuVersionHistory") as HTMLButtonElement;
+  expect(el().disabled).toBe(false); // local
+  enterCollabRoom("r1", "editor", true);
+  setChosenMode("suggesting");
+  await expect.poll(() => el().disabled).toBe(true); // editor, but suggesting
+  setChosenMode("viewing");
+  await expect.poll(() => el().disabled).toBe(true);
+  setChosenMode("editing");
+  await expect.poll(() => el().disabled).toBe(false);
+  enterCollabRoom("r2", "viewer", false);
+  await expect.poll(() => el().disabled).toBe(true);
+});
+
+test("CV2-4: #menuDeleteDoc is enabled only for owner-in-editing (or a plain local doc)", async () => {
+  const screen = await render(MenuBar);
+  const el = () => screen.container.querySelector("#menuDeleteDoc") as HTMLButtonElement;
+  expect(el().disabled).toBe(false); // local
+  enterCollabRoom("r1", "editor", false); // non-owner editor
+  await expect.poll(() => el().disabled).toBe(true);
+  enterCollabRoom("r2", "editor", true); // owner
+  setChosenMode("editing");
+  await expect.poll(() => el().disabled).toBe(false);
+  setChosenMode("viewing");
+  await expect.poll(() => el().disabled).toBe(true);
 });
 
 test("A1/A2: Publish + GitHub Repo are hidden for a non-owner shared session, shown for owner and local", async () => {

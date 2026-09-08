@@ -9,6 +9,7 @@
   import { extractMathSpans, renderMathPlaceholders, type MathSource } from "../math-preview";
   import { computeBlockLineStarts, computeListItemLineStarts } from "../scroll-sync";
   import { resolveWikilinkTarget, transformWikilinks } from "../wikilinks";
+  import { renderLink } from "../preview-link-render";
   import { transformDefinitionLists, transformSuperscriptSubscript } from "../mmd-inline-blocks";
   import { transformCitations, DEFAULT_CITATION_PREFS } from "../mmd-citations";
   import { debounceWithFlush } from "../debounce";
@@ -68,19 +69,17 @@
         (code, infostring, esc) => defaultCodeRenderer({ type: "code", raw: code, text: code, lang: infostring, escaped: esc }),
         doc?.diagrams
       );
-    // [[Name]] links (see wikilinks.ts's transformWikilinks, applied
-    // below) become "wikilink:"-scheme links — resolved against the
-    // current document list at render time so a rename/delete elsewhere
-    // is reflected on the next keystroke, same as every other preview
-    // content.
+    // Link rendering — see preview-link-render.ts's renderLink for the
+    // full decision. [[Name]] links become "wikilink:"-scheme links via
+    // transformWikilinks (applied below); a plain [text](Doc Name) link
+    // is resolved against the document list too; external links open in
+    // a new tab. Everything resolves at render time so a rename/delete
+    // elsewhere is reflected on the next keystroke.
     const defaultLinkRenderer = marked.Renderer.prototype.link.bind(renderer);
-    renderer.link = ({ href, title, text, tokens }) => {
-      if (!href.startsWith("wikilink:")) return defaultLinkRenderer({ type: "link", raw: href, href, title: title ?? null, text, tokens: tokens ?? [] });
-      const name = decodeURIComponent(href.slice("wikilink:".length));
-      const exists = !!resolveWikilinkTarget(name, get(docsStore));
-      const cls = exists ? "wikilink" : "wikilink wikilink-missing";
-      return `<a href="#" class="${cls}" data-doc-name="${escapeHtml(name)}">${escapeHtml(text)}</a>`;
-    };
+    const renderDefault = (href: string, title: string | null, text: string, tokens: unknown[]) =>
+      defaultLinkRenderer({ type: "link", raw: href, href, title, text, tokens: tokens as never });
+    renderer.link = ({ href, title, text, tokens }) =>
+      renderLink(href, title ?? null, text, (tokens ?? []) as unknown[], { docs: get(docsStore), renderDefault, escapeHtml });
     const { text: extractedRaw, sources } = extractMathSpans(transformWikilinks(raw));
     currentMathSources = sources;
     const withInlineBlocks = transformSuperscriptSubscript(transformDefinitionLists(extractedRaw));
@@ -384,10 +383,21 @@
   // per-element listeners would need constant re-attachment.
   function initWikilinkNavigation() {
     hostEl!.addEventListener("click", (e) => {
-      const link = (e.target as HTMLElement).closest<HTMLElement>(".wikilink");
-      if (!link) return;
+      const el = (e.target as HTMLElement).closest<HTMLElement>(".wikilink, .doc-ref-missing");
+      if (!el) return;
       e.preventDefault();
-      const name = link.getAttribute("data-doc-name");
+
+      if (el.classList.contains("doc-ref-missing")) {
+        // A [text](ref) link that matched no document. A clean bare name
+        // offers to create it (parity with an unresolved [[wikilink]]); a
+        // path / filename form is a dead end we don't materialise as a
+        // doc literally named "docs/notes.md".
+        const ref = el.getAttribute("data-doc-ref") ?? "";
+        if (ref && !ref.includes("/") && !/\.[a-z0-9]+$/i.test(ref)) createDoc({ name: ref });
+        return;
+      }
+
+      const name = el.getAttribute("data-doc-name");
       if (!name) return;
       const target = resolveWikilinkTarget(name, get(docsStore));
       if (target) {

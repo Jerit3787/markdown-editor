@@ -155,7 +155,7 @@ authorised the shape/avatar changes below; keep the locked **sizes**
 the avatar.
 
 - **UI-1 — topbar icon buttons should be circular** (`border-radius: 50%`
-  + a circular grey hover/press fill), like Google Docs' comments /
+  with a circular grey hover/press fill), like Google Docs' comments /
   version-history / call buttons. `.icon-btn` base is `border-radius: 6px`
   today (`_utilities.scss:75`); in `#topbarActionsCol` it's already
   40×40. "Application-wide" per the request — audit non-topbar

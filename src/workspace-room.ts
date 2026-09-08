@@ -12,9 +12,9 @@ import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, rec
 import type { ResolvedSuggestion } from "./suggestions";
 import type { Env } from "./env";
 import { resolveRole } from "./access-role";
-import type { Role, InvitedPerson, AccessRecord } from "./access-role";
+import type { Role, InvitedPerson, AccessRecord, AccessRequest } from "./access-role";
 
-export type { Role, InvitedPerson, AccessRecord };
+export type { Role, InvitedPerson, AccessRecord, AccessRequest };
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -347,6 +347,14 @@ export class WorkspaceRoom {
     const rawInvited = Array.isArray(stored.invited) ? stored.invited : [];
     const invited: InvitedPerson[] = rawInvited.map((entry) => (typeof entry === "string" ? { username: entry, role: "editor" } : (entry as InvitedPerson)));
     return { ...DEFAULT_ACCESS, ...stored, invited } as AccessRecord;
+  }
+
+  // CV2-5 — pending "request edit access" entries, stored separately from
+  // the access record so the roster-editing path (PUT /access) and the
+  // request flow never entangle.
+  async getAccessRequests(): Promise<AccessRequest[]> {
+    const stored = await this.state.storage.get<AccessRequest[]>("accessRequests");
+    return Array.isArray(stored) ? stored : [];
   }
 
   async getSession(request: Request) {

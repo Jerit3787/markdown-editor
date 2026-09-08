@@ -1496,3 +1496,12 @@ describe("reviewer writes", () => {
     expect(getSuggestionsMap(docRoom.doc).size).toBe(0);
   });
 });
+
+describe("WorkspaceRoom.getAccessRequests (CV2-5)", () => {
+  it("returns [] when nothing is stored, and the stored list otherwise", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    expect(await room.getAccessRequests()).toEqual([]);
+    await room.state.storage.put("accessRequests", [{ username: "bob", message: "pls", createdAt: 1 }]);
+    expect(await room.getAccessRequests()).toEqual([{ username: "bob", message: "pls", createdAt: 1 }]);
+  });
+});

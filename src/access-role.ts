@@ -5,6 +5,15 @@ export interface InvitedPerson {
   role: Role;
 }
 
+// A pending "request edit access" from a viewer/reviewer (CV2-5). Stored
+// in the DO under the "accessRequests" key, separate from AccessRecord.
+// Hand-synced with client/src/types.ts's copy.
+export interface AccessRequest {
+  username: string;
+  message: string; // "" when none
+  createdAt: number;
+}
+
 export interface AccessRecord {
   owner: string | null;
   generalAccess: "restricted" | "anyone";

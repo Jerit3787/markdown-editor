@@ -370,6 +370,7 @@
             <div class="share-btn-group" id="shareBtnGroup">
               <button id="shareBtn" class="share-pill share-pill-main" type="button" title="Share">
                 <svg class="icon"><use href="#icon-share-2"></use></svg> <span class="share-pill-label">Share</span>
+                <span id="shareRequestBadge" class="comment-badge" hidden></span>
               </button>
               <button
                 id="shareDropdownBtn"
@@ -640,6 +641,11 @@
      Svelte component, mounted in main.ts; see
      client/src/components/GithubSignInModal.svelte -->
     <div id="github-signin-modal-mount"></div>
+
+    <!-- Request edit access (CV2-5) — Svelte component, mounted in main.ts;
+     opened from the greyed Share button for a viewer/reviewer. See
+     client/src/components/RequestAccessModal.svelte -->
+    <div id="request-access-modal-mount"></div>
 
     <!-- Insert link — Svelte component, mounted in main.ts; see
      client/src/components/LinkModal.svelte -->

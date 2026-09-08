@@ -195,6 +195,15 @@ was respected — the 40px box and accent tokens are unchanged; only
   topbar buttons migrated `title=` → `data-tooltip=` (`aria-label`
   unchanged). A JS-positioned tooltip and real `aria-describedby` wiring
   are deferred to the accessibility pass (see Deferred considerations).
+- **v2 — shipped v1.56.0** (spec
+  `docs/superpowers/specs/2026-09-09-topbar-chrome-v2-design.md`). From
+  live review: fixed the mode-switcher dropdown's icon-above-text layout
+  (a shared `.dropdown-item` rule shadows its own `display: flex`) and
+  its caret pointing left on mobile (an unscoped `.menu-chevron` mobile
+  rotation); gave the switcher an outlined-pill look; shrank the avatar
+  to a 32px image inside the 40px button; moved Settings off its own
+  top-bar button into a redesigned account menu (new `settingsModalOpen`
+  store, a header with avatar + name + status).
 
 ### Collab-mode chrome v2 — Google Docs parity (2026-09-08)
 

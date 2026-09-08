@@ -361,4 +361,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/mode-announce.png",
     category: "Collaboration",
   },
+  {
+    version: "1.56.0",
+    title: "Top Bar, Tidied Further",
+    description:
+      "The Editing/Suggesting/Viewing switcher is now an outlined button like Google Docs, and its dropdown and mobile arrow are fixed. Your avatar is a little smaller, and Settings has moved into the account menu — click your avatar to reach Settings, see who you're signed in as, or sign out.",
+    screenshot: "/whats-new/topbar-chrome-v2.png",
+    category: "Organization & Navigation",
+  },
 ];

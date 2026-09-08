@@ -5,6 +5,11 @@ export interface Env {
   COLLAB_ROOM: DurableObjectNamespace;
   WORKSPACE_ROOM: DurableObjectNamespace;
   ASSETS: Fetcher;
+  // Cloudflare Turnstile secret key (a `wrangler secret`). When set (and
+  // the client build sets VITE_TURNSTILE_SITE_KEY too), an anonymous join
+  // to an "anyone with the link" workspace must pass a Turnstile check.
+  // Unset → the check is skipped entirely. See src/turnstile.ts.
+  TURNSTILE_SECRET_KEY?: string;
   // Test-only: a throwaway account's classic PAT (Bearer for
   // api.github.com, `repo`+`gist` scopes) and its login. Set in a
   // git-ignored .dev.vars locally or a CI secret for the e2e-github job;

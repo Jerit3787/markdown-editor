@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import * as Y from "yjs";
 import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
@@ -303,6 +303,86 @@ describe("WorkspaceRoom.authorize", () => {
     await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
     const result = await room.authorize(await sessionRequest(null));
     expect(result).toEqual({ ok: true, username: null, role: "viewer" });
+  });
+});
+
+const fakeEnvWithTurnstile = {
+  SESSION_SECRET: "test-secret-key-not-real",
+  TURNSTILE_SECRET_KEY: "test-turnstile-secret",
+} as unknown as Env;
+
+function joinTicketReq(opts: { workspaceId?: string; cookie?: string; body?: unknown } = {}): Request {
+  const wsId = opts.workspaceId ?? "ws1";
+  return new Request(`https://example.com/api/workspace/${wsId}/join-ticket`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(opts.cookie ? { Cookie: `mde_gh_session=${opts.cookie}` } : {}),
+    },
+    body: JSON.stringify(opts.body ?? { token: "widget-token" }),
+  });
+}
+
+describe("WorkspaceRoom.handleJoinTicket", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const okAccess = { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] };
+
+  it("returns { enabled: false } when TURNSTILE_SECRET_KEY is unset", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", okAccess);
+    const res = await room.handleJoinTicket(joinTicketReq());
+    expect(await res.json()).toEqual({ enabled: false });
+  });
+
+  it("returns { skip: true } for a signed-in visitor and never calls siteverify", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
+    await room.state.storage.put("access", okAccess);
+    const cookie = await encryptSession(fakeEnvWithTurnstile, { token: "t", username: "bob" });
+    const res = await room.handleJoinTicket(joinTicketReq({ cookie }));
+    expect(await res.json()).toEqual({ skip: true });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("mints a workspace-scoped ticket when the token verifies", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ success: true }), { status: 200 })),
+    );
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
+    await room.state.storage.put("access", okAccess);
+    const res = await room.handleJoinTicket(joinTicketReq({ workspaceId: "ws1" }));
+    const body = (await res.json()) as { ticket: string };
+    expect(typeof body.ticket).toBe("string");
+    const { verifyJoinTicket } = await import("../../src/turnstile");
+    expect(await verifyJoinTicket(body.ticket, "ws1", "test-secret-key-not-real", Date.now())).toBe(true);
+    expect(await verifyJoinTicket(body.ticket, "ws2", "test-secret-key-not-real", Date.now())).toBe(false);
+  });
+
+  it("403 turnstile-failed when the token does not verify", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ success: false }), { status: 200 })),
+    );
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
+    await room.state.storage.put("access", okAccess);
+    const res = await room.handleJoinTicket(joinTicketReq());
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "turnstile-failed" });
+  });
+
+  it("400 when the body has no token", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
+    await room.state.storage.put("access", okAccess);
+    const res = await room.handleJoinTicket(joinTicketReq({ body: {} }));
+    expect(res.status).toBe(400);
+  });
+
+  it("405 on a non-POST", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
+    const res = await room.handleJoinTicket(new Request("https://example.com/api/workspace/ws1/join-ticket"));
+    expect(res.status).toBe(405);
   });
 });
 

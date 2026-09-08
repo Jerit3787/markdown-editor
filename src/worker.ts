@@ -13,6 +13,7 @@ const ROOM_COMMENTS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/comments(\/.
 const WORKSPACE_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})$/;
 const WORKSPACE_ACCESS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/access$/;
 const WORKSPACE_ACCESS_REQUEST_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/access-request(\/[A-Za-z0-9_.@-]{1,128})?$/;
+const WORKSPACE_JOIN_TICKET_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/join-ticket$/;
 const WORKSPACE_META_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/meta$/;
 const WORKSPACE_DOCS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs$/;
 const WORKSPACE_DOC_VERSIONS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/versions(\/.*)?$/;
@@ -39,6 +40,12 @@ export default {
     const workspaceAccessRequestMatch = url.pathname.match(WORKSPACE_ACCESS_REQUEST_PATH);
     if (workspaceAccessRequestMatch) {
       const id = env.WORKSPACE_ROOM.idFromName(workspaceAccessRequestMatch[1]!);
+      return env.WORKSPACE_ROOM.get(id).fetch(request);
+    }
+
+    const joinTicketMatch = url.pathname.match(WORKSPACE_JOIN_TICKET_PATH);
+    if (joinTicketMatch) {
+      const id = env.WORKSPACE_ROOM.idFromName(joinTicketMatch[1]!);
       return env.WORKSPACE_ROOM.get(id).fetch(request);
     }
 

@@ -17,10 +17,11 @@ export const toasts = writable<ToastMsg[]>([]);
 
 let nextId = 1;
 
-export function showToast(message: string, type: ToastType = "info", duration = 3200) {
+export function showToast(message: string, type: ToastType = "info", duration = 3200): number {
   const id = nextId++;
   toasts.update((list) => [...list, { id, message, type }]);
   setTimeout(() => dismissToast(id), duration);
+  return id;
 }
 
 export function dismissToast(id: number) {

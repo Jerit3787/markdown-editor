@@ -299,7 +299,7 @@ Surfaced by a live walk-through of Google Docs' viewer / commenter /
 editor experience while writing the collab-chrome-v2 spec. Not committed
 — candidates, roughly biggest-first.
 
-- [ ] **Format-as-suggestion.** In Google's Suggesting mode, *every*
+- [ ] **Format-as-suggestion.** In Google's Suggesting mode, _every_
       change — bold, alignment, list, insert, delete — becomes a tracked
       suggestion, not just typed text. This app's suggestions are
       text-only. Large; entangled with the D1–D5 suggesting-mode

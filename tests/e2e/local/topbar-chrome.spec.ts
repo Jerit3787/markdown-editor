@@ -35,12 +35,15 @@ test("UI-5: hovering a top-bar icon button shows its tooltip chip", async ({ pag
   await expect.poll(chipOpacity).toBe("1");
 });
 
-test("UI-2: signed-out account button shows a person icon and a 'Sign in' tooltip", async ({ page }) => {
+test("v2: the account button opens a menu with Settings + Sign in (signed out)", async ({ page }) => {
   const btn = page.locator("#topbar-account-mount .topbar-account-btn");
   await expect(btn).toBeVisible();
-  await expect(btn).toHaveAttribute("data-tooltip", "Sign in");
-  await expect(btn).toHaveAttribute("aria-label", "Sign in with GitHub");
+  await expect(btn).toHaveAttribute("data-tooltip", "Account");
   expect(await btn.locator('use[href="#icon-user"]').count()).toBe(1);
+
+  await btn.click();
+  await expect(page.locator('.topbar-account-menu [role="menuitem"]:has-text("Sign in with GitHub")')).toBeVisible();
+  await expect(page.locator('.topbar-account-menu [role="menuitem"]:has-text("Settings")')).toBeVisible();
 });
 
 // The mode switcher only renders inside a collab room — seed one via the

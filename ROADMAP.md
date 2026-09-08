@@ -293,6 +293,44 @@ New infrastructure, backend, or scope — each its own project.
       the comments/suggestions flows. Overlaps UI-5 (hover tooltips need
       the aria wiring anyway). Likely its own spec, phased by subsystem.
 
+### Google Docs parity — features we don't have yet (2026-09-08)
+
+Surfaced by a live walk-through of Google Docs' viewer / commenter /
+editor experience while writing the collab-chrome-v2 spec. Not committed
+— candidates, roughly biggest-first.
+
+- [ ] **Format-as-suggestion.** In Google's Suggesting mode, *every*
+      change — bold, alignment, list, insert, delete — becomes a tracked
+      suggestion, not just typed text. This app's suggestions are
+      text-only. Large; entangled with the D1–D5 suggesting-mode
+      redesign.
+- [ ] **Request edit access** (CV2-5, already an Active item) — a
+      viewer/reviewer asks the owner for a higher role; owner
+      approves/denies. Google surfaces it as a pill near the title
+      (viewers) and a field in the Share dialog (commenters).
+- [ ] **Owner restriction of download / print / copy** for viewers &
+      commenters (Google's "disable options to download, print, and
+      copy"). Would gate File ▸ Export / Print and the copy path.
+- [ ] **Persistent mode badge on the document.** Google shows a small
+      "You're viewing" / "You're suggesting" chip pinned to the document
+      surface, separate from the mode switcher. A clearer at-a-glance
+      signal than the switcher alone.
+- [ ] **Document tabs within a single document** (Google's left-rail
+      "Document tabs" — sub-documents/sections in one file). This app has
+      multi-doc workspaces but no in-document tabs. Big scope; unclear
+      it fits a markdown editor.
+- [ ] **`View ▸ Mode` menu entry** mirroring the topbar mode switcher
+      (Google has both). Minor — the topbar `ModeSwitcher` is the
+      equivalent; only worth it for menu/keyboard discoverability.
+- [ ] **Email the document** (Google's File ▸ Email — send as
+      attachment / paste into email body). Niche.
+- [ ] **Friendly identities for anonymous link viewers** (Google's
+      "Anonymous Hedgehog" etc. in presence + version history). This app
+      shows a username or nothing; an anon collaborator on an
+      "anyone with link" workspace has no distinguishing label.
+- [ ] **Print layout / show non-printing characters toggles**
+      (Google's View menu). Low value for a markdown preview.
+
 ---
 
 ## Deferred considerations

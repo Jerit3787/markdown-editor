@@ -64,25 +64,31 @@
         : "Only people with access can open with the link"
   );
 
-  // CV2-2 — the Share button (plain HTML in index.html, opened via
-  // collab.ts) is greyed & inert in Viewing mode and for a viewer /
-  // reviewer, matching Google Docs. An editor keeps it in Editing /
-  // Suggesting. This $effect also owns the button's no-active-doc
-  // disabled state (moved out of app.ts — one owner per button). CV2-5's
-  // "Request edit access" affordance will attach to the non-editor
-  // branch. The greyed button keeps a title describing current access.
+  // CV2-2 / CV2-5 — the Share button (plain HTML in index.html, wired in
+  // collab.ts). It is:
+  //  - genuinely `disabled` when there's no active doc, or an *editor*
+  //    chose Viewing mode (nothing to do — it opens the owner dialog);
+  //  - greyed but *still clickable* for a viewer / reviewer, where it is
+  //    their "Request edit access" entry point (collab.ts routes the
+  //    click to RequestAccessModal). The chevron (#shareDropdownBtn)
+  //    stays disabled for them — there are no share options to pick.
+  // This $effect also owns the button's no-active-doc disabled state
+  // (moved out of app.ts — one owner per button).
   $effect(() => {
     const nonEditor = !!$collabRole && $collabRole !== "editor";
-    const disabled = !$activeIdStore || $effectiveMode === "viewing" || nonEditor;
-    for (const id of ["shareBtn", "shareDropdownBtn"]) {
-      (document.getElementById(id) as HTMLButtonElement | null)?.toggleAttribute("disabled", disabled);
-    }
+    const noDoc = !$activeIdStore;
+    const editorInViewing = !nonEditor && $effectiveMode === "viewing";
+    const hardDisabled = noDoc || editorInViewing;
+    const requestAffordance = nonEditor && !noDoc;
+
+    (document.getElementById("shareBtn") as HTMLButtonElement | null)?.toggleAttribute("disabled", hardDisabled);
+    (document.getElementById("shareDropdownBtn") as HTMLButtonElement | null)?.toggleAttribute("disabled", hardDisabled || requestAffordance);
+
     const btn = document.getElementById("shareBtn");
-    if (btn && disabled && nonEditor) {
-      // CV2-5 — for a viewer/reviewer the greyed button IS the request
-      // affordance; label it as such.
+    btn?.classList.toggle("is-muted", hardDisabled || requestAffordance);
+    if (btn && requestAffordance) {
       btn.title = $myAccessRequestPending ? "Edit access requested" : "Request edit access";
-    } else if (btn && disabled && $shareAccess) {
+    } else if (btn && hardDisabled && $shareAccess) {
       btn.title = hint;
     } else {
       btn?.removeAttribute("title");

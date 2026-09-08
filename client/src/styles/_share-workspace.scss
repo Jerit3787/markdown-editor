@@ -34,6 +34,14 @@
   background: var(--accent-dim);
   color: var(--accent);
 }
+/* CV2-2 / CV2-5 — the greyed-but-clickable Share button for a
+   viewer/reviewer (their "Request edit access" entry point). Looks
+   disabled; still takes a click. */
+.share-pill.is-muted {
+  opacity: 0.55;
+  background: var(--bg-alt);
+  color: var(--text-dim);
+}
 /* Collaboration: presence bar, share menu, remote cursors */
 .presence-bar {
   display: flex;

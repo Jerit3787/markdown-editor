@@ -1197,7 +1197,14 @@ describe("collab-mode role publishing", () => {
       if (url.includes("/access")) {
         return {
           ok: true,
-          json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [{ username: "bob", role: "editor" }], myAccessRequestPending: false }),
+          json: async () => ({
+            owner: "alice",
+            generalAccess: "anyone",
+            requireAccount: false,
+            role: "viewer",
+            invited: [{ username: "bob", role: "editor" }],
+            myAccessRequestPending: false,
+          }),
         };
       }
       if (url.includes("/docs")) return { ok: true, json: async () => [doc.id] };

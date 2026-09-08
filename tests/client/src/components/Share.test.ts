@@ -21,28 +21,33 @@ beforeEach(() => {
   }
 });
 
-test("CV2-2: #shareBtn / #shareDropdownBtn disabled in Viewing or for a viewer / reviewer; enabled otherwise", async () => {
+test("CV2-2/5: #shareBtn is greyed-but-clickable for a viewer/reviewer, hard-disabled for an editor-in-Viewing / no doc", async () => {
   await render(Share);
   const share = () => document.getElementById("shareBtn") as HTMLButtonElement;
   const dropdown = () => document.getElementById("shareDropdownBtn") as HTMLButtonElement;
 
-  await expect.poll(() => share().disabled).toBe(false); // plain local doc
+  await expect.poll(() => share().disabled).toBe(false); // plain local doc, not muted
+  expect(share().classList.contains("is-muted")).toBe(false);
 
   enterCollabRoom("r1", "viewer", false);
-  await expect.poll(() => share().disabled).toBe(true);
-  expect(dropdown().disabled).toBe(true);
+  // greyed but STILL clickable — it's the Request-edit-access entry point.
+  await expect.poll(() => share().classList.contains("is-muted")).toBe(true);
+  expect(share().disabled).toBe(false);
+  expect(dropdown().disabled).toBe(true); // the chevron has nothing to offer
 
   enterCollabRoom("r2", "reviewer", false);
-  await expect.poll(() => share().disabled).toBe(true);
+  await expect.poll(() => share().classList.contains("is-muted")).toBe(true);
+  expect(share().disabled).toBe(false);
 
-  enterCollabRoom("r3", "editor", false); // non-owner editor keeps it
+  enterCollabRoom("r3", "editor", false); // non-owner editor — normal
   await expect.poll(() => share().disabled).toBe(false);
+  expect(share().classList.contains("is-muted")).toBe(false);
 
-  setChosenMode("viewing"); // editor, but Viewing mode
+  setChosenMode("viewing"); // editor in Viewing → hard-disabled (opens the owner dialog, nothing to do)
   await expect.poll(() => share().disabled).toBe(true);
 
   setChosenMode("editing");
-  activeIdStore.set(null); // no active doc
+  activeIdStore.set(null);
   await expect.poll(() => share().disabled).toBe(true);
 });
 

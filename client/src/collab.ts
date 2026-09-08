@@ -20,7 +20,16 @@ import { Transaction } from "@codemirror/state";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import "./types";
 import type { AccessRecord, Doc, Workspace } from "./types";
-import { shareModalOpen, shareAccess, shareTargetName, sharePresence, identityUnverified, workspaceAccessDenied, myAccessRequestPending, requestAccessModalOpen } from "./stores/share";
+import {
+  shareModalOpen,
+  shareAccess,
+  shareTargetName,
+  sharePresence,
+  identityUnverified,
+  workspaceAccessDenied,
+  myAccessRequestPending,
+  requestAccessModalOpen,
+} from "./stores/share";
 import { showToast } from "./stores/toast";
 import {
   getActiveDoc,

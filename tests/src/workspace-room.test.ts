@@ -1643,8 +1643,7 @@ describe("GET /access — access-request visibility (CV2-5)", () => {
     await r.state.storage.put("accessRequests", [{ username: "bob", message: "hi", createdAt: 1 }]);
     return r;
   }
-  const getReq = (cookie?: string) =>
-    new Request("https://x/api/workspace/w1/access", cookie ? { headers: { Cookie: `mde_gh_session=${cookie}` } } : {});
+  const getReq = (cookie?: string) => new Request("https://x/api/workspace/w1/access", cookie ? { headers: { Cookie: `mde_gh_session=${cookie}` } } : {});
 
   it("the owner sees the full accessRequests list", async () => {
     const r = await seededRoom();

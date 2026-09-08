@@ -32,3 +32,13 @@
 [data-tooltip]:focus-visible::after {
   opacity: 1;
 }
+
+/* For a trigger hard against the viewport's right edge (the last top-bar
+   item, whose tooltip can be a long GitHub username) — anchor the chip
+   to the trigger's right edge instead of centring it, so it never
+   pushes past the viewport. */
+[data-tooltip].tooltip-end::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}

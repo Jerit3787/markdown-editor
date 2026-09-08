@@ -34,3 +34,11 @@ test("UI-5: hovering a top-bar icon button shows its tooltip chip", async ({ pag
   await btn.hover();
   await expect.poll(chipOpacity).toBe("1");
 });
+
+test("UI-2: signed-out account button shows a person icon and a 'Sign in' tooltip", async ({ page }) => {
+  const btn = page.locator("#topbar-account-mount .topbar-account-btn");
+  await expect(btn).toBeVisible();
+  await expect(btn).toHaveAttribute("data-tooltip", "Sign in");
+  await expect(btn).toHaveAttribute("aria-label", "Sign in with GitHub");
+  expect(await btn.locator('use[href="#icon-user"]').count()).toBe(1);
+});

@@ -377,3 +377,36 @@ body.focus-mode #statusbar {
     padding: 0 8px;
   }
 }
+
+/* UI-2 — the GitHub account button / avatar, last item in the top-bar
+   actions. 40px circle to match the neighbouring #topbarActionsCol
+   .icon-btn; the avatar image fills it edge to edge. */
+.topbar-account {
+  position: relative;
+}
+#topbarActionsCol .topbar-account-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  overflow: hidden;
+}
+#topbarActionsCol .topbar-account-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
+}
+/* Two classes so it beats `.dropdown-menu { display: none }` on
+   specificity regardless of stylesheet order — TopbarAccount.svelte only
+   renders this while open ({#if open}), so there's no `.open` to toggle
+   (same pattern as .mode-switcher-menu above). */
+.dropdown-menu.topbar-account-menu {
+  display: block;
+}
+.topbar-account-menu .menu-section-label {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -25,6 +25,7 @@ import WorkspaceSwitcher from "./components/WorkspaceSwitcher.svelte";
 import Toast from "./components/Toast.svelte";
 import MenuBar from "./components/MenuBar.svelte";
 import ModeSwitcher from "./components/ModeSwitcher.svelte";
+import TopbarAccount from "./components/TopbarAccount.svelte";
 import Editor from "./components/Editor.svelte";
 import Preview from "./components/Preview.svelte";
 import Toolbar from "./components/Toolbar.svelte";
@@ -102,6 +103,7 @@ mount(SignedOutIndicator, { target: document.getElementById("signed-out-indicato
 mount(WorkspaceAccessBanner, { target: document.getElementById("workspace-access-banner-mount")! });
 mount(MenuBar, { target: document.getElementById("menubar-mount")! });
 mount(ModeSwitcher, { target: document.getElementById("mode-switcher-mount")! });
+mount(TopbarAccount, { target: document.getElementById("topbar-account-mount")! });
 mount(Editor, { target: document.getElementById("editor-mount")! });
 // Preview.svelte's own onMount calls window.MDE.getEditor() synchronously
 // (initSyncScroll attaches a listener to its scrollDOM) — must mount

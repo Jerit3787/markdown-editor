@@ -145,6 +145,40 @@ regression; D4 needs its own granularity decision before a plan.
 Small cluster in `wikilinks.ts` / `wikilink-rewrite.ts` / the preview
 renderer. Needs a repro pass; likely Phase-1-sized.
 
+### Google-Docs-style top bar & version history (2026-09-08)
+
+Cosmetic/chrome pass, benchmarked against Google Docs, reported with
+screenshots. A `feedback_topbar_sizing_locked` note previously froze
+topbar sizing/colour to commit `08065f4` — the user has now explicitly
+authorised the shape/avatar changes below; keep the locked **sizes**
+(40px buttons) and **accent colours**, change only border-radius and add
+the avatar.
+
+- **UI-1 — topbar icon buttons should be circular** (`border-radius: 50%`
+  + a circular grey hover/press fill), like Google Docs' comments /
+  version-history / call buttons. `.icon-btn` base is `border-radius: 6px`
+  today (`_utilities.scss:75`); in `#topbarActionsCol` it's already
+  40×40. "Application-wide" per the request — audit non-topbar
+  `.icon-btn` uses (toolbar overflow, share-workspace rows, menu bar) so
+  a global circle doesn't break a rectangular context; may need to scope
+  to `#topbarActionsCol .icon-btn` + wherever else reads right.
+- **UI-2 — signed-in GitHub avatar in the topbar.** Today sign-in state
+  shows only in Settings + `SignedOutIndicator.svelte`
+  (`#signed-out-indicator-mount`, in the sidebar footer). Add the user's
+  GitHub avatar as the last topbar item: fills the whole 40px circle
+  (image `object-fit: cover`, no padding), hover shows the username
+  (title or a toggletip). Needs the avatar URL — `githubUsername` is in
+  `stores/github.ts`; the auth `/me` response may already carry an avatar
+  URL, else derive `https://github.com/<user>.png`.
+- **UI-3 — Version History redesign toward the Google Docs layout.**
+  `VersionHistory.svelte` (534 lines) already has a right-rail list with
+  per-version author avatars, session grouping, a diff toggle and a
+  "Highlight changes" style. Gap vs. Google Docs: date-header grouping
+  ("Today" / "August"), "Current version" label, the collapse/expand
+  disclosure per group, the named-vs-anonymous distinction. Assess
+  against the current component; likely Phase-1-sized, possibly its own
+  spec if it's a real restructure.
+
 ### Other open bugs
 
 - **Comment reply / resolve reported broken in practice** (2026-08-13).

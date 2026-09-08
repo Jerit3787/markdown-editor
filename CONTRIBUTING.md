@@ -64,6 +64,14 @@ for local dev. Then:
 Setting these up for a production deployment is covered separately in
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
+## Analytics (optional, production only)
+
+Google Analytics loads **only** when `VITE_GA_MEASUREMENT_ID` (a GA4
+`G-…` id) is set at build time. Leave it unset for local development,
+tests, and self-hosting — the analytics module, the consent banner, and
+the Settings row all no-op and nothing is sent. The maintainer's
+production build sets it in Cloudflare's build environment.
+
 ## Real-GitHub e2e suite (optional)
 
 The Gist and GitHub-repo **UI flows** have their own opt-in end-to-end

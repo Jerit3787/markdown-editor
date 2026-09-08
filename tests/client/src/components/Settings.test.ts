@@ -27,3 +27,10 @@ test("closing the modal (× / onClose) sets settingsModalOpen false", async () =
   await screen.getByRole("button", { name: /close/i }).click();
   await expect.poll(() => screen.container.textContent?.includes("Appearance")).toBe(false);
 });
+
+test("v1.57: no Analytics row when analytics is unavailable", async () => {
+  settingsModalOpen.set(true);
+  const screen = await render(Settings);
+  await expect.poll(() => screen.container.textContent).toContain("Appearance");
+  expect(screen.container.textContent).not.toContain("Analytics");
+});

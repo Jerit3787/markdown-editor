@@ -17,6 +17,7 @@ import { openGistModalOpen } from "./stores/openGistModal";
 import { getActiveDoc, setActiveDocGistId, clearActiveDocGist } from "./stores/docs";
 import { workspacesStore } from "./stores/workspaces";
 import { chooseGistVisibility } from "./stores/gistVisibilityDialog";
+import { track, setSignedIn } from "./analytics";
 import { get } from "svelte/store";
 
 let connectedUsername: string | null = null;
@@ -76,6 +77,7 @@ async function checkSession() {
 function render() {
   window.MDE.githubUsername = connectedUsername;
   githubUsernameStore.set(connectedUsername);
+  setSignedIn(!!connectedUsername);
 }
 
 // The "repo" scope this app now requests alongside "gist" (see
@@ -191,6 +193,7 @@ async function publish() {
     gistBusyLabel.set(wasUpdate ? "Updated ✓" : "Published ✓");
     window.MDE.refreshSaveStatus();
     finishProgressToast(progressToastId, wasUpdate ? "Gist updated" : "Published to Gist", "success");
+    if (!wasUpdate) track("published_gist");
   } catch (err: any) {
     gistBusyLabel.set(`Failed: ${err.message || "unknown error"}`);
     finishProgressToast(progressToastId, `Failed to publish: ${err.message || "unknown error"}`, "error");

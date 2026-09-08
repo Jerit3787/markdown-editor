@@ -651,6 +651,12 @@
      client/src/components/RequestAccessModal.svelte -->
     <div id="request-access-modal-mount"></div>
 
+    <!-- Turnstile "checking you're human" prompt — Svelte component,
+     mounted in main.ts; hosts the #turnstile-widget container that
+     client/src/turnstile.ts renders the Cloudflare widget into. See
+     client/src/components/TurnstilePrompt.svelte -->
+    <div id="turnstile-prompt-mount"></div>
+
     <!-- Insert link — Svelte component, mounted in main.ts; see
      client/src/components/LinkModal.svelte -->
     <div id="link-modal-mount"></div>

@@ -1,5 +1,14 @@
 /// <reference types="vite/client" />
 
+// Optional GA4 measurement id, set in the production Cloudflare build
+// only. Unset everywhere else → the analytics module is fully inert.
+interface ImportMetaEnv {
+  readonly VITE_GA_MEASUREMENT_ID?: string;
+}
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
 // Injected by client/vite.config.ts's `define` from package.json's version.
 declare const __APP_VERSION__: string;
 

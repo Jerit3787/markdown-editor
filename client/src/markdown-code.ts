@@ -13,11 +13,7 @@ export const CODE_SEGMENT_RE = /(```[\s\S]*?```|`[^`\n]*`)/g;
 // String.prototype.replace's function form, but only over the parts of
 // `text` outside a code segment. Splitting on a *capturing* regex
 // interleaves the code segments at odd indices — left verbatim.
-export function replaceOutsideCode(
-  text: string,
-  pattern: RegExp,
-  replacer: (match: string, ...groups: string[]) => string,
-): string {
+export function replaceOutsideCode(text: string, pattern: RegExp, replacer: (match: string, ...groups: string[]) => string): string {
   return text
     .split(CODE_SEGMENT_RE)
     .map((segment, i) => (i % 2 === 1 ? segment : segment.replace(pattern, replacer as (substring: string, ...args: unknown[]) => string)))

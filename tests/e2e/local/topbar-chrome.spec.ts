@@ -79,3 +79,13 @@ test("v2: the mode-switcher caret is not rotated on a phone-width viewport", asy
   // "none" or an identity matrix — a rotate(90deg) would be matrix(0,1,-1,0,0,0).
   expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(transform);
 });
+
+test("v2: the mode-switcher button is an outlined pill", async ({ page }) => {
+  await enterCollabRoom(page);
+  const cs = await page.locator(".mode-switcher-btn").evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { style: s.borderTopStyle, width: parseFloat(s.borderTopWidth) };
+  });
+  expect(cs.style).toBe("solid");
+  expect(cs.width).toBeGreaterThanOrEqual(1);
+});

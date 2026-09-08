@@ -338,8 +338,18 @@ body.focus-mode #statusbar {
   padding: 0 10px;
   /* A pill in both states (icon + caret, or icon + label for a
      single-mode viewer) — never let .icon-btn's 50% turn the wider box
-     into an oval. */
+     into an oval. Outlined, like Google Docs' mode control. */
+  border: 1px solid var(--border);
   border-radius: 20px;
+}
+#topbarActionsCol .mode-switcher-btn:hover {
+  background: var(--bg-alt);
+  border-color: var(--text-dim);
+}
+#topbarActionsCol .mode-switcher-btn[aria-expanded="true"] {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 #topbarActionsCol .mode-switcher-btn .icon {
   width: 18px;

@@ -178,6 +178,14 @@ the avatar.
   disclosure per group, the named-vs-anonymous distinction. Assess
   against the current component; likely Phase-1-sized, possibly its own
   spec if it's a real restructure.
+- **UI-4 — compact mode switcher.** `ModeSwitcher.svelte` (shipped
+  v1.50.0) shows the current mode's icon **plus its text label**
+  ("Editing" / "Suggesting" / "Viewing") plus a chevron. Google Docs
+  shows just an outlined mode glyph + a dropdown caret (no label) as a
+  circular/pill control. Drop the `.mode-switcher-label` span (keep it in
+  the open dropdown's menu items), leave icon + chevron; adjust
+  `_topbar.scss`'s `.mode-switcher-btn` width/padding. Small — a copy/CSS
+  tweak, fold into the UI-1 pass.
 
 ### Other open bugs
 

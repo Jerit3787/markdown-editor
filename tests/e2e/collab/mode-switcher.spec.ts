@@ -22,6 +22,9 @@ test("a collaborator switches Editing → Viewing and the chrome follows", async
   await b.click(".mode-switcher-btn");
   await b.click('.mode-switcher-menu [role="menuitem"]:has-text("Viewing")');
 
+  // A transient toast announces the new mode.
+  await expect(b.locator(".toast", { hasText: "You're now viewing" })).toBeVisible();
+
   await expect(b.locator("#formatMenuBtn")).toBeHidden();
   await expect(b.locator("#commentsBtn")).toBeDisabled(); // greyed, not hidden (CV2-1b)
   await expect(b.locator("#versionHistoryBtn")).toBeDisabled(); // editing-mode tool (CV2-3)
@@ -37,6 +40,7 @@ test("a collaborator switches Editing → Viewing and the chrome follows", async
   // Back to Editing — everything returns.
   await b.click(".mode-switcher-btn");
   await b.click('.mode-switcher-menu [role="menuitem"]:has-text("Editing")');
+  await expect(b.locator(".toast", { hasText: "You're now editing" })).toBeVisible();
   await expect(b.locator("#formatMenuBtn")).toBeVisible();
   await expect(b.locator("#commentsBtn")).toBeEnabled();
   await expect(b.locator("#versionHistoryBtn")).toBeEnabled();

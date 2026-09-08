@@ -47,8 +47,6 @@ import ShortcutsModal from "./components/ShortcutsModal.svelte";
 import SignedOutIndicator from "./components/SignedOutIndicator.svelte";
 import WorkspaceAccessBanner from "./components/WorkspaceAccessBanner.svelte";
 import AboutModal from "./components/AboutModal.svelte";
-import TermsModal from "./components/TermsModal.svelte";
-import PrivacyModal from "./components/PrivacyModal.svelte";
 import LicensesModal from "./components/LicensesModal.svelte";
 import OpenGistModal from "./components/OpenGistModal.svelte";
 import RepoLinkModal from "./components/RepoLinkModal.svelte";
@@ -83,8 +81,6 @@ mount(ImagePickerModal, { target: document.getElementById("image-picker-modal-mo
 mount(ManageImagesModal, { target: document.getElementById("manage-images-modal-mount")! });
 mount(ShortcutsModal, { target: document.getElementById("shortcuts-modal-mount")! });
 mount(AboutModal, { target: document.getElementById("about-modal-mount")! });
-mount(TermsModal, { target: document.getElementById("terms-modal-mount")! });
-mount(PrivacyModal, { target: document.getElementById("privacy-modal-mount")! });
 mount(LicensesModal, { target: document.getElementById("licenses-modal-mount")! });
 mount(OpenGistModal, { target: document.getElementById("open-gist-modal-mount")! });
 mount(RepoLinkModal, { target: document.getElementById("repo-link-modal-mount")! });

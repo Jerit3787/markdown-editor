@@ -321,4 +321,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/focus-mode-polish.png",
     category: "Collaboration",
   },
+  {
+    version: "1.51.0",
+    title: "Links Between Documents, and Safer Code Samples",
+    description:
+      "A plain markdown link to another document — [notes](Design%20Notes) or [api](docs/api.md) — now opens that document instead of a dead page. An unresolved one shows a clear “no such document” style. And [[wikilink]] syntax you type inside `code` or a fenced block is left exactly as written, in the preview and when a document is renamed. External links open in a new tab now.",
+    screenshot: "/whats-new/preview-links.png",
+    category: "Organization & Navigation",
+  },
 ];

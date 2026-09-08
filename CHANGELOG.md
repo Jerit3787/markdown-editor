@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.51.0] - 2026-09-08
+
+### Fixed
+
+- **Links between documents now work.** A markdown link like `[the spec](Design%20Notes)` or `[api](docs/api.md)` opens that document instead of navigating to a dead `/d/…` page; one that matches no document shows a dashed "no such document" style instead of a broken link.
+- **`[[wikilink]]` syntax no longer leaks into code samples.** A `[[Name]]` typed inside `` `inline code` `` or a fenced code block is left exactly as written in the preview, and a document rename no longer edits `[[Name]]` mentions inside code blocks (the backlinks panel ignores them too).
+
+### Changed
+
+- **External links in the preview open in a new tab** (`target="_blank"`), so following one no longer navigates away from the editor.
+
 ## [1.50.0] - 2026-09-08
 
 ### Added

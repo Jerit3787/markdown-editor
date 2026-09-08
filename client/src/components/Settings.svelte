@@ -4,11 +4,14 @@
   import Toggletip from "./Toggletip.svelte";
   import { githubUsername } from "../stores/github";
   import { keybindingMode, setKeybindingMode } from "../stores/keybindings";
+  import { settingsModalOpen } from "../stores/settingsModal";
 
   const STORAGE_THEME = "mde:theme";
   const STORAGE_CUSTOM_CSS = "mde:customExportCss";
 
-  let hidden = $state(true);
+  // Opened from the top-bar account menu (TopbarAccount.svelte) via this
+  // store — see the per-modal-store pattern in stores/.
+  let hidden = $derived(!$settingsModalOpen);
   let theme = $state(localStorage.getItem(STORAGE_THEME) || "light");
   let customCss = $state(localStorage.getItem(STORAGE_CUSTOM_CSS) || "");
 
@@ -26,11 +29,8 @@
     localStorage.setItem(STORAGE_CUSTOM_CSS, next);
   }
 
-  function open() {
-    hidden = false;
-  }
   function close() {
-    hidden = true;
+    settingsModalOpen.set(false);
   }
 
   function signIn() {
@@ -46,7 +46,6 @@
     // initTheme() did this; now that Settings owns theme state, it does
     // too. Just needs to (re)apply the <html> attribute + icon/label.
     applyTheme(theme);
-    document.getElementById("settingsBtn")?.addEventListener("click", open);
 
     // app.ts's global Escape handler deliberately skips
     // [data-svelte-modal] backdrops (see initModalEscapeKey) since it can

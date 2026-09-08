@@ -10,8 +10,8 @@ test("UI-1: top-bar icon buttons are circular", async ({ page }) => {
   const vh = await radius("#versionHistoryBtn");
   expect(vh.br).toBeGreaterThanOrEqual(vh.w * 0.4); // ~50% → half the box
 
-  const settings = await radius("#settingsBtn");
-  expect(settings.br).toBeGreaterThanOrEqual(settings.w * 0.4);
+  const comments = await radius("#commentsBtn");
+  expect(comments.br).toBeGreaterThanOrEqual(comments.w * 0.4);
 
   // The formatting-toolbar overflow ("⋯") button — forced visible by a
   // narrow viewport — keeps a small radius (it's a dropdown-list trigger,

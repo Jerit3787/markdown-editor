@@ -216,11 +216,19 @@ events only (`exported_doc`, `published_gist`, `linked_repo`,
 `shared_workspace`, `opened_command_palette`) plus a `signed_in: yes/no`
 property. Nothing loads without a build-time `VITE_GA_MEASUREMENT_ID`.
 
-**Next:** **Cloudflare Turnstile on anonymous workspace joins** — gate
-not-signed-in "anyone with the link" joins (and possibly the
-request-access POST) with a Turnstile challenge verified in the Worker.
-Its own spec; must account for the collab e2e suite (Turnstile test
-keys / bypass so every anonymous `joinSharedWorkspace` still works).
+### Turnstile on anonymous joins (2026-09-09) — shipped v1.58.0
+
+Spec `docs/superpowers/specs/2026-09-09-turnstile-anonymous-join-design.md`,
+plan `.../plans/2026-09-09-turnstile-anonymous-join.md`. An anonymous
+visitor opening an "anyone with the link" workspace passes a Cloudflare
+Turnstile check (a brief "just checking you're human" modal, `POST
+/join-ticket` → an HMAC-signed 15-min workspace-scoped ticket on the WS
+upgrade) before live sync. The gate lives in `WorkspaceRoom`'s
+`requireJoinTicket()`, called only from the WS-upgrade branch — the
+read-only pre-join `GET /access` / `/docs` fetches stay open. Signed-in
+users and any deployment without both `VITE_TURNSTILE_SITE_KEY` +
+`TURNSTILE_SECRET_KEY` are unaffected; the collab e2e suite needed no
+changes.
 
 ### Collab-mode chrome v2 — Google Docs parity (2026-09-08)
 
@@ -554,6 +562,20 @@ turn out to matter later.
       good-faith, accurate self-description; `drive.file` is a
       non-sensitive OAuth scope so standard verification should suffice,
       but a review is prudent before any restricted-scope work
+- [ ] Turnstile on the pre-join fetches (`GET /access`, `GET /docs`, doc
+      snapshot) — v1.58.0 gates only the live-sync WS upgrade; a bot can
+      still scrape a public workspace's content read-only. Deferred so
+      "preview without saving" stays frictionless
+- [ ] Rate-limiting / IP bans / a WAF rule for public share links —
+      v1.58.0's Turnstile is the only anonymous-abuse control; separate
+      hardening
+- [ ] Turnstile on the legacy single-doc `CollabRoom` (`/api/collab/*`) —
+      left unprotected as a migration-only path (every new share lands on
+      `WorkspaceRoom`)
+- [ ] A full interactive-challenge flow / styled `TurnstilePrompt` — the
+      widget is configured non-interactive and the modal auto-closes on
+      success; the "Retry" button (v1.58.0) only clears the error banner
+      rather than re-driving `solveTurnstile`
 
 ---
 

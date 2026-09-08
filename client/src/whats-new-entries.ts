@@ -377,4 +377,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/analytics-consent.png",
     category: "Organization & Navigation",
   },
+  {
+    version: "1.58.0",
+    title: "A Quick Human Check on Shared Links",
+    description:
+      "Opening a link-shared workspace while signed out now does a fast Cloudflare Turnstile check before the doc loads — usually you won't even see it, and it only happens once per link per browser session. It keeps automated abuse off public share links; signed-in collaborators are never asked.",
+    screenshot: "/whats-new/turnstile.png",
+    category: "Collaboration",
+  },
 ];

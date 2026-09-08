@@ -2,8 +2,9 @@
   import { get } from "svelte/store";
   import { onMount } from "svelte";
   import { versionHistoryOpen } from "../stores/versionHistory";
-  import { getActiveDoc, activeDocContent, replaceDocImages } from "../stores/docs";
+  import { getActiveDoc, activeDocContent, replaceDocImages, activeIdStore } from "../stores/docs";
   import { workspacesStore } from "../stores/workspaces";
+  import { effectiveMode } from "../stores/collabMode";
   import {
     listVersions,
     getVersionContent,
@@ -81,6 +82,16 @@
   // the button isn't shown as available when it would just fail.
   let restoreAllowed = $state(true);
   let expandedSessions = $state<Set<string>>(new Set());
+
+  // CV2-3 — version history is an Editing-mode-only tool in Google Docs:
+  // greyed in Suggesting and Viewing for every role. `null` effective
+  // mode = a plain local doc, always available. This $effect also owns
+  // #versionHistoryBtn's no-active-doc disable (moved out of app.ts).
+  const editingMode = $derived($effectiveMode === "editing" || $effectiveMode == null);
+  $effect(() => {
+    const disabled = !$activeIdStore || !editingMode;
+    document.getElementById("versionHistoryBtn")?.toggleAttribute("disabled", disabled);
+  });
 
   function toggleSession(id: string) {
     const next = new Set(expandedSessions);
@@ -398,7 +409,12 @@
     // Topbar icon button, next to Share — same open() this component's own
     // File-menu entry (MenuBar.svelte) triggers, matching Settings.svelte's
     // own #settingsBtn wiring pattern for a header-icon-triggered overlay.
-    const open = () => versionHistoryOpen.set(true);
+    const open = () => {
+      // CV2-3 backstop — the button is greyed in non-Editing modes, but
+      // guard here too so a stale click can't open an unusable panel.
+      if (get(effectiveMode) != null && get(effectiveMode) !== "editing") return;
+      versionHistoryOpen.set(true);
+    };
     document.getElementById("versionHistoryBtn")?.addEventListener("click", open);
     return () => {
       document.removeEventListener("keydown", onKeydown);

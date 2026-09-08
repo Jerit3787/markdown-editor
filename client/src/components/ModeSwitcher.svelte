@@ -6,6 +6,12 @@
 
   const LABELS: Record<Mode, string> = { editing: "Editing", suggesting: "Suggesting", viewing: "Viewing" };
   const ICONS: Record<Mode, string> = { editing: "icon-pencil", suggesting: "icon-message-square", viewing: "icon-eye" };
+  // Matches Google Docs' mode-switcher dropdown copy.
+  const DESCRIPTIONS: Record<Mode, string> = {
+    editing: "Edit document directly",
+    suggesting: "Edits become suggestions",
+    viewing: "Read or print final document",
+  };
 
   function pick(m: Mode) {
     setChosenMode(m);
@@ -37,9 +43,12 @@
     {#if open && $modesAllowed.length > 1}
       <div class="dropdown-menu mode-switcher-menu" role="menu">
         {#each $modesAllowed as m (m)}
-          <button type="button" role="menuitem" class="dropdown-item" class:active={m === $effectiveMode} onclick={() => pick(m)}>
+          <button type="button" role="menuitem" class="mode-switcher-item dropdown-item" class:active={m === $effectiveMode} onclick={() => pick(m)}>
             <svg class="icon"><use href="#{ICONS[m]}"></use></svg>
-            {LABELS[m]}
+            <span class="mode-switcher-item-text">
+              <span class="mode-switcher-item-label">{LABELS[m]}</span>
+              <span class="mode-switcher-desc">{DESCRIPTIONS[m]}</span>
+            </span>
           </button>
         {/each}
       </div>

@@ -9,7 +9,10 @@ import { workspacesStore } from "../../../../client/src/stores/workspaces";
 import { enterCollabRoom, leaveCollabRoom, setChosenMode } from "../../../../client/src/stores/collabMode";
 
 beforeEach(() => {
-  window.MDE = new Proxy({ formatRelativeTime: () => "just now" }, { get: (t, p) => (p in t ? (t as Record<string, unknown>)[p as string] : vi.fn()) }) as unknown as typeof window.MDE;
+  window.MDE = new Proxy(
+    { formatRelativeTime: () => "just now" },
+    { get: (t, p) => (p in t ? (t as Record<string, unknown>)[p as string] : vi.fn()) },
+  ) as unknown as typeof window.MDE;
   leaveCollabRoom();
   versionHistoryOpen.set(false);
   document.getElementById("versionHistoryBtn")?.remove();

@@ -353,7 +353,18 @@ body.focus-mode #statusbar {
 .dropdown-menu.mode-switcher-menu {
   display: block;
   right: 0;
-  min-width: 180px;
+  min-width: 220px;
+}
+.mode-switcher-menu .mode-switcher-item {
+  align-items: flex-start;
+}
+.mode-switcher-menu .mode-switcher-item-text {
+  display: flex;
+  flex-direction: column;
+}
+.mode-switcher-menu .mode-switcher-desc {
+  font-size: 12px;
+  color: var(--text-dim);
 }
 @media (max-width: 780px) {
   #topbarActionsCol .mode-switcher-label {

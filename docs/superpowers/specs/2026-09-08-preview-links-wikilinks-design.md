@@ -19,6 +19,7 @@ Make the preview treat inter-document references as first-class, whichever synta
 - **Indented (4-space) code blocks** in the code-skip helper. Matches `math-preview.ts`'s existing `CODE_SEGMENT_RE` scope (fenced ```` ``` ```` and inline `` ` `` only). Noted as a shared limitation.
 - **A general "broken link" report / lint panel.** The affordance is per-link in the preview only.
 - **Changing `[[wikilink]]` click behaviour.** An unresolved `[[Name]]` still offers create-on-click, unchanged.
+- **Making a raw space in a link target work.** `[x](My Note)` is not a link at all in CommonMark/marked — the destination must be `[x](My%20Note)` or `[x](<My Note>)`. `resolveDocRef` decodes both; a raw-space target is left as marked's own literal text, unchanged.
 
 ## Background — current state
 

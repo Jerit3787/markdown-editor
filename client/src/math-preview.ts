@@ -1,3 +1,5 @@
+import { CODE_SEGMENT_RE } from "./markdown-code";
+
 export interface MathSource {
   src: string;
   display: boolean;
@@ -8,12 +10,10 @@ export interface MathExtraction {
   sources: Map<string, MathSource>;
 }
 
-// Fenced code blocks (```...```, across lines) or inline code spans
-// (`...`, single line) — math syntax inside either must never be treated
-// as math. Splitting on this first, then only scanning the non-code
-// segments below, is simpler and safer than trying to build one regex
-// that understands both code and math delimiters at once.
-const CODE_SEGMENT_RE = /(```[\s\S]*?```|`[^`\n]*`)/g;
+// CODE_SEGMENT_RE (fenced ```...``` / inline `...`) comes from
+// markdown-code.ts — math syntax inside either must never be treated as
+// math, so extractMathSpans splits on it first and only scans the
+// non-code segments.
 
 // $$...$$ can span multiple lines; content must not contain a literal
 // unescaped $ (so it can't accidentally swallow a following span — LaTeX

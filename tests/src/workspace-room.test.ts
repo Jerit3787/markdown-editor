@@ -844,6 +844,22 @@ describe("WorkspaceRoom.handleWikilinkRenameRequest", () => {
     expect(docRoom.doc.getText("content").toString()).toBe("See [[New]] here");
   });
 
+  it("leaves a [[Old]] inside a code span untouched", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "`[[Old]]` and [[Old]]"), "storage");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/wikilink-rename", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName: "Old", newName: "New" }),
+    });
+    const res = await room.handleWikilinkRenameRequest(request, "docA");
+    expect(res.status).toBe(200);
+    expect(docRoom.doc.getText("content").toString()).toBe("`[[Old]]` and [[New]]");
+  });
+
   it("returns changed: false and doesn't transact when the name isn't present", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });

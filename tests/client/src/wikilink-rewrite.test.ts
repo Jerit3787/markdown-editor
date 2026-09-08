@@ -46,3 +46,22 @@ describe("findWikilinkOccurrences", () => {
     expect(findWikilinkOccurrences("[[OldSuffix]]", "Old")).toEqual([]);
   });
 });
+
+describe("rewriteWikilinkReferences — code awareness", () => {
+  it("does not rename [[Old]] inside a fenced block", () => {
+    const src = "[[Old]]\n```\n[[Old]]\n```";
+    expect(rewriteWikilinkReferences(src, "Old", "New")).toBe("[[New]]\n```\n[[Old]]\n```");
+  });
+  it("does not rename [[Old]] inside an inline code span", () => {
+    expect(rewriteWikilinkReferences("`[[Old]]` and [[Old]]", "Old", "New")).toBe("`[[Old]]` and [[New]]");
+  });
+});
+
+describe("findWikilinkOccurrences — code awareness", () => {
+  it("skips an in-code occurrence, keeps correct offsets for the rest", () => {
+    const content = "`[[Old]]` x [[Old]] y";
+    const occ = findWikilinkOccurrences(content, "Old");
+    expect(occ).toEqual([{ from: 12, to: 19 }]);
+    expect(content.slice(occ[0]!.from, occ[0]!.to)).toBe("[[Old]]");
+  });
+});

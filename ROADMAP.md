@@ -128,22 +128,33 @@ persisting focus mode across reloads, or sentence-level dimming.
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"
 regression; D4 needs its own granularity decision before a plan.
 
-### Preview links & wikilinks
+### Preview links & wikilinks — shipped v1.51.0
 
-- **G1** — A markdown link `[text](target)` whose `target` isn't a URL
-  (a bare doc name / relative path) renders as `<domain>/d/<target>` and
-  navigates nowhere. It should resolve to the matching document, or show
-  a "that document doesn't exist" affordance.
-- **G2** — An unresolved wikilink shows raw `[Name](wikilink:Name)` text
-  in the preview — seen even for `[[Name]]` inside an inline code span
-  (the `[[…]]` → `[…](wikilink:…)` rewrite runs over code spans it should
-  skip, and the renderer prints the unknown scheme literally). Wikilink
-  rewriting must respect code spans / fences, and an unresolved wikilink
-  needs a real rendered "unresolved link" state, never leaked
-  `wikilink:` syntax.
+Spec `docs/superpowers/specs/2026-09-08-preview-links-wikilinks-design.md`,
+plan `.../plans/2026-09-08-preview-links-wikilinks-plan.md`, PR #184.
 
-Small cluster in `wikilinks.ts` / `wikilink-rewrite.ts` / the preview
-renderer. Needs a repro pass; likely Phase-1-sized.
+- **G1 — a `[text](doc-name)` markdown link dead-navigated to `/d/<target>`.**
+  Now `preview-link-render.ts`'s `renderLink` resolves a scheme-less
+  target against the document list (name, `.md` filename, `repoPath` —
+  `doc-link.ts` `resolveDocRef`) and routes it through the same in-app
+  click handler as a `[[wikilink]]`. An unresolved one renders a dashed
+  `.doc-ref-missing` affordance (clean bare name → create-on-click, path
+  form → inert). A bare-domain target (`example.com`) becomes an external
+  `https://` link. All external links now open in a new tab.
+- **G2 — `[[Name]]` inside `` `code` `` / a fence was rewritten and rendered
+  literally.** A shared `markdown-code.ts` `replaceOutsideCode` /
+  `codeSegmentRanges` helper (client + hand-synced Worker copy; also now
+  the source of `math-preview.ts`'s `CODE_SEGMENT_RE`) makes
+  `transformWikilinks`, `rewriteWikilinkReferences` (client + Worker
+  rename endpoint), `findWikilinkOccurrences` and `findBacklinks` all
+  skip code regions.
+
+**Deferred** (spec Non-goals): `[[Name|alias]]` / `[[Name#heading]]`;
+autolinking bare URLs not already in `[](…)` / `[[…]]` syntax;
+cross-workspace `../` path traversal; indented 4-space code blocks in the
+skip helper (matches `math-preview.ts`'s scope); a broken-link lint
+panel; making a raw-space link target (`[x](My Note)`) resolve — it is
+not a link in marked, needs `%20` / `<>`.
 
 ### Google-Docs-style top bar & version history (2026-09-08)
 

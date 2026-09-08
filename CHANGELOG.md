@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.57.1] - 2026-09-09
+
+### Fixed
+
+- `/privacy` and `/terms` returned `ERR_TOO_MANY_REDIRECTS` — the Worker rewrote them to `*.html`, which the asset layer then redirected back, in a loop. The pages are now served directly at their clean URLs.
+
+### Added
+
+- The Privacy Policy and Terms pages show a support email address in their Contact section when one is configured (`SUPPORT_EMAIL` at build time); otherwise they point at the GitHub issue tracker as before.
+
 ## [1.57.0] - 2026-09-09
 
 ### Added

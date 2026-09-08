@@ -64,13 +64,20 @@ for local dev. Then:
 Setting these up for a production deployment is covered separately in
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
-## Analytics (optional, production only)
+## Build-time variables (optional, production)
 
-Google Analytics loads **only** when `VITE_GA_MEASUREMENT_ID` (a GA4
-`G-…` id) is set at build time. Leave it unset for local development,
-tests, and self-hosting — the analytics module, the consent banner, and
-the Settings row all no-op and nothing is sent. The maintainer's
-production build sets it in Cloudflare's build environment.
+Both are read at build time (Cloudflare's build environment for the
+maintainer's deploy); leave them unset for local dev, tests, and
+self-hosting.
+
+- **`VITE_GA_MEASUREMENT_ID`** — a GA4 `G-…` id. Unset → the analytics
+  module, the consent banner, and the Settings row all no-op and nothing
+  is sent.
+- **`SUPPORT_EMAIL`** — shown in the Contact section of `/privacy` and
+  `/terms`. Unset → those pages point only at the GitHub issue tracker.
+  The pages are generated from `legal/*.html` by
+  `scripts/generate-legal.mjs` (runs as `prebuild` / `predev:client`);
+  the generated `client/public/{privacy,terms}.html` are git-ignored.
 
 ## Real-GitHub e2e suite (optional)
 

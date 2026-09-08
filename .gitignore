@@ -7,6 +7,9 @@ node_modules/
 .worktrees/
 .dev.vars
 client/dist/
+# generated from legal/*.html by scripts/generate-legal.mjs (prebuild)
+client/public/privacy.html
+client/public/terms.html
 recovered_images/
 test-results/
 playwright-report/

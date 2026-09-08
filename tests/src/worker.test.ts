@@ -62,18 +62,17 @@ describe("worker routing", () => {
     expect(((await res.json()) as { connected: boolean }).connected).toBe(false);
   });
 
-  it("serves the privacy document at /privacy (and /privacy/)", async () => {
-    for (const path of ["/privacy", "/privacy/"]) {
-      const { env, assetsFetch } = fakeEnv();
+  it("passes /privacy and /terms straight through to the asset layer (no worker rewrite)", async () => {
+    // client/public/{privacy,terms}.html are served at the clean URLs by
+    // Cloudflare's html_handling. A worker rewrite to `.html` would be
+    // 307'd back and loop — so the worker must NOT touch these, just fall
+    // through with the original request unchanged.
+    for (const path of ["/privacy", "/terms"]) {
+      const { env, assetsFetch, doFetch } = fakeEnv();
       await worker.fetch(new Request(`https://app.example.com${path}`), env);
+      expect(doFetch).not.toHaveBeenCalled();
       expect(assetsFetch).toHaveBeenCalledTimes(1);
-      expect(((assetsFetch.mock.calls[0] as unknown[])[0] as Request).url).toBe("https://app.example.com/privacy.html");
+      expect(((assetsFetch.mock.calls[0] as unknown[])[0] as Request).url).toBe(`https://app.example.com${path}`);
     }
-  });
-
-  it("serves the terms document at /terms", async () => {
-    const { env, assetsFetch } = fakeEnv();
-    await worker.fetch(new Request("https://app.example.com/terms"), env);
-    expect(((assetsFetch.mock.calls[0] as unknown[])[0] as Request).url).toBe("https://app.example.com/terms.html");
   });
 });

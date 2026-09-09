@@ -2,15 +2,25 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { JSDOM } from "jsdom";
 
 const root = resolve(__dirname, "../../..");
 const indexHtml = readFileSync(resolve(root, "client/index.html"), "utf8");
 const headersFile = readFileSync(resolve(root, "client/public/_headers"), "utf8");
 
 function metaCsp(html: string): string {
-  const m = html.match(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([\s\S]+?)"\s*\/?>/i);
-  if (!m) throw new Error("no CSP <meta> found");
-  return m[1]!.replace(/\s+/g, " ").trim();
+  const el = new JSDOM(html).window.document.querySelector('meta[http-equiv="Content-Security-Policy" i]');
+  if (!el) throw new Error("no CSP <meta> found");
+  return (el.getAttribute("content") ?? "").replace(/\s+/g, " ").trim();
+}
+
+// The one attribute-less inline <script> in client/index.html — parsed via
+// a real DOM so there is no hand-rolled tag-matching regex.
+function inlineScriptBody(html: string): string {
+  const scripts = [...new JSDOM(html).window.document.querySelectorAll("script")];
+  const inline = scripts.filter((s) => !s.hasAttribute("src") && !s.hasAttribute("type"));
+  if (inline.length !== 1) throw new Error(`expected exactly one attribute-less inline <script>, found ${inline.length}`);
+  return inline[0]!.textContent ?? "";
 }
 
 function headerValue(headers: string, name: string): string | null {
@@ -36,16 +46,19 @@ describe("app Content-Security-Policy", () => {
     expect(csp).toContain("https://*.google-analytics.com");
     expect(csp).toContain("frame-src https://challenges.cloudflare.com");
     expect(csp).toContain("worker-src 'self' blob:");
-    expect(csp).toContain("upgrade-insecure-requests");
+    expect(csp).toContain("form-action 'self'");
+    // `upgrade-insecure-requests` is deliberately absent: WebKit applies it
+    // to http://localhost too (Chromium exempts localhost), breaking
+    // `vite dev` / the webkit e2e project. Production is HTTPS-only with no
+    // http: resource refs, so the directive would be a no-op there anyway.
+    expect(csp).not.toContain("upgrade-insecure-requests");
     // the belt-and-braces items that block whole attack classes
     expect(csp).not.toContain("'unsafe-eval'");
     expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
   });
 
   it("allows the one inline script by its current hash", () => {
-    const scripts = [...indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
-    expect(scripts).toHaveLength(1);
-    const hash = createHash("sha256").update(scripts[0]![1]!, "utf8").digest("base64");
+    const hash = createHash("sha256").update(inlineScriptBody(indexHtml), "utf8").digest("base64");
     expect(csp).toContain(`'sha256-${hash}'`);
   });
 

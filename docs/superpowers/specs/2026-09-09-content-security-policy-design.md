@@ -47,7 +47,6 @@ frame-src https://challenges.cloudflare.com;
 worker-src 'self' blob:;
 manifest-src 'self';
 form-action 'self';
-upgrade-insecure-requests
 ```
 
 Written as one line (no newlines) in the attribute. Rationale per directive:
@@ -66,7 +65,7 @@ Written as one line (no newlines) in the attribute. Rationale per directive:
 | `worker-src` | `'self' blob:` | Defensive — no code spawns a Worker today, but a future `blob:`-backed worker (some PDF/image libs) would otherwise be a silent break. |
 | `manifest-src` | `'self'` | `/site.webmanifest`. |
 | `form-action` | `'self'` | No cross-origin `<form>` posts. The GitHub OAuth start is a Worker `302`, not a form, so this does not interfere. |
-| `upgrade-insecure-requests` | — | Belt-and-braces; the site is HTTPS-only already. |
+| ~~`upgrade-insecure-requests`~~ | *removed* | WebKit applies it to `http://localhost` too (Chromium exempts localhost), breaking `vite dev` / the webkit e2e. Production is HTTPS-only with no `http:` resource refs, so it would be a no-op there. |
 
 **`frame-ancestors` is intentionally absent** — `<meta>` CSP ignores it. Clickjacking protection comes from `X-Frame-Options: DENY` in Part 3.
 

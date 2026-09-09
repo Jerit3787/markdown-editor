@@ -577,8 +577,13 @@ turn out to matter later.
       `client/public/_headers` file with `X-Frame-Options: DENY` / nosniff
       / `Referrer-Policy` / `Permissions-Policy` / COOP and an
       authoritative duplicate CSP header. `/privacy` + `/terms` get a
-      stricter `default-src 'none'`. Deferred: a `report-to` violation
-      endpoint, a nonce-per-response pipeline, Trusted Types.
+      stricter `default-src 'none'`. The `<meta>` was replaced by a
+      per-request Worker-set nonce header in **v1.60.3** (spec
+      `docs/superpowers/specs/2026-09-09-csp-nonce-pipeline-design.md`,
+      plan `.../plans/2026-09-09-csp-nonce-pipeline.md`) for compatibility
+      with Cloudflare's JavaScript Detections injection — its inline
+      bootstrap rotates per request and can't be hashed. Still deferred: a
+      `report-to` violation endpoint, Trusted Types.
 - [ ] A general cookie-consent banner — v1.57.0's banner is
       analytics-only; the one functional cookie (GitHub session) is
       strictly necessary and needs no consent, so this is only relevant

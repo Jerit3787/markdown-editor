@@ -15,7 +15,7 @@ The app loads third-party script (Google Analytics, Cloudflare Turnstile) and re
 ## Non-goals / deferred
 
 - **A violation-reporting endpoint** (`report-uri` / `report-to` + a collector). No server-side log sink exists for it and nobody would watch it. `<meta>` CSP cannot carry `report-to` anyway. Browser-console violations during development + the e2e suite are the feedback loop.
-- **A nonce-per-response pipeline.** One 3-line inline script does not justify per-request HTML rewriting. Its `sha256` hash goes in the policy instead.
+- ~~**A nonce-per-response pipeline.**~~ Superseded — shipped in v1.60.3 (`docs/superpowers/specs/2026-09-09-csp-nonce-pipeline-design.md`) once Cloudflare's JavaScript Detections turned out to inject an unhashable rotating inline script that a static policy can't allow.
 - **Trusted Types** (`require-trusted-types-for 'script'`). A larger, separate hardening step — DOMPurify would need a Trusted Types sink and every `innerHTML` assignment audited.
 - **CSP on the JSON API / WebSocket responses.** Those render no document; the Worker's `/api/*` and Durable Object responses are left untouched.
 - **Locking `img-src` to an allowlist.** Markdown authors legitimately embed `![](https://any-host/pic.png)`; images cannot execute, so `img-src` stays `https:`-wide.

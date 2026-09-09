@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.60.3] - 2026-09-09
+
+### Changed
+
+- The Content-Security-Policy is now delivered as a per-request `nonce` on a response header set by the Worker, instead of a static `<meta>` tag. Same policy, same allowlist (self, Google Analytics, Cloudflare Turnstile) — no change to how the app behaves. This keeps the CSP compatible with Cloudflare's bot-detection script, which injects an inline script whose contents change on every request and so cannot be allow-listed by hash.
+
 ## [1.60.2] - 2026-09-09
 
 ### Security

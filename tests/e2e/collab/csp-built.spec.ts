@@ -46,3 +46,46 @@ test("the built app renders math + a diagram with no CSP violation", async ({ br
   expect(violations, `CSP violations in the built app:\n${violations.join("\n")}`).toEqual([]);
   await ctx.close();
 });
+
+test("the built app is served with a per-request CSP nonce header and no <meta> CSP", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+
+  // Fetch the raw HTML: browsers blank the `nonce` content attribute in
+  // the parsed DOM (moving it to the .nonce IDL property), so the served
+  // bytes are the only place to see what the Worker stamped.
+  const res = await page.request.get("http://localhost:8787/");
+  const csp = res.headers()["content-security-policy"] ?? "";
+  const body = await res.text();
+  expect(csp).toContain("default-src 'self'");
+  expect(csp).toContain("frame-src https://challenges.cloudflare.com");
+  expect(csp).toMatch(/script-src [^;]*'nonce-/);
+  expect(res.headers()["cache-control"]).toBe("no-store");
+
+  // the static <meta> CSP is stripped in production
+  expect(body).not.toContain('http-equiv="Content-Security-Policy"');
+
+  // the header nonce is the one stamped on every <script> tag. Counted
+  // with String.split, not a tag-matching regex — CodeQL's
+  // js/bad-tag-filter flags any regexp that partially matches <script>.
+  const headerNonce = csp.match(/'nonce-([^']+)'/)?.[1];
+  expect(headerNonce).toBeTruthy();
+  const scriptOpenCount = body.split("<script").length - 1;
+  const noncedCount = body.split(`nonce="${headerNonce}"`).length - 1;
+  expect(scriptOpenCount).toBeGreaterThan(0);
+  expect(noncedCount).toBe(scriptOpenCount);
+
+  // a second request gets a different nonce
+  const res2 = await page.request.get("http://localhost:8787/");
+  const csp2 = res2.headers()["content-security-policy"] ?? "";
+  expect(csp2.match(/'nonce-([^']+)'/)?.[1]).not.toBe(headerNonce);
+
+  // /privacy gets the strict variant, also nonce-based, also no <meta>
+  const legal = await page.request.get("http://localhost:8787/privacy");
+  const legalCspHeader = legal.headers()["content-security-policy"] ?? "";
+  expect(legalCspHeader.startsWith("default-src 'none'")).toBe(true);
+  expect(legalCspHeader).toMatch(/script-src 'nonce-/);
+  expect(await legal.text()).not.toContain('http-equiv="Content-Security-Policy"');
+
+  await ctx.close();
+});

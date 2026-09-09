@@ -28,7 +28,12 @@ function headerValue(headers: string, name: string): string | null {
   return m ? m[1]!.trim() : null;
 }
 
-describe("app Content-Security-Policy", () => {
+// client/index.html keeps its <meta> CSP as the policy enforced under
+// `vite dev` (which runs no Worker). Production strips this <meta> and
+// serves a per-request nonce header instead — see src/csp.ts and the
+// collab e2e specs. This suite guards the dev policy + the companion
+// headers that stay in _headers.
+describe("app Content-Security-Policy (dev <meta> policy)", () => {
   const csp = metaCsp(indexHtml);
 
   it("names every directive the app needs", () => {
@@ -62,8 +67,8 @@ describe("app Content-Security-Policy", () => {
     expect(csp).toContain(`'sha256-${hash}'`);
   });
 
-  it("the _headers file's CSP is byte-identical to the <meta>", () => {
-    expect(headerValue(headersFile, "Content-Security-Policy")).toBe(csp);
+  it("the _headers file no longer carries a CSP — the Worker sets it per request", () => {
+    expect(headersFile).not.toContain("Content-Security-Policy");
   });
 
   it("_headers carries the companion security headers", () => {

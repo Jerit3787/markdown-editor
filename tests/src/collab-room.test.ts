@@ -708,6 +708,16 @@ describe("CollabRoom.handleMessage — read-only enforcement", () => {
 });
 
 describe("CollabRoom.handleMigrateRequest", () => {
+  it("rejects a caller with no access to the legacy room (MDE-04)", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const anon = await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    expect(anon.status).toBe(401);
+    const stranger = await room.handleMigrateRequest(await authedRequest("mallory", "/room1/migrate", { method: "POST" }));
+    expect(stranger.status).toBe(403);
+    expect(await room.state.storage.get("migratedTo")).toBeUndefined();
+  });
+
   it("creates a tombstone and returns a workspace id on first migration", async () => {
     const room = new CollabRoom(fakeState(), fakeEnv);
     await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
@@ -724,7 +734,7 @@ describe("CollabRoom.handleMigrateRequest", () => {
     } as unknown as Env;
     room.env = envWithBinding;
 
-    const res = await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    const res = await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { workspaceId: string };
     expect(body.workspaceId).toBeTruthy();
@@ -757,7 +767,7 @@ describe("CollabRoom.handleMigrateRequest", () => {
     } as unknown as Env;
     room.env = envWithBinding;
 
-    await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     expect(seeded[0]!.docName).toBe("Meeting Notes");
   });
 
@@ -780,14 +790,14 @@ describe("CollabRoom.handleMigrateRequest", () => {
       },
     } as unknown as Env;
 
-    await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     expect(seeded[0]!.docName).toBe("");
   });
 
   it("returns the existing tombstone on a second migration call instead of migrating again", async () => {
     const room = new CollabRoom(fakeState(), fakeEnv);
     await room.state.storage.put("migratedTo", "ws-existing");
-    const res = await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    const res = await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { workspaceId: string };
     expect(body.workspaceId).toBe("ws-existing");

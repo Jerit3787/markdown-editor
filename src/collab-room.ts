@@ -396,8 +396,19 @@ export class CollabRoom {
   async handleMigrateRequest(request: Request): Promise<Response> {
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
+    // Already migrated — return the pointer. Idempotent and harmless, so
+    // no auth needed (a stale client just needs to learn where the room
+    // went).
     const existingTombstone = await this.state.storage.get<string>("migratedTo");
     if (existingTombstone) return Response.json({ workspaceId: existingTombstone });
+
+    // The actual migration: anyone with real access to the legacy room
+    // may trigger it (the client does so automatically on open), but an
+    // outsider must not be able to force DO allocation + a tombstone on a
+    // room they can't reach (MDE-04). The migration preserves the exact
+    // access record, so no role gate beyond "has access" is needed.
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
 
     const workspaceId = uid() + uid(); // wider than a doc id's own uid() to avoid any collision with existing workspace ids
     const access = await this.getAccess();

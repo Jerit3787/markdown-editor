@@ -34,6 +34,21 @@ describe("recordInsertSuggestion", () => {
     expect(list[0]).toMatchObject({ from: 5, to: 11 });
   });
 
+  it("keeps a D3 reply thread when a contiguous keystroke extends the suggestion (MDE-09)", () => {
+    const doc = docWith("hello world");
+    recordInsertSuggestion(doc, 5, 8, "alice");
+    const map = getSuggestionsMap(doc);
+    const id = listResolvedSuggestions(doc)[0]!.id;
+    const entry = map.get(id)!;
+    map.set(id, { ...entry, replies: [{ id: "r1", author: "bob", body: "why here?", createdAt: 1 }] });
+    recordInsertSuggestion(doc, 8, 11, "alice"); // extends
+    const list = listResolvedSuggestions(doc);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ from: 5, to: 11 });
+    const merged = map.get(list[0]!.id) as { replies?: { body: string }[] };
+    expect((merged.replies ?? []).map((r) => r.body)).toEqual(["why here?"]);
+  });
+
   it("does not extend a different author's insert even at the same boundary", () => {
     const doc = docWith("hello world");
     recordInsertSuggestion(doc, 5, 8, "alice");

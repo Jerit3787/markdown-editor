@@ -92,10 +92,15 @@ export function recordInsertSuggestion(doc: Y.Doc, from: number, to: number, aut
     if (toAbsoluteIndex(doc, ytext, entry.to) === from) extendId = id;
   });
   const id = extendId ?? uid();
-  const createdAt = extendId ? map.get(extendId)!.createdAt : now;
-  const fromJson = extendId ? map.get(extendId)!.from : toRelative(ytext, from);
+  const existing = extendId ? map.get(extendId) : undefined;
+  const createdAt = existing ? existing.createdAt : now;
+  const fromJson = existing ? existing.from : toRelative(ytext, from);
+  // Preserve a D3 discussion thread when a contiguous keystroke extends
+  // this suggestion — rebuilding the entry without it silently erased
+  // review history (MDE-09).
+  const replies = existing?.replies;
   doc.transact(() => {
-    map.set(id, { kind: "insert", author, createdAt, from: fromJson, to: toRelative(ytext, to, -1) });
+    map.set(id, { kind: "insert", author, createdAt, from: fromJson, to: toRelative(ytext, to, -1), ...(replies ? { replies } : {}) });
   }, "suggestion");
 }
 

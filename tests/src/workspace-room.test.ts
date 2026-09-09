@@ -1470,6 +1470,27 @@ describe("reviewer writes", () => {
     expect(list[0]).toMatchObject({ kind: "insert", author: "bob", from: 5, to: 8 });
   });
 
+  it("the merge observer carries every merged suggestion's reply thread onto the survivor (MDE-09)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    const map = getSuggestionsMap(docRoom.doc);
+
+    recordInsertSuggestion(docRoom.doc, 5, 6, "bob");
+    const id1 = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    map.set(id1, { ...map.get(id1)!, replies: [{ id: "a", author: "carol", body: "first", createdAt: 1 }] });
+    recordInsertSuggestion(docRoom.doc, 7, 9, "bob");
+    const id2 = listResolvedSuggestions(docRoom.doc).find((s) => s.from === 7)!.id;
+    map.set(id2, { ...map.get(id2)!, replies: [{ id: "b", author: "dave", body: "second", createdAt: 2 }] });
+    // an entry bridging [5,6) and [7,9) forces the cluster to merge
+    recordInsertSuggestion(docRoom.doc, 6, 7, "bob");
+
+    const list = listResolvedSuggestions(docRoom.doc);
+    expect(list).toHaveLength(1);
+    const survivor = map.get(list[0]!.id) as { replies?: { body: string }[] };
+    expect((survivor.replies ?? []).map((r) => r.body).sort()).toEqual(["first", "second"]);
+  });
+
   it("an editor's write is never reconciled into a suggestion", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnv);
     const ws = { send: () => {} } as unknown as WebSocket;

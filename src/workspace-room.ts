@@ -291,7 +291,13 @@ export class WorkspaceRoom {
         (byAuthorKind.get(key) ?? byAuthorKind.set(key, []).get(key)!).push(s);
       }
       const idsToDelete: string[] = [];
-      const toCreate: { kind: "insert" | "delete"; author: string; from: number; to: number }[] = [];
+      const toCreate: {
+        kind: "insert" | "delete";
+        author: string;
+        from: number;
+        to: number;
+        replies: { id: string; author: string; body: string; createdAt: number }[];
+      }[] = [];
       for (const group of byAuthorKind.values()) {
         group.sort((a, b) => a.from - b.from);
         let clusterStart = 0;
@@ -305,7 +311,15 @@ export class WorkspaceRoom {
           const cluster = group.slice(clusterStart, i);
           if (cluster.length > 1) {
             idsToDelete.push(...cluster.map((c) => c.id));
-            toCreate.push({ kind: cluster[0]!.kind, author: cluster[0]!.author, from: cluster[0]!.from, to: clusterMaxTo });
+            // D3 — carry every merged entry's discussion thread onto the
+            // survivor. Dropping them (the pre-1.62.1 behaviour) let a
+            // reviewer erase review history with one adjacent keystroke.
+            const seen = new Set<string>();
+            const replies = cluster
+              .flatMap((c) => c.replies ?? [])
+              .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
+              .sort((a, b) => a.createdAt - b.createdAt);
+            toCreate.push({ kind: cluster[0]!.kind, author: cluster[0]!.author, from: cluster[0]!.from, to: clusterMaxTo, replies });
           }
           if (cur) {
             clusterStart = i;
@@ -319,6 +333,15 @@ export class WorkspaceRoom {
         for (const c of toCreate) {
           if (c.kind === "insert") recordInsertSuggestion(doc, c.from, c.to, c.author);
           else recordDeleteSuggestion(doc, c.from, c.to, c.author);
+          if (c.replies.length === 0) continue;
+          // Re-attach the aggregated replies to the entry just created for
+          // this cluster's range.
+          for (const s of listResolvedSuggestions(doc)) {
+            if (s.kind !== c.kind || s.author !== c.author || s.from !== c.from || s.to !== c.to) continue;
+            const entry = suggestionsMap.get(s.id);
+            if (entry) suggestionsMap.set(s.id, { ...entry, replies: c.replies });
+            break;
+          }
         }
       }, "suggestion");
     });

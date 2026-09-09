@@ -64,8 +64,8 @@ import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";
 import { getSuggestionsMap, listResolvedSuggestions } from "./suggestions";
+import { getCommentsMap } from "./comments-doc";
 import { pendingSuggestionCount } from "./stores/suggestions";
-import { remoteCommentsChanged } from "./stores/commentsPanel";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
 import { enterCollabRoom, leaveCollabRoom, effectiveMode, collabIsOwner, type Mode, type Role } from "./stores/collabMode";
 import { initModeAnnounce } from "./mode-announce";
@@ -85,7 +85,7 @@ const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 const MESSAGE_PRESENCE = 2;
 const MESSAGE_WORKSPACE_META = 3;
-const MESSAGE_COMMENTS = 4;
+// 4 was MESSAGE_COMMENTS — retired in SP-B (comments now ride the SYNC path).
 const MESSAGE_WORKSPACE_DELETED = 5;
 const MESSAGE_ACCESS_REQUEST = 6; // [type, username, message] — only the owner acts (a toast)
 const MESSAGE_ACCESS_CHANGED = 7; // [type] — every client re-fetches /access, rejoins if its own role changed
@@ -128,6 +128,9 @@ interface DocBinding {
   // Set once the suggestions-map observer that feeds
   // window.MDE.onSuggestionsChanged has been attached for this binding.
   suggestionsObserved?: boolean;
+  // Same, for the `comments` Y.Map observer feeding
+  // window.MDE.onCommentsChanged.
+  commentsObserved?: boolean;
 }
 
 const workspaceRoom = {
@@ -1038,6 +1041,13 @@ function applyEditorMode(binding: DocBinding, mode: Mode): void {
     binding.suggestionsObserved = true;
     getSuggestionsMap(binding.ydoc).observe(() => window.MDE.onSuggestionsChanged?.());
   }
+  // Likewise for the doc's comment threads (SP-B — comments now live in
+  // a `comments` Y.Map, not HTTP): the rail re-derives from
+  // listResolvedCommentThreads(getActiveYDoc()).
+  if (!binding.commentsObserved) {
+    binding.commentsObserved = true;
+    getCommentsMap(binding.ydoc).observe(() => window.MDE.onCommentsChanged?.());
+  }
   window.MDE.enterCollabMode(extensions, undoManager);
   window.MDE.setReadOnly(viewing);
   if (viewing) lockToPreviewOnly();
@@ -1363,14 +1373,6 @@ function handleServerMessage(data: Uint8Array): void {
   }
 
   const docId = decoding.readVarString(decoder);
-
-  if (messageType === MESSAGE_COMMENTS) {
-    // Another collaborator changed this document's comment threads — poke
-    // CommentsPanel.svelte to refetch (it decides whether docId is the one
-    // currently open). No binding needed; comments aren't in the Y.Doc.
-    remoteCommentsChanged.update((s) => ({ docId, n: s.n + 1 }));
-    return;
-  }
 
   // A MESSAGE_SYNC frame for a docId we've never seen before means
   // another collaborator created (or first switched to) that document

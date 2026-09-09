@@ -6,6 +6,12 @@ export interface SuggestionEntry {
   createdAt: number;
   from: ReturnType<typeof Y.relativePositionToJSON>;
   to: ReturnType<typeof Y.relativePositionToJSON>;
+  // SP-B / D3 — an optional discussion thread on the suggestion card.
+  // Absent on every suggestion made before v1.62.0 and on the common
+  // "no discussion" case. Written only by comments-doc.ts's
+  // addSuggestionReply; reconcileReviewerDelta and the self-heal
+  // observer never read or touch it.
+  replies?: { id: string; author: string; body: string; createdAt: number }[];
 }
 
 export interface ResolvedSuggestion extends Omit<SuggestionEntry, "from" | "to"> {
@@ -60,7 +66,7 @@ export function listResolvedSuggestions(doc: Y.Doc): ResolvedSuggestion[] {
     const from = toAbsoluteIndex(doc, ytext, entry.from);
     const to = toAbsoluteIndex(doc, ytext, entry.to);
     if (from === null || to === null) return;
-    result.push({ id, kind: entry.kind, author: entry.author, createdAt: entry.createdAt, from, to });
+    result.push({ id, kind: entry.kind, author: entry.author, createdAt: entry.createdAt, from, to, replies: entry.replies });
   });
   return result.sort((a, b) => a.from - b.from);
 }

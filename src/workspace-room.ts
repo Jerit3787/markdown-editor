@@ -9,7 +9,9 @@ import { redactAccessForOutsider } from "./access-visibility";
 import { rewriteWikilinkReferences } from "./wikilink-rewrite";
 import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
 import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion } from "./suggestions";
-import type { ResolvedSuggestion } from "./suggestions";
+import type { ResolvedSuggestion, SuggestionEntry } from "./suggestions";
+import { getCommentsMap, seedCommentThreadsIntoDoc, type CommentThreadEntry } from "./comments-doc";
+import { isValidNewThread, isAllowedThreadTransition } from "./comment-integrity";
 import type { Env } from "./env";
 import { resolveRole } from "./access-role";
 import { verifyTurnstileToken, mintJoinTicket, verifyJoinTicket } from "./turnstile.js";
@@ -32,12 +34,10 @@ const MESSAGE_PRESENCE = 2;
 // same socket as a plain broadcast/greeting frame instead of a Y.Doc.
 // docId-less, like MESSAGE_PRESENCE.
 const MESSAGE_WORKSPACE_META = 3;
-// Comment threads are plain HTTP against DO storage, not Y.Doc updates, so
-// they don't ride the normal sync/broadcast wire — this frame ([type,
-// docId], docId-prefixed like SYNC/AWARENESS) just tells every connected
-// client "this document's comments changed, refetch them". Sent to
-// everyone including the acting client (a redundant refetch is harmless).
-const MESSAGE_COMMENTS = 4;
+// (4 was MESSAGE_COMMENTS — retired in SP-B. Comment threads now live in
+// a `comments` Y.Map on each doc and ride the normal SYNC frames; there
+// is nothing to signal a refetch for. The wire number is left unused
+// rather than recycled so an old client's stray frame is simply ignored.)
 // Broadcast once, to every live session, when the owner deletes the
 // workspace (handleDeleteRequest). Single varuint, no docId — like a bare
 // MESSAGE_WORKSPACE_META greeting. The client tears down and drops its
@@ -71,21 +71,27 @@ export interface Snapshot {
   authors?: string[];
 }
 
-export interface CommentReply {
+// The pre-SP-B HTTP comment-thread shape — persisted under
+// docStorageKey(docId, "comments") and sent in a legacy CollabRoom
+// migration payload. Kept only for the one-time seed into the doc's
+// `comments` Y.Map (loadDocRoom + /internal/seed); nothing writes this
+// shape any more. Live comment state is comments-doc.ts's
+// CommentThreadEntry.
+export interface LegacyCommentReply {
   id: string;
   author: string;
   body: string;
   createdAt: number;
 }
 
-export interface CommentThread {
+export interface LegacyCommentThread {
   id: string;
   from: number;
   to: number;
   quote: string;
   orphaned: boolean;
   resolved: boolean;
-  comments: CommentReply[];
+  comments: LegacyCommentReply[];
 }
 
 export const DEFAULT_ACCESS: AccessRecord = { owner: null, generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] };
@@ -122,7 +128,6 @@ export interface DocRoom {
   // forceSnapshot. In-memory only; losing it across DO eviction just
   // means a snapshot with fewer (or no) recorded authors.
   pendingAuthors: Set<string>;
-  commentThreads: CommentThread[];
   persistScheduled: boolean;
 }
 
@@ -160,6 +165,11 @@ export class WorkspaceRoom {
   name: string;
   deleted: boolean;
   repoLinked: boolean;
+  // The access record, cached so the synchronous `comments` Y.Map
+  // observer can read `owner` for a delete check without an async
+  // storage hit. Populated in the constructor and refreshed wherever
+  // "access" is written.
+  cachedAccess: AccessRecord | null;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -170,6 +180,7 @@ export class WorkspaceRoom {
     this.name = "";
     this.deleted = false;
     this.repoLinked = false;
+    this.cachedAccess = null;
 
     this.state.blockConcurrencyWhile(async () => {
       const storedDocIds = await this.state.storage.get<string[]>("docs");
@@ -180,6 +191,7 @@ export class WorkspaceRoom {
       this.name = (await this.state.storage.get<string>("name")) || "";
       this.deleted = (await this.state.storage.get<boolean>("deleted")) === true;
       this.repoLinked = (await this.state.storage.get<boolean>("repoLinked")) === true;
+      this.cachedAccess = await this.getAccess();
     });
   }
 
@@ -197,7 +209,6 @@ export class WorkspaceRoom {
     awareness.setLocalState(null);
     const stored = await this.state.storage.get<ArrayBuffer>(docStorageKey(docId, "update"));
     if (stored) Y.applyUpdate(doc, new Uint8Array(stored), "storage");
-    const storedComments = await this.state.storage.get<CommentThread[]>(docStorageKey(docId, "comments"));
 
     const docRoom: DocRoom = {
       doc,
@@ -205,7 +216,6 @@ export class WorkspaceRoom {
       snapshots: [],
       lastSnapshotAt: undefined,
       pendingAuthors: new Set(),
-      commentThreads: storedComments || [],
       persistScheduled: false,
     };
     doc.on("update", (update: Uint8Array, origin: unknown) => this.handleDocUpdate(docId, docRoom, update, origin));
@@ -247,7 +257,34 @@ export class WorkspaceRoom {
     // already performs for a single, non-racing contiguous extend, just
     // applied after the fact to entries that arrived as separate writes.
     const suggestionsMap = getSuggestionsMap(doc);
-    suggestionsMap.observe(() => {
+    suggestionsMap.observe((event, transaction) => {
+      // D3 — a suggestion's `replies` thread is additive metadata the
+      // merge logic below never touches. An appended reply must be
+      // authored by the writing session; any other `replies` change (an
+      // edited entry, a wholesale swap, a foreign author) is reverted.
+      if (transaction.origin !== "suggestion") {
+        const session = this.sessions.get(transaction.origin as WebSocket);
+        if (session && session.role !== "viewer") {
+          const actor = session.username ?? "Anonymous";
+          const replyReverts: Array<() => void> = [];
+          event.changes.keys.forEach((change, key) => {
+            if (change.action !== "update") return;
+            const now = suggestionsMap.get(key);
+            const old = change.oldValue as SuggestionEntry;
+            const oldReplies = old.replies ?? [];
+            const newReplies = now?.replies ?? [];
+            const prefixMatches = (n: number) => oldReplies.slice(0, n).every((r, i) => r.author === newReplies[i]?.author && r.body === newReplies[i]?.body);
+            const unchanged = newReplies.length === oldReplies.length && prefixMatches(oldReplies.length);
+            const appendedBySelf =
+              newReplies.length === oldReplies.length + 1 && prefixMatches(oldReplies.length) && newReplies[newReplies.length - 1]?.author === actor;
+            if (!unchanged && !appendedBySelf) {
+              replyReverts.push(() => suggestionsMap.set(key, old));
+            }
+          });
+          if (replyReverts.length) doc.transact(() => replyReverts.forEach((r) => r()), "suggestion");
+        }
+      }
+
       const byAuthorKind = new Map<string, ResolvedSuggestion[]>();
       for (const s of listResolvedSuggestions(doc)) {
         const key = `${s.kind}|${s.author}`;
@@ -285,10 +322,51 @@ export class WorkspaceRoom {
         }
       }, "suggestion");
     });
+    // SP-B — comment threads live in a `comments` Y.Map on this doc and
+    // ride the same sync/persistence path as ytext and suggestions. This
+    // observer is the server-side equivalent of the role/ownership checks
+    // the retired HTTP comment endpoints ran: validate every client
+    // write and revert (in a "comment-reconcile" transaction the observer
+    // itself ignores) anything that breaks the rules.
+    const commentsMap = getCommentsMap(doc);
+    commentsMap.observe((event, transaction) => {
+      if (transaction.origin === "comment-reconcile" || transaction.origin === "comment-migrate") return;
+      const session = this.sessions.get(transaction.origin as WebSocket);
+      if (!session || session.role === "viewer") return; // isWrite already drops a viewer's write; defensive
+      const actor = session.username ?? "Anonymous";
+      const owner = this.cachedAccess?.owner ?? null;
+      const reverts: Array<() => void> = [];
+      event.changes.keys.forEach((change, key) => {
+        if (change.action === "add") {
+          if (!isValidNewThread(commentsMap.get(key), actor)) reverts.push(() => commentsMap.delete(key));
+        } else if (change.action === "update") {
+          const old = change.oldValue as CommentThreadEntry;
+          if (!isAllowedThreadTransition(old, commentsMap.get(key), actor)) reverts.push(() => commentsMap.set(key, old));
+        } else if (change.action === "delete") {
+          const old = change.oldValue as CommentThreadEntry;
+          if (actor !== old.author && actor !== owner) reverts.push(() => commentsMap.set(key, old));
+        }
+      });
+      if (reverts.length) doc.transact(() => reverts.forEach((r) => r()), "comment-reconcile");
+    });
     awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
       this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin),
     );
     this.docs.set(docId, docRoom);
+
+    // SP-B one-time migration: legacy HTTP-stored comment threads →
+    // this doc's `comments` Y.Map. Runs server-side in the single-
+    // threaded DO before any client syncs the doc, so there's no
+    // duplicate-seed race. The `commentsMap.size === 0` guard means a
+    // doc that's already been migrated (and possibly edited since) is
+    // never re-seeded from the stale legacy key. That key is left in
+    // place as a backstop — nothing writes it any more; a follow-up
+    // release can delete it.
+    const legacyComments = await this.state.storage.get<LegacyCommentThread[]>(docStorageKey(docId, "comments"));
+    if (legacyComments?.length && getCommentsMap(doc).size === 0) {
+      seedCommentThreadsIntoDoc(doc, legacyComments);
+    }
+
     // Deliberately does NOT register `docId` as a workspace member. Loading
     // a doc's room object (to read its comments, its version history, or to
     // apply a migration seed) must not imply the doc belongs to this
@@ -319,14 +397,8 @@ export class WorkspaceRoom {
     if (url.pathname.endsWith("/meta")) return this.handleMetaRequest(request);
     if (url.pathname.endsWith("/internal/seed")) return this.handleInternalSeedRequest(request);
 
-    const replyMatch = url.pathname.match(/\/docs\/([^/]+)\/comments\/([^/]+)\/reply$/);
-    if (replyMatch) return this.handleCommentReplyRequest(request, replyMatch[1]!, replyMatch[2]!);
-    const resolveMatch = url.pathname.match(/\/docs\/([^/]+)\/comments\/([^/]+)\/resolve$/);
-    if (resolveMatch) return this.handleCommentResolveRequest(request, resolveMatch[1]!, resolveMatch[2]!);
-    const commentIdMatch = url.pathname.match(/\/docs\/([^/]+)\/comments\/([^/]+)$/);
-    if (commentIdMatch) return this.handleCommentDeleteRequest(request, commentIdMatch[1]!, commentIdMatch[2]!);
-    const commentsMatch = url.pathname.match(/\/docs\/([^/]+)\/comments$/);
-    if (commentsMatch) return this.handleCommentsRequest(request, commentsMatch[1]!);
+    // (SP-B retired the four /docs/:id/comments* HTTP routes — comment
+    // threads now sync as a `comments` Y.Map over the WebSocket.)
 
     const restoreMatch = url.pathname.match(/\/docs\/([^/]+)\/versions\/([^/]+)\/restore$/);
     if (restoreMatch) return this.handleVersionRestoreRequest(request, restoreMatch[1]!, restoreMatch[2]!);
@@ -503,6 +575,7 @@ export class WorkspaceRoom {
         invited: Array.isArray(body.invited) ? normalizeInvited(body.invited) : access.invited,
       };
       await this.state.storage.put("access", next);
+      this.cachedAccess = next;
       this.broadcastAccessChanged();
       return Response.json(next);
     }
@@ -544,6 +617,7 @@ export class WorkspaceRoom {
       const invited = access.invited.filter((p) => p.username !== username);
       invited.push({ username, role });
       await this.state.storage.put("access", { ...access, invited });
+      this.cachedAccess = await this.getAccess();
     }
     this.broadcastAccessChanged();
     return Response.json({ ok: true });
@@ -594,13 +668,6 @@ export class WorkspaceRoom {
 
   broadcastWorkspaceMeta(): void {
     this.broadcast(this.encodeWorkspaceMeta(), null);
-  }
-
-  broadcastCommentsChanged(docId: string): void {
-    const encoder = encoding.createEncoder();
-    encoding.writeVarUint(encoder, MESSAGE_COMMENTS);
-    encoding.writeVarString(encoder, docId);
-    this.broadcast(encoding.toUint8Array(encoder), null);
   }
 
   async handleMetaRequest(request: Request): Promise<Response> {
@@ -826,7 +893,6 @@ export class WorkspaceRoom {
     // string "restore" for a restore, which isn't a sessions key).
     const editor = this.sessions.get(origin as WebSocket);
     if (editor?.username) docRoom.pendingAuthors.add(editor.username);
-    this.refreshCommentAnchors(docRoom, docRoom.doc.getText("content").toString());
     this.schedulePersist(docId, docRoom);
     if (origin !== "restore") void this.maybeSnapshot(docId, docRoom);
   }
@@ -882,7 +948,6 @@ export class WorkspaceRoom {
       if (!docRoom.persistScheduled && this.sessions.size > 0) continue;
       docRoom.persistScheduled = false;
       await this.state.storage.put(docStorageKey(docId, "update"), Y.encodeStateAsUpdate(docRoom.doc));
-      await this.persistComments(docId, docRoom);
     }
   }
 
@@ -1046,154 +1111,6 @@ export class WorkspaceRoom {
     return Response.json({ changed: true });
   }
 
-  // ---------- Comment threads ----------
-
-  getComments(docId: string): CommentThread[] {
-    return this.docs.get(docId)?.commentThreads || [];
-  }
-
-  async persistComments(docId: string, docRoom: DocRoom): Promise<void> {
-    await this.state.storage.put(docStorageKey(docId, "comments"), docRoom.commentThreads);
-  }
-
-  createThread(
-    docId: string,
-    docRoom: DocRoom,
-    from: number,
-    to: number,
-    quote: string,
-    author: string,
-    body: string,
-    now: number = Date.now(),
-  ): CommentThread {
-    const thread: CommentThread = {
-      id: uid(),
-      from,
-      to,
-      quote,
-      orphaned: false,
-      resolved: false,
-      comments: [{ id: uid(), author, body, createdAt: now }],
-    };
-    docRoom.commentThreads = [...docRoom.commentThreads, thread];
-    return thread;
-  }
-
-  addReply(docRoom: DocRoom, threadId: string, author: string, body: string, now: number = Date.now()): CommentThread | null {
-    const thread = docRoom.commentThreads.find((t) => t.id === threadId);
-    if (!thread) return null;
-    thread.comments = [...thread.comments, { id: uid(), author, body, createdAt: now }];
-    return thread;
-  }
-
-  resolveThread(docRoom: DocRoom, threadId: string, resolved: boolean): CommentThread | null {
-    const thread = docRoom.commentThreads.find((t) => t.id === threadId);
-    if (!thread) return null;
-    thread.resolved = resolved;
-    return thread;
-  }
-
-  deleteThread(docRoom: DocRoom, threadId: string, username: string | null, isOwner: boolean): "deleted" | "not_found" | "forbidden" {
-    const thread = docRoom.commentThreads.find((t) => t.id === threadId);
-    if (!thread) return "not_found";
-    const startedBy = thread.comments[0]?.author;
-    if (!isOwner && startedBy !== username) return "forbidden";
-    docRoom.commentThreads = docRoom.commentThreads.filter((t) => t.id !== threadId);
-    return "deleted";
-  }
-
-  refreshCommentAnchors(docRoom: DocRoom, content: string): void {
-    docRoom.commentThreads = docRoom.commentThreads.map((t) => {
-      const relocated = relocateAnchor(content, t);
-      if (!relocated) return { ...t, orphaned: true };
-      return { ...t, from: relocated.from, to: relocated.to, orphaned: false };
-    });
-  }
-
-  async handleCommentsRequest(request: Request, docId: string): Promise<Response> {
-    const auth = await this.authorize(request);
-    if (!auth.ok) return new Response(auth.message, { status: auth.status });
-    const docRoom = await this.loadDocRoom(docId);
-    if (request.method === "GET") return Response.json(this.getComments(docId));
-    if (request.method === "POST") {
-      if (auth.role === "viewer") return new Response("Viewers can't comment.", { status: 403 });
-      let body: { from?: unknown; to?: unknown; quote?: unknown; body?: unknown };
-      try {
-        body = await request.json();
-      } catch (err) {
-        return new Response("Invalid JSON.", { status: 400 });
-      }
-      if (
-        typeof body.from !== "number" ||
-        typeof body.to !== "number" ||
-        typeof body.quote !== "string" ||
-        typeof body.body !== "string" ||
-        !body.body.trim()
-      ) {
-        return new Response("Invalid comment.", { status: 400 });
-      }
-      const thread = this.createThread(docId, docRoom, body.from, body.to, body.quote, auth.username || "Anonymous", body.body);
-      await this.persistComments(docId, docRoom);
-      this.broadcastCommentsChanged(docId);
-      return Response.json(thread);
-    }
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  async handleCommentReplyRequest(request: Request, docId: string, threadId: string): Promise<Response> {
-    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
-    const auth = await this.authorize(request);
-    if (!auth.ok) return new Response(auth.message, { status: auth.status });
-    if (auth.role === "viewer") return new Response("Viewers can't comment.", { status: 403 });
-    let body: { body?: unknown };
-    try {
-      body = await request.json();
-    } catch (err) {
-      return new Response("Invalid JSON.", { status: 400 });
-    }
-    if (typeof body.body !== "string" || !body.body.trim()) return new Response("Invalid reply.", { status: 400 });
-    const docRoom = await this.loadDocRoom(docId);
-    const thread = this.addReply(docRoom, threadId, auth.username || "Anonymous", body.body);
-    if (!thread) return new Response("Thread not found.", { status: 404 });
-    await this.persistComments(docId, docRoom);
-    this.broadcastCommentsChanged(docId);
-    return Response.json(thread);
-  }
-
-  async handleCommentResolveRequest(request: Request, docId: string, threadId: string): Promise<Response> {
-    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
-    const auth = await this.authorize(request);
-    if (!auth.ok) return new Response(auth.message, { status: auth.status });
-    if (auth.role === "viewer") return new Response("Viewers can't resolve comments.", { status: 403 });
-    let body: { resolved?: unknown };
-    try {
-      body = await request.json();
-    } catch (err) {
-      return new Response("Invalid JSON.", { status: 400 });
-    }
-    const docRoom = await this.loadDocRoom(docId);
-    const thread = this.resolveThread(docRoom, threadId, body.resolved !== false);
-    if (!thread) return new Response("Thread not found.", { status: 404 });
-    await this.persistComments(docId, docRoom);
-    this.broadcastCommentsChanged(docId);
-    return Response.json(thread);
-  }
-
-  async handleCommentDeleteRequest(request: Request, docId: string, threadId: string): Promise<Response> {
-    if (request.method !== "DELETE") return new Response("Method not allowed", { status: 405 });
-    const auth = await this.authorize(request);
-    if (!auth.ok) return new Response(auth.message, { status: auth.status });
-    const access = await this.getAccess();
-    const isOwner = auth.username !== null && auth.username === access.owner;
-    const docRoom = await this.loadDocRoom(docId);
-    const result = this.deleteThread(docRoom, threadId, auth.username, isOwner);
-    if (result === "not_found") return new Response("Thread not found.", { status: 404 });
-    if (result === "forbidden") return new Response("Only the thread's author or the workspace owner can delete it.", { status: 403 });
-    await this.persistComments(docId, docRoom);
-    this.broadcastCommentsChanged(docId);
-    return new Response(null, { status: 204 });
-  }
-
   // ---------- Document membership ----------
 
   async handleDocsRequest(request: Request): Promise<Response> {
@@ -1252,7 +1169,10 @@ export class WorkspaceRoom {
     const docId = body.docId;
     const docName = typeof body.docName === "string" ? body.docName.trim() : "";
 
-    if (body.access) await this.state.storage.put("access", body.access);
+    if (body.access) {
+      await this.state.storage.put("access", body.access);
+      this.cachedAccess = await this.getAccess();
+    }
 
     // A legacy /d/ migration: name the fresh workspace after its one
     // document (the CollabRoom had no workspace concept), so joiners don't
@@ -1276,9 +1196,12 @@ export class WorkspaceRoom {
       docRoom.snapshots = body.snapshots as Snapshot[];
       await this.state.storage.put(docStorageKey(docId, "snapshots"), body.snapshots);
     }
-    if (Array.isArray(body.comments)) {
-      docRoom.commentThreads = body.comments as CommentThread[];
-      await this.persistComments(docId, docRoom);
+    // A legacy CollabRoom migration carries its HTTP comment threads —
+    // seed them straight into the doc's `comments` Y.Map (same as
+    // loadDocRoom's one-time migration). Guarded so a re-seed can't
+    // clobber a map that already has threads.
+    if (Array.isArray(body.comments) && body.comments.length > 0 && getCommentsMap(docRoom.doc).size === 0) {
+      seedCommentThreadsIntoDoc(docRoom.doc, body.comments as LegacyCommentThread[]);
     }
 
     if (!this.docIds.includes(docId)) {

@@ -1,13 +1,20 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { get } from "svelte/store";
-  import { commentsPanelOpen, unresolvedCommentCount, remoteCommentsChanged } from "../stores/commentsPanel";
+  import { commentsPanelOpen, unresolvedCommentCount } from "../stores/commentsPanel";
   import { effectiveMode, collabRole } from "../stores/collabMode";
   import { commentDraft } from "../stores/commentDraft";
   import { activeIdStore, getActiveDoc, addDocNote, deleteDocNote } from "../stores/docs";
   import { fetchAndMergeRepoHistory } from "../repo-history-sync";
   import { workspacesStore } from "../stores/workspaces";
-  import { listComments, createComment, replyToComment, resolveComment, deleteComment, countUnresolvedComments, type CommentThread } from "../comments";
+  import {
+    listResolvedCommentThreads,
+    createCommentThread,
+    addCommentReply,
+    resolveCommentThread,
+    deleteCommentThread,
+    addSuggestionReply,
+  } from "../comments-doc";
   import { showToast } from "../stores/toast";
   import { viewMode, isEditorOn } from "../stores/view";
   import { railAnnotationsForShared, railAnnotationsForLocal, underlyingIds, type RailAnnotation } from "../annotations";
@@ -64,10 +71,14 @@
     }
     loading = true;
     if (ctx.isShared) {
-      const threads = await listComments(ctx.roomId, ctx.doc.id);
+      // SP-B — comments now live in a `comments` Y.Map on the doc, read
+      // synchronously (Yjs sync is the liveness; collab.ts's per-binding
+      // observer drives re-derive via window.MDE.onCommentsChanged).
+      const doc = window.MDE.getActiveYDoc?.() ?? null;
+      const threads = doc ? listResolvedCommentThreads(doc, editorContent()) : [];
       const suggestions = window.MDE.getResolvedSuggestions?.() ?? [];
       annotations = railAnnotationsForShared(suggestions, threads, editorContent());
-      unresolvedCommentCount.set(countUnresolvedComments(threads));
+      unresolvedCommentCount.set(threads.filter((t) => !t.resolved).length);
     } else {
       await fetchAndMergeRepoHistory(ctx.doc);
       const freshDoc = getActiveDoc(); // re-read: repo history may have updated doc.notes
@@ -158,18 +169,26 @@
     if (doc) underlyingIds(a).forEach((id) => withdrawSuggestion(doc, id));
   }
 
-  async function submitReply(threadId: string, body: string) {
+  const viewerName = () => window.MDE.githubUsername || "Anonymous";
+
+  function submitReply(a: RailAnnotation, body: string) {
     const ctx = currentDocContext();
-    if (!ctx || !ctx.isShared || !body.trim()) return;
-    await replyToComment(ctx.roomId, ctx.doc.id, threadId, body.trim());
-    await loadEntries();
+    const doc = ydoc();
+    if (!ctx || !ctx.isShared || !doc || !body.trim()) return;
+    if (a.kind === "suggestion") {
+      addSuggestionReply(doc, underlyingIds(a)[0], viewerName(), body.trim());
+    } else {
+      addCommentReply(doc, a.id, viewerName(), body.trim());
+    }
+    void loadEntries();
   }
 
-  async function toggleResolve(threadId: string, resolved: boolean) {
+  function toggleResolve(threadId: string, resolved: boolean) {
     const ctx = currentDocContext();
-    if (!ctx || !ctx.isShared) return;
-    await resolveComment(ctx.roomId, ctx.doc.id, threadId, resolved);
-    await loadEntries();
+    const doc = ydoc();
+    if (!ctx || !ctx.isShared || !doc) return;
+    resolveCommentThread(doc, threadId, resolved);
+    void loadEntries();
   }
 
   async function removeAnnotation(a: RailAnnotation) {
@@ -178,11 +197,12 @@
     if (!ctx.isShared) {
       deleteDocNote(a.id);
     } else {
-      const ok = await deleteComment(ctx.roomId, ctx.doc.id, a.id);
-      if (!ok) {
+      const doc = ydoc();
+      if (!doc) {
         showToast("Couldn't delete comment", "error");
         return;
       }
+      deleteCommentThread(doc, a.id);
     }
     await loadEntries();
   }
@@ -200,8 +220,9 @@
     const cm = window.MDE.getEditor();
     const quote = cm.state.sliceDoc($commentDraft.from, $commentDraft.to);
     if (ctx.isShared) {
-      const thread = await createComment(ctx.roomId, ctx.doc.id, $commentDraft.from, $commentDraft.to, quote, draftBody.trim());
-      if (!thread) showToast("Couldn't add comment", "error");
+      const doc = ydoc();
+      if (!doc) showToast("Couldn't add comment", "error");
+      else createCommentThread(doc, $commentDraft.from, $commentDraft.to, quote, viewerName(), draftBody.trim());
     } else {
       addDocNote($commentDraft.from, $commentDraft.to, quote, draftBody.trim());
     }
@@ -228,12 +249,6 @@
       if (frames++ < 8 && editorContent() === "" && currentDocContext()) requestAnimationFrame(kick);
     };
     queueMicrotask(kick);
-  });
-
-  $effect(() => {
-    const signal = $remoteCommentsChanged;
-    if (signal.n === 0) return;
-    if (signal.docId === get(activeIdStore)) queueMicrotask(() => void loadEntries());
   });
 
   function close() {
@@ -293,8 +308,11 @@
     };
     document.addEventListener("keydown", onKeydown);
 
-    // Re-derive when the active doc's suggestions change.
+    // Re-derive when the active doc's suggestions or comment threads
+    // change (local edit or a remote collaborator's, via collab.ts's
+    // per-binding Y.Map observers).
     window.MDE.onSuggestionsChanged = () => queueMicrotask(() => void loadEntries());
+    window.MDE.onCommentsChanged = () => queueMicrotask(() => void loadEntries());
 
     const cm = window.MDE.getEditor();
     const onScroll = () => scheduleReposition();
@@ -310,6 +328,7 @@
       document.getElementById("commentsBtn")?.removeEventListener("click", toggle);
       document.removeEventListener("keydown", onKeydown);
       window.MDE.onSuggestionsChanged = null;
+      window.MDE.onCommentsChanged = null;
       cm?.scrollDOM.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
@@ -383,7 +402,7 @@
             onWithdraw={() => withdrawOwn(a)}
             onResolve={(r) => toggleResolve(a.id, r)}
             onDelete={() => removeAnnotation(a)}
-            onReply={(body) => submitReply(a.id, body)}
+            onReply={(body) => submitReply(a, body)}
           />
         </div>
       {/each}

@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.0] - 2026-09-10
+
+### Added
+
+- Reply to a suggestion. A tracked-change suggestion now carries its own discussion thread on its card, the same as a comment — talk over the wording with your collaborators right there before it's accepted or rejected.
+
+### Changed
+
+- Comments on a shared document now sync instantly over the same live connection as the document text, instead of each change nudging every other collaborator to refetch. Comment anchors also track edits more precisely, and survive a version restore by re-matching their quoted text.
+
 ## [1.61.2] - 2026-09-10
 
 ### Fixed

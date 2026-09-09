@@ -293,6 +293,10 @@ export interface MDEBridge {
   // per-binding suggestions-map observer whenever the active doc's
   // suggestions change (local edit or remote).
   onSuggestionsChanged?: (() => void) | null;
+  // Set by AnnotationRail.svelte's onMount; called by collab.ts's
+  // per-binding `comments` Y.Map observer whenever the active doc's
+  // comment threads change (local edit or a remote collaborator's).
+  onCommentsChanged?: (() => void) | null;
   // Assigned by Preview.svelte's onMount, same reasoning — Phase C
   // moved the render pipeline there. Callers: app.ts's updateListener,
   // its activeIdStore.subscribe, and its bridge's own setDocImage

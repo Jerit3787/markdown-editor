@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as Y from "yjs";
 import { recordInsertSuggestion, recordDeleteSuggestion, listResolvedSuggestions } from "../../../src/suggestions";
 import { railAnnotationsForShared, railAnnotationsForLocal, underlyingIds } from "../../../client/src/annotations";
-import type { CommentThread } from "../../../client/src/comments";
+import type { ResolvedCommentThread } from "../../../client/src/comments-doc";
 import type { Note } from "../../../client/src/types";
 
 function docWith(text: string): Y.Doc {
@@ -54,31 +54,52 @@ describe("railAnnotationsForShared — suggestions", () => {
     recordInsertSuggestion(doc, 5, 11, "bob");
     expect(railAnnotationsForShared(listResolvedSuggestions(doc), [], CONTENT)).toHaveLength(2);
   });
+
+  it("carries a suggestion's replies onto its RailAnnotation", () => {
+    const doc = docWith(CONTENT);
+    recordInsertSuggestion(doc, 5, 11, "alice");
+    const list = listResolvedSuggestions(doc).map((s) => ({
+      ...s,
+      replies: [{ id: "r", author: "bob", body: "why?", createdAt: 1 }],
+    }));
+    const [a] = railAnnotationsForShared(list, [], CONTENT);
+    expect(a.replies).toEqual([{ id: "r", author: "bob", body: "why?", createdAt: 1 }]);
+  });
 });
 
 describe("railAnnotationsForShared — comments", () => {
-  const thread: CommentThread = {
+  const thread: ResolvedCommentThread = {
     id: "t1",
+    author: "bob",
+    createdAt: 10,
     from: 0,
     to: 5,
     quote: "hello",
-    orphaned: false,
     resolved: false,
-    comments: [
+    replies: [
       { id: "c1", author: "bob", body: "sure?", createdAt: 10 },
       { id: "c2", author: "alice", body: "yes", createdAt: 20 },
     ],
   };
 
-  it("maps a thread's quote, replies, resolved state and relocated anchor", () => {
+  it("maps a pre-resolved comment thread's fields straight through", () => {
     const [a] = railAnnotationsForShared([], [thread], CONTENT);
-    expect(a).toMatchObject({ kind: "comment", author: "bob", quote: "hello", resolved: false, orphaned: false, anchorFrom: 0, anchorTo: 5 });
+    expect(a).toMatchObject({
+      kind: "comment",
+      author: "bob",
+      quote: "hello",
+      resolved: false,
+      orphaned: false,
+      anchorFrom: 0,
+      anchorTo: 5,
+    });
     expect(a.replies).toHaveLength(2);
   });
 
-  it("flags a thread whose quote is gone as orphaned at offset 0", () => {
-    const [a] = railAnnotationsForShared([], [{ ...thread, quote: "nowhere" }], CONTENT);
-    expect(a).toMatchObject({ orphaned: true, anchorFrom: 0, anchorTo: 0 });
+  it("does not call relocateAnchor — from/to are used verbatim", () => {
+    const moved: ResolvedCommentThread = { ...thread, from: 6, to: 11, quote: "world" };
+    const [a] = railAnnotationsForShared([], [moved], CONTENT);
+    expect(a).toMatchObject({ anchorFrom: 6, anchorTo: 11, orphaned: false });
   });
 });
 

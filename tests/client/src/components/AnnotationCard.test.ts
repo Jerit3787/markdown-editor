@@ -70,3 +70,39 @@ test("a comment card shows the quote, replies, and a Resolve toggle", async () =
   await screen.getByRole("button", { name: /resolve/i }).click();
   expect(onResolve).toHaveBeenCalledWith(true);
 });
+
+const suggestionWithThread: RailAnnotation = {
+  ...insertSug,
+  replies: [{ id: "r1", author: "bob", body: "is this needed?", createdAt: 0 }],
+};
+
+test("a focused suggestion card shows its reply thread, the reply input, AND the action row", async () => {
+  const onReply = vi.fn();
+  const screen = await render(AnnotationCard, {
+    annotation: suggestionWithThread,
+    viewer: { role: "editor", name: "carol" },
+    focused: true,
+    onReply,
+  });
+  await expect.element(screen.getByText(/is this needed\?/)).toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: /accept/i })).toBeInTheDocument();
+  const input = screen.getByPlaceholder(/reply/i);
+  await input.fill("yes, it matches the heading");
+  await screen.getByRole("button", { name: /^reply$/i }).click();
+  expect(onReply).toHaveBeenCalledWith("yes, it matches the heading");
+});
+
+test("a collapsed suggestion card with replies shows a count, not the input", async () => {
+  const screen = await render(AnnotationCard, {
+    annotation: suggestionWithThread,
+    viewer: { role: "editor", name: "carol" },
+    focused: false,
+  });
+  await expect.element(screen.getByText(/1 repl/i)).toBeInTheDocument();
+  expect(screen.container.querySelector("input")).toBeNull();
+});
+
+test("a suggestion card with no replies and not focused renders no thread block", async () => {
+  const screen = await render(AnnotationCard, { annotation: insertSug, viewer: { role: "editor", name: "carol" } });
+  expect(screen.container.querySelector(".annotation-card-body")).toBeNull();
+});

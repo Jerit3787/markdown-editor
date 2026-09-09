@@ -113,9 +113,11 @@ Decomposed into **SP-A** (D1 + the visual half of D5 — the annotation
 rail + shared card, **shipped v1.61.0**, spec
 `docs/superpowers/specs/2026-09-09-annotation-rail-design.md`, plan
 `.../plans/2026-09-09-annotation-rail.md`), **SP-B** (D3 + the data-path
-half of D5 — a unified annotation model in the Y.Doc, still pending),
-**SP-C** (D4 — granularity, still pending). D2 shipped standalone in
-v1.60.4.
+half of D5 — comment threads in the doc's Y.Doc + suggestion reply
+threads, **shipped v1.62.0**, spec
+`docs/superpowers/specs/2026-09-10-annotation-model-unification-design.md`,
+plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
+(D4 — granularity, still pending). D2 shipped standalone in v1.60.4.
 
 - **D1** — Inline suggestion rendering looks cramped/broken. Move to a
   Google-Docs-style right-margin card model. **Shipped v1.61.0** (SP-A):
@@ -132,7 +134,10 @@ v1.60.4.
   author's own pending insert suggestions really apply — swallowed
   entries drop, partial ones shrink via their relative positions. No
   spec (small fix). D1 / D3 / D4 / D5 remain the redesign.
-- **D3** — Every edit should be its own message thread.
+- **D3** — Every edit should be its own message thread. **Shipped v1.62.0**
+  (SP-B): a suggestion card carries its own `replies` thread
+  (`SuggestionEntry.replies`, `comments-doc.ts` `addSuggestionReply`),
+  rendered by the same `AnnotationCard` block as a comment thread.
 - **D4** _(needs brainstorm)_ — Granularity. Google Docs splits
   aggressively on whitespace and produces card spam. Anchor a suggestion
   to a line/span rather than per-character, without losing independent
@@ -141,8 +146,11 @@ v1.60.4.
   suggestion actions into the comment-thread UI (Google Docs merges
   suggestion + comment into one card). **Visual half shipped v1.61.0**
   (SP-A): comments and suggestions render through one `AnnotationCard`
-  component. The data-path half (a suggestion card gaining a real reply
-  thread) is SP-B.
+  component. **Data-path half shipped v1.62.0** (SP-B): shared-doc comment
+  threads moved out of `WorkspaceRoom` HTTP storage into a `comments`
+  Y.Map on the doc (live Yjs sync, relative-position anchors), the four
+  `/docs/:id/comments*` endpoints + `MESSAGE_COMMENTS` retired, and
+  suggestion cards gained reply threads (D3).
 - **D6** — mode switcher. **Shipped v1.50.0** (see above).
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
@@ -408,6 +416,16 @@ turn out to matter later.
       falling back to a flat list; letting a divider drag (not just a
       window resize) re-run the card layout; independent accept/reject of
       the two halves of a "Replace" card (that half of D4 is SP-C)
+- [ ] Annotation model unification (v1.62.0 / SP-B) non-goals: merging
+      `comments` and `suggestions` into a single `Y.Map` (kept as two
+      top-level types — the suggestion model is load-bearing); threads on
+      local-doc notes (stay single-body `Note`s); a `Y.Array`-per-thread
+      `replies` list to avoid last-writer-wins clobbering when a reply and
+      a resolve race within one sync window (same semantics `metaMap` /
+      `imagesMap` already live with); deleting the legacy
+      `docStorageKey(_, "comments")` storage key (left as a read-only
+      backstop — a later release can drop it); versioning comments
+      (snapshots stay content-only)
 - [ ] Diagram export: additional formats/options beyond SVG + PNG — JPG/WebP,
       scale factor, padding, transparent-background toggle (explicitly out
       of scope for the export feature shipped in v1.3.0)

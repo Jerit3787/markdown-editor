@@ -43,10 +43,16 @@
     return { doc, isShared: !!ws?.shared, roomId };
   }
 
+  // The editor's current raw text — relocateAnchor / changeText slices
+  // are computed against it. Read fresh right before building the list
+  // (never at the top of loadEntries: on a first run just after a doc
+  // switch the editor can still be empty, which would orphan every
+  // comment).
+  const editorContent = () => window.MDE.getEditor()?.state.doc.toString() ?? "";
+
+  let loadRetries = 0;
   async function loadEntries() {
     const ctx = currentDocContext();
-    const cm = window.MDE.getEditor();
-    const content = cm ? cm.state.doc.toString() : "";
     if (!ctx) {
       annotations = [];
       unresolvedCommentCount.set(0);
@@ -54,16 +60,26 @@
       reposition();
       return;
     }
+    // The editor may still be mounting on the first run after a doc
+    // switch — relocating a comment against an empty document would
+    // orphan it. Retry a few frames before giving up (a genuinely empty
+    // document just falls through).
+    if (editorContent() === "" && loadRetries < 10) {
+      loadRetries++;
+      requestAnimationFrame(() => void loadEntries());
+      return;
+    }
+    loadRetries = 0;
     loading = true;
     if (ctx.isShared) {
       const threads = await listComments(ctx.roomId, ctx.doc.id);
       const suggestions = window.MDE.getResolvedSuggestions?.() ?? [];
-      annotations = railAnnotationsForShared(suggestions, threads, content);
+      annotations = railAnnotationsForShared(suggestions, threads, editorContent());
       unresolvedCommentCount.set(countUnresolvedComments(threads));
     } else {
       await fetchAndMergeRepoHistory(ctx.doc);
       const freshDoc = getActiveDoc(); // re-read: repo history may have updated doc.notes
-      annotations = railAnnotationsForLocal(freshDoc?.notes ?? [], content);
+      annotations = railAnnotationsForLocal(freshDoc?.notes ?? [], editorContent());
       unresolvedCommentCount.set(0);
     }
     loading = false;
@@ -258,8 +274,11 @@
     const cm = window.MDE.getEditor();
     const onScroll = () => reposition();
     cm?.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
-    const ro = new ResizeObserver(() => reposition());
-    if (cm) ro.observe(cm.scrollDOM);
+    // A window resize covers the important editor-pane resize cases
+    // (sidebar/rail open-close reflow, browser resize). Divider drags
+    // don't fire it — a small gap accepted for SP-A rather than run a
+    // ResizeObserver, whose "loop completed" warning trips Vite's dev
+    // overlay in the e2e suite.
     window.addEventListener("resize", onScroll);
 
     return () => {
@@ -267,7 +286,6 @@
       document.removeEventListener("keydown", onKeydown);
       window.MDE.onSuggestionsChanged = null;
       cm?.scrollDOM.removeEventListener("scroll", onScroll);
-      ro.disconnect();
       window.removeEventListener("resize", onScroll);
     };
   });

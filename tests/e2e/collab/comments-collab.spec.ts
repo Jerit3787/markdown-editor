@@ -31,13 +31,13 @@ test("CMT-15: a comment added, resolved and deleted on a shared doc propagates l
   await expect(peer.locator(".cm-comment-marker")).toBeVisible({ timeout: 15000 });
   await expect(peer.locator('text="why quick?"')).toBeVisible({ timeout: 10000 });
 
-  // Owner resolves it → the peer's entry flips its button to "Reopen".
+  // Owner resolves it → the peer's card flips its button to "Reopen".
   await owner.click("#commentsBtn");
-  await owner.locator(".comment-entry", { hasText: "why quick?" }).getByRole("button", { name: "Resolve" }).click();
-  await expect(peer.locator(".comment-entry", { hasText: "why quick?" }).getByRole("button", { name: "Reopen" })).toBeVisible({ timeout: 10000 });
+  await owner.locator(".annotation-card", { hasText: "why quick?" }).getByRole("button", { name: "Resolve" }).click();
+  await expect(peer.locator(".annotation-card", { hasText: "why quick?" }).getByRole("button", { name: "Reopen" })).toBeVisible({ timeout: 10000 });
 
   // Owner deletes it → the peer's highlight disappears live.
-  await owner.locator(".comment-entry", { hasText: "why quick?" }).locator(".comment-delete-btn").click();
+  await owner.locator(".annotation-card", { hasText: "why quick?" }).getByRole("button", { name: "Delete" }).click();
   await expect(peer.locator(".cm-comment-marker")).toHaveCount(0, { timeout: 10000 });
 
   await ownerCtx.close();

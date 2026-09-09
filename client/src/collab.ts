@@ -162,6 +162,14 @@ const workspaceRoom = {
 // this value and bails if it no longer matches after an await.
 let joinGeneration = 0;
 
+// True from the moment a `/w/…` share link is opened until the first
+// applyEditorMode() settles the real mode for it. While set, the editor
+// is held read-only + preview-locked (a pessimistic guess) and
+// teardownWorkspace() keeps that lock through its own churn — so a
+// viewer never sees the editable chrome flash before the Viewing lock
+// lands. Cleared (and the correct lock applied) once the role is known.
+let joiningShareLink = false;
+
 // Documents in the shared workspace whose Y.Text/images changed while
 // they weren't the active document — the active document's content
 // already flows into docsStore through the normal CodeMirror ->
@@ -262,6 +270,14 @@ function init() {
   const shareUrlMatch = location.pathname.match(SHARE_PATH);
   if (shareUrlMatch) {
     history.replaceState(null, "", "/" + location.search + location.hash);
+    // Pessimistically lock before the (async) access fetch + join can
+    // resolve the real role — cleared by applyEditorMode / the denied
+    // branch of joinSharedLink once it's known. Without this the editor
+    // is fully editable for the whole round trip and a viewer sees the
+    // editing chrome flash before Viewing mode takes hold.
+    joiningShareLink = true;
+    window.MDE.setReadOnly(true);
+    lockToPreviewOnly();
     joinSharedLink(shareUrlMatch[1]!, shareUrlMatch[2]!);
   } else {
     handleDocChanged(getActiveDoc());
@@ -298,6 +314,7 @@ export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const localMatch = get(workspacesStore).find((w) => w.remoteId === workspaceId);
   const access = await fetchWorkspaceAccess(workspaceId);
   if (access.deleted) {
+    joiningShareLink = false;
     if (localMatch) handleWorkspaceGone(localMatch.id);
     else workspaceAccessDenied.set("deleted");
     return;
@@ -306,6 +323,9 @@ export async function joinSharedLink(workspaceId: string, landOnDocId: string) {
   const username = window.MDE.githubUsername;
   const role = computeMyRole(access, username);
   if (!role) {
+    // No editing role resolves — stay in the pessimistic preview lock
+    // (applyEditorMode never runs to release it).
+    joiningShareLink = false;
     workspaceAccessDenied.set(username ? "no-access" : "no-session");
     window.MDE.setReadOnly(true);
     lockToPreviewOnly();
@@ -1000,6 +1020,9 @@ function applyEditorMode(binding: DocBinding, mode: Mode): void {
   if (viewing) lockToPreviewOnly();
   else unlockViewMode();
   document.body.classList.toggle("collab-viewing", viewing);
+  // The real mode for this connection is now applied — release the
+  // pessimistic share-link lock (a no-op after the first call).
+  joiningShareLink = false;
 }
 
 async function bindActiveDoc(docId: string): Promise<void> {
@@ -1021,6 +1044,17 @@ async function bindActiveDoc(docId: string): Promise<void> {
   if (joinGeneration !== myGeneration || lastRequestedActiveDocId !== docId) return;
   if (workspaceRoom.docs.get(docId) !== binding) return;
   workspaceRoom.activeDocId = docId;
+
+  // Backfill any images that synced into this binding before it became
+  // the active doc — imagesMap.observe only pushes changes for the
+  // active doc, so a collaborator who lands on (or switches to) a doc
+  // whose images arrived earlier would otherwise see broken `![x](key)`
+  // refs. setDocImage is the same bridge the observer uses; skip keys
+  // already present so a plain re-bind writes nothing.
+  const knownImages = getActiveDoc()?.images ?? {};
+  for (const [key, dataUrl] of binding.imagesMap.entries()) {
+    if (dataUrl && knownImages[key] !== dataUrl) window.MDE.setDocImage(key, dataUrl);
+  }
 
   // yCollab's own sync plugin never reconciles the CodeMirror view against
   // Y.Text when it's attached — it only forwards *future* Y.Text deltas
@@ -1103,8 +1137,13 @@ function teardownWorkspace(): void {
   backgroundSyncDebounce.flush();
   remotePresenceByUsername.clear();
   workspacePresence.set(new Map());
-  window.MDE.setReadOnly(false);
-  unlockViewMode();
+  // While a share link is still resolving its role, this teardown is just
+  // part of the adopt→rejoin churn — hold the pessimistic lock rather
+  // than briefly flipping the editor back to editable mid-flight.
+  if (!joiningShareLink) {
+    window.MDE.setReadOnly(false);
+    unlockViewMode();
+  }
   window.MDE.exitCollabMode();
   if (workspaceRoom.reconnectTimer) {
     clearTimeout(workspaceRoom.reconnectTimer);
@@ -1544,7 +1583,7 @@ async function registerDocWithRoom(workspaceId: string, docId: string): Promise<
   }
 }
 
-type RemoteDocPreview = { id: string; name: string; content: string; updatedAt: number; createdAt: number };
+type RemoteDocPreview = { id: string; name: string; content: string; images?: Record<string, string>; updatedAt: number; createdAt: number };
 
 // Fetches a document's current text via a throwaway sync handshake over a
 // short-lived WebSocket — there's no plain HTTP "get current content"
@@ -1601,7 +1640,12 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
       if (syncType === syncProtocol.messageYjsSyncStep1 && !hasState) return;
       const now = Date.now();
       const name = scratchDoc.getMap<string>("meta").get("name") || "Shared document";
-      finish({ id: docId, name, content: scratchDoc.getText("content").toString(), updatedAt: now, createdAt: now });
+      // Carry the document's managed images too — resolveImageRefs needs
+      // them to render `![x](key)` refs, and a preview-only viewer never
+      // gets the live imagesMap sync that would otherwise supply them.
+      const imgEntries = Array.from(scratchDoc.getMap<string>("images").entries());
+      const images = imgEntries.length ? Object.fromEntries(imgEntries) : undefined;
+      finish({ id: docId, name, content: scratchDoc.getText("content").toString(), images, updatedAt: now, createdAt: now });
     };
     ws.onerror = () => finish(null);
     setTimeout(() => finish(null), 5000);
@@ -1616,6 +1660,17 @@ async function fetchRemoteDocContent(workspaceId: string, docId: string): Promis
 // This file keeps ownership of room/access state and the topbar presence
 // pill (#shareBtn, #presenceBar), which render outside the modal's own DOM
 // subtree, and pushes everything the component needs into stores/share.ts.
+
+// Releases the pessimistic read-only + preview lock a `/w/…` share-link
+// visit applies up front (see `joiningShareLink`) — for the one exit
+// that never reaches applyEditorMode: dismissing the "Join shared
+// workspace" chooser without picking an option. A no-op otherwise.
+export function releaseShareLinkLock(): void {
+  if (!joiningShareLink) return;
+  joiningShareLink = false;
+  window.MDE.setReadOnly(false);
+  unlockViewMode();
+}
 
 // Exported purely for collab.test.ts's regression tests (the
 // join-generation race, and that teardownWorkspace() no longer resets

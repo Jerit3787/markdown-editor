@@ -72,6 +72,14 @@ describe("worker routing", () => {
     expect(((await res.json()) as { connected: boolean }).connected).toBe(false);
   });
 
+  it("rejects a GET /api/auth/github/logout with 405 — POST only (MDE-03 CSRF)", async () => {
+    const { env } = fakeEnv();
+    const get = await worker.fetch(new Request("https://app.example.com/api/auth/github/logout"), env);
+    expect(get.status).toBe(405);
+    const post = await worker.fetch(new Request("https://app.example.com/api/auth/github/logout", { method: "POST" }), env);
+    expect(post.status).not.toBe(405);
+  });
+
   it("passes /privacy and /terms to the asset layer with the request URL unchanged, and sets the strict CSP header", async () => {
     // client/public/{privacy,terms}.html are served at the clean URLs by
     // Cloudflare's html_handling. A worker rewrite to `.html` would be

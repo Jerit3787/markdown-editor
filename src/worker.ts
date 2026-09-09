@@ -124,7 +124,14 @@ export default {
 
     if (url.pathname === "/api/auth/github/login") return handleLogin(request, env);
     if (url.pathname === "/api/auth/github/callback") return handleCallback(request, env);
-    if (url.pathname === "/api/auth/github/logout") return handleLogout(request, env);
+    // POST-only: a GET here is reachable by a cross-site top-level
+    // navigation (SameSite=Lax sends the session cookie), and handleLogout
+    // revokes the GitHub OAuth grant + clears the session — a CSRF logout
+    // (MDE-03). The app only ever calls this with fetch(..., {method:"POST"}).
+    if (url.pathname === "/api/auth/github/logout") {
+      if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+      return handleLogout(request, env);
+    }
     if (url.pathname === "/api/auth/github/me") return handleMe(request, env);
 
     if (url.pathname === "/api/gist" && request.method === "POST") return handleGistCreate(request, env);

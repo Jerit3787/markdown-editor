@@ -9,6 +9,15 @@ import type { AccessRecord } from "../../src/workspace-room";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
 import { getSuggestionsMap, recordInsertSuggestion, listResolvedSuggestions } from "../../src/suggestions";
+import {
+  getCommentsMap,
+  listResolvedCommentThreads,
+  createCommentThread,
+  addCommentReply,
+  resolveCommentThread,
+  deleteCommentThread,
+  addSuggestionReply,
+} from "../../src/comments-doc";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -1636,6 +1645,141 @@ describe("reviewer writes", () => {
     await room.handleMessage(ws, encodeSyncUpdate("doc1", scratchUpdateWith("hello")));
 
     expect(getSuggestionsMap(docRoom.doc).size).toBe(0);
+  });
+});
+
+describe("WorkspaceRoom comments (Y.Doc)", () => {
+  function fakeSession(username: string, role: "viewer" | "reviewer" | "editor") {
+    return { username, role, viewingDocId: null };
+  }
+
+  async function roomWithDoc(text: string, access?: AccessRecord) {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    if (access) {
+      await room.state.storage.put("access", access);
+      (room as any).cachedAccess = await room.getAccess();
+    }
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, text);
+    return { room, ws, docRoom };
+  }
+
+  // Apply a client-authored change to the doc's `comments` map the way a
+  // real WS sync frame would (transaction origin === ws), so the server's
+  // observer runs against it.
+  async function applyFrom(room: WorkspaceRoom, ws: WebSocket, docRoom: any, mutate: (client: Y.Doc) => void) {
+    const client = new Y.Doc();
+    Y.applyUpdate(client, Y.encodeStateAsUpdate(docRoom.doc));
+    const before = Y.encodeStateVector(client);
+    mutate(client);
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", Y.encodeStateAsUpdate(client, before)));
+  }
+
+  it("a reviewer's new thread survives", async () => {
+    const { room, ws, docRoom } = await roomWithDoc("hello world");
+    (room as any).sessions.set(ws, fakeSession("bob", "reviewer"));
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "bob", "q?", 1));
+    expect(listResolvedCommentThreads(docRoom.doc)).toHaveLength(1);
+  });
+
+  it("a thread claiming a different author is reverted (deleted)", async () => {
+    const { room, ws, docRoom } = await roomWithDoc("hello world");
+    (room as any).sessions.set(ws, fakeSession("bob", "reviewer"));
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "eve", "q?", 1));
+    expect(listResolvedCommentThreads(docRoom.doc)).toHaveLength(0);
+  });
+
+  it("a reply appended under someone else's name is reverted to the prior state", async () => {
+    const { room, ws, docRoom } = await roomWithDoc("hello world");
+    (room as any).sessions.set(ws, fakeSession("bob", "reviewer"));
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "bob", "q?", 1));
+    const tid = listResolvedCommentThreads(docRoom.doc)[0]!.id;
+    await applyFrom(room, ws, docRoom, (c) => addCommentReply(c, tid, "eve", "hi", 2));
+    expect(listResolvedCommentThreads(docRoom.doc)[0]!.replies).toHaveLength(1);
+  });
+
+  it("a self-authored reply append is kept", async () => {
+    const { room, ws, docRoom } = await roomWithDoc("hello world");
+    (room as any).sessions.set(ws, fakeSession("bob", "reviewer"));
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "bob", "q?", 1));
+    const tid = listResolvedCommentThreads(docRoom.doc)[0]!.id;
+    await applyFrom(room, ws, docRoom, (c) => addCommentReply(c, tid, "bob", "and more", 2));
+    expect(listResolvedCommentThreads(docRoom.doc)[0]!.replies.map((r) => r.body)).toEqual(["q?", "and more"]);
+  });
+
+  it("a resolve toggle from any non-viewer is kept", async () => {
+    const { room, ws, docRoom } = await roomWithDoc("hello world");
+    (room as any).sessions.set(ws, fakeSession("bob", "reviewer"));
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "bob", "q?", 1));
+    const tid = listResolvedCommentThreads(docRoom.doc)[0]!.id;
+    (room as any).sessions.set(ws, fakeSession("carol", "editor"));
+    await applyFrom(room, ws, docRoom, (c) => resolveCommentThread(c, tid, true));
+    expect(listResolvedCommentThreads(docRoom.doc)[0]!.resolved).toBe(true);
+  });
+
+  it("deleting a thread the session neither started nor owns is reverted", async () => {
+    const access: AccessRecord = {
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [
+        { username: "bob", role: "reviewer" },
+        { username: "carol", role: "editor" },
+      ],
+    };
+    const { room, ws, docRoom } = await roomWithDoc("hello world", access);
+    (room as any).sessions.set(ws, fakeSession("carol", "editor"));
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "carol", "q?", 1));
+    const tid = listResolvedCommentThreads(docRoom.doc)[0]!.id;
+    (room as any).sessions.set(ws, fakeSession("bob", "reviewer"));
+    await applyFrom(room, ws, docRoom, (c) => deleteCommentThread(c, tid));
+    expect(listResolvedCommentThreads(docRoom.doc)).toHaveLength(1);
+  });
+
+  it("the workspace owner can delete any thread", async () => {
+    const access: AccessRecord = {
+      owner: "alice",
+      generalAccess: "restricted",
+      requireAccount: false,
+      role: "viewer",
+      invited: [{ username: "carol", role: "editor" }],
+    };
+    const { room, ws, docRoom } = await roomWithDoc("hello world", access);
+    (room as any).sessions.set(ws, fakeSession("carol", "editor"));
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "carol", "q?", 1));
+    const tid = listResolvedCommentThreads(docRoom.doc)[0]!.id;
+    (room as any).sessions.set(ws, fakeSession("alice", "editor"));
+    await applyFrom(room, ws, docRoom, (c) => deleteCommentThread(c, tid));
+    expect(listResolvedCommentThreads(docRoom.doc)).toHaveLength(0);
+  });
+
+  it("a viewer's comment write never applies (isWrite gate)", async () => {
+    const { room, ws, docRoom } = await roomWithDoc("hello world");
+    (room as any).sessions.set(ws, fakeSession("carol", "viewer"));
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "carol", "q?", 1));
+    expect(listResolvedCommentThreads(docRoom.doc)).toHaveLength(0);
+  });
+
+  it("D3: a foreign-authored reply appended to a suggestion is reverted", async () => {
+    const { room, ws, docRoom } = await roomWithDoc("hello world");
+    (room as any).sessions.set(ws, fakeSession("bob", "reviewer"));
+    recordInsertSuggestion(docRoom.doc, 0, 5, "bob");
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    await applyFrom(room, ws, docRoom, (c) => addSuggestionReply(c, sid, "eve", "not yours", 5));
+    const entry = getSuggestionsMap(docRoom.doc).get(sid) as { replies?: unknown[] };
+    expect(entry.replies ?? []).toHaveLength(0);
+  });
+
+  it("D3: a self-authored reply on a suggestion is kept", async () => {
+    const { room, ws, docRoom } = await roomWithDoc("hello world");
+    (room as any).sessions.set(ws, fakeSession("bob", "reviewer"));
+    recordInsertSuggestion(docRoom.doc, 0, 5, "bob");
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    await applyFrom(room, ws, docRoom, (c) => addSuggestionReply(c, sid, "bob", "mine", 5));
+    const entry = getSuggestionsMap(docRoom.doc).get(sid) as { replies?: { body: string }[] };
+    expect((entry.replies ?? []).map((r) => r.body)).toEqual(["mine"]);
   });
 });
 

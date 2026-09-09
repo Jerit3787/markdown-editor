@@ -9,7 +9,9 @@ import { redactAccessForOutsider } from "./access-visibility";
 import { rewriteWikilinkReferences } from "./wikilink-rewrite";
 import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
 import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion } from "./suggestions";
-import type { ResolvedSuggestion } from "./suggestions";
+import type { ResolvedSuggestion, SuggestionEntry } from "./suggestions";
+import { getCommentsMap, seedCommentThreadsIntoDoc, type CommentThreadEntry } from "./comments-doc";
+import { isValidNewThread, isAllowedThreadTransition } from "./comment-integrity";
 import type { Env } from "./env";
 import { resolveRole } from "./access-role";
 import { verifyTurnstileToken, mintJoinTicket, verifyJoinTicket } from "./turnstile.js";
@@ -160,6 +162,11 @@ export class WorkspaceRoom {
   name: string;
   deleted: boolean;
   repoLinked: boolean;
+  // The access record, cached so the synchronous `comments` Y.Map
+  // observer can read `owner` for a delete check without an async
+  // storage hit. Populated in the constructor and refreshed wherever
+  // "access" is written.
+  cachedAccess: AccessRecord | null;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -170,6 +177,7 @@ export class WorkspaceRoom {
     this.name = "";
     this.deleted = false;
     this.repoLinked = false;
+    this.cachedAccess = null;
 
     this.state.blockConcurrencyWhile(async () => {
       const storedDocIds = await this.state.storage.get<string[]>("docs");
@@ -180,6 +188,7 @@ export class WorkspaceRoom {
       this.name = (await this.state.storage.get<string>("name")) || "";
       this.deleted = (await this.state.storage.get<boolean>("deleted")) === true;
       this.repoLinked = (await this.state.storage.get<boolean>("repoLinked")) === true;
+      this.cachedAccess = await this.getAccess();
     });
   }
 
@@ -247,7 +256,36 @@ export class WorkspaceRoom {
     // already performs for a single, non-racing contiguous extend, just
     // applied after the fact to entries that arrived as separate writes.
     const suggestionsMap = getSuggestionsMap(doc);
-    suggestionsMap.observe(() => {
+    suggestionsMap.observe((event, transaction) => {
+      // D3 — a suggestion's `replies` thread is additive metadata the
+      // merge logic below never touches. An appended reply must be
+      // authored by the writing session; any other `replies` change (an
+      // edited entry, a wholesale swap, a foreign author) is reverted.
+      if (transaction.origin !== "suggestion") {
+        const session = this.sessions.get(transaction.origin as WebSocket);
+        if (session && session.role !== "viewer") {
+          const actor = session.username ?? "Anonymous";
+          const replyReverts: Array<() => void> = [];
+          event.changes.keys.forEach((change, key) => {
+            if (change.action !== "update") return;
+            const now = suggestionsMap.get(key);
+            const old = change.oldValue as SuggestionEntry;
+            const oldReplies = old.replies ?? [];
+            const newReplies = now?.replies ?? [];
+            const prefixMatches = (n: number) => oldReplies.slice(0, n).every((r, i) => r.author === newReplies[i]?.author && r.body === newReplies[i]?.body);
+            const unchanged = newReplies.length === oldReplies.length && prefixMatches(oldReplies.length);
+            const appendedBySelf =
+              newReplies.length === oldReplies.length + 1 &&
+              prefixMatches(oldReplies.length) &&
+              newReplies[newReplies.length - 1]?.author === actor;
+            if (!unchanged && !appendedBySelf) {
+              replyReverts.push(() => suggestionsMap.set(key, old));
+            }
+          });
+          if (replyReverts.length) doc.transact(() => replyReverts.forEach((r) => r()), "suggestion");
+        }
+      }
+
       const byAuthorKind = new Map<string, ResolvedSuggestion[]>();
       for (const s of listResolvedSuggestions(doc)) {
         const key = `${s.kind}|${s.author}`;
@@ -284,6 +322,33 @@ export class WorkspaceRoom {
           else recordDeleteSuggestion(doc, c.from, c.to, c.author);
         }
       }, "suggestion");
+    });
+    // SP-B — comment threads live in a `comments` Y.Map on this doc and
+    // ride the same sync/persistence path as ytext and suggestions. This
+    // observer is the server-side equivalent of the role/ownership checks
+    // the retired HTTP comment endpoints ran: validate every client
+    // write and revert (in a "comment-reconcile" transaction the observer
+    // itself ignores) anything that breaks the rules.
+    const commentsMap = getCommentsMap(doc);
+    commentsMap.observe((event, transaction) => {
+      if (transaction.origin === "comment-reconcile" || transaction.origin === "comment-migrate") return;
+      const session = this.sessions.get(transaction.origin as WebSocket);
+      if (!session || session.role === "viewer") return; // isWrite already drops a viewer's write; defensive
+      const actor = session.username ?? "Anonymous";
+      const owner = this.cachedAccess?.owner ?? null;
+      const reverts: Array<() => void> = [];
+      event.changes.keys.forEach((change, key) => {
+        if (change.action === "add") {
+          if (!isValidNewThread(commentsMap.get(key), actor)) reverts.push(() => commentsMap.delete(key));
+        } else if (change.action === "update") {
+          const old = change.oldValue as CommentThreadEntry;
+          if (!isAllowedThreadTransition(old, commentsMap.get(key), actor)) reverts.push(() => commentsMap.set(key, old));
+        } else if (change.action === "delete") {
+          const old = change.oldValue as CommentThreadEntry;
+          if (actor !== old.author && actor !== owner) reverts.push(() => commentsMap.set(key, old));
+        }
+      });
+      if (reverts.length) doc.transact(() => reverts.forEach((r) => r()), "comment-reconcile");
     });
     awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
       this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin),
@@ -503,6 +568,7 @@ export class WorkspaceRoom {
         invited: Array.isArray(body.invited) ? normalizeInvited(body.invited) : access.invited,
       };
       await this.state.storage.put("access", next);
+      this.cachedAccess = next;
       this.broadcastAccessChanged();
       return Response.json(next);
     }
@@ -544,6 +610,7 @@ export class WorkspaceRoom {
       const invited = access.invited.filter((p) => p.username !== username);
       invited.push({ username, role });
       await this.state.storage.put("access", { ...access, invited });
+      this.cachedAccess = await this.getAccess();
     }
     this.broadcastAccessChanged();
     return Response.json({ ok: true });
@@ -1252,7 +1319,10 @@ export class WorkspaceRoom {
     const docId = body.docId;
     const docName = typeof body.docName === "string" ? body.docName.trim() : "";
 
-    if (body.access) await this.state.storage.put("access", body.access);
+    if (body.access) {
+      await this.state.storage.put("access", body.access);
+      this.cachedAccess = await this.getAccess();
+    }
 
     // A legacy /d/ migration: name the fresh workspace after its one
     // document (the CollabRoom had no workspace concept), so joiners don't

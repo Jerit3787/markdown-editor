@@ -63,7 +63,7 @@ import { workspaceRepoLinked } from "./stores/repoSync";
 import { shareChoice } from "./stores/shareChoice";
 import { EMPTY_CITATIONS } from "./mmd-citations";
 import { suggestionExtensions } from "./suggestion-editor";
-import { getSuggestionsMap } from "./suggestions";
+import { getSuggestionsMap, listResolvedSuggestions } from "./suggestions";
 import { pendingSuggestionCount } from "./stores/suggestions";
 import { remoteCommentsChanged } from "./stores/commentsPanel";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
@@ -125,6 +125,9 @@ interface DocBinding {
   // whenSynced before attaching yCollab: see markDocSynced for why.
   synced: boolean;
   whenSynced: Promise<void>;
+  // Set once the suggestions-map observer that feeds
+  // window.MDE.onSuggestionsChanged has been attached for this binding.
+  suggestionsObserved?: boolean;
 }
 
 const workspaceRoom = {
@@ -152,6 +155,12 @@ const workspaceRoom = {
   reconnectTimer: null as ReturnType<typeof setTimeout> | null,
   reconnectDelay: 1000,
 };
+
+// The binding for the document CodeMirror is currently showing within the
+// active shared workspace, or undefined when no shared doc is active.
+function activeBinding(): DocBinding | undefined {
+  return workspaceRoom.activeDocId ? workspaceRoom.docs.get(workspaceRoom.activeDocId) : undefined;
+}
 
 // Bumped by every teardownWorkspace() call. rejoinKnownWorkspace/joinWorkspace
 // are async and fire-and-forget from handleDocChanged, so rapidly switching
@@ -240,6 +249,13 @@ function init() {
     const binding = workspaceRoom.activeDocId ? workspaceRoom.docs.get(workspaceRoom.activeDocId) : undefined;
     if (binding) binding.ydoc.transact(() => binding.imagesMap.set(key, dataUrl), "local");
   };
+  // The annotation rail reads the active shared doc's suggestions + Y.Doc
+  // through these rather than importing collab.ts (circular dep).
+  window.MDE.getResolvedSuggestions = () => {
+    const binding = activeBinding();
+    return binding ? listResolvedSuggestions(binding.ydoc) : [];
+  };
+  window.MDE.getActiveYDoc = () => activeBinding()?.ydoc ?? null;
   window.MDE.onDocMetadataChanged = (docId, metadata) => {
     const binding = workspaceRoom.docs.get(docId);
     if (binding) binding.ydoc.transact(() => binding.metaMap.set("metadata", JSON.stringify(metadata)), "local");
@@ -1014,6 +1030,13 @@ function applyEditorMode(binding: DocBinding, mode: Mode): void {
     // chose Suggesting.
     const viewerRole = mode === "suggesting" ? "reviewer" : "editor";
     extensions.push(...suggestionExtensions(binding.ydoc, identity.name, { viewerRole, viewerName: identity.name }));
+  }
+  // One observer per binding: tell the annotation rail whenever this
+  // doc's suggestions change (a local edit, or a remote accept/reject/
+  // add). The rail re-derives from window.MDE.getResolvedSuggestions().
+  if (!binding.suggestionsObserved) {
+    binding.suggestionsObserved = true;
+    getSuggestionsMap(binding.ydoc).observe(() => window.MDE.onSuggestionsChanged?.());
   }
   window.MDE.enterCollabMode(extensions, undoManager);
   window.MDE.setReadOnly(viewing);

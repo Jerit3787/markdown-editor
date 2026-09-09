@@ -278,8 +278,21 @@ export interface MDEBridge {
   // only caller.
   insertImageWithUpload?(file: File, pos?: number, onError?: (message: string) => void): void;
   // Assigned by Editor.svelte's onMount, same reasoning — Phase B moved
-  // commentMarkerField there. CommentsPanel.svelte is the only caller.
+  // commentMarkerField there. AnnotationRail.svelte is the only caller.
   setCommentMarkers?(entries: { id: string; from: number; to: number }[]): void;
+  // Assigned by collab.ts's init(). The active shared document's live
+  // suggestions (resolved to absolute offsets), or [] when the active
+  // doc isn't a shared one. AnnotationRail.svelte reads these without
+  // importing collab.ts (the circular dep window.MDE exists to prevent).
+  getResolvedSuggestions?(): import("./suggestions").ResolvedSuggestion[];
+  // Assigned by collab.ts's init(). The active shared document's Y.Doc,
+  // or null. AnnotationRail.svelte needs it to call resolveSuggestion /
+  // withdrawSuggestion from a card's action buttons.
+  getActiveYDoc?(): import("yjs").Doc | null;
+  // Set by AnnotationRail.svelte's onMount; called by collab.ts's
+  // per-binding suggestions-map observer whenever the active doc's
+  // suggestions change (local edit or remote).
+  onSuggestionsChanged?: (() => void) | null;
   // Assigned by Preview.svelte's onMount, same reasoning — Phase C
   // moved the render pipeline there. Callers: app.ts's updateListener,
   // its activeIdStore.subscribe, and its bridge's own setDocImage

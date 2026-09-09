@@ -26,6 +26,9 @@ describe("worker routing", () => {
     const res = await worker.fetch(new Request("https://app.example.com/some/client/route"), env);
     expect(assetsFetch).toHaveBeenCalledTimes(1);
     expect(res.headers.get("Content-Type")).toContain("text/html");
+    // the HTML response now carries the per-request nonce CSP header
+    expect(res.headers.get("Content-Security-Policy")).toMatch(/script-src [^;]*'nonce-/);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
   });
 
   it("falls through to the SPA handler for an unknown /api/* path (there is no hard 404 here)", async () => {
@@ -69,17 +72,20 @@ describe("worker routing", () => {
     expect(((await res.json()) as { connected: boolean }).connected).toBe(false);
   });
 
-  it("passes /privacy and /terms straight through to the asset layer (no worker rewrite)", async () => {
+  it("passes /privacy and /terms to the asset layer with the request URL unchanged, and sets the strict CSP header", async () => {
     // client/public/{privacy,terms}.html are served at the clean URLs by
     // Cloudflare's html_handling. A worker rewrite to `.html` would be
-    // 307'd back and loop — so the worker must NOT touch these, just fall
-    // through with the original request unchanged.
+    // 307'd back and loop — so the worker must forward the ORIGINAL
+    // request unchanged. It does add the per-request nonce CSP header to
+    // the HTML response on the way back (the strict `default-src 'none'`
+    // variant for these two pages).
     for (const path of ["/privacy", "/terms"]) {
       const { env, assetsFetch, doFetch } = fakeEnv();
-      await worker.fetch(new Request(`https://app.example.com${path}`), env);
+      const res = await worker.fetch(new Request(`https://app.example.com${path}`), env);
       expect(doFetch).not.toHaveBeenCalled();
       expect(assetsFetch).toHaveBeenCalledTimes(1);
       expect(((assetsFetch.mock.calls[0] as unknown[])[0] as Request).url).toBe(`https://app.example.com${path}`);
+      expect(res.headers.get("Content-Security-Policy")).toMatch(/^default-src 'none'; script-src 'nonce-/);
     }
   });
 });

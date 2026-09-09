@@ -32,6 +32,24 @@ if (typeof localStorage === "undefined") {
   (globalThis as any).localStorage = new MockLocalStorage();
 }
 
+// worker.ts's HTML-response path constructs a `new HTMLRewriter()` (a
+// Cloudflare Workers runtime global) to strip the <meta> CSP and stamp a
+// nonce on each <script>. The Node/jsdom unit env has no such global —
+// this pass-through stand-in lets worker.ts's fetch() run past that call
+// in routing tests. The real element rewriting is exercised by the
+// collab e2e suite (tests/e2e/collab/csp-built.spec.ts) against wrangler.
+if (typeof (globalThis as any).HTMLRewriter === "undefined") {
+  class MockHTMLRewriter {
+    on(): this {
+      return this;
+    }
+    transform<T>(response: T): T {
+      return response;
+    }
+  }
+  (globalThis as any).HTMLRewriter = MockHTMLRewriter;
+}
+
 // stores/view.ts sets #body's className as a module-load side effect
 // (mirrors the old app.ts initViewToggle) — any test file that statically
 // imports it, directly or transitively (e.g. via collab.ts), crashes on

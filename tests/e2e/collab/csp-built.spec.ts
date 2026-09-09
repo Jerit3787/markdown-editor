@@ -51,21 +51,26 @@ test("the built app is served with a per-request CSP nonce header and no <meta> 
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
 
-  const res = await page.goto("http://localhost:8787/");
-  const csp = res!.headers()["content-security-policy"] ?? "";
+  // Fetch the raw HTML: browsers blank the `nonce` content attribute in
+  // the parsed DOM (moving it to the .nonce IDL property), so the served
+  // bytes are the only place to see what the Worker stamped.
+  const res = await page.request.get("http://localhost:8787/");
+  const csp = res.headers()["content-security-policy"] ?? "";
+  const body = await res.text();
   expect(csp).toContain("default-src 'self'");
   expect(csp).toContain("frame-src https://challenges.cloudflare.com");
   expect(csp).toMatch(/script-src [^;]*'nonce-/);
-  expect(res!.headers()["cache-control"]).toBe("no-store");
+  expect(res.headers()["cache-control"]).toBe("no-store");
 
   // the static <meta> CSP is stripped in production
-  expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').count()).toBe(0);
+  expect(body).not.toContain('http-equiv="Content-Security-Policy"');
 
-  // the header nonce is the one stamped on the <script> tags
+  // the header nonce is the one stamped on every <script> tag
   const headerNonce = csp.match(/'nonce-([^']+)'/)?.[1];
   expect(headerNonce).toBeTruthy();
-  const scriptNonce = await page.locator("script[nonce]").first().getAttribute("nonce");
-  expect(scriptNonce).toBe(headerNonce);
+  const scriptTags = body.match(/<script[^>]*>/g) ?? [];
+  expect(scriptTags.length).toBeGreaterThan(0);
+  for (const tag of scriptTags) expect(tag).toContain(`nonce="${headerNonce}"`);
 
   // a second request gets a different nonce
   const res2 = await page.request.get("http://localhost:8787/");
@@ -73,11 +78,11 @@ test("the built app is served with a per-request CSP nonce header and no <meta> 
   expect(csp2.match(/'nonce-([^']+)'/)?.[1]).not.toBe(headerNonce);
 
   // /privacy gets the strict variant, also nonce-based, also no <meta>
-  const legal = await page.goto("http://localhost:8787/privacy");
-  const legalCspHeader = legal!.headers()["content-security-policy"] ?? "";
+  const legal = await page.request.get("http://localhost:8787/privacy");
+  const legalCspHeader = legal.headers()["content-security-policy"] ?? "";
   expect(legalCspHeader.startsWith("default-src 'none'")).toBe(true);
   expect(legalCspHeader).toMatch(/script-src 'nonce-/);
-  expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').count()).toBe(0);
+  expect(await legal.text()).not.toContain('http-equiv="Content-Security-Policy"');
 
   await ctx.close();
 });

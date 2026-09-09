@@ -10,6 +10,7 @@ import { rewriteWikilinkReferences } from "./wikilink-rewrite";
 import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
 import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion } from "./suggestions";
 import type { ResolvedSuggestion, SuggestionEntry } from "./suggestions";
+import { removeRanges, reviewerTextRepairs } from "./reviewer-integrity";
 import { getCommentsMap, seedCommentThreadsIntoDoc, type CommentThreadEntry } from "./comments-doc";
 import { isValidNewThread, isAllowedThreadTransition } from "./comment-integrity";
 import type { Env } from "./env";
@@ -869,6 +870,11 @@ export class WorkspaceRoom {
       const isNewDoc = !this.docIds.includes(docId);
 
       await this.withDocRoom(docId, (docRoom) => {
+        // A reviewer's write is allowed to apply (they must be able to
+        // type suggestions), but the server then enforces that they only
+        // *proposed* changes — see enforceReviewerConstraints (MDE-05/06).
+        const reviewerPre = session?.role === "reviewer" ? this.captureReviewerPreState(docRoom.doc, session.username ?? "Anonymous") : null;
+
         const encoder = encoding.createEncoder();
         encoding.writeVarUint(encoder, MESSAGE_SYNC);
         encoding.writeVarString(encoder, docId);
@@ -880,6 +886,8 @@ export class WorkspaceRoom {
         const baseLength = encoding.length(encoder);
         syncProtocol.readSyncMessage(decoder, encoder, docRoom.doc, ws);
         if (encoding.length(encoder) > baseLength) ws.send(encoding.toUint8Array(encoder));
+
+        if (reviewerPre) this.enforceReviewerConstraints(docRoom.doc, reviewerPre);
 
         // Step1 only pulls the RECIPIENT's content down to the sender —
         // it never pushes the sender's own content anywhere. CollabRoom's
@@ -919,6 +927,42 @@ export class WorkspaceRoom {
   async withDocRoom(docId: string, fn: (docRoom: DocRoom) => void): Promise<void> {
     const docRoom = await this.loadDocRoom(docId);
     fn(docRoom);
+  }
+
+  // Snapshot the state a reviewer's incoming sync frame will be validated
+  // against — the document text, the reviewer's own pending insert
+  // suggestion ranges (the only text they may delete), and a copy of the
+  // suggestions map (to detect a deleted/mutated entry).
+  private captureReviewerPreState(doc: Y.Doc, username: string) {
+    const ownInsertRanges: Array<[number, number]> = [];
+    const ownInsertEntryRanges = new Map<string, [number, number]>();
+    for (const s of listResolvedSuggestions(doc)) {
+      if (s.kind === "insert" && s.author === username) {
+        ownInsertRanges.push([s.from, s.to]);
+        ownInsertEntryRanges.set(s.id, [s.from, s.to]);
+      }
+    }
+    return {
+      username,
+      text: doc.getText("content").toString(),
+      ownInsertRanges,
+      ownInsertEntryRanges,
+      entriesById: new Map<string, SuggestionEntry>(getSuggestionsMap(doc).entries()),
+    };
+  }
+
+  // Runs right after a reviewer's sync update applied. Re-inserts any
+  // ytext run the reviewer deleted that wasn't inside their own pending
+  // insert suggestion(s), in a "suggestion"-origin transaction the
+  // observers skip. (Task 3 extends this with the suggestions-map checks.)
+  private enforceReviewerConstraints(doc: Y.Doc, pre: ReturnType<WorkspaceRoom["captureReviewerPreState"]>): void {
+    const ytext = doc.getText("content");
+    const committedBefore = removeRanges(pre.text, pre.ownInsertRanges);
+    const repairs = reviewerTextRepairs(committedBefore, ytext.toString());
+    if (repairs.length === 0) return;
+    doc.transact(() => {
+      for (const r of [...repairs].sort((a, b) => b.at - a.at)) ytext.insert(r.at, r.text);
+    }, "suggestion");
   }
 
   broadcastPresence(exceptWs: WebSocket, session: SessionInfo | undefined): void {

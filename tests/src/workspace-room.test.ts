@@ -1593,6 +1593,77 @@ describe("reviewer writes", () => {
 
     expect(getSuggestionsMap(docRoom.doc).size).toBe(0);
   });
+
+  // Sync a client Y.Doc to the room, mutate it, send the diff as `ws`.
+  async function reviewerApply(room: WorkspaceRoom, ws: WebSocket, mutate: (client: Y.Doc) => void) {
+    const docRoom = await room.loadDocRoom("doc1");
+    const client = new Y.Doc();
+    Y.applyUpdate(client, Y.encodeStateAsUpdate(docRoom.doc));
+    const before = Y.encodeStateVector(client);
+    mutate(client);
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", Y.encodeStateAsUpdate(client, before)));
+    return docRoom;
+  }
+
+  it("reverts a reviewer's raw deletion of committed text (MDE-05)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "the quick brown fox");
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    await reviewerApply(room, ws, (c) => c.getText("content").delete(4, 12)); // "quick brown "
+
+    expect(docRoom.doc.getText("content").toString()).toBe("the quick brown fox");
+    expect(getSuggestionsMap(docRoom.doc).size).toBe(0);
+  });
+
+  it("allows a reviewer to delete inside their own pending insert (D2)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "start end");
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    await reviewerApply(room, ws, (c) => c.getText("content").insert(5, " MIDDLE"));
+    await reviewerApply(room, ws, (c) => c.getText("content").delete(9, 3)); // "DLE" of " MIDDLE"
+
+    expect(docRoom.doc.getText("content").toString()).toBe("start MID end");
+  });
+
+  it("allows a reviewer to withdraw their own pending insert (delete text + entry in one txn)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "start end");
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    await reviewerApply(room, ws, (c) => c.getText("content").insert(5, " NEW"));
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+
+    await reviewerApply(room, ws, (c) => {
+      const s = listResolvedSuggestions(c).find((x) => x.id === sid)!;
+      c.transact(() => {
+        c.getText("content").delete(s.from, s.to - s.from);
+        getSuggestionsMap(c).delete(sid);
+      });
+    });
+
+    expect(docRoom.doc.getText("content").toString()).toBe("start end");
+    expect(getSuggestionsMap(docRoom.doc).size).toBe(0);
+  });
+
+  it("an editor's raw deletion is untouched by the reviewer guard", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "the quick brown fox");
+    (room as any).sessions.set(ws, fakeSession("editor"));
+
+    await reviewerApply(room, ws, (c) => c.getText("content").delete(4, 12));
+
+    expect(docRoom.doc.getText("content").toString()).toBe("the fox");
+  });
 });
 
 describe("WorkspaceRoom comments (Y.Doc)", () => {

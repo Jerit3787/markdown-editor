@@ -1,16 +1,8 @@
 import * as Y from "yjs";
 import { EditorState, StateField, type Extension, type TransactionSpec } from "@codemirror/state";
-import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from "@codemirror/view";
+import { Decoration, EditorView, ViewPlugin, type DecorationSet } from "@codemirror/view";
 import { ySyncAnnotation } from "y-codemirror.next";
-import {
-  listResolvedSuggestions,
-  recordInsertSuggestion,
-  recordDeleteSuggestion,
-  resolveSuggestion,
-  withdrawSuggestion,
-  getSuggestionsMap,
-  type ResolvedSuggestion,
-} from "./suggestions";
+import { listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion, getSuggestionsMap } from "./suggestions";
 
 // Per-range so each mark's DOM node carries its suggestion's id — the
 // annotation rail's hover link (activeAnnotationIds) reads it off the
@@ -18,72 +10,20 @@ import {
 const insertMark = (id: string) => Decoration.mark({ class: "cm-suggestion-insert", attributes: { "data-annotation-id": id } });
 const deleteMark = (id: string) => Decoration.mark({ class: "cm-suggestion-delete", attributes: { "data-annotation-id": id } });
 
-class SuggestionWidget extends WidgetType {
-  constructor(
-    private doc: Y.Doc,
-    private suggestion: ResolvedSuggestion,
-    private viewer: { viewerRole: string; viewerName: string },
-  ) {
-    super();
-  }
-
-  eq(other: SuggestionWidget): boolean {
-    return other.suggestion.id === this.suggestion.id;
-  }
-
-  toDOM(): HTMLElement {
-    const el = document.createElement("span");
-    el.className = "cm-suggestion-card";
-    const label = document.createElement("span");
-    label.className = "cm-suggestion-author";
-    label.textContent = `${this.suggestion.author} suggested ${this.suggestion.kind === "insert" ? "adding" : "removing"} this`;
-    el.appendChild(label);
-
-    const isOwnSuggestion = this.viewer.viewerName === this.suggestion.author;
-    const isEditor = this.viewer.viewerRole === "editor";
-
-    if (isEditor) {
-      el.appendChild(this.actionButton("accept", "✓", () => resolveSuggestion(this.doc, this.suggestion.id, "accept")));
-      el.appendChild(this.actionButton("reject", "✗", () => resolveSuggestion(this.doc, this.suggestion.id, "reject")));
-    } else if (isOwnSuggestion) {
-      el.appendChild(this.actionButton("withdraw", "Withdraw", () => withdrawSuggestion(this.doc, this.suggestion.id)));
-    }
-    return el;
-  }
-
-  private actionButton(action: string, label: string, onClick: () => void): HTMLButtonElement {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.dataset.action = action;
-    btn.className = "cm-suggestion-action";
-    btn.textContent = label;
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      onClick();
-    });
-    return btn;
-  }
-}
-
-export function suggestionWidgetFor(doc: Y.Doc, suggestion: ResolvedSuggestion, viewer: { viewerRole: string; viewerName: string }): SuggestionWidget {
-  return new SuggestionWidget(doc, suggestion, viewer);
-}
-
-// Pure: derives the full decoration set from the Y.Doc's current
-// suggestions, plus an inline widget at the end of each range carrying
-// the accept/reject/withdraw actions appropriate to who's looking.
-// Wrapped in a live-updating StateField (suggestionExtensions below) —
-// kept separate here so this core mapping logic is testable without a
-// live EditorView.
-export function suggestionDecorations(state: EditorState, doc: Y.Doc, viewer: { viewerRole: string; viewerName: string }): DecorationSet {
+// Pure: derives the decoration set from the Y.Doc's current suggestions —
+// one underline/strike mark per pending range, tagged with its id.
+// Accept/reject/withdraw live on the range's card in the annotation rail
+// (AnnotationRail.svelte), not inline any more. `viewer` is unused here
+// now but kept in the signature — suggestionExtensions still gates edit
+// interception on it. Wrapped in a live-updating StateField
+// (suggestionExtensions below); kept separate so this mapping is testable
+// without a live EditorView.
+export function suggestionDecorations(state: EditorState, doc: Y.Doc, _viewer: { viewerRole: string; viewerName: string }): DecorationSet {
   const list = listResolvedSuggestions(doc); // already sorted by `from`
   const ranges = list
     .filter((s) => s.to > s.from && s.to <= state.doc.length)
-    .flatMap((s) => [
-      (s.kind === "insert" ? insertMark(s.id) : deleteMark(s.id)).range(s.from, s.to),
-      Decoration.widget({ widget: suggestionWidgetFor(doc, s, viewer), side: 1 }).range(s.to),
-    ]);
-  return Decoration.set(ranges, true); // `true`: sort for us — mark + widget ranges interleaved aren't guaranteed pre-sorted
+    .map((s) => (s.kind === "insert" ? insertMark(s.id) : deleteMark(s.id)).range(s.from, s.to));
+  return Decoration.set(ranges, true);
 }
 
 // True when [from, to) lies entirely inside one contiguous run of this

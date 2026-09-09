@@ -22,7 +22,7 @@ import WhatsNew from "./components/WhatsNew.svelte";
 import CommandPalette from "./components/CommandPalette.svelte";
 import SlashMenu from "./components/SlashMenu.svelte";
 import VersionHistory from "./components/VersionHistory.svelte";
-import CommentsPanel from "./components/CommentsPanel.svelte";
+import AnnotationRail from "./components/AnnotationRail.svelte";
 import DocList from "./components/DocList.svelte";
 import WorkspaceSwitcher from "./components/WorkspaceSwitcher.svelte";
 import Toast from "./components/Toast.svelte";
@@ -128,5 +128,5 @@ mount(Preview, { target: document.getElementById("preview-mount")! });
 // like every other window.MDE consumer above) — it must mount after
 // Editor, which is what actually calls registerEditor() during its own
 // mount, or that first effect run finds cm still null.
-mount(CommentsPanel, { target: document.getElementById("comments-panel-mount")! });
+mount(AnnotationRail, { target: document.getElementById("comments-panel-mount")! });
 mount(Toolbar, { target: document.getElementById("toolbar-mount")! });

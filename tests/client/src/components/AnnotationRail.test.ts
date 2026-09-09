@@ -1,7 +1,7 @@
 import { test, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
 import { render } from "vitest-browser-svelte";
-import CommentsPanel from "../../../../client/src/components/CommentsPanel.svelte";
+import AnnotationRail from "../../../../client/src/components/AnnotationRail.svelte";
 import { commentsPanelOpen } from "../../../../client/src/stores/commentsPanel";
 import { enterCollabRoom, leaveCollabRoom } from "../../../../client/src/stores/collabMode";
 import { activeIdStore } from "../../../../client/src/stores/docs";
@@ -20,7 +20,7 @@ beforeEach(() => {
 test("CV2-1b: the comments button is disabled (not hidden) in Viewing, and the panel forced closed", async () => {
   const btn = document.getElementById("commentsBtn") as HTMLButtonElement;
   commentsPanelOpen.set(true);
-  await render(CommentsPanel);
+  await render(AnnotationRail);
 
   enterCollabRoom("r1", "viewer", false);
   await expect.poll(() => btn.disabled).toBe(true);
@@ -36,7 +36,7 @@ test("CV2-1b: the comments button is disabled (not hidden) in Viewing, and the p
 
 test("CV2-1b: the comments button is disabled when there is no active doc", async () => {
   const btn = document.getElementById("commentsBtn") as HTMLButtonElement;
-  await render(CommentsPanel);
+  await render(AnnotationRail);
   await expect.poll(() => btn.disabled).toBe(false);
   activeIdStore.set(null);
   await expect.poll(() => btn.disabled).toBe(true);

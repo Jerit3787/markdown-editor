@@ -133,9 +133,12 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   await waitForExactlyOne(reviewer.locator("#preview .suggestion-insert"), 15000);
   await expect(reviewer.locator("#preview .suggestion-insert")).toContainText("proposed addition");
 
-  // Owner (editor via ownership) sees the same suggestion and accepts it.
+  // Owner (editor via ownership) sees the same suggestion and accepts it
+  // from its card in the annotation rail (no inline widget any more).
   await waitForExactlyOne(owner.locator(".cm-suggestion-insert"), 10000);
-  await owner.locator(".cm-suggestion-action[data-action='accept']").click();
+  await owner.click("#commentsBtn");
+  await expect(owner.locator('.annotation-card.suggestion [data-act="accept"]')).toBeVisible({ timeout: 10000 });
+  await owner.locator('.annotation-card.suggestion [data-act="accept"]').first().click();
   await expect(owner.locator(".cm-suggestion-insert")).toHaveCount(0);
   await expect(reviewer.locator(".cm-suggestion-insert")).toHaveCount(0, { timeout: 10000 });
   await expect.poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("proposed addition");
@@ -158,7 +161,7 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   // resolved) — Preview must still pick it up even though CodeMirror's
   // own docChanged never fires for it.
   await waitForExactlyOne(owner.locator("#preview .suggestion-delete"), 10000);
-  await owner.locator(".cm-suggestion-action[data-action='reject']").click();
+  await owner.locator('.annotation-card.suggestion [data-act="reject"]').first().click();
   await expect(owner.locator(".cm-suggestion-delete")).toHaveCount(0);
   await expect.poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("owner");
   // Rejecting a delete also never touches ytext (only the suggestion
@@ -228,13 +231,11 @@ test("COLLAB-11: a reviewer withdraws their own pending suggestion, and it clear
   await waitForExactlyOne(reviewer.locator(".cm-suggestion-insert"), 15000);
   await waitForExactlyOne(owner.locator(".cm-suggestion-insert"), 10000);
 
-  // Reviewer withdraws their own suggestion (non-editor sees a Withdraw
-  // action on a suggestion they authored — see suggestion-editor.ts).
-  // `.first()`: the reviewer's own insert briefly renders as two
-  // overlapping suggestion widgets during the ytext/suggestion-map
-  // reconciliation (same window `waitForExactlyOne` guards above) —
-  // either Withdraw button resolves the one suggestion.
-  await reviewer.locator(".cm-suggestion-action[data-action='withdraw']").first().click();
+  // Reviewer withdraws their own suggestion from its rail card (an author
+  // sees Withdraw where an editor sees Accept/Reject).
+  await reviewer.click("#commentsBtn");
+  await expect(reviewer.locator('.annotation-card.suggestion [data-act="withdraw"]')).toBeVisible({ timeout: 10000 });
+  await reviewer.locator('.annotation-card.suggestion [data-act="withdraw"]').first().click();
 
   // Gone for the reviewer AND the owner; the proposed text is removed
   // (withdraw == reject), and ytext never carried it in the first place.

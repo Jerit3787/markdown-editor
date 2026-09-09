@@ -256,3 +256,124 @@
     margin-right: 0;
   }
 }
+
+/* ── Shared annotation card (AnnotationCard.svelte) ───────────────── */
+.annotation-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  overflow: hidden;
+}
+.annotation-card.suggestion {
+  border-left-color: #2e7d32;
+}
+.annotation-card.comment {
+  border-left-color: #f0b400;
+}
+.annotation-card.resolved {
+  opacity: 0.55;
+}
+.annotation-card.orphaned {
+  opacity: 0.6;
+}
+.annotation-card.focused {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.annotation-card-head {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+}
+.annotation-card-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.annotation-card-meta {
+  flex: 1;
+  min-width: 0;
+}
+.annotation-card-author {
+  font-weight: 700;
+}
+.annotation-card-role {
+  font-weight: 400;
+  color: var(--text-dim);
+}
+.annotation-card-change {
+  display: block;
+  margin-top: 2px;
+}
+.annotation-card-change ins {
+  text-decoration: none;
+  color: #2e7d32;
+}
+.annotation-card-change del {
+  color: #c62828;
+}
+.annotation-card-quote {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-style: italic;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px 0 0;
+}
+.annotation-card-orphan {
+  font-style: normal;
+  font-size: 11px;
+}
+.annotation-card-body {
+  padding: 0 10px 8px;
+}
+.annotation-card-reply {
+  margin: 0 0 4px;
+}
+.annotation-card-count {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.annotation-card-reply-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.annotation-card-reply-row input {
+  flex: 1;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+.annotation-card-actions {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-alt);
+
+  button {
+    width: auto;
+    margin-bottom: 0;
+    font-size: 11px;
+    padding: 2px 10px;
+  }
+}
+
+/* Editor highlight for the currently hovered/focused annotation. */
+.cm-annotation-active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+}

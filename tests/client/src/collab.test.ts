@@ -176,12 +176,16 @@ describe("decideJoinTarget", () => {
 });
 
 describe("pushWorkspaceRename", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    collabIsOwner.set(false);
+  });
 
-  it("PUTs the new name to the workspace's room when the workspace is shared", () => {
+  it("PUTs the new name to the workspace's room when the owner renames a shared workspace", () => {
     const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
     vi.stubGlobal("fetch", fetchMock);
     workspacesStore.set([fakeSharedWorkspace({ id: "ws1", remoteId: "remote-1" })]);
+    collabIsOwner.set(true);
 
     pushWorkspaceRename("ws1", "New Name");
 
@@ -192,10 +196,22 @@ describe("pushWorkspaceRename", () => {
     });
   });
 
+  it("does nothing for a non-owner collaborator (server would 403 anyway)", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    workspacesStore.set([fakeSharedWorkspace({ id: "ws1", remoteId: "remote-1" })]);
+    collabIsOwner.set(false);
+
+    pushWorkspaceRename("ws1", "New Name");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("does nothing for a workspace that was never shared", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     workspacesStore.set([fakeWorkspace({ id: "ws1" })]);
+    collabIsOwner.set(true);
 
     pushWorkspaceRename("ws1", "New Name");
 

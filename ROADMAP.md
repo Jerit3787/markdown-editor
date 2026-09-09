@@ -569,8 +569,16 @@ turn out to matter later.
 - [ ] An on-document mode badge component (top-centre pill, mode icon,
       slide-in) instead of the plain toast shipped in v1.55.0 — revisit
       if the toast proves too easy to miss
-- [ ] A Content-Security-Policy — the app has none; adding GA (v1.57.0)
-      didn't force one, but a CSP is worthwhile hardening on its own
+- [x] A Content-Security-Policy — **shipped v1.60.2** (spec
+      `docs/superpowers/specs/2026-09-09-content-security-policy-design.md`,
+      plan `.../plans/2026-09-09-content-security-policy.md`). A
+      `<meta>`-delivered CSP (`default-src 'self'`; allowlist: self + GA +
+      Turnstile; no inline/eval script; one hashed inline snippet) plus a
+      `client/public/_headers` file with `X-Frame-Options: DENY` / nosniff
+      / `Referrer-Policy` / `Permissions-Policy` / COOP and an
+      authoritative duplicate CSP header. `/privacy` + `/terms` get a
+      stricter `default-src 'none'`. Deferred: a `report-to` violation
+      endpoint, a nonce-per-response pipeline, Trusted Types.
 - [ ] A general cookie-consent banner — v1.57.0's banner is
       analytics-only; the one functional cookie (GitHub session) is
       strictly necessary and needs no consent, so this is only relevant

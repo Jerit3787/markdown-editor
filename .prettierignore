@@ -5,3 +5,5 @@ playwright-report/
 blob-report/
 package-lock.json
 docs/
+# Cloudflare directives file, not code
+client/public/_headers

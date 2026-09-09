@@ -1525,7 +1525,10 @@ function shareRoomId(workspaceId: string): string {
 
 export function pushWorkspaceRename(workspaceId: string, name: string): void {
   const ws = get(workspacesStore).find((w) => w.id === workspaceId);
-  if (!ws || !ws.shared || !ws.remoteId) return;
+  // Workspace name is owner-managed server-side (a non-owner PUT /meta is
+  // 403). Don't fire a doomed request for a collaborator renaming their
+  // local copy — their rename just stays local.
+  if (!ws || !ws.shared || !ws.remoteId || !get(collabIsOwner)) return;
   void fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}/meta`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -1539,7 +1542,7 @@ export function pushWorkspaceRename(workspaceId: string, name: string): void {
 // via workspaceRepoLinkHook so stores/workspaces.ts needn't import this.
 export function pushWorkspaceRepoLinked(workspaceId: string, linked: boolean): void {
   const ws = get(workspacesStore).find((w) => w.id === workspaceId);
-  if (!ws || !ws.shared || !ws.remoteId) return;
+  if (!ws || !ws.shared || !ws.remoteId || !get(collabIsOwner)) return;
   void fetch(`/api/workspace/${encodeURIComponent(ws.remoteId)}/meta`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

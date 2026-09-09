@@ -44,6 +44,7 @@ function fakeState() {
         store.clear();
       },
       setAlarm: async () => {},
+      deleteAlarm: async () => {},
     },
     blockConcurrencyWhile: async (fn: () => Promise<void>) => {
       await fn();
@@ -635,6 +636,25 @@ describe("WorkspaceRoom DELETE /api/workspace/:id (owner revoke)", () => {
     expect(room.sessions.size).toBe(0);
     const gotDeletedFrame = sent.some((buf) => decoding.readVarUint(decoding.createDecoder(new Uint8Array(buf))) === 5);
     expect(gotDeletedFrame).toBe(true);
+  });
+
+  it("a persist alarm scheduled just before DELETE does not resurrect document content (MDE-08)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", OWNER_ACCESS);
+
+    // An edit lands and schedules the debounced persist.
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.getText("content").insert(0, "secret content");
+    await room.schedulePersist("docA", docRoom);
+    expect(docRoom.persistScheduled).toBe(true);
+
+    await room.fetch(await deleteRequest("alice"));
+    expect(await room.state.storage.get("doc:docA:update")).toBeUndefined();
+
+    // The alarm fires afterward — it must be a no-op now.
+    await room.alarm();
+    expect(await room.state.storage.get("doc:docA:update")).toBeUndefined();
+    expect(room.docs.size).toBe(0);
   });
 });
 

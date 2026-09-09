@@ -754,6 +754,14 @@ export class WorkspaceRoom {
     }
     this.sessions.clear();
 
+    // Cancel any pending debounced persist and drop the in-memory rooms —
+    // otherwise a persist alarm scheduled seconds earlier fires after
+    // deleteAll() and writes every doc's CRDT state back into storage
+    // (MDE-08). alarm()/persistAllNow() also bail on `this.deleted` as a
+    // backstop.
+    await this.state.storage.deleteAlarm();
+    this.docs.clear();
+
     await this.state.storage.deleteAll();
     await this.state.storage.put("deleted", true);
     return new Response(null, { status: 204 });
@@ -971,10 +979,12 @@ export class WorkspaceRoom {
   }
 
   async alarm(): Promise<void> {
+    if (this.deleted) return;
     await this.persistAllNow();
   }
 
   async persistAllNow(): Promise<void> {
+    if (this.deleted) return; // a persist scheduled just before DELETE must not rewrite wiped storage (MDE-08)
     for (const [docId, docRoom] of this.docs.entries()) {
       if (!docRoom.persistScheduled && this.sessions.size > 0) continue;
       docRoom.persistScheduled = false;

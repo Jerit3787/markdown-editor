@@ -233,3 +233,16 @@ test("a document created after both collaborators are already connected appears 
   await aliceCtx.close();
   await bobCtx.close();
 });
+
+test("the built app is served with the CSP and companion security headers", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  const res = await page.goto("http://localhost:8787/");
+  const h = res!.headers();
+  expect(h["content-security-policy"]).toContain("default-src 'self'");
+  expect(h["content-security-policy"]).toContain("frame-src https://challenges.cloudflare.com");
+  expect(h["x-frame-options"]).toBe("DENY");
+  expect(h["x-content-type-options"]).toBe("nosniff");
+  expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  await ctx.close();
+});

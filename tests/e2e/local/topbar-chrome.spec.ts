@@ -41,9 +41,28 @@ test("v2: the account button opens a menu with Settings + Sign in (signed out)",
   await expect(btn).toHaveAttribute("data-tooltip", "Account");
   expect(await btn.locator('use[href="#icon-user"]').count()).toBe(1);
 
+  // Signed out — no avatar, so the button carries a circle outline.
+  const border = await btn.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { style: s.borderTopStyle, width: parseFloat(s.borderTopWidth), radius: s.borderTopLeftRadius };
+  });
+  expect(border.style).toBe("solid");
+  expect(border.width).toBeGreaterThanOrEqual(1);
+  expect(border.radius === "50%" || parseFloat(border.radius) >= 19).toBe(true);
+
   await btn.click();
   await expect(page.locator('.topbar-account-menu [role="menuitem"]:has-text("Sign in with GitHub")')).toBeVisible();
   await expect(page.locator('.topbar-account-menu [role="menuitem"]:has-text("Settings")')).toBeVisible();
+});
+
+test("v2: Settings no longer has a GitHub row — auth lives in the account menu", async ({ page }) => {
+  await page.locator("#topbar-account-mount .topbar-account-btn").click();
+  await page.locator('.topbar-account-menu [role="menuitem"]:has-text("Settings")').click();
+  const modal = page.locator('[aria-labelledby="settingsModalTitle"]');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator(".setting-title", { hasText: /^GitHub$/ })).toHaveCount(0);
+  await expect(modal.getByRole("button", { name: /^Sign in$/ })).toHaveCount(0);
+  await expect(modal.getByRole("button", { name: /^Disconnect$/ })).toHaveCount(0);
 });
 
 // The mode switcher only renders inside a collab room — seed one via the
@@ -103,4 +122,8 @@ test("v2: the account avatar is a 32px image inset in the 40px button", async ({
   });
   const w = await page.locator("#topbar-account-mount img.topbar-account-avatar").evaluate((el) => el.getBoundingClientRect().width);
   expect(w).toBeLessThanOrEqual(34);
+
+  // Signed in — the avatar gives the edge, so the circle outline is dropped.
+  const borderWidth = await page.locator("#topbar-account-mount .topbar-account-btn").evaluate((el) => parseFloat(getComputedStyle(el).borderTopWidth));
+  expect(borderWidth).toBe(0);
 });

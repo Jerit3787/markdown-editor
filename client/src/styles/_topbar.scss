@@ -411,6 +411,20 @@ body.focus-mode #statusbar {
   height: 40px;
   padding: 4px;
 }
+/* Signed out there's no avatar to give the button a visible edge, so the
+   person icon floats. A circle outline (same treatment as the outlined
+   mode-switcher pill) makes it read as a button. Dropped once an avatar
+   fills the frame. */
+#topbarActionsCol .topbar-account-btn.signed-out {
+  border: 1px solid var(--border);
+}
+#topbarActionsCol .topbar-account-btn.signed-out:hover {
+  border-color: var(--text-dim);
+}
+#topbarActionsCol .topbar-account-btn.signed-out[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 #topbarActionsCol .topbar-account-avatar {
   width: 100%;
   height: 100%;

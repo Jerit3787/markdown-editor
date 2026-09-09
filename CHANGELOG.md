@@ -4,7 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
-## [1.58.1] - 2026-09-09
+## [1.59.0] - 2026-09-09
+
+### Changed
+
+- The account button in the top bar now shows a circle outline while you're signed out, so the person icon reads as a button (it drops the outline once your avatar fills it).
+- Removed the GitHub row from Settings — connecting and disconnecting GitHub now live only in the account menu (top right), where sign-in and sign-out already were.
 
 ### Fixed
 

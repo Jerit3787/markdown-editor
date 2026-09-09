@@ -385,4 +385,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/turnstile.png",
     category: "Collaboration",
   },
+  {
+    version: "1.59.0",
+    title: "Account Button, Tidied",
+    description:
+      "The signed-out account button now has a circle outline so it reads as a button, not a floating icon (it drops the outline once your avatar fills it). Settings loses its GitHub row too — connecting and disconnecting GitHub now live only in the account menu, next to sign-in and sign-out.",
+    screenshot: "/whats-new/account-button-tidied.png",
+    category: "Organization & Navigation",
+  },
 ];

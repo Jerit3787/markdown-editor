@@ -230,6 +230,14 @@ users and any deployment without both `VITE_TURNSTILE_SITE_KEY` +
 `TURNSTILE_SECRET_KEY` are unaffected; the collab e2e suite needed no
 changes.
 
+**v1.59.0 follow-up:** a 2+-doc anonymous share hung — `joinSharedLink`'s
+`Promise.all(fetchRemoteDocContent)` fan-out had each preview call solve
+its own challenge, colliding N concurrent `turnstile.render()` on the one
+widget. Fixed: the throwaway pre-join snapshot socket carries `?preview=1`
+and `requireJoinTicket()` skips it (challenge is live-sync-only, matching
+the design); `getJoinTicket()` coalesces concurrent callers; the modal
+now appears once, at the real join, after the preview has loaded.
+
 ### Collab-mode chrome v2 — Google Docs parity (2026-09-08)
 
 Revises the v1.50.0 Viewing-mode chrome, grounded in a live walk-through

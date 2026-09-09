@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import Toggletip from "./Toggletip.svelte";
-  import { githubUsername } from "../stores/github";
   import { keybindingMode, setKeybindingMode } from "../stores/keybindings";
   import { settingsModalOpen } from "../stores/settingsModal";
   import { analyticsAvailable } from "../analytics";
@@ -35,14 +34,6 @@
     settingsModalOpen.set(false);
   }
 
-  function signIn() {
-    window.MDE.openGithubSignInPopup();
-  }
-  async function disconnect() {
-    await fetch("/api/auth/github/logout", { method: "POST" });
-    location.reload();
-  }
-
   onMount(() => {
     // Applies the saved theme to <html> on load — previously app.ts's
     // initTheme() did this; now that Settings owns theme state, it does
@@ -65,7 +56,7 @@
 {#if !hidden}
   <Modal title="Settings" icon="icon-settings" labelledBy="settingsModalTitle" onClose={close}>
     {#snippet quickAction()}
-      <Toggletip>Theme applies instantly and remembers your choice. Connecting GitHub is what gates both Publish to Gist and Share — it's optional otherwise.</Toggletip>
+      <Toggletip>Theme applies instantly and remembers your choice. Connecting GitHub (from the account menu, top right) is what gates both Publish to Gist and Share — it's optional otherwise.</Toggletip>
     {/snippet}
     <div class="setting-row">
       <div class="setting-label">
@@ -90,25 +81,6 @@
         <button type="button" class="tab-switch-btn" class:active={$keybindingMode === "vim"} role="tab" aria-selected={$keybindingMode === "vim"} onclick={() => setKeybindingMode("vim")}>Vim</button>
         <button type="button" class="tab-switch-btn" class:active={$keybindingMode === "emacs"} role="tab" aria-selected={$keybindingMode === "emacs"} onclick={() => setKeybindingMode("emacs")}>Emacs</button>
       </div>
-    </div>
-
-    <div class="setting-row">
-      <div class="setting-label">
-        <span class="setting-title">GitHub</span>
-        <span class="setting-desc">
-          <span class="status-dot {$githubUsername ? 'status-shared' : 'status-idle'}"></span>
-          {$githubUsername ? `Signed in as ${$githubUsername}` : "Not connected"}
-        </span>
-      </div>
-      {#if !$githubUsername}
-        <button class="secondary-btn" type="button" onclick={signIn} style="margin: 0; width: auto;">
-          <svg class="icon"><use href="#icon-github"></use></svg> Sign in
-        </button>
-      {:else}
-        <button class="secondary-btn" type="button" onclick={disconnect} style="margin: 0; width: auto;">
-          <svg class="icon"><use href="#icon-log-out"></use></svg> Disconnect
-        </button>
-      {/if}
     </div>
 
     {#if analyticsAvailable}

@@ -41,7 +41,7 @@ object-src 'none';
 script-src 'self' 'sha256-dvrkhVN+dXykZmzU3pQRkYg38F+aYnJ2WXnZwjPgC04=' https://challenges.cloudflare.com https://www.googletagmanager.com;
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob: https:;
-font-src 'self';
+font-src 'self' data:;
 connect-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com;
 frame-src https://challenges.cloudflare.com;
 worker-src 'self' blob:;
@@ -60,7 +60,7 @@ Written as one line (no newlines) in the attribute. Rationale per directive:
 | `script-src` | `'self'` + one hash + Turnstile + GTM | `'self'` = the built entry bundle + Cloudflare's same-origin `/cdn-cgi/challenge-platform/*` scripts. The hash is the mobile-sidebar inline snippet (see Part 2). `challenges.cloudflare.com` = Turnstile `api.js` and the sub-scripts it pulls. `www.googletagmanager.com` = `gtag/js`. **No `'unsafe-inline'`, no `'unsafe-eval'`** — the built `html2pdf` chunk and app bundle contain neither `eval(` nor `new Function(` (verified); Part 4's e2e confirms the PDF-export path at runtime. |
 | `style-src` | `'self' 'unsafe-inline'` | Svelte runtime `style=` attributes, KaTeX, Mermaid's injected `<style>` and inline styles, the app's own `el.style.x =` writes. `'unsafe-inline'` for style is the standard accepted compromise — style injection is low-severity and hash/nonce cannot cover attribute styles. |
 | `img-src` | `'self' data: blob: https:` | `data:` = pasted/embedded images stored as data URIs, KaTeX/Mermaid inline SVG data. `blob:` = export object URLs, diagram PNG/SVG export. `https:` = GitHub avatars (`github.com/<user>.png`), the GA pixel fallback, and **any image a markdown author embeds**. |
-| `font-src` | `'self'` | KaTeX `.woff2`/`.woff`/`.ttf` are bundled into `client/dist/assets/`. No Google Fonts, no `data:` fonts. |
+| `font-src` | `'self' data:` | KaTeX `.woff2` files are bundled to `/assets/`, but Vite's CSS pipeline inlines the *small* ones (`KaTeX_Size3`, …, under 4 KB) as `data:font/woff2` URIs — `data:` covers those. No Google Fonts. |
 | `connect-src` | `'self'` + Turnstile + GA wildcards | `'self'` covers every `/api/*` fetch and the same-origin `wss://` collaboration socket. GA4 posts hits to `www.google-analytics.com` **or** a region shard (`region1`–`region6.google-analytics.com` depending on the visitor's geography), and consent-mode uses `*.analytics.google.com` — the two `*.` wildcards cover all of them and stay narrow (only Google Analytics subdomains). Turnstile's widget calls `challenges.cloudflare.com`. |
 | `frame-src` | `https://challenges.cloudflare.com` | The only iframe the app renders is Turnstile's. DOMPurify strips author `<iframe>`, so nothing else is needed. |
 | `worker-src` | `'self' blob:` | Defensive — no code spawns a Worker today, but a future `blob:`-backed worker (some PDF/image libs) would otherwise be a silent break. |

@@ -30,7 +30,8 @@ describe("app Content-Security-Policy", () => {
     expect(csp).toContain("https://www.googletagmanager.com");
     expect(csp).toContain("style-src 'self' 'unsafe-inline'");
     expect(csp).toContain("img-src 'self' data: blob: https:");
-    expect(csp).toContain("font-src 'self'");
+    // `data:` — Vite inlines KaTeX's small fonts (KaTeX_Size3 etc.) as data URIs.
+    expect(csp).toContain("font-src 'self' data:");
     expect(csp).toMatch(/connect-src [^;]*'self'/);
     expect(csp).toContain("https://*.google-analytics.com");
     expect(csp).toContain("frame-src https://challenges.cloudflare.com");

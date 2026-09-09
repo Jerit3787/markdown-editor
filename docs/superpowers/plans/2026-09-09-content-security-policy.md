@@ -28,7 +28,7 @@
 **App CSP** (one line, no newlines, in both `index.html` `<meta>` and `_headers`):
 
 ```
-default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'sha256-dvrkhVN+dXykZmzU3pQRkYg38F+aYnJ2WXnZwjPgC04=' https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; upgrade-insecure-requests
+default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'sha256-dvrkhVN+dXykZmzU3pQRkYg38F+aYnJ2WXnZwjPgC04=' https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; upgrade-insecure-requests
 ```
 
 **Legal-pages CSP** (`legal/privacy.html`, `legal/terms.html` `<meta>`):
@@ -106,7 +106,7 @@ describe("app Content-Security-Policy", () => {
     expect(csp).toContain("https://www.googletagmanager.com");
     expect(csp).toContain("style-src 'self' 'unsafe-inline'");
     expect(csp).toContain("img-src 'self' data: blob: https:");
-    expect(csp).toContain("font-src 'self'");
+    expect(csp).toContain("font-src 'self' data:");
     expect(csp).toMatch(/connect-src [^;]*'self'/);
     expect(csp).toContain("https://*.google-analytics.com");
     expect(csp).toContain("frame-src https://challenges.cloudflare.com");
@@ -154,7 +154,7 @@ After the `<meta name="viewport" ... />` line, before `<title>`:
 ```html
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'sha256-dvrkhVN+dXykZmzU3pQRkYg38F+aYnJ2WXnZwjPgC04=' https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; upgrade-insecure-requests"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'sha256-dvrkhVN+dXykZmzU3pQRkYg38F+aYnJ2WXnZwjPgC04=' https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; upgrade-insecure-requests"
     />
 ```
 
@@ -164,7 +164,7 @@ After the `<meta name="viewport" ... />` line, before `<title>`:
 
 ```
 /*
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'sha256-dvrkhVN+dXykZmzU3pQRkYg38F+aYnJ2WXnZwjPgC04=' https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'sha256-dvrkhVN+dXykZmzU3pQRkYg38F+aYnJ2WXnZwjPgC04=' https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; upgrade-insecure-requests
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin

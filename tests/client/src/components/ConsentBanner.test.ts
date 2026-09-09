@@ -19,23 +19,25 @@ beforeEach(() => {
   }
 });
 
-test("renders when consent is unset, with Accept / Decline and a privacy link", async () => {
+test("renders when consent is unset, with Allow / No-cookies buttons and a privacy link", async () => {
   const screen = await render(ConsentBanner);
-  await expect.element(screen.getByRole("button", { name: /accept/i })).toBeVisible();
-  await expect.element(screen.getByRole("button", { name: /decline/i })).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: /^allow$/i })).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: /no cookies/i })).toBeVisible();
   expect(screen.container.querySelector('a[href="/privacy"]')).not.toBeNull();
+  // The copy must be honest that analytics runs regardless — just cookieless.
+  expect(screen.container.textContent?.toLowerCase()).toContain("cookieless");
 });
 
-test("Accept sets consent granted and hides the banner", async () => {
+test("Allow sets consent granted and hides the banner", async () => {
   const screen = await render(ConsentBanner);
-  await screen.getByRole("button", { name: /accept/i }).click();
+  await screen.getByRole("button", { name: /^allow$/i }).click();
   expect(get(analyticsConsent)).toBe("granted");
   await expect.poll(() => screen.container.querySelector(".consent-banner")).toBeNull();
 });
 
-test("Decline sets consent denied and hides the banner", async () => {
+test("No cookies sets consent denied and hides the banner", async () => {
   const screen = await render(ConsentBanner);
-  await screen.getByRole("button", { name: /decline/i }).click();
+  await screen.getByRole("button", { name: /no cookies/i }).click();
   expect(get(analyticsConsent)).toBe("denied");
   await expect.poll(() => screen.container.querySelector(".consent-banner")).toBeNull();
 });

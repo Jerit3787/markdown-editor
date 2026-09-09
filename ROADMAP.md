@@ -216,6 +216,15 @@ events only (`exported_doc`, `published_gist`, `linked_repo`,
 `shared_workspace`, `opened_command_palette`) plus a `signed_in: yes/no`
 property. Nothing loads without a build-time `VITE_GA_MEASUREMENT_ID`.
 
+**v1.60.0 follow-up:** the original opt-in-only model produced zero data
+(the GA property received nothing for a day post-launch — confirmed via
+the GA Data API MCP). Switched to Consent Mode v2 **cookieless by
+default**: `initAnalytics` loads gtag.js immediately with
+`analytics_storage: denied` unless the browser sends DNT/GPC
+(`browserOptOut` → gtag never loads). The banner now only gates the
+cookie ("Allow" / "No cookies"); `track`/`setSignedIn` fire regardless.
+Privacy §5 + Settings copy updated.
+
 ### Turnstile on anonymous joins (2026-09-09) — shipped v1.58.0
 
 Spec `docs/superpowers/specs/2026-09-09-turnstile-anonymous-join-design.md`,

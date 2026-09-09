@@ -86,10 +86,12 @@
     {#if analyticsAvailable}
       <div class="setting-row">
         <div class="setting-label">
-          <span class="setting-title">Analytics</span>
-          <span class="setting-desc">Help improve the app by sharing anonymous, content-free usage data.</span>
+          <span class="setting-title">Analytics cookies</span>
+          <span class="setting-desc">
+            Anonymous, content-free usage stats are always cookieless. Turn this on to allow a cookie for more accurate visit counts.
+          </span>
         </div>
-        <div class="tab-switch" role="tablist" aria-label="Analytics" style="margin: 0; min-width: 140px;">
+        <div class="tab-switch" role="tablist" aria-label="Analytics cookies" style="margin: 0; min-width: 140px;">
           <button
             type="button"
             class="tab-switch-btn"

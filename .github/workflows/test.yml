@@ -87,6 +87,9 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      - name: No dev-login backdoor in committed source
+        run: npm run check:no-dev-login
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 10

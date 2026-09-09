@@ -29,6 +29,7 @@ describe("worker routing", () => {
     // the HTML response now carries the per-request nonce CSP header
     expect(res.headers.get("Content-Security-Policy")).toMatch(/script-src [^;]*'nonce-/);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(res.headers.get("Strict-Transport-Security")).toMatch(/max-age=\d+/);
   });
 
   it("falls through to the SPA handler for an unknown /api/* path (there is no hard 404 here)", async () => {

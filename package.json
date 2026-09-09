@@ -12,6 +12,8 @@
     "dev:client": "vite dev --config client/vite.config.ts",
     "prebuild": "npm run generate:legal",
     "build": "vite build --config client/vite.config.ts",
+    "check:no-dev-login": "node scripts/check-no-dev-login.mjs",
+    "predeploy": "npm run check:no-dev-login",
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

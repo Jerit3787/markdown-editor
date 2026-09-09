@@ -208,6 +208,11 @@ export default {
 
     const headers = new Headers(rewritten.headers);
     headers.set("Content-Security-Policy", policy);
+    // Tell the browser to stick to HTTPS for this host. Conservative:
+    // no `includeSubDomains` (danplace.tech has other subdomains) and no
+    // `preload` (a hard-to-undo commitment) — strengthen those from the
+    // Cloudflare edge-certificate HSTS toggle if desired.
+    headers.set("Strict-Transport-Security", "max-age=63072000");
     // A cached HTML doc carries a fixed nonce; a later request's JSD
     // injection would use a different one and be blocked. no-store on the
     // small shell keeps body, header and injected script in agreement.

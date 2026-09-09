@@ -512,7 +512,7 @@ describe("WorkspaceRoom.handleAccessRequest", () => {
 
     expect(room.sessions.get(bobWs)?.role).toBe("reviewer");
     expect(room.sessions.has(anonWs)).toBe(false); // anon lost all access → socket closed + dropped
-    expect((anonWs.close as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(4403, "Access revoked");
+    expect(anonWs.close as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(4403, "Access revoked");
   });
 
   it("rejects a non-owner's attempt to change access", async () => {

@@ -83,6 +83,30 @@ export function suggestionDecorations(state: EditorState, doc: Y.Doc, viewer: { 
   return Decoration.set(ranges, true); // `true`: sort for us — mark + widget ranges interleaved aren't guaranteed pre-sorted
 }
 
+// True when [from, to) lies entirely inside one contiguous run of this
+// author's own pending insert suggestions. They're normally kept merged
+// (recordInsertSuggestion's contiguous-extend + the server's self-heal),
+// but touching/overlapping entries are coalesced here too, defensively.
+function rangeWithinOwnInserts(doc: Y.Doc, from: number, to: number, author: string): boolean {
+  const spans = listResolvedSuggestions(doc)
+    .filter((s) => s.kind === "insert" && s.author === author && s.to > s.from)
+    .sort((a, b) => a.from - b.from);
+  if (spans.length === 0) return false;
+  let runFrom = spans[0]!.from;
+  let runTo = spans[0]!.to;
+  for (let i = 1; i < spans.length; i++) {
+    const s = spans[i]!;
+    if (s.from <= runTo) {
+      runTo = Math.max(runTo, s.to);
+      continue;
+    }
+    if (from >= runFrom && to <= runTo) return true;
+    runFrom = s.from;
+    runTo = s.to;
+  }
+  return from >= runFrom && to <= runTo;
+}
+
 // Reviewer-only edit interception: insertions apply to ytext normally
 // (via yCollab, unblocked below) and get a suggestion entry recorded
 // after the fact; deletions never reach ytext at all — the deletion half
@@ -116,6 +140,26 @@ function suggestionTransactionFilter(doc: Y.Doc, author: () => string) {
 
     if (deletedFrom === -1) return tr; // pure insert (or no-op) — let it apply as-is; recordInsertSuggestion runs from the updateListener below
     void insertedAt;
+
+    // D2 — a pure deletion (no replacement text) that falls entirely
+    // inside this author's own still-pending insert suggestion(s) is the
+    // reviewer retracting their own not-yet-accepted proposal, not a
+    // proposed deletion of committed content. Let the real deletion
+    // apply: entries the deletion fully swallows are dropped here, the
+    // rest shrink on their own via their Yjs relative positions. Without
+    // this, backspacing a typo in your own suggestion stacked a
+    // strike-through card on top of the underline ("added X then deleted
+    // X").
+    if (insertedText === "" && rangeWithinOwnInserts(doc, deletedFrom, deletedTo, author())) {
+      const map = getSuggestionsMap(doc);
+      const swallowed = listResolvedSuggestions(doc).filter((s) => s.kind === "insert" && s.author === author() && s.from >= deletedFrom && s.to <= deletedTo);
+      if (swallowed.length > 0) {
+        doc.transact(() => {
+          for (const s of swallowed) map.delete(s.id);
+        }, "suggestion");
+      }
+      return tr;
+    }
 
     // A deletion is involved — never let it reach the document. If there
     // was also an insertion in the same transaction (a selection

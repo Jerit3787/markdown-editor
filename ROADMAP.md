@@ -113,7 +113,12 @@ persisting focus mode across reloads, or sentence-level dimming.
   Google-Docs-style right-margin card model.
 - **D2** — Deleting your own just-inserted suggested text should remove
   the suggestion (and its card) entirely, not leave an "added X then
-  deleted X" pair.
+  deleted X" pair. **Shipped v1.60.4** as a standalone fix
+  (`fix/suggestion-retract-own-insert`): `suggestionTransactionFilter`
+  lets a pure deletion that falls entirely within the union of the
+  author's own pending insert suggestions really apply — swallowed
+  entries drop, partial ones shrink via their relative positions. No
+  spec (small fix). D1 / D3 / D4 / D5 remain the redesign.
 - **D3** — Every edit should be its own message thread.
 - **D4** _(needs brainstorm)_ — Granularity. Google Docs splits
   aggressively on whitespace and produces card spam. Anchor a suggestion

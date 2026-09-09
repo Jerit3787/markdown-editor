@@ -135,6 +135,59 @@ describe("suggestionExtensions", () => {
     expect(listResolvedSuggestions(doc)).toHaveLength(0);
     view.destroy();
   });
+
+  // D2 — deleting text you yourself just suggested inserting is a
+  // retraction of your own not-yet-accepted proposal, not a proposed
+  // deletion of committed content.
+  it("backspacing your own just-typed suggestion shrinks it instead of stacking a delete suggestion", () => {
+    const doc = docWith("hello world");
+    const view = viewFor(doc, "alice");
+    view.dispatch({ changes: { from: 5, insert: "XYZ" } }); // insert suggestion over [5,8)
+    expect(doc.getText("content").toString()).toBe("helloXYZ world");
+    view.dispatch({ changes: { from: 7, to: 8 } }); // delete the trailing "Z"
+
+    expect(doc.getText("content").toString()).toBe("helloXY world");
+    const list = listResolvedSuggestions(doc);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ kind: "insert", author: "alice", from: 5, to: 7 });
+    view.destroy();
+  });
+
+  it("deleting your whole pending insertion removes the suggestion entirely", () => {
+    const doc = docWith("hello world");
+    const view = viewFor(doc, "alice");
+    view.dispatch({ changes: { from: 5, insert: "XYZ" } });
+    view.dispatch({ changes: { from: 5, to: 8 } }); // select all of "XYZ" and delete
+
+    expect(doc.getText("content").toString()).toBe("hello world");
+    expect(listResolvedSuggestions(doc)).toHaveLength(0);
+    view.destroy();
+  });
+
+  it("deleting from inside your insertion out into committed text still records a delete suggestion", () => {
+    const doc = docWith("hello world");
+    const view = viewFor(doc, "alice");
+    view.dispatch({ changes: { from: 5, insert: "XYZ" } }); // [5,8)
+    view.dispatch({ changes: { from: 6, to: 10 } }); // "YZ w" — crosses out of the insertion
+
+    expect(doc.getText("content").toString()).toBe("helloXYZ world"); // deletion blocked
+    const list = listResolvedSuggestions(doc);
+    expect(list.some((s) => s.kind === "delete" && s.author === "alice")).toBe(true);
+    view.destroy();
+  });
+
+  it("deleting another author's suggested insert still records a delete suggestion", () => {
+    const doc = docWith("hello world");
+    recordInsertSuggestion(doc, 5, 8, "bob"); // bob's pending insert over " wo"
+    const view = viewFor(doc, "alice");
+    view.dispatch({ changes: { from: 5, to: 8 } });
+
+    expect(doc.getText("content").toString()).toBe("hello world"); // deletion blocked
+    const list = listResolvedSuggestions(doc);
+    expect(list.some((s) => s.kind === "delete" && s.author === "alice")).toBe(true);
+    expect(list.some((s) => s.kind === "insert" && s.author === "bob")).toBe(true);
+    view.destroy();
+  });
 });
 
 describe("suggestionWidgetFor", () => {

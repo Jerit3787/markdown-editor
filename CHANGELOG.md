@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.60.2] - 2026-09-09
+
+### Security
+
+- Added a Content-Security-Policy plus the standard companion headers (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`). The page now refuses to load scripts, frames, or network connections from anywhere outside a short allowlist (self, Google Analytics, Cloudflare Turnstile), disallows inline/`eval` script entirely, and cannot be embedded in an iframe. No change to how the app behaves.
+
 ## [1.60.1] - 2026-09-09
 
 ### Fixed

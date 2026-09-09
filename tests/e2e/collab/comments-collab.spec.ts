@@ -1,10 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { ownerWithDoc, shareAnyoneLink, joinSharedWorkspace, expectEditorContains } from "./support/collab";
 
-// CMT-15 — adding / resolving / deleting a comment on a shared document
-// propagates LIVE to another already-connected collaborator (no reload),
-// via the room's MESSAGE_COMMENTS broadcast.
-test("CMT-15: a comment added, resolved and deleted on a shared doc propagates live to the other collaborator", async ({ browser }) => {
+// CMT-15 — adding / replying / resolving / deleting a comment on a shared
+// document propagates LIVE to another already-connected collaborator (no
+// reload). Post-SP-B the comment thread is a `comments` Y.Map on the doc,
+// so this rides the same Yjs sync as the text — there is no
+// MESSAGE_COMMENTS refetch to wait on.
+test("CMT-15: a comment added, replied, resolved and deleted on a shared doc propagates live to the other collaborator", async ({ browser }) => {
   const ownerCtx = await browser.newContext();
   const peerCtx = await browser.newContext();
   const owner = await ownerCtx.newPage();
@@ -30,6 +32,13 @@ test("CMT-15: a comment added, resolved and deleted on a shared doc propagates l
   // Peer sees the highlight and the comment body appear WITHOUT reloading.
   await expect(peer.locator(".cm-comment-marker")).toBeVisible({ timeout: 15000 });
   await expect(peer.locator('text="why quick?"')).toBeVisible({ timeout: 10000 });
+
+  // Peer replies → the owner sees the reply on the card, live.
+  const peerCard = peer.locator(".annotation-card", { hasText: "why quick?" });
+  await peerCard.click(); // focus reveals the reply input
+  await peerCard.getByPlaceholder(/reply/i).fill("it was the example");
+  await peerCard.getByRole("button", { name: "Reply" }).click();
+  await expect(owner.locator(".annotation-card", { hasText: "it was the example" })).toBeVisible({ timeout: 10000 });
 
   // Owner resolves it → the peer's card flips its button to "Reopen".
   await owner.click("#commentsBtn");

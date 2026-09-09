@@ -139,6 +139,16 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   expect(await owner.locator("#editor-mount .cm-suggestion-card").count()).toBe(0);
   await owner.click("#commentsBtn");
   await expect(owner.locator('.annotation-card.suggestion [data-act="accept"]')).toBeVisible({ timeout: 10000 });
+
+  // D3 — the owner discusses the suggestion on its card; the reviewer
+  // sees the reply live (suggestion replies ride the suggestions Y.Map).
+  const ownerSugCard = owner.locator(".annotation-card.suggestion").first();
+  await ownerSugCard.hover();
+  await ownerSugCard.getByPlaceholder(/reply/i).fill("looks good, merging");
+  await ownerSugCard.getByRole("button", { name: "Reply" }).click();
+  await reviewer.click("#commentsBtn");
+  await expect(reviewer.locator(".annotation-card.suggestion", { hasText: "looks good, merging" })).toBeVisible({ timeout: 10000 });
+
   await owner.locator('.annotation-card.suggestion [data-act="accept"]').first().click();
   await expect(owner.locator(".cm-suggestion-insert")).toHaveCount(0);
   await expect(reviewer.locator(".cm-suggestion-insert")).toHaveCount(0, { timeout: 10000 });
@@ -150,7 +160,9 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
 
   // Reviewer selects text and deletes it — confirms it's struck through,
   // not actually removed, until the owner resolves it. Rejecting keeps
-  // the text in place.
+  // the text in place. (Re-focus the editor first — the D3 check above
+  // opened the reviewer's comments panel.)
+  await reviewer.click("#editor-mount .cm-content");
   await reviewer.keyboard.press("Control+Home");
   await reviewer.keyboard.down("Shift");
   for (let i = 0; i < 5; i++) await reviewer.keyboard.press("ArrowRight");

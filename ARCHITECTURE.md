@@ -85,6 +85,50 @@ repo. Capped at 2 MB per image, since it counts against both
 `localStorage`'s per-origin quota and, for a shared document, the size
 of every sync payload sent to collaborators.
 
+## Comments and suggestions
+
+Both live on the shared document's `Y.Doc`, not in a side channel:
+
+- **Suggestions** (`suggestions` `Y.Map<SuggestionEntry>`) — a reviewer's
+  edit is intercepted client-side (`suggestion-editor.ts`) and recorded
+  as an insert/delete entry with Yjs relative-position anchors instead of
+  a direct text change; the editor accepts/rejects, or the author
+  withdraws. The server (`workspace-room.ts`) is the real boundary: it
+  auto-wraps any uncovered reviewer insert into a suggestion, and — since
+  v1.62.2 (`reviewer-integrity.ts`) — reverts any reviewer write that
+  isn't a proposal (a raw text deletion outside their own pending
+  inserts, deleting or re-targeting a suggestion entry to self-accept).
+- **Comment threads** (`comments` `Y.Map<CommentThreadEntry>`,
+  `comments-doc.ts`) — same relative-position anchoring; each thread is a
+  list of replies with a resolved flag. Moved here from Durable Object
+  HTTP storage in v1.62.0, so a comment change syncs live over the same
+  WebSocket as the text. A per-key observer (`comment-integrity.ts`)
+  validates every write and reverts anything breaking the rules.
+
+Both render through one component pair — `AnnotationCard.svelte` (the
+card) inside `AnnotationRail.svelte` (a right-margin rail that anchors
+each card to its line and follows the editor scroll), fed by the
+`annotations.ts` adapter and `annotation-rail-layout.ts` layout engine.
+Local (never-shared) documents keep plain single-body notes in
+`stores/docs.ts` and render through the same rail.
+
+## Security posture
+
+- **Auth** — GitHub OAuth tokens are encrypted (AES-256-GCM, Web Crypto)
+  and kept in an `HttpOnly`/`Secure` cookie; the client only ever sees
+  the username. Logout is POST-only.
+- **CSP** — a per-request nonce is injected by a Worker `HTMLRewriter`
+  pass (`csp.ts`) and set as a response header, so the policy needs no
+  `'unsafe-inline'` and Cloudflare's edge-injected scripts still run.
+- **Collaboration** — role is resolved once server-side (`authorize()` /
+  `access-role.ts`); every `Y.Doc` write is gated (`isWrite`), a
+  reviewer's is further constrained to proposals, and an access change
+  re-resolves live sessions immediately (downgrade or 4403 close).
+- **Rendering sinks** — DOMPurify (MathML allowlist), KaTeX
+  `trust: false`, Mermaid `securityLevel: "strict"`.
+- Anonymous "anyone with link" joins can be gated behind a Cloudflare
+  Turnstile check (`turnstile.ts`, opt-in via env keys).
+
 ## The `window.MDE` bridge
 
 `client/src/app.ts` owns the CodeMirror 6 instance, the DOM, and most

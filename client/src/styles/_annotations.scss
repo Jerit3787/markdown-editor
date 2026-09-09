@@ -242,7 +242,8 @@
 .annotation-card.orphaned {
   opacity: 0.6;
 }
-.annotation-card.focused {
+.annotation-card.focused,
+.annotation-card.active {
   box-shadow: 0 0 0 2px var(--accent);
 }
 .annotation-card-head {

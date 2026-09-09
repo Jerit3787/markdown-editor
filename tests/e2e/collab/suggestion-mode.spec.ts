@@ -136,6 +136,7 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   // Owner (editor via ownership) sees the same suggestion and accepts it
   // from its card in the annotation rail (no inline widget any more).
   await waitForExactlyOne(owner.locator(".cm-suggestion-insert"), 10000);
+  expect(await owner.locator("#editor-mount .cm-suggestion-card").count()).toBe(0);
   await owner.click("#commentsBtn");
   await expect(owner.locator('.annotation-card.suggestion [data-act="accept"]')).toBeVisible({ timeout: 10000 });
   await owner.locator('.annotation-card.suggestion [data-act="accept"]').first().click();

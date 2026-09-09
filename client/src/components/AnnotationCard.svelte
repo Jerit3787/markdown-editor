@@ -5,6 +5,7 @@
     annotation,
     viewer,
     focused = false,
+    active = false,
     onAccept,
     onReject,
     onWithdraw,
@@ -17,6 +18,7 @@
     annotation: RailAnnotation;
     viewer: { role: "editor" | "reviewer" | "viewer" | null; name: string };
     focused?: boolean;
+    active?: boolean;
     onAccept?: () => void;
     onReject?: () => void;
     onWithdraw?: () => void;
@@ -48,6 +50,7 @@
   class:suggestion={isSuggestion}
   class:comment={!isSuggestion}
   class:focused
+  class:active
   class:resolved={annotation.resolved}
   class:orphaned={annotation.orphaned}
   onmouseenter={() => onFocus?.()}

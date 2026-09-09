@@ -350,6 +350,7 @@
             annotation={a}
             {viewer}
             focused={focusedId === a.id}
+            active={underlyingIds(a).some((id) => $activeAnnotationIds.includes(id))}
             onFocus={() => (focusedId = a.id)}
             onJump={() => jumpTo(a)}
             onAccept={() => acceptSuggestion(a)}

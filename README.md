@@ -51,9 +51,11 @@ its live state moves into a Durable Object.
 - **Suggestion-mode collaboration** (Google Docs parity) — the reviewer
   role proposes tracked insert/delete suggestions instead of editing
   directly; the document's editor accepts, rejects, or the reviewer
-  withdraws them. Viewer role is Preview-only
-- Threaded, resolvable comments anchored to text, with an unresolved-count
-  badge
+  withdraws them, and each suggestion has its own reply thread. Viewer
+  role is Preview-only
+- Threaded, resolvable comments anchored to text — in a right-margin rail
+  next to the line they refer to, syncing live over the same connection as
+  the document, with an unresolved-count badge
 - Opening a share link previews the workspace first instead of always
   committing it to your sidebar — "Keep this workspace" if you want it
 

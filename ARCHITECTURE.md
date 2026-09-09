@@ -24,11 +24,16 @@ There's no database involved:
   general access / invited usernames + roles) server-side.
 - Three roles: **editor** (full read/write), **reviewer** (edits become
   tracked insert/delete suggestions the editor accepts, rejects, or the
-  reviewer withdraws — not a direct write), **viewer** (Preview-only, no
+  reviewer withdraws — not a direct write, and the server reverts any
+  reviewer write that isn't a proposal), **viewer** (Preview-only, no
   edit surface at all).
+- A document's Yjs `Y.Doc` carries several top-level types on the same
+  sync path: `content` (text), `images`, `meta` (name), `suggestions`,
+  and `comments` (thread map — moved off HTTP storage in v1.62.0).
 - The room is checkpointed to the Durable Object's own built-in storage
   (not a separate D1/SQL database) so it survives eviction between
-  sessions. Version history snapshots and comment threads live there too.
+  sessions. Version history snapshots and the access record live there
+  too.
 - Opening a share link previews the workspace (kept only in memory, never
   written to `localStorage`) instead of always committing it to your
   sidebar — a "Keep this workspace" action promotes it, or it's simply
@@ -103,7 +108,10 @@ client/
     collab.ts              Real-time collaboration client (Yjs + y-codemirror.next + WebSocket), Share/Join modal logic
     gist.ts                 GitHub sign-in state, Gist publish/open
     repo-sync.ts             GitHub repo link/push/pull, conflict detection
-    suggestions.ts            Reviewer-role suggestion data model shared between the editor and Preview
+    suggestions.ts            Reviewer-role suggestion data model shared between the editor and Preview (hand-synced with src/suggestions.ts)
+    comments-doc.ts           Y.Doc comment-thread CRUD (hand-synced with src/comments-doc.ts) — since v1.62.0
+    annotations.ts, annotation-rail-layout.ts
+                                Adapter + layout engine for the right-margin annotation rail (comments + suggestions as one card model)
     search.ts                 Find/replace CodeMirror extension
     wikilinks.ts               [[Wikilink]] parsing, autocomplete, backlinks
     mmd-citations.ts, mmd-metadata.ts, mmd-inline-blocks.ts
@@ -113,7 +121,7 @@ client/
                                 Client copy of session-grouping logic (see below) + local snapshot capture
     types.ts                  Shared types + the MDEBridge interface
     stores/                    Svelte stores — one file per piece of state (docs, workspaces, share, comments, version history, ...)
-    components/                ~40 Svelte 5 components: Editor, Toolbar, MenuBar, DocList, WorkspaceSwitcher, Share, VersionHistory, CommentsPanel, DocInfoPanel, CommandPalette, DiagramEditor, and every modal
+    components/                ~40 Svelte 5 components: Editor, Toolbar, MenuBar, DocList, WorkspaceSwitcher, Share, VersionHistory, AnnotationRail, AnnotationCard, DocInfoPanel, CommandPalette, DiagramEditor, and every modal
   vite.config.ts
 src/
   worker.ts               Worker entry: routes /api/auth/*, /api/workspace/*, /api/collab/*, /api/gist*, /api/repo/*, else serves the built client
@@ -125,7 +133,11 @@ src/
   gist-images.ts               Pushes Gist images as real git blobs via isomorphic-git
   memory-fs.ts                 In-memory fs shim isomorphic-git runs against (no real filesystem in a Worker)
   version-grouping.ts           Worker copy of the session-grouping logic client/src/version-grouping.ts also has (see CLAUDE.md for why it's duplicated, not shared)
-  suggestions.ts                 Server-side reviewer-suggestion reconciliation
+  suggestions.ts                 Server-side reviewer-suggestion reconciliation (hand-synced with client/src/suggestions.ts)
+  comments-doc.ts                Y.Doc comment-thread CRUD (hand-synced with client/src/comments-doc.ts)
+  comment-integrity.ts           Pure validators for the comments-map observer's revert rules
+  reviewer-integrity.ts          Pure diff/coverage helpers for the reviewer write boundary (v1.62.2)
+  csp.ts                         Per-request CSP nonce + policy builders
 .github/
   workflows/                  test.yml (CI), auto-tag.yml (tags master on version bump), release.yml (cuts a GitHub Release from CHANGELOG.md)
   scripts/release-helper.cjs    Builds release notes from CHANGELOG.md, backfilling any version whose own release is missing

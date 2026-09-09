@@ -32,6 +32,10 @@ for real (unrelated to testing) while the patch is applied, run
 `disable-dev-login.sh` first, make your change, commit, then
 `enable-dev-login.sh` again if you still need to keep testing.
 
+As a backstop, `npm run check:no-dev-login` (a `predeploy` hook and a CI
+step) fails the build if the `/api/dev/login` route is ever present in
+committed `src/` — so a forgotten `disable-dev-login.sh` can't ship.
+
 Note: `/api/auth/github/me` actively re-verifies the session token
 against GitHub's real API (see the project's own memory notes) — a fake
 `dev-fake-token` correctly fails that check, so both

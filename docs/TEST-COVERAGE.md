@@ -54,12 +54,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
-| 10. Workspace collab               |      47 |       0 |    0 |    47 |
+| 10. Workspace collab               |      56 |       0 |    0 |    56 |
 | 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **317** |  **0** |  **0** | **317** |
+| **Total**                          | **326** |  **0** |  **0** | **326** |
 
 **Every enumerated scenario now has a test asserting its outcome —
 314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
@@ -415,6 +415,15 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-58 | `DocInfoPanel` shows a read-only "Synced to a GitHub repo, managed by the workspace owner" row when `$workspaceRepoLinked && !$collabIsOwner` (and the doc has no `repoPath` of its own); the owner's richer linked-repo row is unchanged and the read-only row never shows for them | component | covered | `tests/client/src/components/DocInfoPanel.test.ts` | A5 UI |
 | COLLAB-66 | A shared doc's managed images reach viewers — `fetchRemoteDocContent` reads the scratch doc's `images` map into `RemoteDocPreview`; `importRemoteDocs` carries `images` onto the local `Doc`; `bindActiveDoc` backfills `doc.images` from `imagesMap` on bind (the `imagesMap.observe` only pushes for the active doc). End-to-end a Viewer joining a doc with a managed image + `![x](key)` ref sees the `<img>` resolve to the inlined data URL and decode | unit + e2e-collab | covered | `tests/client/src/stores/docs.test.ts`, `tests/e2e/collab/shared-viewer-images-and-lock.spec.ts` | v1.59.1 |
 | COLLAB-67 | No editable-chrome flash on a share-link visit — `collab.ts` init() applies a pessimistic `setReadOnly(true)` + `lockToPreviewOnly()` before the async join; `teardownWorkspace` holds it through the adopt→rejoin churn (`joiningShareLink`); `applyEditorMode` / the denied branch / `releaseShareLinkLock` (JoinWorkspaceModal Cancel) release it once the role is known. `stores/view.ts` `lockToPreviewOnly`/`unlockViewMode` stash & restore the pre-lock view mode so an editor isn't stranded in preview | unit + e2e-collab | covered | `tests/client/src/stores-view.test.ts`, `tests/e2e/collab/shared-viewer-images-and-lock.spec.ts` | v1.59.1 |
+| SEC-01 | `?preview=1` websockets are pinned to `viewer` — the Turnstile exemption for a pre-join content fetch can't also grant editor writes on a public "anyone can edit" link (MDE-01) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.1 · external audit |
+| SEC-02 | `PUT /access` and an owner approve re-resolve every live session's role on the spot — a downgrade updates `session.role`, a full revocation closes the socket (4403) and drops it (MDE-02) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.1 |
+| SEC-03 | `GET /api/auth/github/logout` → 405; only `POST` clears the session / revokes the OAuth grant (CSRF, MDE-03) | integration | covered | `tests/src/worker.test.ts` | v1.62.1 · cross-ref §11 |
+| SEC-04 | `CollabRoom.handleMigrateRequest` requires `authorize()` for the actual migration (an outsider → 401/403, no tombstone written); the idempotent already-migrated lookup still answers unauthenticated (MDE-04) | integration | covered | `tests/src/collab-room.test.ts` | v1.62.1 |
+| SEC-05 | A malformed comment-thread anchor (`{}` / `null`) is rejected by `isValidNewThread`; `toAbsoluteIndex` (comments-doc + suggestions) swallows the Yjs throw so an already-poisoned doc drops the bad entry instead of white-screening every viewer (MDE-07) | unit | covered | `tests/src/comment-integrity.test.ts`, `tests/client/src/comments-doc.test.ts` | v1.62.1 · cross-ref §9 |
+| SEC-06 | A persist alarm scheduled just before `DELETE /workspace` does not resurrect document content — `handleDeleteRequest` `deleteAlarm()` + `docs.clear()`, and `alarm()`/`persistAllNow()` bail on `this.deleted` (MDE-08) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.1 |
+| SEC-07 | The same-author suggestion merge (observer + `recordInsertSuggestion` contiguous-extend) carries every merged entry's `replies` onto the survivor instead of dropping them (MDE-09) | integration + unit | covered | `tests/src/workspace-room.test.ts`, `tests/src/suggestions.test.ts` | v1.62.1 |
+| SEC-08 | `PUT /meta` is owner-only — a non-owner editor or an anonymous visitor on a public "anyone can edit" link can't rename the workspace or spoof `repoLinked`; the client `pushWorkspaceRename` / `pushWorkspaceRepoLinked` guard on `collabIsOwner` (MDE-10) | integration + unit | covered | `tests/src/workspace-room.test.ts`, `tests/client/src/collab.test.ts` | v1.62.1 |
+| SEC-09 | `escapeHtml` escapes `"` / `'` (attribute-value breakout); `AnnotationCard` `encodeURIComponent`s the avatar author; HTML responses carry `Strict-Transport-Security`; `check-no-dev-login.mjs` (predeploy hook + CI step) fails if the `/api/dev/login` backdoor is ever committed | unit + integration | covered | `tests/client/src/escape-html.test.ts`, `tests/src/worker.test.ts` | v1.62.1 · run-1 hardening notes |
 
 ## 11. GitHub auth & Gist
 

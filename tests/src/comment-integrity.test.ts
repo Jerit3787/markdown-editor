@@ -31,6 +31,18 @@ describe("isValidNewThread", () => {
     expect(isValidNewThread(thread(), null)).toBe(false);
   });
 
+  it("rejects a thread whose relative-position anchors are not real rel-pos JSON", () => {
+    // `{}` and `null` both pass a naive `!= null` check but make Yjs throw
+    // when resolved — the persistent client-DoS vector.
+    expect(isValidNewThread(thread({ from: {} as never }), "alice")).toBe(false);
+    expect(isValidNewThread(thread({ to: {} as never }), "alice")).toBe(false);
+    expect(isValidNewThread(thread({ from: null as never }), "alice")).toBe(false);
+    expect(isValidNewThread(thread({ from: 42 as never }), "alice")).toBe(false);
+    expect(isValidNewThread(thread({ from: { assoc: 0 } as never }), "alice")).toBe(false);
+    // a real one (index anchor on the "content" text) still passes
+    expect(isValidNewThread(thread({ from: { type: null, tname: "content", item: null, assoc: 0 } as never }), "alice")).toBe(true);
+  });
+
   it("rejects multi-reply, pre-resolved, or empty body", () => {
     expect(
       isValidNewThread(

@@ -49,9 +49,17 @@ function toRelative(ytext: Y.Text, index: number, assoc: 0 | -1 = 0): ReturnType
 }
 
 function toAbsoluteIndex(doc: Y.Doc, ytext: Y.Text, json: ReturnType<typeof Y.relativePositionToJSON>): number | null {
-  const pos = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(json), doc);
-  if (!pos || pos.type !== ytext) return null;
-  return pos.index;
+  // A malformed anchor ({}, null, …) from a hostile client makes Yjs
+  // throw "Unexpected case" — swallow it so one bad entry drops from the
+  // list instead of crashing every collaborator's editor (and the
+  // server's own suggestions observer).
+  try {
+    const pos = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(json), doc);
+    if (!pos || pos.type !== ytext) return null;
+    return pos.index;
+  } catch {
+    return null;
+  }
 }
 
 // Resolves every live suggestion to its current absolute position in the

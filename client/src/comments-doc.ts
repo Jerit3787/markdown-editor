@@ -56,9 +56,18 @@ function toRelative(ytext: Y.Text, index: number, assoc: 0 | -1 = 0): ReturnType
 }
 
 function toAbsoluteIndex(doc: Y.Doc, ytext: Y.Text, json: ReturnType<typeof Y.relativePositionToJSON>): number | null {
-  const pos = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(json), doc);
-  if (!pos || pos.type !== ytext) return null;
-  return pos.index;
+  // A hostile collaborator can write a malformed anchor ({}, null, …)
+  // into the map; Yjs throws "Unexpected case" resolving those. Swallow
+  // it — a bad thread is dropped from the list, never a crash for every
+  // viewer (the server-side isValidNewThread guard should stop it landing
+  // in the first place, but this file also runs on already-poisoned docs).
+  try {
+    const pos = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(json), doc);
+    if (!pos || pos.type !== ytext) return null;
+    return pos.index;
+  } catch {
+    return null;
+  }
 }
 
 // Every live thread, relative positions resolved to absolute offsets.

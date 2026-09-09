@@ -111,6 +111,64 @@ describe("comments-doc", () => {
     expect(entry.replies).toEqual([{ id: expect.any(String), author: "bob", body: "why?", createdAt: 300 }]);
   });
 
+  it("does not throw on a thread with malformed relative-position anchors — it is dropped", () => {
+    // A hostile client can write {} / garbage for `from`/`to`; Yjs's
+    // createAbsolutePositionFromRelativePosition throws "Unexpected case"
+    // on those. listResolvedCommentThreads must swallow it, not crash the
+    // whole rail for every viewer.
+    const doc = docWith("hello world");
+    const map = getCommentsMap(doc);
+    doc.transact(() => {
+      map.set("bad1", {
+        author: "eve",
+        createdAt: 1,
+        from: {} as never,
+        to: {} as never,
+        quote: "hello",
+        resolved: false,
+        replies: [{ id: "r", author: "eve", body: "x", createdAt: 1 }],
+      });
+      map.set("bad2", {
+        author: "eve",
+        createdAt: 1,
+        from: null as never,
+        to: null as never,
+        quote: "hello",
+        resolved: false,
+        replies: [{ id: "r", author: "eve", body: "x", createdAt: 1 }],
+      });
+    });
+    // one good thread alongside the poison
+    createCommentThread(doc, 0, 5, "hello", "alice", "real one", 2);
+    let threads: ReturnType<typeof listResolvedCommentThreads> = [];
+    expect(() => {
+      threads = listResolvedCommentThreads(doc, "hello world");
+    }).not.toThrow();
+    // the real thread is still there, and nothing comes back with a
+    // non-numeric anchor (poisoned entries are either dropped or
+    // re-anchored via their quote — never surfaced as-is)
+    expect(threads.some((t) => t.author === "alice")).toBe(true);
+    for (const t of threads) {
+      expect(typeof t.from).toBe("number");
+      expect(typeof t.to).toBe("number");
+    }
+  });
+
+  it("listResolvedCommentThreads without `content` drops a thread it cannot resolve rather than throwing", () => {
+    const doc = docWith("hello world");
+    getCommentsMap(doc).set("bad", {
+      author: "eve",
+      createdAt: 1,
+      from: {} as never,
+      to: {} as never,
+      quote: "hello",
+      resolved: false,
+      replies: [{ id: "r", author: "eve", body: "x", createdAt: 1 }],
+    });
+    expect(() => listResolvedCommentThreads(doc)).not.toThrow();
+    expect(listResolvedCommentThreads(doc)).toEqual([]);
+  });
+
   it("seedCommentThreadsIntoDoc converts legacy threads to relative-position entries", () => {
     const doc = docWith("one two three");
     seedCommentThreadsIntoDoc(doc, [

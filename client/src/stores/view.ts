@@ -32,18 +32,34 @@ export const viewModeLocked = writable(false);
 
 export function setView(view: ViewMode): void {
   if (get(viewModeLocked) && view !== "preview") return;
-  document.getElementById("body")!.className = `mode-${view}`;
+  // #body is a static element in index.html and always present in the
+  // app; guard only so setView can be called from teardown paths (via
+  // unlockViewMode's restore) in a DOM-less test without throwing.
+  const bodyEl = document.getElementById("body");
+  if (bodyEl) bodyEl.className = `mode-${view}`;
   localStorage.setItem(STORAGE_VIEW, view);
   viewMode.set(view);
 }
 
+// The view mode active when the lock was first applied — restored by
+// unlockViewMode so an editor who briefly hit the lock (the pessimistic
+// lock collab.ts applies on a share-link visit before the role is known)
+// lands back in their real view, not stranded in preview. A real viewer
+// never calls unlockViewMode, so they simply stay in preview.
+let modeBeforeLock: ViewMode | null = null;
+
 export function lockToPreviewOnly(): void {
+  if (!get(viewModeLocked)) modeBeforeLock = get(viewMode);
   viewModeLocked.set(true);
   setView("preview");
 }
 
 export function unlockViewMode(): void {
   viewModeLocked.set(false);
+  if (modeBeforeLock !== null) {
+    setView(modeBeforeLock);
+    modeBeforeLock = null;
+  }
 }
 
 // Applies the loaded mode's #body class on module load — mirrors

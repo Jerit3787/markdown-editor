@@ -407,6 +407,16 @@ describe("docs store — workspace integration", () => {
     expect(docs.find((d) => d.id === "remote-1")?.name).toBe("Notes-2");
   });
 
+  it("importRemoteDocs carries a doc's managed images onto the local record", async () => {
+    const { docsStore, importRemoteDocs } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = createWorkspace("Shared with images");
+    importRemoteDocs(ws.id, [
+      { id: "r-img", name: "Doc", content: "![logo](logo.png)", images: { "logo.png": "data:image/png;base64,AAAA" }, updatedAt: 1, createdAt: 1 },
+    ]);
+    expect(get(docsStore).find((d) => d.id === "r-img")?.images).toEqual({ "logo.png": "data:image/png;base64,AAAA" });
+  });
+
   it("docsInWorkspace returns only docs belonging to the given workspace", async () => {
     const { createDoc, docsInWorkspace } = await import("../../../../client/src/stores/docs");
     const { createWorkspace } = await import("../../../../client/src/stores/workspaces");

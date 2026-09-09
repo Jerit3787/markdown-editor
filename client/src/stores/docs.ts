@@ -317,7 +317,10 @@ export function createDoc(partial?: Partial<Doc> & { id?: string; name?: string 
 // checked against every document in the app, not just this workspace's:
 // document names are a global-uniqueness invariant here, not a
 // per-workspace one.
-export function importRemoteDocs(workspaceId: string, remoteDocs: Pick<Doc, "id" | "name" | "content" | "updatedAt" | "createdAt">[]): void {
+export function importRemoteDocs(
+  workspaceId: string,
+  remoteDocs: (Pick<Doc, "id" | "name" | "content" | "updatedAt" | "createdAt"> & Partial<Pick<Doc, "images">>)[],
+): void {
   docsStore.update((docs) => {
     const seen = new Set(docs.map((d) => d.name));
     const added = remoteDocs.map((rd) => {

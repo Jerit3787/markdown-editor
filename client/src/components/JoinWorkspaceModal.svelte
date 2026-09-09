@@ -3,11 +3,15 @@
   import { pendingJoin } from "../stores/joinWorkspace";
   import { workspacesStore, adoptSharedWorkspace, mergeSharedWorkspaceInto, previewSharedWorkspace, switchWorkspace } from "../stores/workspaces";
   import { importRemoteDocs, switchDoc } from "../stores/docs";
+  import { releaseShareLinkLock } from "../collab";
 
   let mergeTargetId = $state<string | null>(null);
 
   function cancel() {
     pendingJoin.set(null);
+    // Dismissing the chooser is the one join exit that never reaches
+    // applyEditorMode, so release the pessimistic share-link lock here.
+    releaseShareLinkLock();
   }
 
   function addAsNew() {

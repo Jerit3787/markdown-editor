@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.1] - 2026-09-09
+
+### Fixed
+
+- Images in a shared document didn't load for people who opened the link as a viewer — the read-only preview only carried the text, not the document's images. Viewers now get the images too, whether they're previewing or fully joined.
+- Opening a shared link as a viewer briefly showed the full editing toolbar and an editable document before switching to Viewing mode. The editor is now locked from the first frame, so there's no flash.
+
+### Changed
+
+- Peeking at Viewing mode from Editing (or leaving a shared workspace) now returns you to the split/editor view you had before, instead of leaving you stuck in preview.
+
 ## [1.59.0] - 2026-09-09
 
 ### Changed

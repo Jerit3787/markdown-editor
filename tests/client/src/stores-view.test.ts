@@ -35,4 +35,34 @@ describe("viewModeLocked", () => {
     setView("split");
     expect(get(viewMode)).toBe("split");
   });
+
+  it("unlock restores the mode that was active before the lock", () => {
+    setView("split");
+    lockToPreviewOnly();
+    expect(get(viewMode)).toBe("preview");
+    unlockViewMode();
+    expect(get(viewMode)).toBe("split");
+  });
+
+  it("a viewer that locks and never unlocks stays in preview", () => {
+    setView("split");
+    lockToPreviewOnly();
+    expect(get(viewMode)).toBe("preview");
+    // no unlockViewMode() — this is the real-viewer path
+    expect(get(viewMode)).toBe("preview");
+  });
+
+  it("a redundant second lock keeps the original stashed mode", () => {
+    setView("editor");
+    lockToPreviewOnly();
+    lockToPreviewOnly(); // e.g. handleDocChanged re-locking after the pessimistic lock
+    unlockViewMode();
+    expect(get(viewMode)).toBe("editor");
+  });
+
+  it("unlock with no prior lock does not change the mode", () => {
+    setView("split");
+    unlockViewMode();
+    expect(get(viewMode)).toBe("split");
+  });
 });

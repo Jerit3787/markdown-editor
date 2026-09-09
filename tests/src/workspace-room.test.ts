@@ -8,7 +8,7 @@ import { WorkspaceRoom } from "../../src/workspace-room";
 import type { AccessRecord } from "../../src/workspace-room";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
-import { getSuggestionsMap, recordInsertSuggestion, listResolvedSuggestions } from "../../src/suggestions";
+import { getSuggestionsMap, recordInsertSuggestion, recordDeleteSuggestion, listResolvedSuggestions } from "../../src/suggestions";
 import {
   getCommentsMap,
   listResolvedCommentThreads,
@@ -1663,6 +1663,83 @@ describe("reviewer writes", () => {
     await reviewerApply(room, ws, (c) => c.getText("content").delete(4, 12));
 
     expect(docRoom.doc.getText("content").toString()).toBe("the fox");
+  });
+
+  it("reverts a reviewer deleting their own insert entry while the text stays (self-accept) (MDE-06)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "start end");
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    await reviewerApply(room, ws, (c) => c.getText("content").insert(5, " NEW"));
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+
+    await reviewerApply(room, ws, (c) => getSuggestionsMap(c).delete(sid)); // text " NEW" left behind
+
+    expect(getSuggestionsMap(docRoom.doc).has(sid)).toBe(true);
+    expect(listResolvedSuggestions(docRoom.doc)[0]).toMatchObject({ kind: "insert", author: "bob" });
+  });
+
+  it("reverts a reviewer deleting another author's suggestion entry (MDE-06)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    recordInsertSuggestion(docRoom.doc, 0, 5, "alice");
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    (room as any).sessions.set(ws, fakeSession("reviewer")); // bob
+
+    await reviewerApply(room, ws, (c) => getSuggestionsMap(c).delete(sid));
+
+    expect(getSuggestionsMap(docRoom.doc).has(sid)).toBe(true);
+  });
+
+  it("allows a reviewer to withdraw their own DELETE-kind suggestion (no text change)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    await reviewerApply(room, ws, (c) => recordDeleteSuggestion(c, 0, 5, "bob"));
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    await reviewerApply(room, ws, (c) => getSuggestionsMap(c).delete(sid));
+
+    expect(getSuggestionsMap(docRoom.doc).has(sid)).toBe(false);
+  });
+
+  it("an editor accepting an insert (delete entry, keep text) is untouched", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "start NEW end");
+    recordInsertSuggestion(docRoom.doc, 5, 9, "bob");
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    (room as any).sessions.set(ws, fakeSession("editor"));
+
+    await reviewerApply(room, ws, (c) => getSuggestionsMap(c).delete(sid));
+
+    expect(getSuggestionsMap(docRoom.doc).has(sid)).toBe(false);
+    expect(docRoom.doc.getText("content").toString()).toBe("start NEW end");
+  });
+
+  it("reverts a reviewer re-targeting a suggestion entry's kind/range/author", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    recordInsertSuggestion(docRoom.doc, 0, 5, "bob");
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    await reviewerApply(room, ws, (c) => {
+      const m = getSuggestionsMap(c);
+      const e = m.get(sid)!;
+      m.set(sid, { ...e, kind: "delete" });
+    });
+
+    expect(getSuggestionsMap(docRoom.doc).get(sid)).toMatchObject({ kind: "insert" });
   });
 });
 

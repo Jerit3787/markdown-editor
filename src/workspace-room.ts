@@ -8,7 +8,14 @@ import { relocateAnchor } from "./anchor";
 import { redactAccessForOutsider } from "./access-visibility";
 import { rewriteWikilinkReferences } from "./wikilink-rewrite";
 import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
-import { reconcileReviewerDelta, getSuggestionsMap, listResolvedSuggestions, recordInsertSuggestion, recordDeleteSuggestion } from "./suggestions";
+import {
+  reconcileReviewerDelta,
+  getSuggestionsMap,
+  listResolvedSuggestions,
+  recordInsertSuggestion,
+  recordDeleteSuggestion,
+  toAbsoluteIndex,
+} from "./suggestions";
 import type { ResolvedSuggestion, SuggestionEntry } from "./suggestions";
 import { removeRanges, reviewerTextRepairs } from "./reviewer-integrity";
 import { getCommentsMap, seedCommentThreadsIntoDoc, type CommentThreadEntry } from "./comments-doc";
@@ -259,10 +266,12 @@ export class WorkspaceRoom {
     // applied after the fact to entries that arrived as separate writes.
     const suggestionsMap = getSuggestionsMap(doc);
     suggestionsMap.observe((event, transaction) => {
-      // D3 — a suggestion's `replies` thread is additive metadata the
-      // merge logic below never touches. An appended reply must be
-      // authored by the writing session; any other `replies` change (an
-      // edited entry, a wholesale swap, a foreign author) is reverted.
+      // A non-viewer's in-place `update` to an entry may only append one
+      // self-authored reply (D3). Any other change — an edited/removed
+      // existing reply, a foreign reply author, or a structural edit to
+      // `kind`/`author`/`from`/`to` (re-targeting an entry to self-accept
+      // or reclassify it, MDE-06) — is reverted. (A `delete` of an entry
+      // is handled by enforceReviewerConstraints, not here.)
       if (transaction.origin !== "suggestion") {
         const session = this.sessions.get(transaction.origin as WebSocket);
         if (session && session.role !== "viewer") {
@@ -272,13 +281,19 @@ export class WorkspaceRoom {
             if (change.action !== "update") return;
             const now = suggestionsMap.get(key);
             const old = change.oldValue as SuggestionEntry;
+            if (!now) return;
+            const structuralChanged =
+              now.kind !== old.kind ||
+              now.author !== old.author ||
+              JSON.stringify(now.from) !== JSON.stringify(old.from) ||
+              JSON.stringify(now.to) !== JSON.stringify(old.to);
             const oldReplies = old.replies ?? [];
-            const newReplies = now?.replies ?? [];
+            const newReplies = now.replies ?? [];
             const prefixMatches = (n: number) => oldReplies.slice(0, n).every((r, i) => r.author === newReplies[i]?.author && r.body === newReplies[i]?.body);
-            const unchanged = newReplies.length === oldReplies.length && prefixMatches(oldReplies.length);
+            const repliesUnchanged = newReplies.length === oldReplies.length && prefixMatches(oldReplies.length);
             const appendedBySelf =
               newReplies.length === oldReplies.length + 1 && prefixMatches(oldReplies.length) && newReplies[newReplies.length - 1]?.author === actor;
-            if (!unchanged && !appendedBySelf) {
+            if (structuralChanged || (!repliesUnchanged && !appendedBySelf)) {
               replyReverts.push(() => suggestionsMap.set(key, old));
             }
           });
@@ -935,33 +950,52 @@ export class WorkspaceRoom {
   // suggestions map (to detect a deleted/mutated entry).
   private captureReviewerPreState(doc: Y.Doc, username: string) {
     const ownInsertRanges: Array<[number, number]> = [];
-    const ownInsertEntryRanges = new Map<string, [number, number]>();
     for (const s of listResolvedSuggestions(doc)) {
-      if (s.kind === "insert" && s.author === username) {
-        ownInsertRanges.push([s.from, s.to]);
-        ownInsertEntryRanges.set(s.id, [s.from, s.to]);
-      }
+      if (s.kind === "insert" && s.author === username) ownInsertRanges.push([s.from, s.to]);
     }
     return {
       username,
       text: doc.getText("content").toString(),
       ownInsertRanges,
-      ownInsertEntryRanges,
       entriesById: new Map<string, SuggestionEntry>(getSuggestionsMap(doc).entries()),
     };
   }
 
-  // Runs right after a reviewer's sync update applied. Re-inserts any
-  // ytext run the reviewer deleted that wasn't inside their own pending
-  // insert suggestion(s), in a "suggestion"-origin transaction the
-  // observers skip. (Task 3 extends this with the suggestions-map checks.)
+  // Runs right after a reviewer's sync update applied. Repairs, in one
+  // "suggestion"-origin transaction the observers skip:
+  //  - any committed ytext run the reviewer deleted (MDE-05);
+  //  - a suggestion entry the reviewer deleted that isn't a genuine
+  //    withdraw — another author's entry, or their own INSERT entry whose
+  //    text is still present (a unilateral self-accept) (MDE-06).
+  // (An in-place kind/author/range edit arrives as an `update` and is
+  // reverted by the suggestions observer's guard, not here.)
   private enforceReviewerConstraints(doc: Y.Doc, pre: ReturnType<WorkspaceRoom["captureReviewerPreState"]>): void {
     const ytext = doc.getText("content");
     const committedBefore = removeRanges(pre.text, pre.ownInsertRanges);
-    const repairs = reviewerTextRepairs(committedBefore, ytext.toString());
-    if (repairs.length === 0) return;
+    const textRepairs = reviewerTextRepairs(committedBefore, ytext.toString());
+
+    const map = getSuggestionsMap(doc);
+    const entryReverts: Array<() => void> = [];
+    for (const [id, old] of pre.entriesById) {
+      if (map.has(id)) continue; // not deleted this transaction
+      if (old.author !== pre.username) {
+        entryReverts.push(() => map.set(id, old)); // not yours to discard
+        continue;
+      }
+      if (old.kind === "delete") continue; // withdrawing a proposed deletion — no text implication
+      // own insert entry deleted — a genuine withdraw also removes the
+      // entry's text, collapsing its relative positions. If the anchored
+      // span still resolves to live text, the text is still there and this
+      // was a unilateral self-accept (MDE-06) — revert.
+      const from = toAbsoluteIndex(doc, ytext, old.from);
+      const to = toAbsoluteIndex(doc, ytext, old.to);
+      if (from !== null && to !== null && to > from) entryReverts.push(() => map.set(id, old));
+    }
+
+    if (textRepairs.length === 0 && entryReverts.length === 0) return;
     doc.transact(() => {
-      for (const r of [...repairs].sort((a, b) => b.at - a.at)) ytext.insert(r.at, r.text);
+      for (const r of [...textRepairs].sort((a, b) => b.at - a.at)) ytext.insert(r.at, r.text);
+      for (const revert of entryReverts) revert();
     }, "suggestion");
   }
 

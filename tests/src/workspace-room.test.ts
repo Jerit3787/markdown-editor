@@ -369,6 +369,25 @@ describe("WorkspaceRoom.requireJoinTicket", () => {
   });
 });
 
+describe("WorkspaceRoom websocket session role", () => {
+  // The Node unit env can't construct the `101` upgrade Response, but
+  // handleSession runs before that — inspect the session it created.
+  async function rolesAfterUpgrade(query: string) {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    await room.fetch(new Request(`https://example.com/api/workspace/ws1${query}`, { headers: { Upgrade: "websocket" } })).catch(() => {});
+    return [...(room as unknown as { sessions: Map<unknown, { role: string }> }).sessions.values()].map((s) => s.role);
+  }
+
+  it("pins a ?preview=1 socket to viewer even on an 'anyone can edit' workspace (MDE-01)", async () => {
+    expect(await rolesAfterUpgrade("?preview=1")).toEqual(["viewer"]);
+  });
+
+  it("a normal socket keeps its resolved role", async () => {
+    expect(await rolesAfterUpgrade("")).toEqual(["editor"]);
+  });
+});
+
 const fakeEnvWithTurnstile = {
   SESSION_SECRET: "test-secret-key-not-real",
   TURNSTILE_SECRET_KEY: "test-turnstile-secret",

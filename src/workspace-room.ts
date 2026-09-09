@@ -443,10 +443,18 @@ export class WorkspaceRoom {
     const ticket = await this.requireJoinTicket(request);
     if (!ticket.ok) return new Response(ticket.message, { status: ticket.status });
 
+    // `?preview=1` sockets are exempt from the Turnstile challenge
+    // (requireJoinTicket returns early) because they are meant to be a
+    // read-only pre-join content fetch. Pin them to `viewer` so that
+    // exemption can never also hand out write access on a public
+    // "anyone can edit" workspace (MDE-01).
+    const isPreview = url.searchParams.get("preview") === "1";
+    const effectiveRole: Role = isPreview ? "viewer" : auth.role;
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-    this.handleSession(server, auth.username, auth.role);
+    this.handleSession(server, auth.username, effectiveRole);
     return new Response(null, { status: 101, webSocket: client });
   }
 

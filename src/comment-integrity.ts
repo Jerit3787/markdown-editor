@@ -47,11 +47,7 @@ export function isValidNewThread(entry: CommentThreadEntry | undefined, username
   );
 }
 
-export function isAllowedThreadTransition(
-  oldEntry: CommentThreadEntry,
-  newEntry: CommentThreadEntry | undefined,
-  username: string | null,
-): boolean {
+export function isAllowedThreadTransition(oldEntry: CommentThreadEntry, newEntry: CommentThreadEntry | undefined, username: string | null): boolean {
   if (!newEntry) return false;
   if (!coreEqual(oldEntry, newEntry)) return false;
 

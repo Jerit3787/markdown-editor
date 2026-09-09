@@ -55,11 +55,7 @@ function toRelative(ytext: Y.Text, index: number, assoc: 0 | -1 = 0): ReturnType
   return Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(ytext, index, assoc));
 }
 
-function toAbsoluteIndex(
-  doc: Y.Doc,
-  ytext: Y.Text,
-  json: ReturnType<typeof Y.relativePositionToJSON>,
-): number | null {
+function toAbsoluteIndex(doc: Y.Doc, ytext: Y.Text, json: ReturnType<typeof Y.relativePositionToJSON>): number | null {
   const pos = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(json), doc);
   if (!pos || pos.type !== ytext) return null;
   return pos.index;
@@ -117,15 +113,7 @@ export function listResolvedCommentThreads(doc: Y.Doc, content?: string): Resolv
   return out.sort((a, b) => a.from - b.from || a.createdAt - b.createdAt);
 }
 
-export function createCommentThread(
-  doc: Y.Doc,
-  from: number,
-  to: number,
-  quote: string,
-  author: string,
-  body: string,
-  now: number = Date.now(),
-): string {
+export function createCommentThread(doc: Y.Doc, from: number, to: number, quote: string, author: string, body: string, now: number = Date.now()): string {
   const ytext = doc.getText("content");
   const map = getCommentsMap(doc);
   const id = uid();
@@ -143,13 +131,7 @@ export function createCommentThread(
   return id;
 }
 
-export function addCommentReply(
-  doc: Y.Doc,
-  threadId: string,
-  author: string,
-  body: string,
-  now: number = Date.now(),
-): void {
+export function addCommentReply(doc: Y.Doc, threadId: string, author: string, body: string, now: number = Date.now()): void {
   const map = getCommentsMap(doc);
   const entry = map.get(threadId);
   if (!entry) return;
@@ -174,13 +156,7 @@ export function deleteCommentThread(doc: Y.Doc, threadId: string): void {
 // D3 — a reply thread on a suggestion. Kept here (not suggestions.ts) so
 // that file stays frozen; `replies` is an optional additive field on
 // SuggestionEntry.
-export function addSuggestionReply(
-  doc: Y.Doc,
-  suggestionId: string,
-  author: string,
-  body: string,
-  now: number = Date.now(),
-): void {
+export function addSuggestionReply(doc: Y.Doc, suggestionId: string, author: string, body: string, now: number = Date.now()): void {
   const map = getSuggestionsMap(doc);
   const entry = map.get(suggestionId);
   if (!entry) return;

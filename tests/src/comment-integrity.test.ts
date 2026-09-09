@@ -24,9 +24,7 @@ describe("isValidNewThread", () => {
 
   it("rejects an author mismatch (thread author or first reply author)", () => {
     expect(isValidNewThread(thread({ author: "bob" }), "alice")).toBe(false);
-    expect(isValidNewThread(thread({ replies: [{ id: "r1", author: "bob", body: "q?", createdAt: 1 }] }), "alice")).toBe(
-      false,
-    );
+    expect(isValidNewThread(thread({ replies: [{ id: "r1", author: "bob", body: "q?", createdAt: 1 }] }), "alice")).toBe(false);
   });
 
   it("rejects a null username", () => {
@@ -46,9 +44,7 @@ describe("isValidNewThread", () => {
       ),
     ).toBe(false);
     expect(isValidNewThread(thread({ resolved: true }), "alice")).toBe(false);
-    expect(isValidNewThread(thread({ replies: [{ id: "r1", author: "alice", body: "   ", createdAt: 1 }] }), "alice")).toBe(
-      false,
-    );
+    expect(isValidNewThread(thread({ replies: [{ id: "r1", author: "alice", body: "   ", createdAt: 1 }] }), "alice")).toBe(false);
   });
 });
 
@@ -79,13 +75,7 @@ describe("isAllowedThreadTransition", () => {
   });
 
   it("rejects editing an existing reply, changing author/quote/anchor, or two replies at once", () => {
-    expect(
-      isAllowedThreadTransition(
-        thread(),
-        thread({ replies: [{ id: "r1", author: "alice", body: "EDITED", createdAt: 1 }] }),
-        "alice",
-      ),
-    ).toBe(false);
+    expect(isAllowedThreadTransition(thread(), thread({ replies: [{ id: "r1", author: "alice", body: "EDITED", createdAt: 1 }] }), "alice")).toBe(false);
     expect(isAllowedThreadTransition(thread(), thread({ author: "bob" }), "bob")).toBe(false);
     expect(isAllowedThreadTransition(thread(), thread({ quote: "changed" }), "alice")).toBe(false);
     const two = thread({

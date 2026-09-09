@@ -276,9 +276,7 @@ export class WorkspaceRoom {
             const prefixMatches = (n: number) => oldReplies.slice(0, n).every((r, i) => r.author === newReplies[i]?.author && r.body === newReplies[i]?.body);
             const unchanged = newReplies.length === oldReplies.length && prefixMatches(oldReplies.length);
             const appendedBySelf =
-              newReplies.length === oldReplies.length + 1 &&
-              prefixMatches(oldReplies.length) &&
-              newReplies[newReplies.length - 1]?.author === actor;
+              newReplies.length === oldReplies.length + 1 && prefixMatches(oldReplies.length) && newReplies[newReplies.length - 1]?.author === actor;
             if (!unchanged && !appendedBySelf) {
               replyReverts.push(() => suggestionsMap.set(key, old));
             }
@@ -671,7 +669,6 @@ export class WorkspaceRoom {
   broadcastWorkspaceMeta(): void {
     this.broadcast(this.encodeWorkspaceMeta(), null);
   }
-
 
   async handleMetaRequest(request: Request): Promise<Response> {
     if (request.method !== "PUT") return new Response("Method not allowed", { status: 405 });

@@ -66,7 +66,7 @@ export function listResolvedSuggestions(doc: Y.Doc): ResolvedSuggestion[] {
     const from = toAbsoluteIndex(doc, ytext, entry.from);
     const to = toAbsoluteIndex(doc, ytext, entry.to);
     if (from === null || to === null) return;
-    result.push({ id, kind: entry.kind, author: entry.author, createdAt: entry.createdAt, from, to });
+    result.push({ id, kind: entry.kind, author: entry.author, createdAt: entry.createdAt, from, to, replies: entry.replies });
   });
   return result.sort((a, b) => a.from - b.from);
 }

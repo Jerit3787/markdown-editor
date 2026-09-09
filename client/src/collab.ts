@@ -1554,21 +1554,14 @@ type RemoteDocPreview = { id: string; name: string; content: string; updatedAt: 
 // step; the real, persistent connection is opened afterward by
 // joinWorkspace once the user has actually chosen to join.
 async function fetchRemoteDocContent(workspaceId: string, docId: string): Promise<RemoteDocPreview | null> {
-  // This throwaway sync connection is a WS upgrade too, so it needs the
-  // Turnstile join ticket for the anonymous case, same as the real one.
-  // Cached after the first solve — no second challenge.
-  let ticket: string | null = null;
-  if (!window.MDE.githubUsername && turnstileEnabled) {
-    try {
-      ticket = await getJoinTicket(workspaceId);
-    } catch {
-      return null; // visitor dismissed the challenge
-    }
-  }
   return new Promise((resolve) => {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const base = `${proto}//${location.host}/api/workspace/${encodeURIComponent(workspaceId)}`;
-    const ws = new WebSocket(ticket ? `${base}?ticket=${encodeURIComponent(ticket)}` : base);
+    // `?preview=1` — a read-only pre-join snapshot socket. The server
+    // skips the Turnstile check for these (the challenge is only for the
+    // real live-sync join), so this never opens the prompt — and it must
+    // not: joinSharedLink fans this out over every document at once, and
+    // N parallel challenge attempts would collide on the one widget.
+    const ws = new WebSocket(`${proto}//${location.host}/api/workspace/${encodeURIComponent(workspaceId)}?preview=1`);
     ws.binaryType = "arraybuffer";
     const scratchDoc = new Y.Doc();
     let settled = false;

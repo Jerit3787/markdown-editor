@@ -41,3 +41,57 @@ describe("client turnstile — disabled (the test / self-host default)", () => {
     spy.mockRestore();
   });
 });
+
+describe("client turnstile — enabled (site key stubbed)", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.stubEnv("VITE_TURNSTILE_SITE_KEY", "0x_test_site_key");
+    document.body.innerHTML = '<div id="turnstile-widget"></div>';
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    delete (window as unknown as { turnstile?: unknown }).turnstile;
+  });
+
+  it("coalesces concurrent getJoinTicket calls — one widget render, one POST", async () => {
+    let renders = 0;
+    (window as unknown as { turnstile: unknown }).turnstile = {
+      render: (_el: unknown, opts: { callback: (t: string) => void }) => {
+        renders++;
+        queueMicrotask(() => opts.callback("widget-token"));
+        return "wid-1";
+      },
+      remove: () => {},
+    };
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ ticket: "TICKET-A" }) }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const m = await freshModule();
+    const [a, b, c] = await Promise.all([m.getJoinTicket("wsX"), m.getJoinTicket("wsX"), m.getJoinTicket("wsX")]);
+
+    expect([a, b, c]).toEqual(["TICKET-A", "TICKET-A", "TICKET-A"]);
+    expect(renders).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second call after the first settles is a fresh solve (in-flight entry cleared)", async () => {
+    let renders = 0;
+    (window as unknown as { turnstile: unknown }).turnstile = {
+      render: (_el: unknown, opts: { callback: (t: string) => void }) => {
+        renders++;
+        queueMicrotask(() => opts.callback("tok"));
+        return "wid";
+      },
+      remove: () => {},
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({}) })), // no ticket in the response → not cached
+    );
+    const m = await freshModule();
+    await m.getJoinTicket("wsY");
+    await m.getJoinTicket("wsY");
+    expect(renders).toBe(2);
+  });
+});

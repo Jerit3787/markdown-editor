@@ -27,6 +27,7 @@ export function clearJoinTicket(remoteId: string): void {
 
 let scriptPromise: Promise<void> | null = null;
 function loadTurnstileScript(): Promise<void> {
+  if ((window as unknown as { turnstile?: unknown }).turnstile) return Promise.resolve();
   if (scriptPromise) return scriptPromise;
   scriptPromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
@@ -68,6 +69,11 @@ async function solveTurnstile(): Promise<string> {
     turnstilePromptError.set(true);
     throw new Error("turnstile unavailable");
   }
+  // Cloudflare rejects a second render() into a container that already
+  // holds a widget ("Turnstile has already been rendered…") — clear any
+  // leftover from a previous attempt (a cancelled/errored solve, or a
+  // Retry) before rendering a fresh one.
+  container.replaceChildren();
   return new Promise<string>((resolve, reject) => {
     let widgetId: string | null = null;
     const cleanup = () => {
@@ -101,6 +107,11 @@ async function solveTurnstile(): Promise<string> {
   });
 }
 
+// Concurrent callers for the same workspace share one solve — the widget
+// is a single DOM element and Cloudflare rejects a second render() into
+// it. Keyed by remoteId; cleared when the request settles.
+const inFlight = new Map<string, Promise<string | null>>();
+
 // For an anonymous connection to an "anyone with the link" workspace,
 // return a valid join ticket — reusing a cached one, else solving a fresh
 // Turnstile challenge and exchanging the widget token at the Worker.
@@ -111,6 +122,14 @@ export async function getJoinTicket(remoteId: string): Promise<string | null> {
   const cached = readCachedTicket(remoteId);
   if (cached) return cached;
 
+  const existing = inFlight.get(remoteId);
+  if (existing) return existing;
+  const run = requestJoinTicket(remoteId).finally(() => inFlight.delete(remoteId));
+  inFlight.set(remoteId, run);
+  return run;
+}
+
+async function requestJoinTicket(remoteId: string): Promise<string | null> {
   const token = await solveTurnstile();
   const res = await fetch(`/api/workspace/${encodeURIComponent(remoteId)}/join-ticket`, {
     method: "POST",

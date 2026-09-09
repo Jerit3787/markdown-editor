@@ -86,7 +86,7 @@
     </div>
   </header>
 
-  {#if !isSuggestion}
+  {#if !isSuggestion || focused || (annotation.replies?.length ?? 0) > 0}
     <div class="annotation-card-body">
       {#each annotation.replies ?? [] as reply (reply.id)}
         <p class="annotation-card-reply">{#if reply.author}<strong>{reply.author}</strong>&nbsp;{/if}{reply.body}</p>
@@ -96,8 +96,11 @@
           <input type="text" placeholder="Reply…" bind:value={replyBody} onkeydown={(e) => e.key === "Enter" && submitReply()} />
           <button type="button" class="secondary-btn" onclick={submitReply}>Reply</button>
         </div>
-      {:else if (annotation.replies?.length ?? 0) > 1}
-        <p class="annotation-card-count">{annotation.replies!.length} replies</p>
+        <!-- A comment's first reply is its opening text; every reply on a
+             suggestion is discussion. So the collapsed "N replies" count
+             starts above 1 for a comment, above 0 for a suggestion. -->
+      {:else if (annotation.replies?.length ?? 0) > (isSuggestion ? 0 : 1)}
+        <p class="annotation-card-count">{annotation.replies!.length === 1 ? "1 reply" : `${annotation.replies!.length} replies`}</p>
       {/if}
     </div>
   {/if}

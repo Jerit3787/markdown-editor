@@ -113,9 +113,7 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   await expect
     .poll(() => reviewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""), { timeout: 10000 })
     .toContain("owner-authored content");
-  await expect
-    .poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""), { timeout: 10000 })
-    .toContain("owner-authored content");
+  await expect.poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""), { timeout: 10000 }).toContain("owner-authored content");
 
   // Reviewer types text and confirms it renders as an underlined
   // suggestion, not plain committed text — both in the editor pane and

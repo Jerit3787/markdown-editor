@@ -54,12 +54,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
-| 10. Workspace collab               |      46 |       0 |    0 |    46 |
+| 10. Workspace collab               |      47 |       0 |    0 |    47 |
 | 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **316** |  **0** |  **0** | **316** |
+| **Total**                          | **317** |  **0** |  **0** | **317** |
 
 **Every enumerated scenario now has a test asserting its outcome —
 314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
@@ -346,6 +346,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-03 | `handleAccessRequest` — owner PUT succeeds, non-owner rejected, roster blanked for a no-access GET, full roster to owner / invited, first PUT claims ownership, invited list normalized on write | integration | covered | `tests/src/workspace-room.test.ts`, `collab-room.test.ts` |                                                      |
 | COLLAB-04 | Server-side write gate — a viewer's Y.Doc update is dropped; an editor's is applied                | integration | covered | `tests/src/workspace-room.test.ts`, `collab-room.test.ts` |                                                                       |
 | COLLAB-05 | Reviewer writes: applied (not dropped), auto-wrapped into a suggestion server-side, no double-wrap, converges to one suggestion across split updates, overlapping same-author inserts merge; an editor's write is never reconciled | integration | covered | `tests/src/workspace-room.test.ts` |                                                     |
+| COLLAB-05b | Reviewer write **boundary** (v1.62.2, MDE-05/06): a reviewer's raw deletion of committed text is reverted (only deletions inside the reviewer's own pending inserts apply — D2 / withdraw-own survive); a reviewer deleting another author's suggestion entry, or their own insert entry while the text stays (self-accept), is reverted; an in-place kind/author/range edit is reverted; editor/owner accept-reject is untouched | unit + integration + e2e-collab | covered | `tests/src/reviewer-integrity.test.ts`, `tests/src/workspace-room.test.ts`, `tests/e2e/collab/suggestion-mode.spec.ts` | pure diff/coverage helpers + real-`WorkspaceRoom` drive + a raw `ytext.delete` over a live socket |
 | COLLAB-06 | Suggestion model — record insert / delete, accept / reject each, reviewer withdraw, ranges survive a concurrent edit elsewhere, `reconcileReviewerDelta` auto-wraps | unit | covered | `tests/src/suggestions.test.ts`                       |                                                                       |
 | COLLAB-07 | Suggestion editor extension — typing creates / extends one insert suggestion, delete is blocked + recorded, replace suggests del+ins, a remote yCollab update is not intercepted; a pure deletion entirely within the author's own pending insert(s) really applies and drops/shrinks those entries (D2), while a boundary-crossing or other-author deletion still records a delete-suggestion; each mark carries `data-annotation-id` (SP-A) | unit | covered | `tests/client/src/suggestion-editor.test.ts`          |                                                                       |
 | COLLAB-08 | `AnnotationCard` renders the comment / suggestion / replace variants with role-gated actions (Accept+Reject for an editor, Withdraw for the author, no action row for a third-party reviewer, Resolve/Delete for a comment); the change summary and quote render; buttons fire their callbacks; **D3** — a focused suggestion card shows its reply thread + input alongside the action row, a collapsed one shows a reply count, and `onReply` fires with the typed body | component | covered | `tests/client/src/components/AnnotationCard.test.ts`  |                                                                       |

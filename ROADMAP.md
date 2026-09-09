@@ -152,6 +152,11 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   `/docs/:id/comments*` endpoints + `MESSAGE_COMMENTS` retired, and
   suggestion cards gained reply threads (D3).
 - **D6** — mode switcher. **Shipped v1.50.0** (see above).
+- **Security follow-ups** — the reviewer role is now a server-enforced write
+  boundary for both `ytext` and the suggestions map: a reviewer can only
+  _propose_ changes, never delete document text directly or self-accept
+  a suggestion (spec/plan `2026-09-10-reviewer-crdt-write-constraints`,
+  **shipped v1.62.2** — closes external-audit findings MDE-05 / MDE-06).
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"
@@ -426,6 +431,12 @@ turn out to matter later.
       `docStorageKey(_, "comments")` storage key (left as a read-only
       backstop — a later release can drop it); versioning comments
       (snapshots stay content-only)
+- [ ] Reviewer CRDT write constraints (v1.62.2, MDE-05/06) non-goals:
+      constraining a reviewer's writes to `imagesMap` / `metaMap` (a
+      separate question); converting an illegitimate reviewer `ytext`
+      deletion into a delete-suggestion instead of a plain revert; moving
+      suggestion resolution (accept / reject / withdraw) off the CRDT onto
+      an RPC endpoint
 - [ ] Diagram export: additional formats/options beyond SVG + PNG — JPG/WebP,
       scale factor, padding, transparent-background toggle (explicitly out
       of scope for the export feature shipped in v1.3.0)

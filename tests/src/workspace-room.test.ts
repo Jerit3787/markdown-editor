@@ -485,6 +485,36 @@ describe("WorkspaceRoom.handleAccessRequest", () => {
     expect(body.generalAccess).toBe("anyone");
   });
 
+  it("downgrades and revokes live sessions when the owner changes access (MDE-02)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "anyone",
+      requireAccount: false,
+      role: "editor",
+      invited: [{ username: "bob", role: "editor" }],
+    });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+
+    const bobWs = { send: () => {}, close: vi.fn() } as unknown as WebSocket;
+    const anonWs = { send: () => {}, close: vi.fn() } as unknown as WebSocket;
+    room.sessions.set(bobWs, { username: "bob", role: "editor", viewingDocId: null });
+    room.sessions.set(anonWs, { username: null, role: "editor", viewingDocId: null });
+
+    // Downgrade bob to reviewer and close the public link entirely.
+    await room.handleAccessRequest(
+      new Request("https://example.com/w/ws1/access", {
+        method: "PUT",
+        headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ generalAccess: "restricted", role: "viewer", invited: [{ username: "bob", role: "reviewer" }] }),
+      }),
+    );
+
+    expect(room.sessions.get(bobWs)?.role).toBe("reviewer");
+    expect(room.sessions.has(anonWs)).toBe(false); // anon lost all access → socket closed + dropped
+    expect((anonWs.close as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(4403, "Access revoked");
+  });
+
   it("rejects a non-owner's attempt to change access", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });

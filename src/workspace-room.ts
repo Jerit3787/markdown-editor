@@ -607,10 +607,32 @@ export class WorkspaceRoom {
       };
       await this.state.storage.put("access", next);
       this.cachedAccess = next;
+      this.reconcileSessionRoles(next);
       this.broadcastAccessChanged();
       return Response.json(next);
     }
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  // Re-resolve every live WebSocket session's role against a just-written
+  // access record, so a downgrade or revocation takes effect immediately
+  // rather than only on the client's voluntary rejoin (MDE-02). A client
+  // that ignores MESSAGE_ACCESS_CHANGED can otherwise keep writing with
+  // its stale in-memory role until the socket drops.
+  reconcileSessionRoles(next: AccessRecord): void {
+    for (const [ws, session] of Array.from(this.sessions.entries())) {
+      const role = resolveRole(next, session.username);
+      if (!role) {
+        try {
+          ws.close(4403, "Access revoked");
+        } catch {
+          /* already closed */
+        }
+        this.sessions.delete(ws);
+      } else {
+        session.role = role;
+      }
+    }
   }
 
   broadcastAccessChanged(): void {
@@ -649,6 +671,7 @@ export class WorkspaceRoom {
       invited.push({ username, role });
       await this.state.storage.put("access", { ...access, invited });
       this.cachedAccess = await this.getAccess();
+      this.reconcileSessionRoles(this.cachedAccess);
     }
     this.broadcastAccessChanged();
     return Response.json({ ok: true });

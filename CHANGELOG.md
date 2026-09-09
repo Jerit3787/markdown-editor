@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.60.1] - 2026-09-09
+
+### Fixed
+
+- Google Analytics was never actually sending anything — the internal helper queued its commands as plain arrays, a format `gtag.js` silently ignores, so consent and page-view commands never took effect. It now uses Google's canonical `dataLayer.push(arguments)` pattern; verified that cookieless page-view pings reach Google.
+
 ## [1.60.0] - 2026-09-09
 
 ### Changed

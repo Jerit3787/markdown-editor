@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.1] - 2026-09-10
+
+### Fixed
+
+- The new comments/suggestions panel could get into a reactive loop while a shared link was loading, which stalled other parts of the app — most visibly, an anonymous reviewer opening a `/review` link would be stuck on the "just checking you're human" step with no editor. It also left the panel blank on the first document open until you switched documents and back. Both fixed.
+
 ## [1.61.0] - 2026-09-10
 
 ### Changed

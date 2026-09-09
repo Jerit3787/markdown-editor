@@ -6,7 +6,7 @@
 //
 // Fetched once per doc per session (not on every pull, and not every
 // time a panel reopens), and shared between VersionHistory.svelte and
-// CommentsPanel.svelte — the two panels that display this data — so
+// AnnotationRail.svelte — the two panels that display this data — so
 // whichever one opens first pays the cost and the other reuses it.
 import { get } from "svelte/store";
 import type { Doc, Note } from "./types";

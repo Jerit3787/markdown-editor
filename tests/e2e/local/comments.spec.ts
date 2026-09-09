@@ -6,7 +6,7 @@ import { test, expect } from "./support/fixtures";
 // Svelte store's own in-memory state and has no idea a note was added
 // outside it (confirmed live: the "notes" field vanished from
 // localStorage within ~1s of a direct write). A page.reload() after
-// seeding is required too — CommentsPanel.svelte only calls its own
+// seeding is required too — AnnotationRail.svelte only calls its own
 // loadEntries() (which turns notes into rendered .cm-comment-marker
 // highlights) reactively off activeIdStore *changing*, or explicitly
 // after its own UI submits a comment; neither fires just because

@@ -121,9 +121,9 @@ mount(TopbarAccount, { target: document.getElementById("topbar-account-mount")! 
 mount(Editor, { target: document.getElementById("editor-mount")! });
 // Preview.svelte's own onMount calls window.MDE.getEditor() synchronously
 // (initSyncScroll attaches a listener to its scrollDOM) — must mount
-// after Editor, same constraint CommentsPanel documents below.
+// after Editor, same constraint AnnotationRail documents below.
 mount(Preview, { target: document.getElementById("preview-mount")! });
-// CommentsPanel is the first component whose own reactive $effect calls
+// AnnotationRail is the first component whose own reactive $effect calls
 // window.MDE.getEditor() eagerly (not just from a later click handler,
 // like every other window.MDE consumer above) — it must mount after
 // Editor, which is what actually calls registerEditor() during its own

@@ -90,7 +90,8 @@
     // drawn by suggestion-editor.ts's own extension. Skip the dispatch
     // when nothing changed: setCommentMarkers calls view.dispatch, and a
     // redundant dispatch fired from inside a reactive flush re-enters
-    // Svelte's scheduler (the loop the old CommentsPanel documented).
+    // Svelte's scheduler (an effect_update_depth_exceeded loop —
+    // see project memory / the v1.61.1 fix).
     const markers = annotations
       .filter((a) => a.kind === "comment" && !a.orphaned && a.anchorTo > a.anchorFrom)
       .map((a) => ({ id: a.id, from: a.anchorFrom, to: a.anchorTo }));
@@ -232,7 +233,7 @@
     await loadEntries();
   }
 
-  // ── Effects (kept from CommentsPanel) ────────────────────────────
+  // ── Effects ─────────────────────────────────────────────────────
   // Reload on every active-doc change. The extra rAF-chained reloads
   // cover the first mount / doc switch, when Editor.svelte may not have
   // pushed the document text yet — relocating a comment against an empty

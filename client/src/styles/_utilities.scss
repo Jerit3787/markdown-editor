@@ -588,7 +588,7 @@
   border: 0;
 }
 @media (max-width: 780px) {
-  /* Always rendered (see CommentsPanel.svelte — no longer inside the
+  /* Always rendered (see AnnotationRail.svelte — no longer inside the
      {#if $commentsPanelOpen} block) at opacity:0/pointer-events:none by
      default, toggled via .visible — a conditionally-rendered element is
      added/removed from the DOM outright, which can't be transitioned

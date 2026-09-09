@@ -23,19 +23,11 @@
 
 /* Body layout — a grid, not a flex row, so the toolbar row above can
    span the sidenav+editor+preview columns as one block while the view
-   selector shares a column with the comment sidenav below it (matching
+   selector shares a column with the annotation rail below it (matching
    the original mockup's rowspan/colspan table exactly: the toolbar's
    3-column span and the view selector's column both need to track
-   #sidebar's and .comments-panel's actual widths, which only a shared
+   #sidebar's and .annotation-rail's actual widths, which only a shared
    grid track (not two independently-sized flex rows) keeps in sync). */
-/* Registering this makes it an animatable <length> instead of an opaque
-   token — without this, changing it (as CommentsPanel.svelte's $effect
-   does, on every open/close) jumps grid-template-columns straight to the
-   new value with no interpolation, no matter what transition is set on
-   the rule that references it. With it, #content-row's transition below
-   smoothly interpolates the whole grid reflow in sync with
-   .comments-panel's own slide, instead of #main snapping to its new
-   width in a single frame. */
 /* Two independent layouts stacked vertically — #topbar-row (the
    formatting toolbar + view selector) and #content-row (sidebar/editor-
    preview/comments) — rather than one grid spanning both. A single grid
@@ -62,27 +54,27 @@
 
 #content-row {
   display: grid;
-  /* "comments" is auto-sized, exactly like "sidebar" — sized by
-     .comments-panel's own box (320px, minus whatever margin-right it
-     currently has). Two things this needed, both on .comments-panel
-     itself, to actually behave like #sidebar's column:
+  /* the "comments" grid area is auto-sized, exactly like "sidebar" —
+     sized by .annotation-rail's own box (320px, minus whatever
+     margin-right it currently has). Two things this needed, both on
+     .annotation-rail itself, to actually behave like #sidebar's column:
 
      1. overflow: hidden — an auto track's minimum floors at its item's
         min-content width unless overflow isn't visible, so without
         this the "Comments" heading's text would keep the track from
         ever fully reaching 0.
      2. margin-right, not grid-template-columns, drives the resize —
-        a CSS custom property here (0px at rest, animated by
-        CommentsPanel.svelte to 320px on open) was tried first, along
-        with @property to register it as an interpolable <length> so
-        grid-template-columns could transition smoothly. Instead of
-        animating, Chrome simply never applied the value at all — a
-        real browser limitation, not a mistake in that approach.
-        margin-right sidesteps it entirely: it's a plain property with
-        no custom-property/registration involved, and shrinking it is
-        a completely standard, well-supported auto-track-sizing input
-        — the same mechanism #sidebar's margin-left already relies on.
-        See .comments-panel.collapsed for why margin-right alone isn't
+        a CSS custom property here (0px at rest, animated to 320px on
+        open) was tried first, along with @property to register it as
+        an interpolable <length> so grid-template-columns could
+        transition smoothly. Instead of animating, Chrome simply never
+        applied the value at all — a real browser limitation, not a
+        mistake in that approach. margin-right sidesteps it entirely:
+        it's a plain property with no custom-property/registration
+        involved, and shrinking it is a completely standard,
+        well-supported auto-track-sizing input — the same mechanism
+        #sidebar's margin-left already relies on. See
+        .annotation-rail.collapsed for why margin-right alone isn't
         quite enough on this trailing edge the way margin-left is on
         #sidebar's leading one. */
   grid-template-columns: auto 1fr auto;
@@ -91,8 +83,8 @@
      tallest item's natural content height instead of filling
      #content-row's own (flex-stretched) height, leaving blank space
      below #main whenever its content is shorter than #sidebar or
-     .comments-panel. minmax(0, 1fr), not bare 1fr, so a tall sidebar or
-     comments list doesn't stretch the row (and #main along with it)
+     .annotation-rail. minmax(0, 1fr), not bare 1fr, so a tall sidebar or
+     annotation list doesn't stretch the row (and #main along with it)
      taller than the viewport — items scroll internally instead. */
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "sidebar main comments";
@@ -160,7 +152,7 @@
 }
 
 @media (max-width: 780px) {
-  /* #sidebar and .comments-panel are position: fixed on mobile, so
+  /* #sidebar and .annotation-rail are position: fixed on mobile, so
      #content-row has nothing left to actually lay out besides #main —
      collapse to a single column. Stays a grid rather than switching to
      display: block: block children don't stretch to fill their

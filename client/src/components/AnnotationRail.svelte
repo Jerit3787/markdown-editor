@@ -50,26 +50,18 @@
   // comment).
   const editorContent = () => window.MDE.getEditor()?.state.doc.toString() ?? "";
 
-  let loadRetries = 0;
   async function loadEntries() {
     const ctx = currentDocContext();
     if (!ctx) {
       annotations = [];
       unresolvedCommentCount.set(0);
-      window.MDE.setCommentMarkers?.([]);
-      reposition();
+      if (lastMarkerKey !== "[]") {
+        lastMarkerKey = "[]";
+        window.MDE.setCommentMarkers?.([]);
+      }
+      scheduleReposition();
       return;
     }
-    // The editor may still be mounting on the first run after a doc
-    // switch — relocating a comment against an empty document would
-    // orphan it. Retry a few frames before giving up (a genuinely empty
-    // document just falls through).
-    if (editorContent() === "" && loadRetries < 10) {
-      loadRetries++;
-      requestAnimationFrame(() => void loadEntries());
-      return;
-    }
-    loadRetries = 0;
     loading = true;
     if (ctx.isShared) {
       const threads = await listComments(ctx.roomId, ctx.doc.id);
@@ -84,50 +76,70 @@
     }
     loading = false;
     // Editor highlights for comment anchors only — suggestion marks are
-    // drawn by suggestion-editor.ts's own extension.
-    window.MDE.setCommentMarkers?.(
-      annotations
-        .filter((a) => a.kind === "comment" && !a.orphaned && a.anchorTo > a.anchorFrom)
-        .map((a) => ({ id: a.id, from: a.anchorFrom, to: a.anchorTo })),
-    );
-    reposition();
+    // drawn by suggestion-editor.ts's own extension. Skip the dispatch
+    // when nothing changed: setCommentMarkers calls view.dispatch, and a
+    // redundant dispatch fired from inside a reactive flush re-enters
+    // Svelte's scheduler (the loop the old CommentsPanel documented).
+    const markers = annotations
+      .filter((a) => a.kind === "comment" && !a.orphaned && a.anchorTo > a.anchorFrom)
+      .map((a) => ({ id: a.id, from: a.anchorFrom, to: a.anchorTo }));
+    const markerKey = JSON.stringify(markers);
+    if (markerKey !== lastMarkerKey) {
+      lastMarkerKey = markerKey;
+      window.MDE.setCommentMarkers?.(markers);
+    }
+    scheduleReposition();
   }
 
-  let rafPending = false;
-  function reposition() {
-    if (!anchored) {
-      placements = {};
-      return;
-    }
-    if (rafPending) return;
-    rafPending = true;
+  // reposition() reads layout and writes `placements`; it must never run
+  // synchronously inside a reactive flush (see effect_update_depth), so
+  // every caller goes through this rAF-coalesced scheduler.
+  let lastMarkerKey = "";
+  let repositionPending = false;
+  function scheduleReposition() {
+    if (repositionPending) return;
+    repositionPending = true;
     requestAnimationFrame(() => {
-      rafPending = false;
-      const cm = window.MDE.getEditor();
-      if (!cm || !canvasEl) return;
-      const scroller = cm.scrollDOM.getBoundingClientRect();
-      const railTop = canvasEl.getBoundingClientRect().top;
-      const anchors: CardAnchor[] = annotations.map((a) => {
-        const coords = cm.coordsAtPos(a.anchorFrom);
-        const slot = canvasEl!.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(a.id)}"]`);
-        const height = slot?.offsetHeight ?? 64;
-        if (!coords || coords.top < scroller.top || coords.top > scroller.bottom) {
-          const above = (coords && coords.top < scroller.top) || (!coords && a.anchorFrom === 0);
-          return { id: a.id, anchorY: null, direction: above ? "above" : "below", height };
-        }
-        return { id: a.id, anchorY: coords.top - railTop, height };
-      });
-      const out = layoutCards(anchors, { height: canvasEl.clientHeight }, GAP);
-      const anchorYById = new Map(anchors.map((x) => [x.id, x.anchorY]));
-      placements = Object.fromEntries(out.map((p) => [p.id, { top: p.top, clamped: p.clamped, connectorY: p.clamped ? null : (anchorYById.get(p.id) ?? null) }]));
+      repositionPending = false;
+      reposition();
     });
   }
 
+  function reposition() {
+    if (!anchored) {
+      if (Object.keys(placements).length) placements = {};
+      return;
+    }
+    const cm = window.MDE.getEditor();
+    if (!cm || !canvasEl) return;
+    const scroller = cm.scrollDOM.getBoundingClientRect();
+    const railTop = canvasEl.getBoundingClientRect().top;
+    const anchors: CardAnchor[] = annotations.map((a) => {
+      const coords = cm.coordsAtPos(a.anchorFrom);
+      const slot = canvasEl!.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(a.id)}"]`);
+      const height = slot?.offsetHeight ?? 64;
+      if (!coords || coords.top < scroller.top || coords.top > scroller.bottom) {
+        const above = (coords && coords.top < scroller.top) || (!coords && a.anchorFrom === 0);
+        return { id: a.id, anchorY: null, direction: above ? "above" : "below", height };
+      }
+      return { id: a.id, anchorY: coords.top - railTop, height };
+    });
+    const out = layoutCards(anchors, { height: canvasEl.clientHeight }, GAP);
+    const anchorYById = new Map(anchors.map((x) => [x.id, x.anchorY]));
+    placements = Object.fromEntries(
+      out.map((p) => [p.id, { top: p.top, clamped: p.clamped, connectorY: p.clamped ? null : (anchorYById.get(p.id) ?? null) }]),
+    );
+  }
+
+  // Recompute card positions when the mode or the annotation set changes.
+  // Reads only what should retrigger it, and defers the actual work to a
+  // frame — reposition() writes `placements`, which must not happen
+  // synchronously inside this flush.
   $effect(() => {
     void $viewMode;
     void manualList;
     void annotations;
-    reposition();
+    scheduleReposition();
   });
 
   // ── Actions, by annotation id ────────────────────────────────────
@@ -200,9 +212,22 @@
   }
 
   // ── Effects (kept from CommentsPanel) ────────────────────────────
+  // Reload on every active-doc change. The extra rAF-chained reloads
+  // cover the first mount / doc switch, when Editor.svelte may not have
+  // pushed the document text yet — relocating a comment against an empty
+  // editor would orphan it. Cheap (bounded, and loadEntries is a no-op
+  // re-derive once the content is stable).
   $effect(() => {
     void $activeIdStore;
-    queueMicrotask(() => void loadEntries());
+    let frames = 0;
+    const kick = () => {
+      void loadEntries();
+      // Keep retrying only while the editor is still empty (the race we
+      // guard against) — stop as soon as it has content or we've waited
+      // long enough. Avoids re-fetching comments on every frame.
+      if (frames++ < 8 && editorContent() === "" && currentDocContext()) requestAnimationFrame(kick);
+    };
+    queueMicrotask(kick);
   });
 
   $effect(() => {
@@ -272,7 +297,7 @@
     window.MDE.onSuggestionsChanged = () => queueMicrotask(() => void loadEntries());
 
     const cm = window.MDE.getEditor();
-    const onScroll = () => reposition();
+    const onScroll = () => scheduleReposition();
     cm?.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
     // A window resize covers the important editor-pane resize cases
     // (sidebar/rail open-close reflow, browser resize). Divider drags

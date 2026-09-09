@@ -1171,6 +1171,29 @@ describe("WorkspaceRoom.handleMetaRequest", () => {
     expect(room.name).toBe("");
   });
 
+  it("rejects a non-owner editor and an anonymous visitor on a public 'anyone can edit' workspace (MDE-10)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "anyone",
+      requireAccount: false,
+      role: "editor",
+      invited: [{ username: "bob", role: "editor" }],
+    });
+    const mk = (cookie?: string) =>
+      room.handleMetaRequest(
+        new Request("https://example.com/w/ws1/meta", {
+          method: "PUT",
+          headers: { ...(cookie ? { Cookie: `mde_gh_session=${cookie}` } : {}), "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Hijacked", repoLinked: true }),
+        }),
+      );
+    expect((await mk(await encryptSession(fakeEnvWithSecret, { token: "t", username: "bob" }))).status).toBe(403);
+    expect((await mk()).status).toBe(403);
+    expect(room.name).toBe("");
+    expect(room.repoLinked).toBe(false);
+  });
+
   it("an editor's PUT persists the name, returns it, and it survives a storage reload", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });

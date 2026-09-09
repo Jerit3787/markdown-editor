@@ -705,7 +705,14 @@ export class WorkspaceRoom {
     if (request.method !== "PUT") return new Response("Method not allowed", { status: 405 });
     const auth = await this.authorize(request);
     if (!auth.ok) return new Response(auth.message, { status: auth.status });
-    if (auth.role !== "editor") return new Response("Only an editor can change workspace metadata.", { status: 403 });
+    // Workspace name + repo-link state are owner-managed config, like the
+    // access record — not per-collaborator. Gating to `editor` let a
+    // non-owner editor (and, on a public "anyone can edit" link, an
+    // anonymous visitor) rename the workspace and spoof repoLinked (MDE-10).
+    const access = await this.getAccess();
+    if (!auth.username || auth.username !== access.owner) {
+      return new Response("Only the workspace owner can change workspace metadata.", { status: 403 });
+    }
     let body: { name?: unknown; repoLinked?: unknown };
     try {
       body = await request.json();

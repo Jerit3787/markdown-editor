@@ -51,6 +51,7 @@
   <button
     type="button"
     class="topbar-account-btn icon-btn tooltip-end"
+    class:signed-out={!$githubUsername}
     onclick={toggle}
     aria-haspopup="menu"
     aria-expanded={open}

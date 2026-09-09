@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.0] - 2026-09-09
+
+### Changed
+
+- The account button in the top bar now shows a circle outline while you're signed out, so the person icon reads as a button (it drops the outline once your avatar fills it).
+- Removed the GitHub row from Settings — connecting and disconnecting GitHub now live only in the account menu (top right), where sign-in and sign-out already were.
+
+### Fixed
+
+- A link-shared workspace with two or more documents never finished loading for a signed-out visitor: the pre-join document previews each tried to run their own Turnstile check at the same time, colliding on the one widget (`Turnstile has already been rendered in this container`) and leaving the load stuck. The human check now runs once, only at the point of joining live sync — the read-only preview loads without it.
+
 ## [1.58.0] - 2026-09-09
 
 ### Added

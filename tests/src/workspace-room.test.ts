@@ -359,6 +359,13 @@ describe("WorkspaceRoom.requireJoinTicket", () => {
     const res = await room.requireJoinTicket(new Request("https://example.com/api/workspace/ws1"));
     expect(res).toEqual({ ok: true });
   });
+
+  it("no check on a ?preview=1 socket — the throwaway pre-join snapshot fetch stays open", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithTurnstile);
+    await room.state.storage.put("access", anyoneAccess);
+    const res = await room.requireJoinTicket(new Request("https://example.com/api/workspace/ws1?preview=1"));
+    expect(res).toEqual({ ok: true });
+  });
 });
 
 const fakeEnvWithTurnstile = {

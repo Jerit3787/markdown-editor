@@ -443,11 +443,17 @@ export class WorkspaceRoom {
   // restricted links (no anon role at all) never reach a failing check.
   async requireJoinTicket(request: Request): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
     if (!this.env.TURNSTILE_SECRET_KEY) return { ok: true };
+    const url = new URL(request.url);
+    // `?preview=1` — the client's throwaway pre-join sync socket
+    // (fetchRemoteDocContent), which downloads a doc's current text to
+    // populate the Join prompt before the visitor has decided to join.
+    // Read-only and explicitly out of scope for the challenge (design
+    // non-goals): gate only the real live-sync connection.
+    if (url.searchParams.get("preview") === "1") return { ok: true };
     const session = await this.getSession(request);
     if (session?.username) return { ok: true };
     const access = await this.getAccess();
     if (access.generalAccess !== "anyone") return { ok: true };
-    const url = new URL(request.url);
     const wsId = this.workspaceIdFromUrl(url);
     const ok = await verifyJoinTicket(url.searchParams.get("ticket"), wsId, this.env.SESSION_SECRET, Date.now());
     return ok ? { ok: true } : { ok: false, status: 401, message: "turnstile-required" };

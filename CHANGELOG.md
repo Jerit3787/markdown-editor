@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.2] - 2026-09-10
+
+### Fixed
+
+- A reviewer (Suggesting mode) can no longer delete document text directly or accept their own suggestions without an editor — the server now enforces that a reviewer only ever _proposes_ changes. Withdrawing your own pending suggestion still works exactly as before.
+
 ## [1.62.1] - 2026-09-10
 
 ### Fixed

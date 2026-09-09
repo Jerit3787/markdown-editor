@@ -152,6 +152,11 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   `/docs/:id/comments*` endpoints + `MESSAGE_COMMENTS` retired, and
   suggestion cards gained reply threads (D3).
 - **D6** — mode switcher. **Shipped v1.50.0** (see above).
+- **Security follow-ups** — the reviewer role is now a server-enforced write
+  boundary for both `ytext` and the suggestions map: a reviewer can only
+  _propose_ changes, never delete document text directly or self-accept
+  a suggestion (spec/plan `2026-09-10-reviewer-crdt-write-constraints`,
+  **shipped v1.62.2** — closes external-audit findings MDE-05 / MDE-06).
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"
@@ -319,12 +324,13 @@ the owner is the stand-in).
 
 ### Other open bugs
 
-- **Comment reply / resolve reported broken in practice** (2026-08-13).
-  A full review of the path (server routes, HTTP handlers, client fetch
-  wrappers, panel UI) found no defect and the server logic has passing
-  tests. Needs a fresh repro with specifics — exact steps, and whether
-  it's a network error, a UI freeze, or a silent no-op — against a real
-  shared document with two GitHub-authenticated roles.
+- ~~**Comment reply / resolve reported broken in practice** (2026-08-13)~~
+  — **resolved.** The two real causes were client-side (the annotation
+  rail's reactive loop crashing Svelte's scheduler, fixed v1.61.1; a
+  Turnstile widget render race on anonymous `/review` joins, fixed
+  v1.61.2). SP-B (v1.62.0) then replaced the whole HTTP comment path with
+  a `comments` `Y.Map` synced live over the WebSocket, so the routes /
+  handlers / fetch wrappers that review covered no longer exist.
 
 ---
 
@@ -426,6 +432,12 @@ turn out to matter later.
       `docStorageKey(_, "comments")` storage key (left as a read-only
       backstop — a later release can drop it); versioning comments
       (snapshots stay content-only)
+- [ ] Reviewer CRDT write constraints (v1.62.2, MDE-05/06) non-goals:
+      constraining a reviewer's writes to `imagesMap` / `metaMap` (a
+      separate question); converting an illegitimate reviewer `ytext`
+      deletion into a delete-suggestion instead of a plain revert; moving
+      suggestion resolution (accept / reject / withdraw) off the CRDT onto
+      an RPC endpoint
 - [ ] Diagram export: additional formats/options beyond SVG + PNG — JPG/WebP,
       scale factor, padding, transparent-background toggle (explicitly out
       of scope for the export feature shipped in v1.3.0)
@@ -659,9 +671,10 @@ turn out to matter later.
 The list below is the canonical feature history through **v1.41.1**.
 **v1.42.0 onward is in `CHANGELOG.md`** — including the wikilink rename
 cascade (v1.42.0), the test-coverage catalogue effort (v1.48.x, now
-314/314 covered), Google Docs suggesting polish, the What's New
-screenshot guard (v1.48.8), and shared-workspace name propagation
-(v1.48.9).
+326/326 covered in `docs/TEST-COVERAGE.md`), the Google-Docs suggesting
+redesign (annotation rail v1.61.0, comments-in-the-Y.Doc + suggestion
+reply threads v1.62.0), the CSP nonce pipeline (v1.60.3), the external
+security-audit batch (v1.62.1), and the reviewer write boundary (v1.62.2).
 
 The earlier `TODO.md` (a workspace/repo-sync punch list) and
 `IMPROVEMENTS.md` (Phase 1–3 bugs and small features) tracked work that

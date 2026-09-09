@@ -48,7 +48,7 @@ function toRelative(ytext: Y.Text, index: number, assoc: 0 | -1 = 0): ReturnType
   return Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(ytext, index, assoc));
 }
 
-function toAbsoluteIndex(doc: Y.Doc, ytext: Y.Text, json: ReturnType<typeof Y.relativePositionToJSON>): number | null {
+export function toAbsoluteIndex(doc: Y.Doc, ytext: Y.Text, json: ReturnType<typeof Y.relativePositionToJSON>): number | null {
   // A malformed anchor ({}, null, …) from a hostile client makes Yjs
   // throw "Unexpected case" — swallow it so one bad entry drops from the
   // list instead of crashing every collaborator's editor (and the

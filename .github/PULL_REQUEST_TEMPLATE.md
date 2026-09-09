@@ -11,6 +11,7 @@
 - [ ] `npm test` passes
 - [ ] `npm run typecheck` passes
 - [ ] `npm run format:check` passes
+- [ ] `npm run check:no-dev-login` passes
 - [ ] `npm run build` succeeds
 - [ ] `npm run test:e2e:local` passes
 - [ ] `npm run test:e2e:collab` passes (if the change touches collaboration/sharing)

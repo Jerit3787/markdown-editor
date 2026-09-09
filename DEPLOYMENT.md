@@ -22,11 +22,18 @@ npx wrangler login
 npm run deploy
 ```
 
-`npm run deploy` builds the client (`vite build`) then runs
+`npm run deploy` first runs `predeploy` (`check:no-dev-login` — aborts if
+the manual-testing `/api/dev/login` route is still patched into
+`src/worker.ts`), then builds the client (`vite build`) and runs
 `wrangler deploy`, which reads `wrangler.jsonc`'s static-assets binding
 and `WorkspaceRoom`/`CollabRoom` Durable Object migrations and provisions
 them. Use this only for a one-off manual push (e.g. testing a deploy
 before merging) — it's not part of normal shipping.
+
+Build-time client variables (`VITE_GA_MEASUREMENT_ID`,
+`VITE_TURNSTILE_SITE_KEY`, `SUPPORT_EMAIL`) belong in Cloudflare's
+**build** environment, not as Worker secrets — see the "Build-time
+variables" section in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Production secrets
 

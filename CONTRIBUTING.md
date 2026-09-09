@@ -28,9 +28,10 @@ Vite dev server instead.
 ## Tests and checks
 
 ```
-npm test              # Vitest — unit tests + Svelte component tests, one command
-npm run typecheck     # tsc --noEmit (root/server) + svelte-check (client)
-npm run format:check  # Prettier
+npm test                  # Vitest — unit tests + Svelte component tests, one command
+npm run typecheck         # tsc --noEmit (root/server) + svelte-check (client)
+npm run format:check      # Prettier
+npm run check:no-dev-login # fails if the manual-testing /api/dev/login route is committed
 npm run test:e2e:local    # Playwright (Chromium), client-only flows
 npm run test:e2e:webkit   # Playwright (WebKit, iPhone viewport), mobile-Safari-width checks
 npm run test:e2e:collab   # Playwright, spins up a real Worker + live collaboration

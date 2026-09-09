@@ -106,6 +106,15 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   await joinSharedWorkspace(reviewer, shareUrl);
   await expect.poll(() => reviewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("owner-authored content");
 
+  // MDE-05 — a hostile reviewer client deleting committed text straight
+  // out of the Y.Doc is reverted by the server: the document is unchanged
+  // on both sides after sync.
+  await reviewer.evaluate(() => window.MDE.getActiveYDoc().getText("content").delete(0, 5));
+  await expect
+    .poll(() => reviewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""), { timeout: 10000 })
+    .toContain("owner-authored content");
+  await expect.poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""), { timeout: 10000 }).toContain("owner-authored content");
+
   // Reviewer types text and confirms it renders as an underlined
   // suggestion, not plain committed text — both in the editor pane and
   // in the Preview pane (Google Docs-style ins/del parity).

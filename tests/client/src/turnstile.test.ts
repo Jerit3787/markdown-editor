@@ -75,6 +75,44 @@ describe("client turnstile — enabled (site key stubbed)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("waits for the widget container to render before calling turnstile.render()", async () => {
+    // The modal / #turnstile-widget div lands a few frames after
+    // turnstilePromptOpen flips — solveTurnstile must poll for it rather
+    // than assume it's already there.
+    document.body.innerHTML = ""; // container absent at solve time
+    let renders = 0;
+    (window as unknown as { turnstile: unknown }).turnstile = {
+      render: (_el: unknown, opts: { callback: (t: string) => void }) => {
+        renders++;
+        queueMicrotask(() => opts.callback("late-token"));
+        return "wid-late";
+      },
+      remove: () => {},
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ ticket: "LATE-TICKET" }) })),
+    );
+    const m = await freshModule();
+    const p = m.getJoinTicket("wsLate");
+    // Container appears ~50ms later, the way an async Svelte render would.
+    setTimeout(() => {
+      const d = document.createElement("div");
+      d.id = "turnstile-widget";
+      document.body.appendChild(d);
+    }, 50);
+
+    expect(await p).toBe("LATE-TICKET");
+    expect(renders).toBe(1);
+  });
+
+  it("gives up (does not hang) when the widget container never appears", async () => {
+    document.body.innerHTML = "";
+    (window as unknown as { turnstile: unknown }).turnstile = { render: () => "x", remove: () => {} };
+    const m = await freshModule();
+    await expect(m.getJoinTicket("wsGone")).rejects.toThrow();
+  }, 3000);
+
   it("a second call after the first settles is a fresh solve (in-flight entry cleared)", async () => {
     let renders = 0;
     (window as unknown as { turnstile: unknown }).turnstile = {

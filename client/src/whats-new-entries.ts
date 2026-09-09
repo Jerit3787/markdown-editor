@@ -409,4 +409,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/annotation-rail.png",
     category: "Collaboration",
   },
+  {
+    version: "1.62.0",
+    title: "Talk It Over on a Suggestion",
+    description:
+      "A tracked-change suggestion now has its own reply thread on its card — hash out the wording with your collaborators right there before anyone accepts or rejects it. Comments on a shared doc also sync instantly now instead of prompting everyone to refetch, and their anchors track your edits more closely.",
+    screenshot: "/whats-new/suggestion-replies.png",
+    category: "Collaboration",
+  },
 ];

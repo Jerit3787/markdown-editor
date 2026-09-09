@@ -36,9 +36,12 @@ untouched) de-risks the harder SP-B model unification.
 
 - **Storage unification.** Suggestions stay in the document `Y.Map<SuggestionEntry>`;
   shared-doc comments stay in `WorkspaceRoom` DO storage; local-doc comments stay
-  as `stores/docs.ts` notes. SP-B does this.
+  as `stores/docs.ts` notes. SP-B does this. _Done in SP-B (v1.62.0): shared-doc
+  comments moved to a `comments` Y.Map on the doc; local-doc notes unchanged —
+  see `docs/superpowers/specs/2026-09-10-annotation-model-unification-design.md`._
 - **Reply threads on suggestions (D3).** A suggestion card in SP-A has no reply
-  input — only accept / reject / withdraw. SP-B adds threads.
+  input — only accept / reject / withdraw. SP-B adds threads. _Done in SP-B
+  (v1.62.0)._
 - **Split accept/reject of a replace (D4).** A replace (adjacent delete-suggestion
   + insert-suggestion, same author) renders as one "Replace X → Y" card whose one
   Accept resolves both entries and whose one Reject rejects both. Independent

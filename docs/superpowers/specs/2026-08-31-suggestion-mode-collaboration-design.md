@@ -17,7 +17,11 @@ this: viewer mode becomes a true look-only mode with no edit surface at all.
   those remain editor-only, unchanged from today.
 - Comment threads and suggestions are independent systems in this phase; a
   suggestion cannot have a comment thread attached to it (may be a natural
-  follow-up, not required for parity with the backlog item).
+  follow-up, not required for parity with the backlog item). _Resolved in
+  SP-B (v1.62.0) — see
+  `docs/superpowers/specs/2026-09-10-annotation-model-unification-design.md`:
+  a suggestion now carries a `replies` thread, and comment threads moved
+  into the doc's Y.Doc alongside suggestions._
 - Any change to the `editor`/`owner` role's own behavior — an editor's edits
   are exactly as direct and immediate as they are today.
 

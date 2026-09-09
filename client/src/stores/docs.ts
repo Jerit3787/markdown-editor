@@ -548,7 +548,7 @@ export function deleteDocNote(noteId: string) {
 // Merges a repo-linked doc's companion history file (fetched by
 // repo-history-sync.ts) into this device's notes — union by id, added
 // notes appended, existing ones left untouched. A note's from/to/quote
-// gets relocated at display time (CommentsPanel.svelte already calls
+// gets relocated at display time (AnnotationRail.svelte already calls
 // relocateAnchor on every render), so a merged note needs no special
 // position handling here.
 export function mergeDocNotes(docId: string, remoteNotes: Note[]): void {
@@ -566,7 +566,7 @@ export function mergeDocNotes(docId: string, remoteNotes: Note[]): void {
 // relocateAnchor's ambiguous-quote tiebreak stays accurate over many
 // edits. The active document's *displayed* anchor positions are always
 // recomputed fresh via relocateAnchor() wherever they're shown (see
-// CommentsPanel.svelte), so this is a background-accuracy refresh, not
+// AnnotationRail.svelte), so this is a background-accuracy refresh, not
 // something the UI depends on for correctness.
 export function refreshDocNoteAnchors(content: string) {
   const doc = getActiveDoc();

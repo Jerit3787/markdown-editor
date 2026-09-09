@@ -1517,7 +1517,7 @@ async function fetchWorkspaceAccess(workspaceId: string): Promise<AccessRecord> 
 // first share has claimed the room (before that, remoteId is undefined and
 // the local id IS the id the room will be keyed by, so the ?? fallback is
 // correct). Same resolution as wikilink-rename-cascade.ts and, since
-// PR #159, CommentsPanel / VersionHistory.
+// PR #159, AnnotationRail / VersionHistory.
 function shareRoomId(workspaceId: string): string {
   const ws = get(workspacesStore).find((w) => w.id === workspaceId);
   return ws?.remoteId ?? workspaceId;

@@ -51,7 +51,7 @@
   const repoLastSyncedLabel = $derived(activeWorkspace?.repoLastSyncedAt ? `Synced ${window.MDE.formatRelativeTime(activeWorkspace.repoLastSyncedAt)}` : "");
 
   // #suggestionsBtn/#suggestionsBadge are plain HTML (index.html), not this
-  // component's own markup — same reasoning as CommentsPanel.svelte's own
+  // component's own markup — same reasoning as AnnotationRail.svelte's own
   // #commentsBtn/#commentsBadge sync. No dedicated "suggestions panel"
   // component exists to own this (unlike comments), so it lives here on
   // MenuBar, which is always mounted regardless of active document.

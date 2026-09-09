@@ -58,7 +58,7 @@
   // session *joined* has a local id distinct from the room's id, so every
   // /api/workspace/* call must address the room by ws.remoteId — the two
   // only coincide for the workspace's original owner. (Same resolution as
-  // CommentsPanel.currentDocContext and wikilink-rename-cascade.ts.)
+  // AnnotationRail.currentDocContext and wikilink-rename-cascade.ts.)
   function sharedRoomId(doc: ReturnType<typeof getActiveDoc>): string {
     const ws = doc && get(workspacesStore).find((w) => w.id === doc.workspaceId);
     return ws?.remoteId ?? doc!.workspaceId;

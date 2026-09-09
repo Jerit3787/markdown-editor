@@ -434,7 +434,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
     document.getElementById("saveStatusBtn").hidden = empty;
     (document.getElementById("sidebarToggleIn") as HTMLButtonElement).disabled = empty;
     // #shareBtn / #shareDropdownBtn / #commentsBtn / #versionHistoryBtn
-    // own their own disabled state now (Share.svelte / CommentsPanel.svelte
+    // own their own disabled state now (Share.svelte / AnnotationRail.svelte
     // / VersionHistory.svelte $effects, which combine no-active-doc with
     // the collab mode/role gate) — see the collab-chrome-v2 spec.
   }
@@ -487,9 +487,10 @@ import katexCss from "katex/dist/katex.min.css?raw";
     setSaveStatus(savedLabel(doc));
     // Local notes' markers are set directly here (synchronous, no
     // network). Shared documents' thread markers are set later, once
-    // CommentsPanel.svelte fetches them (asynchronous) — clear here so a
-    // switch away from a doc with local-note markers doesn't leave them
-    // showing on a shared doc that hasn't loaded its own threads yet.
+    // AnnotationRail.svelte re-derives them from the doc's `comments`
+    // Y.Map (via window.MDE.onCommentsChanged) — clear here so a switch
+    // away from a doc with local-note markers doesn't leave them showing
+    // on a shared doc that hasn't bound its own Y.Doc yet.
     if (!doc.shared) {
       const relocated = (doc.notes || [])
         .map((n) => {

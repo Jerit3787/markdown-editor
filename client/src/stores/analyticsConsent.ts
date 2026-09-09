@@ -3,9 +3,10 @@ import { writable } from "svelte/store";
 export type Consent = "granted" | "denied" | "unset";
 const KEY = "mde:analyticsConsent";
 
-// Do-Not-Track / Global Privacy Control → treat as an explicit decline,
-// no banner.
-function browserOptOut(): boolean {
+// Do-Not-Track / Global Privacy Control → a hard opt-out: no banner, and
+// analytics.ts never even loads gtag.js (not the cookieless-denied
+// default it uses for everyone else).
+export function browserOptOut(): boolean {
   try {
     return navigator.doNotTrack === "1" || (navigator as unknown as { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
   } catch {

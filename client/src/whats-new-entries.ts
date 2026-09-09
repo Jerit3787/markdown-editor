@@ -393,4 +393,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/account-button-tidied.png",
     category: "Organization & Navigation",
   },
+  {
+    version: "1.60.0",
+    title: "Analytics, Now Cookieless by Default",
+    description:
+      'The usage analytics now run in an anonymous cookieless mode from the start — no cookie, no persistent ID, no cross-visit recognition, still no document content or username. The banner just asks whether to also allow a cookie for more accurate visit counts ("Allow" / "No cookies"); a browser Do-Not-Track / GPC signal still switches it off entirely. Privacy Policy updated to match.',
+    screenshot: "/whats-new/analytics-cookieless.png",
+    category: "Organization & Navigation",
+  },
 ];

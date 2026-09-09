@@ -122,17 +122,19 @@
 
       <h2>5. Analytics.</h2>
       <p>
-        The app uses Google Analytics 4 to understand which features are used and roughly how many people visit —
-        <strong>only if you accept</strong> via the consent banner shown on your first visit. If you decline (or your browser sends a "Do Not Track" / Global
-        Privacy Control signal), no analytics cookies are set and no analytics data is collected beyond an anonymous, cookieless ping that records the decline.
+        The app uses Google Analytics 4 to understand which features are used and roughly how many people visit. By default this runs in a
+        <strong>cookieless</strong> mode (Google Consent Mode v2, <code>analytics_storage: denied</code>): it sends anonymous pings with
+        <strong>no cookie</strong>, <strong>no persistent identifier</strong>, and no way to recognise you across visits, which Google uses only for aggregate,
+        modelled reporting. The data sent is: page views, approximate location (country / region, derived from your IP, which Google does not retain), device
+        and browser type, and a small number of <strong>feature events with no content</strong> — for example that a workspace was shared or a document exported
+        — plus a single yes/no property for whether a GitHub account is connected.
       </p>
       <p>
-        When enabled, Google Analytics collects: pages viewed, approximate location (country/region, from your IP — which Google does not store), device and
-        browser type, and a random client identifier stored in a cookie. The app additionally sends a small number of
-        <strong>feature events with no content</strong> — for example that a workspace was shared or a document exported — and a single yes/no property for
-        whether a GitHub account is connected.
-        <strong>The app never sends Google your document names, your document contents, your GitHub username, or any other identifying information.</strong> You
-        can change your choice any time under Settings → Analytics. Google's handling of the data it receives is covered by
+        The consent banner on your first visit lets you <strong>additionally allow a cookie</strong> so visit counts are more accurate; if you choose "No
+        cookies" (or change it later under Settings → "Analytics cookies"), the cookieless mode above continues. If your browser sends a "Do Not Track" or
+        Global Privacy Control signal, <strong>Google Analytics is not loaded at all</strong> and nothing is sent.
+        <strong>The app never sends Google your document names, your document contents, your GitHub username, or any other identifying information.</strong>
+        Google's handling of the data it receives is covered by
         <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.
       </p>
 

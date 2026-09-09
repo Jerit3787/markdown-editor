@@ -20,9 +20,9 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-test("shows an Analytics On/Off control reflecting consent, and toggling it sets consent", async () => {
+test("shows an Analytics cookies On/Off control reflecting consent, and toggling it sets consent", async () => {
   const screen = await render(Settings);
-  await expect.element(screen.getByText("Analytics")).toBeVisible();
+  await expect.element(screen.getByText("Analytics cookies")).toBeVisible();
   await screen.getByRole("tab", { name: /^on$/i }).click();
   expect(get(analyticsConsent)).toBe("granted");
   await screen.getByRole("tab", { name: /^off$/i }).click();

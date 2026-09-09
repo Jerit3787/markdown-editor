@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.60.0] - 2026-09-09
+
+### Changed
+
+- Analytics now runs in **cookieless mode by default** (Google Consent Mode v2): anonymous, no cookie, no persistent identifier, no cross-visit recognition — the kind of aggregate usage data that was previously collected from nobody because it required opting in first. The consent banner now asks only whether to _also_ allow a cookie for more accurate visit counts ("Allow" / "No cookies"), and the Settings row is relabelled "Analytics cookies". A browser "Do Not Track" / Global Privacy Control signal still turns analytics off entirely. Privacy Policy §5 updated to match.
+
 ## [1.59.1] - 2026-09-09
 
 ### Fixed

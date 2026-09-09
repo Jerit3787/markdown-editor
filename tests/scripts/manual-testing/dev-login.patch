@@ -1,13 +1,14 @@
 diff --git a/src/worker.ts b/src/worker.ts
-index 719750e..308b900 100644
+index 991142d..c92f18f 100644
 --- a/src/worker.ts
 +++ b/src/worker.ts
-@@ -3,8 +3,19 @@ export { WorkspaceRoom } from "./workspace-room.js";
+@@ -3,9 +3,20 @@ export { WorkspaceRoom } from "./workspace-room.js";
  import { handleLogin, handleCallback, handleLogout, handleMe, handleGistCreate, handleGistUpdate, handleGistGet, handleGistList } from "./github-auth.js";
  import { handleGistImageUpload } from "./gist-images.js";
  import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
 +import { encryptSession, cookieHeader, SESSION_COOKIE } from "./auth.js";
  import type { Env } from "./env";
+ import { generateNonce, appCsp, legalCsp } from "./csp.js";
  
 +// TEMPORARY, local-testing-only: mints a real, validly-encrypted session
 +// cookie for a fake username without going through GitHub OAuth at all —
@@ -22,7 +23,7 @@ index 719750e..308b900 100644
  const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
  const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
  const ROOM_MIGRATE_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/migrate$/;
-@@ -29,6 +40,17 @@ export default {
+@@ -32,6 +43,17 @@ export default {
    async fetch(request: Request, env: Env): Promise<Response> {
      const url = new URL(request.url);
  

@@ -21,13 +21,15 @@ describe("analytics (unconfigured — the test/self-host default)", () => {
   });
 });
 
-type DL = unknown[][];
-function dl(): DL {
-  return ((window as unknown as { dataLayer?: DL }).dataLayer ?? []) as DL;
+function dl(): unknown[] {
+  return (window as unknown as { dataLayer?: unknown[] }).dataLayer ?? [];
 }
-// gtag(...args) pushes `arguments` (an array-like), so each entry is [cmd, ...].
+// window.gtag pushes the raw `arguments` object (array-*like*, not a real
+// Array), so normalise each entry to an array before matching the command.
 function calls(cmd: string): unknown[][] {
-  return dl().filter((a) => Array.isArray(a) && a[0] === cmd);
+  return dl()
+    .map((a) => (a && typeof a === "object" && "length" in (a as object) ? Array.from(a as ArrayLike<unknown>) : [a]))
+    .filter((a) => a[0] === cmd);
 }
 
 describe("analytics (configured — cookieless by default)", () => {

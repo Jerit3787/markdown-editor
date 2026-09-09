@@ -60,6 +60,19 @@ describe("suggestionDecorations", () => {
     const state = EditorState.create({ doc: doc.getText("content").toString() });
     expect(() => suggestionDecorations(state, doc, VIEWER_EDITOR)).not.toThrow();
   });
+
+  it("tags each mark with data-annotation-id", () => {
+    const doc = docWith("hello world");
+    recordInsertSuggestion(doc, 0, 5, "alice");
+    const state = EditorState.create({ doc: doc.getText("content").toString() });
+    const decos = suggestionDecorations(state, doc, VIEWER_EDITOR);
+    const ids: string[] = [];
+    decos.between(0, state.doc.length, (_f, _t, deco) => {
+      const attrs = (deco.spec as { attributes?: Record<string, string> }).attributes;
+      if (attrs?.["data-annotation-id"]) ids.push(attrs["data-annotation-id"]);
+    });
+    expect(ids).toEqual([listResolvedSuggestions(doc)[0]!.id]);
+  });
 });
 
 function viewFor(doc: Y.Doc, author: string): EditorView {

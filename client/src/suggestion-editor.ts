@@ -12,8 +12,11 @@ import {
   type ResolvedSuggestion,
 } from "./suggestions";
 
-export const suggestionInsertMark = Decoration.mark({ class: "cm-suggestion-insert" });
-export const suggestionDeleteMark = Decoration.mark({ class: "cm-suggestion-delete" });
+// Per-range so each mark's DOM node carries its suggestion's id — the
+// annotation rail's hover link (activeAnnotationIds) reads it off the
+// hovered element, and toggles .cm-annotation-active back the other way.
+const insertMark = (id: string) => Decoration.mark({ class: "cm-suggestion-insert", attributes: { "data-annotation-id": id } });
+const deleteMark = (id: string) => Decoration.mark({ class: "cm-suggestion-delete", attributes: { "data-annotation-id": id } });
 
 class SuggestionWidget extends WidgetType {
   constructor(
@@ -77,7 +80,7 @@ export function suggestionDecorations(state: EditorState, doc: Y.Doc, viewer: { 
   const ranges = list
     .filter((s) => s.to > s.from && s.to <= state.doc.length)
     .flatMap((s) => [
-      (s.kind === "insert" ? suggestionInsertMark : suggestionDeleteMark).range(s.from, s.to),
+      (s.kind === "insert" ? insertMark(s.id) : deleteMark(s.id)).range(s.from, s.to),
       Decoration.widget({ widget: suggestionWidgetFor(doc, s, viewer), side: 1 }).range(s.to),
     ]);
   return Decoration.set(ranges, true); // `true`: sort for us — mark + widget ranges interleaved aren't guaranteed pre-sorted

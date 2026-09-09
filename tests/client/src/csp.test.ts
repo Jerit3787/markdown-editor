@@ -64,3 +64,14 @@ describe("app Content-Security-Policy", () => {
     expect(headersFile.split("\n")[0]!.trim()).toBe("/*");
   });
 });
+
+describe("legal pages Content-Security-Policy", () => {
+  const LEGAL_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; base-uri 'self'; form-action 'none'";
+
+  for (const page of ["privacy", "terms"]) {
+    it(`${page}.html carries the strict standalone CSP`, () => {
+      const html = readFileSync(resolve(root, `legal/${page}.html`), "utf8");
+      expect(metaCsp(html)).toBe(LEGAL_CSP);
+    });
+  }
+});

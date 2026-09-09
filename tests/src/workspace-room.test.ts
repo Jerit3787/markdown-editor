@@ -199,7 +199,7 @@ describe("WorkspaceRoom multiplexed sync", () => {
     expect(await room.state.storage.get("docs")).toContain("docNew");
   });
 
-  it("loading a doc room to read its comments does NOT make the doc a workspace member", async () => {
+  it("loading a doc room (e.g. to read its version history) does NOT make the doc a workspace member", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     await room.state.storage.put("access", {
       owner: "alice",
@@ -209,16 +209,8 @@ describe("WorkspaceRoom multiplexed sync", () => {
       invited: [],
     });
 
-    // Exactly what CommentsPanel fires the moment a brand-new local doc is
-    // opened — the doc has no content and was never synced.
-    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
-    const res = await room.handleCommentsRequest(
-      new Request("https://example.com/w/ws1/docs/never-synced/comments", { headers: { Cookie: `mde_gh_session=${cookie}` } }),
-      "never-synced",
-    );
+    await room.loadDocRoom("never-synced");
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual([]);
     expect(room.docIds).not.toContain("never-synced");
     expect((await room.state.storage.get<string[]>("docs")) ?? []).not.toContain("never-synced");
   });
@@ -1034,164 +1026,6 @@ describe("WorkspaceRoom.handleWikilinkRenameRequest", () => {
   });
 });
 
-describe("WorkspaceRoom comment threads", () => {
-  it("creates a thread and persists it under the doc's own storage key", async () => {
-    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
-    const docRoom = await room.loadDocRoom("docA");
-    room.createThread("docA", docRoom, 0, 5, "hello", "alice", "nice edit");
-    await room.persistComments("docA", docRoom);
-    const stored = await room.state.storage.get("doc:docA:comments");
-    expect(stored).toHaveLength(1);
-  });
-
-  it("keeps docA's and docB's threads independent", async () => {
-    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
-    const docA = await room.loadDocRoom("docA");
-    const docB = await room.loadDocRoom("docB");
-    room.createThread("docA", docA, 0, 5, "a", "alice", "on A");
-    expect(room.getComments("docB")).toHaveLength(0);
-    expect(room.getComments("docA")).toHaveLength(1);
-  });
-
-  it("only the thread's author or the workspace owner can delete it", async () => {
-    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
-    const docRoom = await room.loadDocRoom("docA");
-    const thread = room.createThread("docA", docRoom, 0, 5, "a", "alice", "note");
-    expect(room.deleteThread(docRoom, thread.id, "bob", false)).toBe("forbidden");
-    expect(room.deleteThread(docRoom, thread.id, "alice", false)).toBe("deleted");
-  });
-
-  async function roomWithThread(invitedRole: "editor" | "reviewer" | "viewer") {
-    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
-    await room.state.storage.put("access", {
-      owner: "alice",
-      generalAccess: "restricted",
-      requireAccount: false,
-      role: "viewer",
-      invited: [{ username: "bob", role: invitedRole }],
-    });
-    const docRoom = await room.loadDocRoom("docA");
-    const thread = room.createThread("docA", docRoom, 0, 5, "quote", "alice", "the first comment");
-    return { room, thread };
-  }
-
-  async function req(username: string, path: string, body: unknown) {
-    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username });
-    return new Request(`https://example.com/w/ws1${path}`, {
-      method: "POST",
-      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  }
-
-  it("CMT-12: an editor's reply appends to the thread and returns it", async () => {
-    const { room, thread } = await roomWithThread("editor");
-    const res = await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/${thread.id}/reply`, { body: "good point" }), "docA", thread.id);
-    expect(res.status).toBe(200);
-    const updated = (await res.json()) as { comments: { author: string; body: string }[] };
-    expect(updated.comments).toHaveLength(2);
-    expect(updated.comments[1]).toMatchObject({ author: "bob", body: "good point" });
-  });
-
-  it("CMT-12: a reviewer can also reply", async () => {
-    const { room, thread } = await roomWithThread("reviewer");
-    const res = await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/${thread.id}/reply`, { body: "hm" }), "docA", thread.id);
-    expect(res.status).toBe(200);
-  });
-
-  it("CMT-11/CMT-18: a viewer's reply is 403; an empty reply is 400", async () => {
-    const { room, thread } = await roomWithThread("viewer");
-    const viewerRes = await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/${thread.id}/reply`, { body: "nope" }), "docA", thread.id);
-    expect(viewerRes.status).toBe(403);
-
-    const editorRoom = await roomWithThread("editor");
-    const emptyRes = await editorRoom.room.handleCommentReplyRequest(
-      await req("bob", `/docs/docA/comments/${editorRoom.thread.id}/reply`, { body: "   " }),
-      "docA",
-      editorRoom.thread.id,
-    );
-    expect(emptyRes.status).toBe(400);
-    expect(await emptyRes.text()).toBe("Invalid reply.");
-  });
-
-  it("CMT-12: replying to an unknown thread is 404", async () => {
-    const { room } = await roomWithThread("editor");
-    const res = await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/nope/reply`, { body: "x" }), "docA", "nope");
-    expect(res.status).toBe(404);
-  });
-
-  it("CMT-13: resolving marks the thread resolved; {resolved:false} reopens it", async () => {
-    const { room, thread } = await roomWithThread("editor");
-    const resolveRes = await room.handleCommentResolveRequest(await req("bob", `/docs/docA/comments/${thread.id}/resolve`, {}), "docA", thread.id);
-    expect(resolveRes.status).toBe(200);
-    expect(((await resolveRes.json()) as { resolved: boolean }).resolved).toBe(true);
-
-    const reopenRes = await room.handleCommentResolveRequest(
-      await req("bob", `/docs/docA/comments/${thread.id}/resolve`, { resolved: false }),
-      "docA",
-      thread.id,
-    );
-    expect(((await reopenRes.json()) as { resolved: boolean }).resolved).toBe(false);
-  });
-
-  it("CMT-13: a viewer can't resolve (403); an unknown thread is 404", async () => {
-    const viewer = await roomWithThread("viewer");
-    const vRes = await viewer.room.handleCommentResolveRequest(
-      await req("bob", `/docs/docA/comments/${viewer.thread.id}/resolve`, {}),
-      "docA",
-      viewer.thread.id,
-    );
-    expect(vRes.status).toBe(403);
-
-    const editor = await roomWithThread("editor");
-    const nfRes = await editor.room.handleCommentResolveRequest(await req("bob", `/docs/docA/comments/nope/resolve`, {}), "docA", "nope");
-    expect(nfRes.status).toBe(404);
-  });
-
-  it("CMT-15: create / reply / resolve / delete each broadcast a MESSAGE_COMMENTS frame for that doc to connected sessions", async () => {
-    const { room, thread } = await roomWithThread("editor");
-    const sent: ArrayBuffer[] = [];
-    const peerWs = { send: (d: ArrayBuffer) => sent.push(d) } as unknown as WebSocket;
-    room.sessions.set(peerWs, { username: "carol", role: "editor", viewingDocId: null });
-
-    const MESSAGE_COMMENTS = 4;
-    const isCommentsFrame = (buf: ArrayBuffer) => {
-      const d = decoding.createDecoder(new Uint8Array(buf));
-      return decoding.readVarUint(d) === MESSAGE_COMMENTS && decoding.readVarString(d) === "docA";
-    };
-
-    await room.handleCommentsRequest(await req("bob", `/docs/docA/comments`, { from: 0, to: 5, quote: "quote", body: "new one" }), "docA");
-    await room.handleCommentReplyRequest(await req("bob", `/docs/docA/comments/${thread.id}/reply`, { body: "a reply" }), "docA", thread.id);
-    await room.handleCommentResolveRequest(await req("bob", `/docs/docA/comments/${thread.id}/resolve`, {}), "docA", thread.id);
-    const access = { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [{ username: "bob", role: "editor" }] };
-    await room.state.storage.put("access", access);
-    await room.handleCommentDeleteRequest(
-      new Request(`https://example.com/w/ws1/docs/docA/comments/${thread.id}`, {
-        method: "DELETE",
-        headers: { Cookie: `mde_gh_session=${await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" })}` },
-      }),
-      "docA",
-      thread.id,
-    );
-
-    expect(sent.filter(isCommentsFrame)).toHaveLength(4);
-  });
-
-  it("CMT-18: a whitespace-only new comment is rejected 400 Invalid comment.", async () => {
-    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
-    await room.state.storage.put("access", {
-      owner: "alice",
-      generalAccess: "restricted",
-      requireAccount: false,
-      role: "viewer",
-      invited: [{ username: "bob", role: "editor" }],
-    });
-    const res = await room.handleCommentsRequest(await req("bob", `/docs/docA/comments`, { from: 0, to: 3, quote: "abc", body: "   " }), "docA");
-    expect(res.status).toBe(400);
-    expect(await res.text()).toBe("Invalid comment.");
-  });
-});
-
 describe("WorkspaceRoom document membership", () => {
   it("adding a doc makes it appear in the docs list and loadable", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
@@ -1770,6 +1604,62 @@ describe("WorkspaceRoom comments (Y.Doc)", () => {
     await applyFrom(room, ws, docRoom, (c) => addSuggestionReply(c, sid, "eve", "not yours", 5));
     const entry = getSuggestionsMap(docRoom.doc).get(sid) as { replies?: unknown[] };
     expect(entry.replies ?? []).toHaveLength(0);
+  });
+
+  it("seeds legacy stored comment threads into the Y.Doc on first load", async () => {
+    const state = fakeState();
+    const room = new WorkspaceRoom(state, fakeEnv);
+    const seedDoc = new Y.Doc();
+    seedDoc.getText("content").insert(0, "the quick brown fox");
+    await state.storage.put("doc:doc1:update", Y.encodeStateAsUpdate(seedDoc));
+    await state.storage.put("doc:doc1:comments", [
+      {
+        id: "t1",
+        from: 4,
+        to: 9,
+        quote: "quick",
+        orphaned: false,
+        resolved: false,
+        comments: [{ id: "c1", author: "alice", body: "why quick?", createdAt: 1 }],
+      },
+    ]);
+
+    const docRoom = await room.loadDocRoom("doc1");
+    const threads = listResolvedCommentThreads(docRoom.doc);
+    expect(threads).toHaveLength(1);
+    expect(threads[0]).toMatchObject({ id: "t1", quote: "quick", from: 4, to: 9, resolved: false });
+    expect(threads[0]!.replies).toEqual([{ id: "c1", author: "alice", body: "why quick?", createdAt: 1 }]);
+  });
+
+  it("does not re-seed over a live edit when the doc's comments map is already populated", async () => {
+    const state = fakeState();
+    const seedDoc = new Y.Doc();
+    seedDoc.getText("content").insert(0, "the quick brown fox");
+    const legacy = [
+      {
+        id: "t1",
+        from: 4,
+        to: 9,
+        quote: "quick",
+        orphaned: false,
+        resolved: false,
+        comments: [{ id: "c1", author: "alice", body: "why?", createdAt: 1 }],
+      },
+    ];
+    await state.storage.put("doc:doc1:update", Y.encodeStateAsUpdate(seedDoc));
+    await state.storage.put("doc:doc1:comments", legacy);
+
+    const room1 = new WorkspaceRoom(state, fakeEnv);
+    const dr1 = await room1.loadDocRoom("doc1");
+    const tid = listResolvedCommentThreads(dr1.doc)[0]!.id;
+    resolveCommentThread(dr1.doc, tid, true); // a collaborator resolved it after migration
+    await state.storage.put("doc:doc1:update", Y.encodeStateAsUpdate(dr1.doc)); // persisted
+
+    const room2 = new WorkspaceRoom(state, fakeEnv);
+    const dr2 = await room2.loadDocRoom("doc1");
+    const threads = listResolvedCommentThreads(dr2.doc);
+    expect(threads).toHaveLength(1);
+    expect(threads[0]!.resolved).toBe(true); // the legacy key's resolved:false did NOT clobber it
   });
 
   it("D3: a self-authored reply on a suggestion is kept", async () => {

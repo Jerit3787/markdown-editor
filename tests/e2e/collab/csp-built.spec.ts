@@ -46,3 +46,38 @@ test("the built app renders math + a diagram with no CSP violation", async ({ br
   expect(violations, `CSP violations in the built app:\n${violations.join("\n")}`).toEqual([]);
   await ctx.close();
 });
+
+test("the built app is served with a per-request CSP nonce header and no <meta> CSP", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+
+  const res = await page.goto("http://localhost:8787/");
+  const csp = res!.headers()["content-security-policy"] ?? "";
+  expect(csp).toContain("default-src 'self'");
+  expect(csp).toContain("frame-src https://challenges.cloudflare.com");
+  expect(csp).toMatch(/script-src [^;]*'nonce-/);
+  expect(res!.headers()["cache-control"]).toBe("no-store");
+
+  // the static <meta> CSP is stripped in production
+  expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').count()).toBe(0);
+
+  // the header nonce is the one stamped on the <script> tags
+  const headerNonce = csp.match(/'nonce-([^']+)'/)?.[1];
+  expect(headerNonce).toBeTruthy();
+  const scriptNonce = await page.locator("script[nonce]").first().getAttribute("nonce");
+  expect(scriptNonce).toBe(headerNonce);
+
+  // a second request gets a different nonce
+  const res2 = await page.request.get("http://localhost:8787/");
+  const csp2 = res2.headers()["content-security-policy"] ?? "";
+  expect(csp2.match(/'nonce-([^']+)'/)?.[1]).not.toBe(headerNonce);
+
+  // /privacy gets the strict variant, also nonce-based, also no <meta>
+  const legal = await page.goto("http://localhost:8787/privacy");
+  const legalCspHeader = legal!.headers()["content-security-policy"] ?? "";
+  expect(legalCspHeader.startsWith("default-src 'none'")).toBe(true);
+  expect(legalCspHeader).toMatch(/script-src 'nonce-/);
+  expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').count()).toBe(0);
+
+  await ctx.close();
+});

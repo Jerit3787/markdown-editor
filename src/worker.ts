@@ -4,6 +4,7 @@ import { handleLogin, handleCallback, handleLogout, handleMe, handleGistCreate, 
 import { handleGistImageUpload } from "./gist-images.js";
 import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
 import type { Env } from "./env";
+import { generateNonce, appCsp, legalCsp } from "./csp.js";
 
 const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
 const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
@@ -172,6 +173,43 @@ export default {
     // `/privacy` by that same html_handling, which is an infinite loop.
     // `not_found_handling: single-page-application` only fires for paths
     // with NO matching asset, so it never shadows these two.
-    return env.ASSETS.fetch(request);
+    const assetRes = await env.ASSETS.fetch(request);
+    const contentType = assetRes.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/html")) return assetRes;
+
+    // HTML gets a per-request CSP nonce header instead of the static
+    // <meta> tag baked into the asset. Cloudflare stamps its edge-injected
+    // JavaScript Detections <script> tags with the nonce it parses out of
+    // this header — the only way JSD (rotating inline body, unhashable)
+    // and a CSP without 'unsafe-inline' can coexist. See src/csp.ts.
+    const nonce = generateNonce();
+    const isLegalPage = url.pathname === "/privacy" || url.pathname === "/terms";
+    const policy = isLegalPage ? legalCsp(nonce) : appCsp(nonce);
+
+    const rewritten = new HTMLRewriter()
+      .on('meta[http-equiv="Content-Security-Policy"]', {
+        element(el) {
+          el.remove();
+        },
+      })
+      .on("script", {
+        element(el) {
+          el.setAttribute("nonce", nonce);
+        },
+      })
+      .transform(assetRes);
+
+    const headers = new Headers(rewritten.headers);
+    headers.set("Content-Security-Policy", policy);
+    // A cached HTML doc carries a fixed nonce; a later request's JSD
+    // injection would use a different one and be blocked. no-store on the
+    // small shell keeps body, header and injected script in agreement.
+    // The hashed /assets/* bundles are non-HTML and keep caching.
+    headers.set("Cache-Control", "no-store");
+    return new Response(rewritten.body, {
+      status: rewritten.status,
+      statusText: rewritten.statusText,
+      headers,
+    });
   },
 } satisfies ExportedHandler<Env>;

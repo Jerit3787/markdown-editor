@@ -241,6 +241,7 @@ test("the built app is served with the CSP and companion security headers", asyn
   const h = res!.headers();
   expect(h["content-security-policy"]).toContain("default-src 'self'");
   expect(h["content-security-policy"]).toContain("frame-src https://challenges.cloudflare.com");
+  expect(h["content-security-policy"]).toMatch(/script-src [^;]*'nonce-/);
   expect(h["x-frame-options"]).toBe("DENY");
   expect(h["x-content-type-options"]).toBe("nosniff");
   expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");

@@ -48,7 +48,7 @@ test("selecting text shows the comment-draft popup without opening the Comments 
 
 test("a comment can be added on a mobile viewport with the Comments sheet closed", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".comments-panel")).toHaveClass(/collapsed/);
+  await expect(page.locator(".annotation-rail")).toHaveClass(/collapsed/);
 
   await page.click("#editor-mount .cm-content");
   await page.keyboard.type("hello world");
@@ -133,14 +133,14 @@ test("deleting a comment via the panel removes its highlight", async ({ page }) 
   await seedComment(page);
   await page.click("#commentsBtn");
   await expect(page.locator(".cm-comment-marker")).toBeVisible();
-  await page.click(".comment-delete-btn");
+  await page.locator(".annotation-card").getByRole("button", { name: "Delete" }).click();
   await expect(page.locator(".cm-comment-marker")).toHaveCount(0);
 });
 
 test("CMT-17: clicking a comment row scrolls the editor to its anchor", async ({ page }) => {
   await seedComment(page);
   await page.click("#commentsBtn");
-  await expect(page.locator(".comment-entry-quote")).toBeVisible();
+  await expect(page.locator(".annotation-card-quote")).toBeVisible();
 
   // Move the selection well past the anchored range first.
   await page.evaluate(() => {
@@ -148,7 +148,7 @@ test("CMT-17: clicking a comment row scrolls the editor to its anchor", async ({
     v.dispatch({ selection: { anchor: v.state.doc.length } });
   });
 
-  await page.click(".comment-entry-quote");
+  await page.click(".annotation-card-quote");
 
   const sel = await page.evaluate(() => {
     const m = window.MDE.getEditor().state.selection.main;
@@ -166,20 +166,20 @@ test("CMT-19: the Comments panel collapses fully on close — column reclaimed, 
   // own 320px box entirely past the (now right-edge) viewport boundary.
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.click("#commentsBtn");
-  await expect(page.locator(".comments-panel:not(.collapsed)")).toBeVisible();
+  await expect(page.locator(".annotation-rail:not(.collapsed)")).toBeVisible();
   await page.waitForTimeout(300); // let the open slide + grid reflow settle before clicking Close
 
   await page.evaluate(async () => {
     const { commentsPanelOpen } = await import("/src/stores/commentsPanel.ts");
     commentsPanelOpen.set(false);
   });
-  await expect(page.locator(".comments-panel.collapsed")).toBeAttached();
+  await expect(page.locator(".annotation-rail.collapsed")).toBeAttached();
 
   // Poll until the 150ms slide + the grid reflow have settled.
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const panel = document.querySelector(".comments-panel") as HTMLElement;
+        const panel = document.querySelector(".annotation-rail") as HTMLElement;
         const row = document.getElementById("content-row")!;
         const main = document.getElementById("main")!;
         const cols = getComputedStyle(row).gridTemplateColumns.split(/\s+/);

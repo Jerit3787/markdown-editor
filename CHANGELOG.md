@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.0] - 2026-09-10
+
+### Changed
+
+- Comments and tracked-change suggestions now share one right-margin panel, with each card lined up next to the text it refers to instead of suggestions appearing inline in the middle of the document. A plain list view is still one click away from the panel header, and on narrow screens the panel stays a bottom sheet. Accepting or rejecting a suggestion now happens on its card; hovering a highlight in the text lights up its card and vice versa.
+
 ## [1.60.4] - 2026-09-09
 
 ### Fixed

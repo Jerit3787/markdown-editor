@@ -12,7 +12,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 
 test("mobile Comments sheet backdrop blocks the top bar behind it, without dimming the sheet itself", async ({ page }) => {
   await page.click("#commentsBtn");
-  await expect(page.locator(".comments-panel")).not.toHaveClass(/collapsed/);
+  await expect(page.locator(".annotation-rail")).not.toHaveClass(/collapsed/);
   await expect(page.locator(".mobile-sheet-backdrop")).toHaveClass(/visible/);
 
   const topbarBtn = page.locator("#versionHistoryBtn");
@@ -23,9 +23,9 @@ test("mobile Comments sheet backdrop blocks the top bar behind it, without dimmi
   });
   expect(elementOverTopbar, "backdrop should intercept clicks over the top bar while the sheet is open").toBe(true);
 
-  const panelHeader = page.locator(".comments-panel-header");
+  const panelHeader = page.locator(".annotation-rail-header");
   const headerBox = (await panelHeader.boundingBox())!;
-  const elementOverPanel = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest(".comments-panel") !== null, {
+  const elementOverPanel = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest(".annotation-rail") !== null, {
     x: headerBox.x + headerBox.width / 2,
     y: headerBox.y + headerBox.height / 2,
   });

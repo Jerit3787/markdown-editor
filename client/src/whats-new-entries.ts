@@ -401,4 +401,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/analytics-cookieless.png",
     category: "Organization & Navigation",
   },
+  {
+    version: "1.61.0",
+    title: "Comments and Suggestions, Side by Side",
+    description:
+      "Comments and tracked-change suggestions now live in one panel on the right, each card pinned next to the line it's about — no more suggestion cards wedged into the middle of your text. Switch to a plain list from the panel header any time; accept or reject a suggestion right on its card, and hover a highlight to light up its card.",
+    screenshot: "/whats-new/annotation-rail.png",
+    category: "Collaboration",
+  },
 ];

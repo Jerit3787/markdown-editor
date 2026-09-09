@@ -109,8 +109,21 @@ persisting focus mode across reloads, or sentence-level dimming.
 
 **Group D — suggesting-mode redesign** (its own brainstorm — NOT in v1.50.0)
 
+Decomposed into **SP-A** (D1 + the visual half of D5 — the annotation
+rail + shared card, **shipped v1.61.0**, spec
+`docs/superpowers/specs/2026-09-09-annotation-rail-design.md`, plan
+`.../plans/2026-09-09-annotation-rail.md`), **SP-B** (D3 + the data-path
+half of D5 — a unified annotation model in the Y.Doc, still pending),
+**SP-C** (D4 — granularity, still pending). D2 shipped standalone in
+v1.60.4.
+
 - **D1** — Inline suggestion rendering looks cramped/broken. Move to a
-  Google-Docs-style right-margin card model.
+  Google-Docs-style right-margin card model. **Shipped v1.61.0** (SP-A):
+  `AnnotationRail.svelte` positions comment + suggestion cards absolutely
+  by their line's Y (`coordsAtPos` + `annotation-rail-layout.ts`), scroll-
+  synced, list-view fallback for preview-only / mobile / a header toggle.
+  The inline CodeMirror `WidgetType` is gone; the underline/strike mark
+  stays and hover-links to its card via `activeAnnotationIds`.
 - **D2** — Deleting your own just-inserted suggested text should remove
   the suggestion (and its card) entirely, not leave an "added X then
   deleted X" pair. **Shipped v1.60.4** as a standalone fix
@@ -126,7 +139,10 @@ persisting focus mode across reloads, or sentence-level dimming.
   accept/reject.
 - **D5** — The standalone "edit" icon on suggestions is unclear. Fold
   suggestion actions into the comment-thread UI (Google Docs merges
-  suggestion + comment into one card).
+  suggestion + comment into one card). **Visual half shipped v1.61.0**
+  (SP-A): comments and suggestions render through one `AnnotationCard`
+  component. The data-path half (a suggestion card gaining a real reply
+  thread) is SP-B.
 - **D6** — mode switcher. **Shipped v1.50.0** (see above).
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
@@ -386,6 +402,12 @@ Real options that came up while designing or building a shipped feature,
 set aside rather than chosen — worth reconsidering on their own if they
 turn out to matter later.
 
+- [ ] Annotation rail (v1.61.0 / SP-A) deferred pieces: anchoring cards to
+      the **preview pane's** blocks (via the existing `data-line` tags) so
+      the rail stays spatial in preview-only / Viewing mode instead of
+      falling back to a flat list; letting a divider drag (not just a
+      window resize) re-run the card layout; independent accept/reject of
+      the two halves of a "Replace" card (that half of D4 is SP-C)
 - [ ] Diagram export: additional formats/options beyond SVG + PNG — JPG/WebP,
       scale factor, padding, transparent-background toggle (explicitly out
       of scope for the export feature shipped in v1.3.0)

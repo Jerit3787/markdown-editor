@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { EditorView, Decoration, drawSelection, keymap, type DecorationSet } from "@codemirror/view";
+  import { EditorView, Decoration, drawSelection, keymap, ViewPlugin, type DecorationSet } from "@codemirror/view";
   import { EditorState, Compartment, StateField, StateEffect, type Extension } from "@codemirror/state";
   import { history, historyKeymap, undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
   import { syntaxHighlighting } from "@codemirror/language";
@@ -11,6 +11,7 @@
   import { getActiveDoc } from "../stores/docs";
   import { imageKey } from "../image-key";
   import { commentDraft } from "../stores/commentDraft";
+  import { activeAnnotationIds } from "../stores/annotations";
   import { slashMenu } from "../stores/slashMenu";
   import { wikilinkMenu } from "../stores/wikilinkMenu";
   import { buildSearchExtension } from "../search";
@@ -303,7 +304,7 @@
       let deco = value.map(tr.changes);
       for (const effect of tr.effects) {
         if (effect.is(addCommentMarkerEffect)) {
-          const mark = Decoration.mark({ class: "cm-comment-marker", id: effect.value.id });
+          const mark = Decoration.mark({ class: "cm-comment-marker", id: effect.value.id, attributes: { "data-annotation-id": effect.value.id } });
           deco = deco.update({ add: [mark.range(effect.value.from, effect.value.to)] });
         } else if (effect.is(removeCommentMarkerEffect)) {
           deco = deco.update({ filter: (_f, _t, d) => (d.spec as { id: string }).id !== effect.value });
@@ -325,6 +326,43 @@
       effects: [clearCommentMarkersEffect.of(null), ...entries.map((e) => addCommentMarkerEffect.of(e))],
     });
   }
+
+  // Two-way hover link between an in-text mark (comment or suggestion,
+  // both carry data-annotation-id) and its card in the annotation rail:
+  // hovering a mark publishes its id to activeAnnotationIds; the rail
+  // reflects it back (a card hover sets the same store) and this plugin
+  // toggles .cm-annotation-active on whichever marks match.
+  const annotationHoverPlugin = ViewPlugin.fromClass(
+    class {
+      private dom: HTMLElement;
+      private unsub: () => void;
+      private over: (e: MouseEvent) => void;
+      private out: (e: MouseEvent) => void;
+      constructor(v: EditorView) {
+        this.dom = v.dom;
+        const idOf = (t: EventTarget | null) => (t as HTMLElement | null)?.closest?.("[data-annotation-id]") as HTMLElement | null;
+        this.over = (e) => {
+          const el = idOf(e.target);
+          activeAnnotationIds.set(el ? [el.dataset.annotationId!] : []);
+        };
+        this.out = (e) => {
+          if (!idOf(e.relatedTarget)) activeAnnotationIds.set([]);
+        };
+        this.dom.addEventListener("mouseover", this.over);
+        this.dom.addEventListener("mouseout", this.out);
+        this.unsub = activeAnnotationIds.subscribe((ids) => {
+          for (const node of this.dom.querySelectorAll<HTMLElement>("[data-annotation-id]")) {
+            node.classList.toggle("cm-annotation-active", ids.includes(node.dataset.annotationId!));
+          }
+        });
+      }
+      destroy() {
+        this.dom.removeEventListener("mouseover", this.over);
+        this.dom.removeEventListener("mouseout", this.out);
+        this.unsub();
+      }
+    },
+  );
 
   const commentDraftSyncListener = EditorView.updateListener.of((update) => {
     const sel = update.state.selection.main;
@@ -544,6 +582,7 @@
         },
       }),
       commentMarkerField,
+      annotationHoverPlugin,
       commentDraftSyncListener,
       menuEscapeKeymap,
       findReplaceKeymap,

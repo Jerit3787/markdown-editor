@@ -29,6 +29,7 @@ describe("worker routing", () => {
     // the HTML response now carries the per-request nonce CSP header
     expect(res.headers.get("Content-Security-Policy")).toMatch(/script-src [^;]*'nonce-/);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(res.headers.get("Strict-Transport-Security")).toMatch(/max-age=\d+/);
   });
 
   it("falls through to the SPA handler for an unknown /api/* path (there is no hard 404 here)", async () => {
@@ -70,6 +71,14 @@ describe("worker routing", () => {
     const res = await worker.fetch(new Request("https://app.example.com/api/auth/github/me"), env);
     expect(res.status).toBe(200);
     expect(((await res.json()) as { connected: boolean }).connected).toBe(false);
+  });
+
+  it("rejects a GET /api/auth/github/logout with 405 — POST only (MDE-03 CSRF)", async () => {
+    const { env } = fakeEnv();
+    const get = await worker.fetch(new Request("https://app.example.com/api/auth/github/logout"), env);
+    expect(get.status).toBe(405);
+    const post = await worker.fetch(new Request("https://app.example.com/api/auth/github/logout", { method: "POST" }), env);
+    expect(post.status).not.toBe(405);
   });
 
   it("passes /privacy and /terms to the asset layer with the request URL unchanged, and sets the strict CSP header", async () => {

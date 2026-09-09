@@ -124,7 +124,14 @@ export default {
 
     if (url.pathname === "/api/auth/github/login") return handleLogin(request, env);
     if (url.pathname === "/api/auth/github/callback") return handleCallback(request, env);
-    if (url.pathname === "/api/auth/github/logout") return handleLogout(request, env);
+    // POST-only: a GET here is reachable by a cross-site top-level
+    // navigation (SameSite=Lax sends the session cookie), and handleLogout
+    // revokes the GitHub OAuth grant + clears the session — a CSRF logout
+    // (MDE-03). The app only ever calls this with fetch(..., {method:"POST"}).
+    if (url.pathname === "/api/auth/github/logout") {
+      if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+      return handleLogout(request, env);
+    }
     if (url.pathname === "/api/auth/github/me") return handleMe(request, env);
 
     if (url.pathname === "/api/gist" && request.method === "POST") return handleGistCreate(request, env);
@@ -201,6 +208,11 @@ export default {
 
     const headers = new Headers(rewritten.headers);
     headers.set("Content-Security-Policy", policy);
+    // Tell the browser to stick to HTTPS for this host. Conservative:
+    // no `includeSubDomains` (danplace.tech has other subdomains) and no
+    // `preload` (a hard-to-undo commitment) — strengthen those from the
+    // Cloudflare edge-certificate HSTS toggle if desired.
+    headers.set("Strict-Transport-Security", "max-age=63072000");
     // A cached HTML doc carries a fixed nonce; a later request's JSD
     // injection would use a different one and be blocked. no-store on the
     // small shell keeps body, header and injected script in agreement.

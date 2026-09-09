@@ -50,6 +50,27 @@ if (typeof (globalThis as any).HTMLRewriter === "undefined") {
   (globalThis as any).HTMLRewriter = MockHTMLRewriter;
 }
 
+// WorkspaceRoom.fetch() / CollabRoom.fetch() construct a `new
+// WebSocketPair()` (a Workers runtime global) on the WS-upgrade path. The
+// Node unit env has none — a minimal stand-in (two objects with the
+// EventTarget-ish surface the rooms actually touch: send / close /
+// addEventListener) lets a `fetch()` upgrade test inspect the resulting
+// session without a real socket. The full socket lifecycle is exercised
+// by the collab e2e suite against wrangler.
+if (typeof (globalThis as any).WebSocketPair === "undefined") {
+  class MockWebSocket {
+    accept(): void {}
+    send(): void {}
+    close(): void {}
+    addEventListener(): void {}
+    removeEventListener(): void {}
+  }
+  (globalThis as any).WebSocketPair = class {
+    0 = new MockWebSocket();
+    1 = new MockWebSocket();
+  };
+}
+
 // stores/view.ts sets #body's className as a module-load side effect
 // (mirrors the old app.ts initViewToggle) — any test file that statically
 // imports it, directly or transitively (e.g. via collab.ts), crashes on

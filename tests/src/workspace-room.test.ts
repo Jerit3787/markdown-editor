@@ -44,6 +44,7 @@ function fakeState() {
         store.clear();
       },
       setAlarm: async () => {},
+      deleteAlarm: async () => {},
     },
     blockConcurrencyWhile: async (fn: () => Promise<void>) => {
       await fn();
@@ -369,6 +370,25 @@ describe("WorkspaceRoom.requireJoinTicket", () => {
   });
 });
 
+describe("WorkspaceRoom websocket session role", () => {
+  // The Node unit env can't construct the `101` upgrade Response, but
+  // handleSession runs before that — inspect the session it created.
+  async function rolesAfterUpgrade(query: string) {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    await room.fetch(new Request(`https://example.com/api/workspace/ws1${query}`, { headers: { Upgrade: "websocket" } })).catch(() => {});
+    return [...(room as unknown as { sessions: Map<unknown, { role: string }> }).sessions.values()].map((s) => s.role);
+  }
+
+  it("pins a ?preview=1 socket to viewer even on an 'anyone can edit' workspace (MDE-01)", async () => {
+    expect(await rolesAfterUpgrade("?preview=1")).toEqual(["viewer"]);
+  });
+
+  it("a normal socket keeps its resolved role", async () => {
+    expect(await rolesAfterUpgrade("")).toEqual(["editor"]);
+  });
+});
+
 const fakeEnvWithTurnstile = {
   SESSION_SECRET: "test-secret-key-not-real",
   TURNSTILE_SECRET_KEY: "test-turnstile-secret",
@@ -463,6 +483,36 @@ describe("WorkspaceRoom.handleAccessRequest", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as AccessRecord;
     expect(body.generalAccess).toBe("anyone");
+  });
+
+  it("downgrades and revokes live sessions when the owner changes access (MDE-02)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "anyone",
+      requireAccount: false,
+      role: "editor",
+      invited: [{ username: "bob", role: "editor" }],
+    });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+
+    const bobWs = { send: () => {}, close: vi.fn() } as unknown as WebSocket;
+    const anonWs = { send: () => {}, close: vi.fn() } as unknown as WebSocket;
+    room.sessions.set(bobWs, { username: "bob", role: "editor", viewingDocId: null });
+    room.sessions.set(anonWs, { username: null, role: "editor", viewingDocId: null });
+
+    // Downgrade bob to reviewer and close the public link entirely.
+    await room.handleAccessRequest(
+      new Request("https://example.com/w/ws1/access", {
+        method: "PUT",
+        headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ generalAccess: "restricted", role: "viewer", invited: [{ username: "bob", role: "reviewer" }] }),
+      }),
+    );
+
+    expect(room.sessions.get(bobWs)?.role).toBe("reviewer");
+    expect(room.sessions.has(anonWs)).toBe(false); // anon lost all access → socket closed + dropped
+    expect(anonWs.close as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(4403, "Access revoked");
   });
 
   it("rejects a non-owner's attempt to change access", async () => {
@@ -616,6 +666,25 @@ describe("WorkspaceRoom DELETE /api/workspace/:id (owner revoke)", () => {
     expect(room.sessions.size).toBe(0);
     const gotDeletedFrame = sent.some((buf) => decoding.readVarUint(decoding.createDecoder(new Uint8Array(buf))) === 5);
     expect(gotDeletedFrame).toBe(true);
+  });
+
+  it("a persist alarm scheduled just before DELETE does not resurrect document content (MDE-08)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", OWNER_ACCESS);
+
+    // An edit lands and schedules the debounced persist.
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.getText("content").insert(0, "secret content");
+    await room.schedulePersist("docA", docRoom);
+    expect(docRoom.persistScheduled).toBe(true);
+
+    await room.fetch(await deleteRequest("alice"));
+    expect(await room.state.storage.get("doc:docA:update")).toBeUndefined();
+
+    // The alarm fires afterward — it must be a no-op now.
+    await room.alarm();
+    expect(await room.state.storage.get("doc:docA:update")).toBeUndefined();
+    expect(room.docs.size).toBe(0);
   });
 });
 
@@ -1132,6 +1201,29 @@ describe("WorkspaceRoom.handleMetaRequest", () => {
     expect(room.name).toBe("");
   });
 
+  it("rejects a non-owner editor and an anonymous visitor on a public 'anyone can edit' workspace (MDE-10)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", {
+      owner: "alice",
+      generalAccess: "anyone",
+      requireAccount: false,
+      role: "editor",
+      invited: [{ username: "bob", role: "editor" }],
+    });
+    const mk = (cookie?: string) =>
+      room.handleMetaRequest(
+        new Request("https://example.com/w/ws1/meta", {
+          method: "PUT",
+          headers: { ...(cookie ? { Cookie: `mde_gh_session=${cookie}` } : {}), "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Hijacked", repoLinked: true }),
+        }),
+      );
+    expect((await mk(await encryptSession(fakeEnvWithSecret, { token: "t", username: "bob" }))).status).toBe(403);
+    expect((await mk()).status).toBe(403);
+    expect(room.name).toBe("");
+    expect(room.repoLinked).toBe(false);
+  });
+
   it("an editor's PUT persists the name, returns it, and it survives a storage reload", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
@@ -1468,6 +1560,27 @@ describe("reviewer writes", () => {
     const list = listResolvedSuggestions(docRoom.doc);
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ kind: "insert", author: "bob", from: 5, to: 8 });
+  });
+
+  it("the merge observer carries every merged suggestion's reply thread onto the survivor (MDE-09)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    const map = getSuggestionsMap(docRoom.doc);
+
+    recordInsertSuggestion(docRoom.doc, 5, 6, "bob");
+    const id1 = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    map.set(id1, { ...map.get(id1)!, replies: [{ id: "a", author: "carol", body: "first", createdAt: 1 }] });
+    recordInsertSuggestion(docRoom.doc, 7, 9, "bob");
+    const id2 = listResolvedSuggestions(docRoom.doc).find((s) => s.from === 7)!.id;
+    map.set(id2, { ...map.get(id2)!, replies: [{ id: "b", author: "dave", body: "second", createdAt: 2 }] });
+    // an entry bridging [5,6) and [7,9) forces the cluster to merge
+    recordInsertSuggestion(docRoom.doc, 6, 7, "bob");
+
+    const list = listResolvedSuggestions(docRoom.doc);
+    expect(list).toHaveLength(1);
+    const survivor = map.get(list[0]!.id) as { replies?: { body: string }[] };
+    expect((survivor.replies ?? []).map((r) => r.body).sort()).toEqual(["first", "second"]);
   });
 
   it("an editor's write is never reconciled into a suggestion", async () => {

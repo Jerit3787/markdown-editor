@@ -30,6 +30,21 @@ function coreEqual(a: CommentThreadEntry, b: CommentThreadEntry): boolean {
   );
 }
 
+// A serialized Yjs relative position (Y.relativePositionToJSON output) is
+// an object anchored either to an encoded `type` or to a named top-level
+// type via `tname` (e.g. "content"), always with a numeric `assoc`.
+// `{}` / `null` / a bare number pass a naive `!= null` check but make
+// Y.createAbsolutePositionFromRelativePosition throw "Unexpected case" —
+// which, resolved synchronously in every viewer's annotation rail, is a
+// persistent client-wide DoS. Reject anything that isn't shaped like a
+// real rel-pos so it never reaches the map.
+function isPlausibleRelPos(p: unknown): boolean {
+  if (typeof p !== "object" || p === null) return false;
+  const o = p as Record<string, unknown>;
+  const anchored = typeof o.tname === "string" || o.type != null || o.item != null;
+  return anchored && typeof o.assoc === "number";
+}
+
 export function isValidNewThread(entry: CommentThreadEntry | undefined, username: string | null): boolean {
   if (!entry || !username) return false;
   const first = entry.replies?.[0];
@@ -42,8 +57,8 @@ export function isValidNewThread(entry: CommentThreadEntry | undefined, username
     first.author === username &&
     typeof first.body === "string" &&
     first.body.trim() !== "" &&
-    entry.from != null &&
-    entry.to != null
+    isPlausibleRelPos(entry.from) &&
+    isPlausibleRelPos(entry.to)
   );
 }
 

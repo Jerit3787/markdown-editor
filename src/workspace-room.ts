@@ -291,7 +291,13 @@ export class WorkspaceRoom {
         (byAuthorKind.get(key) ?? byAuthorKind.set(key, []).get(key)!).push(s);
       }
       const idsToDelete: string[] = [];
-      const toCreate: { kind: "insert" | "delete"; author: string; from: number; to: number }[] = [];
+      const toCreate: {
+        kind: "insert" | "delete";
+        author: string;
+        from: number;
+        to: number;
+        replies: { id: string; author: string; body: string; createdAt: number }[];
+      }[] = [];
       for (const group of byAuthorKind.values()) {
         group.sort((a, b) => a.from - b.from);
         let clusterStart = 0;
@@ -305,7 +311,15 @@ export class WorkspaceRoom {
           const cluster = group.slice(clusterStart, i);
           if (cluster.length > 1) {
             idsToDelete.push(...cluster.map((c) => c.id));
-            toCreate.push({ kind: cluster[0]!.kind, author: cluster[0]!.author, from: cluster[0]!.from, to: clusterMaxTo });
+            // D3 — carry every merged entry's discussion thread onto the
+            // survivor. Dropping them (the pre-1.62.1 behaviour) let a
+            // reviewer erase review history with one adjacent keystroke.
+            const seen = new Set<string>();
+            const replies = cluster
+              .flatMap((c) => c.replies ?? [])
+              .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
+              .sort((a, b) => a.createdAt - b.createdAt);
+            toCreate.push({ kind: cluster[0]!.kind, author: cluster[0]!.author, from: cluster[0]!.from, to: clusterMaxTo, replies });
           }
           if (cur) {
             clusterStart = i;
@@ -319,6 +333,15 @@ export class WorkspaceRoom {
         for (const c of toCreate) {
           if (c.kind === "insert") recordInsertSuggestion(doc, c.from, c.to, c.author);
           else recordDeleteSuggestion(doc, c.from, c.to, c.author);
+          if (c.replies.length === 0) continue;
+          // Re-attach the aggregated replies to the entry just created for
+          // this cluster's range.
+          for (const s of listResolvedSuggestions(doc)) {
+            if (s.kind !== c.kind || s.author !== c.author || s.from !== c.from || s.to !== c.to) continue;
+            const entry = suggestionsMap.get(s.id);
+            if (entry) suggestionsMap.set(s.id, { ...entry, replies: c.replies });
+            break;
+          }
         }
       }, "suggestion");
     });
@@ -420,10 +443,18 @@ export class WorkspaceRoom {
     const ticket = await this.requireJoinTicket(request);
     if (!ticket.ok) return new Response(ticket.message, { status: ticket.status });
 
+    // `?preview=1` sockets are exempt from the Turnstile challenge
+    // (requireJoinTicket returns early) because they are meant to be a
+    // read-only pre-join content fetch. Pin them to `viewer` so that
+    // exemption can never also hand out write access on a public
+    // "anyone can edit" workspace (MDE-01).
+    const isPreview = url.searchParams.get("preview") === "1";
+    const effectiveRole: Role = isPreview ? "viewer" : auth.role;
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-    this.handleSession(server, auth.username, auth.role);
+    this.handleSession(server, auth.username, effectiveRole);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -576,10 +607,32 @@ export class WorkspaceRoom {
       };
       await this.state.storage.put("access", next);
       this.cachedAccess = next;
+      this.reconcileSessionRoles(next);
       this.broadcastAccessChanged();
       return Response.json(next);
     }
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  // Re-resolve every live WebSocket session's role against a just-written
+  // access record, so a downgrade or revocation takes effect immediately
+  // rather than only on the client's voluntary rejoin (MDE-02). A client
+  // that ignores MESSAGE_ACCESS_CHANGED can otherwise keep writing with
+  // its stale in-memory role until the socket drops.
+  reconcileSessionRoles(next: AccessRecord): void {
+    for (const [ws, session] of Array.from(this.sessions.entries())) {
+      const role = resolveRole(next, session.username);
+      if (!role) {
+        try {
+          ws.close(4403, "Access revoked");
+        } catch {
+          /* already closed */
+        }
+        this.sessions.delete(ws);
+      } else {
+        session.role = role;
+      }
+    }
   }
 
   broadcastAccessChanged(): void {
@@ -618,6 +671,7 @@ export class WorkspaceRoom {
       invited.push({ username, role });
       await this.state.storage.put("access", { ...access, invited });
       this.cachedAccess = await this.getAccess();
+      this.reconcileSessionRoles(this.cachedAccess);
     }
     this.broadcastAccessChanged();
     return Response.json({ ok: true });
@@ -674,7 +728,14 @@ export class WorkspaceRoom {
     if (request.method !== "PUT") return new Response("Method not allowed", { status: 405 });
     const auth = await this.authorize(request);
     if (!auth.ok) return new Response(auth.message, { status: auth.status });
-    if (auth.role !== "editor") return new Response("Only an editor can change workspace metadata.", { status: 403 });
+    // Workspace name + repo-link state are owner-managed config, like the
+    // access record — not per-collaborator. Gating to `editor` let a
+    // non-owner editor (and, on a public "anyone can edit" link, an
+    // anonymous visitor) rename the workspace and spoof repoLinked (MDE-10).
+    const access = await this.getAccess();
+    if (!auth.username || auth.username !== access.owner) {
+      return new Response("Only the workspace owner can change workspace metadata.", { status: 403 });
+    }
     let body: { name?: unknown; repoLinked?: unknown };
     try {
       body = await request.json();
@@ -722,6 +783,14 @@ export class WorkspaceRoom {
       }
     }
     this.sessions.clear();
+
+    // Cancel any pending debounced persist and drop the in-memory rooms —
+    // otherwise a persist alarm scheduled seconds earlier fires after
+    // deleteAll() and writes every doc's CRDT state back into storage
+    // (MDE-08). alarm()/persistAllNow() also bail on `this.deleted` as a
+    // backstop.
+    await this.state.storage.deleteAlarm();
+    this.docs.clear();
 
     await this.state.storage.deleteAll();
     await this.state.storage.put("deleted", true);
@@ -940,10 +1009,12 @@ export class WorkspaceRoom {
   }
 
   async alarm(): Promise<void> {
+    if (this.deleted) return;
     await this.persistAllNow();
   }
 
   async persistAllNow(): Promise<void> {
+    if (this.deleted) return; // a persist scheduled just before DELETE must not rewrite wiped storage (MDE-08)
     for (const [docId, docRoom] of this.docs.entries()) {
       if (!docRoom.persistScheduled && this.sessions.size > 0) continue;
       docRoom.persistScheduled = false;

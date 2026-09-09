@@ -49,9 +49,17 @@ function toRelative(ytext: Y.Text, index: number, assoc: 0 | -1 = 0): ReturnType
 }
 
 function toAbsoluteIndex(doc: Y.Doc, ytext: Y.Text, json: ReturnType<typeof Y.relativePositionToJSON>): number | null {
-  const pos = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(json), doc);
-  if (!pos || pos.type !== ytext) return null;
-  return pos.index;
+  // A malformed anchor ({}, null, …) from a hostile client makes Yjs
+  // throw "Unexpected case" — swallow it so one bad entry drops from the
+  // list instead of crashing every collaborator's editor (and the
+  // server's own suggestions observer).
+  try {
+    const pos = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(json), doc);
+    if (!pos || pos.type !== ytext) return null;
+    return pos.index;
+  } catch {
+    return null;
+  }
 }
 
 // Resolves every live suggestion to its current absolute position in the
@@ -84,10 +92,15 @@ export function recordInsertSuggestion(doc: Y.Doc, from: number, to: number, aut
     if (toAbsoluteIndex(doc, ytext, entry.to) === from) extendId = id;
   });
   const id = extendId ?? uid();
-  const createdAt = extendId ? map.get(extendId)!.createdAt : now;
-  const fromJson = extendId ? map.get(extendId)!.from : toRelative(ytext, from);
+  const existing = extendId ? map.get(extendId) : undefined;
+  const createdAt = existing ? existing.createdAt : now;
+  const fromJson = existing ? existing.from : toRelative(ytext, from);
+  // Preserve a D3 discussion thread when a contiguous keystroke extends
+  // this suggestion — rebuilding the entry without it silently erased
+  // review history (MDE-09).
+  const replies = existing?.replies;
   doc.transact(() => {
-    map.set(id, { kind: "insert", author, createdAt, from: fromJson, to: toRelative(ytext, to, -1) });
+    map.set(id, { kind: "insert", author, createdAt, from: fromJson, to: toRelative(ytext, to, -1), ...(replies ? { replies } : {}) });
   }, "suggestion");
 }
 

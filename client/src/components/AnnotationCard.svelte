@@ -34,7 +34,11 @@
   const isSuggestion = $derived(annotation.kind === "suggestion");
   const isOwn = $derived(!!annotation.author && annotation.author === viewer.name);
   const isEditor = $derived(viewer.role === "editor");
-  const avatarUrl = $derived(annotation.author ? `https://github.com/${annotation.author}.png` : "");
+  // encodeURIComponent so a hostile author string can't smuggle a query
+  // param or path segment into the avatar URL. The server already
+  // constrains `author` to a real GitHub username or "Anonymous", but the
+  // card renders local-note and legacy data too — cheap defence in depth.
+  const avatarUrl = $derived(annotation.author ? `https://github.com/${encodeURIComponent(annotation.author.trim())}.png` : "");
 
   function submitReply() {
     const b = replyBody.trim();

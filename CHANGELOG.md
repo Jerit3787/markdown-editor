@@ -4,6 +4,21 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.1] - 2026-09-10
+
+### Fixed
+
+- Security hardening from an external audit of the collaboration layer:
+  - A collaborator could no longer wedge a shared document open in a broken state by planting a malformed comment anchor — the server rejects those now, and the annotation panel tolerates any that already exist.
+  - A suggestion's discussion thread is kept when the suggestion merges with an adjacent one, instead of being dropped.
+  - A pre-join document preview connection can no longer be used to skip the "just checking you're human" check and still get edit access on a public link — preview connections are read-only.
+  - Deleting a shared workspace now cancels any pending save, so nothing can write the document back to storage moments later.
+  - Renaming a shared workspace or changing its repo-link state is now owner-only.
+  - Changing who can access a shared workspace (or downgrading a collaborator) now takes effect on already-connected sessions immediately, not just on their next reconnect.
+  - Signing out now requires a real button press in the app — a stray link can't force a logout.
+  - Migrating a legacy single-document share link now requires access to that document.
+  - Added `Strict-Transport-Security`, tightened HTML-escaping around link attributes, and a CI check that the local dev-login helper can never ship.
+
 ## [1.62.0] - 2026-09-10
 
 ### Added

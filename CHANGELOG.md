@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.60.4] - 2026-09-09
+
+### Fixed
+
+- In Suggesting mode, deleting text you had just suggested inserting (and that hadn't been accepted yet) left a struck-through "deletion" suggestion on top of the original "insertion" one — so a typo you tried to backspace away stayed on screen as two overlapping cards. Retracting your own pending insertion now simply removes it. Deleting already-committed text, or another person's suggested text, still becomes a tracked deletion for the editor to review.
+
 ## [1.60.3] - 2026-09-09
 
 ### Changed

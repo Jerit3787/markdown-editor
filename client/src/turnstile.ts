@@ -55,6 +55,21 @@ interface TurnstileApi {
   remove: (id: string) => void;
 }
 
+// TurnstilePrompt.svelte renders the <div id="turnstile-widget"> in
+// reaction to turnstilePromptOpen — an async render. When Cloudflare's
+// api.js is already cached, loadTurnstileScript() resolves in the same
+// microtask and the container isn't in the DOM yet, so poll briefly for
+// it rather than giving up (an anonymous share-link join would then land
+// in read-only preview with a dead challenge modal — the bug this fixes).
+async function acquireWidgetContainer(): Promise<HTMLElement | null> {
+  for (let i = 0; i < 60; i++) {
+    const el = document.getElementById("turnstile-widget");
+    if (el) return el;
+    await new Promise((r) => setTimeout(r, 16));
+  }
+  return null;
+}
+
 // Opens the prompt modal, renders the widget, resolves with the token.
 // Rejects on widget error/expiry (leaving the prompt open in its error
 // state) or if the user cancels (TurnstilePrompt clears turnstilePromptOpen).
@@ -64,7 +79,7 @@ async function solveTurnstile(): Promise<string> {
   turnstilePromptOpen.set(true);
   await loadTurnstileScript();
   const api = (window as unknown as { turnstile?: TurnstileApi }).turnstile;
-  const container = document.getElementById("turnstile-widget");
+  const container = await acquireWidgetContainer();
   if (!api || !container) {
     turnstilePromptError.set(true);
     throw new Error("turnstile unavailable");

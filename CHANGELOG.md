@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.2] - 2026-09-10
+
+### Fixed
+
+- Opening a shared "anyone with the link" workspace while signed out could get stuck on the "just checking you're human" step with no challenge ever appearing — and then drop you into read-only preview. The check was looking for its widget before the dialog had finished rendering (only when the Cloudflare script was already cached, so it was intermittent). It now waits for the dialog.
+
 ## [1.61.1] - 2026-09-10
 
 ### Fixed

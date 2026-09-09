@@ -89,7 +89,7 @@
   {#if !isSuggestion}
     <div class="annotation-card-body">
       {#each annotation.replies ?? [] as reply (reply.id)}
-        <p class="annotation-card-reply">{#if reply.author}<strong>{reply.author}</strong> {/if}{reply.body}</p>
+        <p class="annotation-card-reply">{#if reply.author}<strong>{reply.author}</strong>&nbsp;{/if}{reply.body}</p>
       {/each}
       {#if focused}
         <div class="annotation-card-reply-row">

@@ -1,5 +1,5 @@
 diff --git a/src/worker.ts b/src/worker.ts
-index 991142d..c92f18f 100644
+index 485dde3..589841b 100644
 --- a/src/worker.ts
 +++ b/src/worker.ts
 @@ -3,9 +3,20 @@ export { WorkspaceRoom } from "./workspace-room.js";
@@ -20,10 +20,10 @@ index 991142d..c92f18f 100644
 +// repo's .dev.vars value).
 +const DEV_LOGIN_PATH = "/api/dev/login";
 +
- const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
- const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
- const ROOM_MIGRATE_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/migrate$/;
-@@ -32,6 +43,17 @@ export default {
+ // The legacy per-document CollabRoom is a migration-only shim now (see
+ // src/collab-room.ts) — /migrate is its only live endpoint; everything
+ // else moved to WorkspaceRoom in the workspace pivot.
+@@ -31,6 +42,17 @@ export default {
    async fetch(request: Request, env: Env): Promise<Response> {
      const url = new URL(request.url);
  

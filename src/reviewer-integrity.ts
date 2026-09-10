@@ -33,11 +33,18 @@ export interface DiffOp {
   text: string;
 }
 
-const BULK_THRESHOLD = 8192;
+// Myers' greedy diff bails past this edit distance and diffOps falls back
+// to a coarse whole-middle del + ins. Reached only for a reviewer pasting
+// (or programmatically replacing) a large block of *entirely different*
+// text — a minimal script there has no practical value, and the fallback
+// is still offset-correct (it restores the whole committed middle next to
+// the reviewer's replacement). Full-width V snapshots at this bound cost
+// ~8 MB worst case, well inside the Worker limit.
+const MAX_EDIT_DISTANCE = 1024;
 
 export function diffOps(a: string, b: string): DiffOp[] {
   // Trim common prefix / suffix — a reviewer keystroke changes a tiny
-  // middle; the LCS DP below then runs on a bounded region.
+  // middle; the Myers alignment below then runs on a bounded region.
   let p = 0;
   const maxP = Math.min(a.length, b.length);
   while (p < maxP && a[p] === b[p]) p++;
@@ -59,54 +66,94 @@ export function diffOps(a: string, b: string): DiffOp[] {
     ops.push({ type: "ins", aFrom: 0, aTo: 0, text: bMid });
   } else if (bMid.length === 0) {
     ops.push({ type: "del", aFrom: aMidFrom, aTo: aMidTo, text: "" });
-  } else if (aMid.length + bMid.length > BULK_THRESHOLD) {
-    ops.push({ type: "del", aFrom: aMidFrom, aTo: aMidTo, text: "" });
-    ops.push({ type: "ins", aFrom: 0, aTo: 0, text: bMid });
   } else {
-    ops.push(...lcsOps(aMid, bMid, aMidFrom));
+    const aligned = myersOps(aMid, bMid, aMidFrom);
+    if (aligned) {
+      ops.push(...aligned);
+    } else {
+      // edit distance too large to align — restore the whole committed
+      // middle next to the reviewer's replacement (conservative but
+      // offset-correct; see reviewerTextRepairs)
+      ops.push({ type: "del", aFrom: aMidFrom, aTo: aMidTo, text: "" });
+      ops.push({ type: "ins", aFrom: 0, aTo: 0, text: bMid });
+    }
   }
 
   if (s > 0) ops.push({ type: "keep", aFrom: a.length - s, aTo: a.length, text: "" });
   return coalesce(ops);
 }
 
-// Classic LCS DP over the trimmed middles, emitting ops in a-order.
+// Greedy Myers diff over the trimmed middles, emitting ops in a-order.
 // `aBase` is added to every a-coordinate so callers get offsets into the
-// original string.
-function lcsOps(am: string, bm: string, aBase: number): DiffOp[] {
+// original string. Returns null when the shortest edit script would be
+// longer than MAX_EDIT_DISTANCE (diffOps then falls back to a whole-
+// middle del + ins). O((n+m)·D) time; the V snapshots are O(D·(n+m))
+// memory, bounded by MAX_EDIT_DISTANCE·2·MAX_EDIT_DISTANCE.
+// Caller guarantees am.length > 0 and bm.length > 0.
+function myersOps(am: string, bm: string, aBase: number): DiffOp[] | null {
   const n = am.length;
   const m = bm.length;
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      dp[i]![j] = am[i] === bm[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+  const maxD = Math.min(n + m, MAX_EDIT_DISTANCE);
+  const kOffset = maxD; // k in [-maxD, maxD] -> index k + kOffset in [0, 2·maxD]
+  const v = new Int32Array(2 * maxD + 1);
+  const trace: Int32Array[] = [];
+
+  let found = -1;
+  search: for (let d = 0; d <= maxD; d++) {
+    trace.push(v.slice());
+    for (let k = -d; k <= d; k += 2) {
+      // "down" = came from diagonal k+1 (an insert); else from k-1 (a delete)
+      const down = k === -d || (k !== d && v[k - 1 + kOffset]! < v[k + 1 + kOffset]!);
+      let x = down ? v[k + 1 + kOffset]! : v[k - 1 + kOffset]! + 1;
+      let y = x - k;
+      while (x < n && y < m && am[x] === bm[y]) {
+        x++;
+        y++;
+      }
+      v[k + kOffset] = x;
+      if (x >= n && y >= m) {
+        found = d;
+        break search;
+      }
     }
   }
-  const out: DiffOp[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < n && j < m) {
-    if (am[i] === bm[j]) {
-      out.push({ type: "keep", aFrom: aBase + i, aTo: aBase + i + 1, text: "" });
-      i++;
-      j++;
-    } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
-      out.push({ type: "del", aFrom: aBase + i, aTo: aBase + i + 1, text: "" });
-      i++;
+  if (found < 0) return null;
+
+  // Backtrack through the stored V snapshots, emitting ops end-to-start.
+  const rev: DiffOp[] = [];
+  let x = n;
+  let y = m;
+  for (let d = found; d > 0; d--) {
+    const vPrev = trace[d]!; // V entering round d (state after round d-1)
+    const k = x - y;
+    const down = k === -d || (k !== d && vPrev[k - 1 + kOffset]! < vPrev[k + 1 + kOffset]!);
+    const prevK = down ? k + 1 : k - 1;
+    const prevX = vPrev[prevK + kOffset]!;
+    const prevY = prevX - prevK;
+    while (x > prevX && y > prevY) {
+      x--;
+      y--;
+      rev.push({ type: "keep", aFrom: aBase + x, aTo: aBase + x + 1, text: "" });
+    }
+    if (down) {
+      y--;
+      rev.push({ type: "ins", aFrom: 0, aTo: 0, text: bm[y]! });
     } else {
-      out.push({ type: "ins", aFrom: 0, aTo: 0, text: bm[j]! });
-      j++;
+      x--;
+      rev.push({ type: "del", aFrom: aBase + x, aTo: aBase + x + 1, text: "" });
     }
   }
-  while (i < n) {
-    out.push({ type: "del", aFrom: aBase + i, aTo: aBase + i + 1, text: "" });
-    i++;
+  while (x > 0 && y > 0) {
+    x--;
+    y--;
+    rev.push({ type: "keep", aFrom: aBase + x, aTo: aBase + x + 1, text: "" });
   }
-  while (j < m) {
-    out.push({ type: "ins", aFrom: 0, aTo: 0, text: bm[j]! });
-    j++;
-  }
-  return out;
+  // A correct backtrack always lands on the origin. If it somehow didn't,
+  // don't emit a partial (char-dropping) script — bail to the safe
+  // whole-middle fallback instead.
+  if (x !== 0 || y !== 0) return null;
+  rev.reverse();
+  return rev;
 }
 
 // Merge adjacent same-type ops (keep+keep, del+del, ins+ins).

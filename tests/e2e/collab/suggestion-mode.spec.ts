@@ -109,11 +109,24 @@ test("a reviewer's edits become suggestions an editor can accept or reject, and 
   // MDE-05 — a hostile reviewer client deleting committed text straight
   // out of the Y.Doc is reverted by the server: the document is unchanged
   // on both sides after sync.
+  // MDE-13 — the owner must never observe the un-repaired (shorter) state:
+  // the reviewer's raw delete and the server's repair arrive as ONE merged
+  // frame. Record every "content" length the owner sees from here on.
+  const ownerBaselineLen: number = await owner.evaluate(() => {
+    const t = window.MDE.getActiveYDoc().getText("content");
+    (window as unknown as { __lens: number[] }).__lens = [t.length];
+    t.observe(() => (window as unknown as { __lens: number[] }).__lens.push(t.length));
+    return t.length;
+  });
+
   await reviewer.evaluate(() => window.MDE.getActiveYDoc().getText("content").delete(0, 5));
   await expect
     .poll(() => reviewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""), { timeout: 10000 })
     .toContain("owner-authored content");
   await expect.poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? ""), { timeout: 10000 }).toContain("owner-authored content");
+
+  const ownerLens: number[] = await owner.evaluate(() => (window as unknown as { __lens: number[] }).__lens);
+  expect(ownerLens.some((n) => n > 0 && n < ownerBaselineLen)).toBe(false);
 
   // Reviewer types text and confirms it renders as an underlined
   // suggestion, not plain committed text — both in the editor pane and

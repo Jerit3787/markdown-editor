@@ -157,6 +157,13 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   _propose_ changes, never delete document text directly or self-accept
   a suggestion (spec/plan `2026-09-10-reviewer-crdt-write-constraints`,
   **shipped v1.62.2** — closes external-audit findings MDE-05 / MDE-06).
+  A run-3 follow-up audit of that reconciliation code then closed
+  MDE-11..MDE-16: the clear-cut four (preview-socket role pin, suggestion
+  `add` author check, connect-time role re-resolve, snapshot-after-delete
+  guard) in **v1.62.3**, and the reviewer repair diff + broadcast ordering
+  (spec/plan `2026-09-10-reviewer-repair-diff-and-broadcast`) in
+  **v1.62.4** — MDE-12 (Myers-aligned repair, no whole-middle re-insert)
+  and MDE-13 (raw delta + repair delivered as one merged frame).
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"
@@ -438,6 +445,13 @@ turn out to matter later.
       deletion into a delete-suggestion instead of a plain revert; moving
       suggestion resolution (accept / reject / withdraw) off the CRDT onto
       an RPC endpoint
+- [ ] Reviewer repair diff + broadcast (v1.62.4, MDE-12/13) non-goals:
+      preventing the Yjs relative-position anchor collapse on a reviewer
+      delete (needs validate-before-apply — a reviewer-sync-path rewrite;
+      quote re-anchoring stays the mitigation); emitting a tight suggestion
+      diff for a huge reviewer block replace instead of restoring the whole
+      committed middle (D4 / SP-C granularity work); deferring broadcast for
+      any non-reviewer write
 - [ ] Diagram export: additional formats/options beyond SVG + PNG — JPG/WebP,
       scale factor, padding, transparent-background toggle (explicitly out
       of scope for the export feature shipped in v1.3.0)

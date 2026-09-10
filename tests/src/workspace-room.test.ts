@@ -5,7 +5,7 @@ import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { WorkspaceRoom } from "../../src/workspace-room";
-import type { AccessRecord } from "../../src/workspace-room";
+import type { AccessRecord, DocRoom } from "../../src/workspace-room";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
 import { getSuggestionsMap, recordInsertSuggestion, recordDeleteSuggestion, listResolvedSuggestions } from "../../src/suggestions";
@@ -1848,6 +1848,98 @@ describe("reviewer writes", () => {
     await reviewerApply(room, ws, (c) => recordInsertSuggestion(c, 0, 5, "bob"));
 
     expect(listResolvedSuggestions(docRoom.doc)).toMatchObject([{ author: "bob", kind: "insert" }]);
+  });
+
+  // ── MDE-13: raw reviewer delta + repair reach peers as ONE merged frame ──
+
+  function syncFramesFor(frames: ArrayBuffer[]): ArrayBuffer[] {
+    return frames.filter((b) => decoding.readVarUint(decoding.createDecoder(new Uint8Array(b))) === MESSAGE_SYNC);
+  }
+
+  // A peer synced to the room doc's state, whose outbound frames are captured.
+  function attachPeer(room: WorkspaceRoom, docRoom: DocRoom): { doc: Y.Doc; frames: ArrayBuffer[] } {
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(docRoom.doc));
+    const frames: ArrayBuffer[] = [];
+    const peerWs = { send: (d: ArrayBuffer) => frames.push(d) } as unknown as WebSocket;
+    (room as any).sessions.set(peerWs, { username: "carol", role: "editor", viewingDocId: null });
+    return { doc, frames };
+  }
+
+  function applyFrameToPeer(frame: ArrayBuffer, peer: Y.Doc): void {
+    const dec = decoding.createDecoder(new Uint8Array(frame));
+    decoding.readVarUint(dec); // MESSAGE_SYNC
+    decoding.readVarString(dec); // docId
+    syncProtocol.readSyncMessage(dec, encoding.createEncoder(), peer, "peer");
+  }
+
+  it("a reviewer's committed-text delete reaches peers as ONE merged frame, already repaired (MDE-13)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "the quick brown fox");
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+    const peer = attachPeer(room, docRoom);
+
+    await reviewerApply(room, ws, (c) => c.getText("content").delete(4, 12)); // "quick brown "
+
+    const syncFrames = syncFramesFor(peer.frames);
+    expect(syncFrames).toHaveLength(1); // NOT the raw delete then the repair
+
+    applyFrameToPeer(syncFrames[0]!, peer.doc);
+    expect(peer.doc.getText("content").toString()).toBe("the quick brown fox");
+    expect(docRoom.doc.getText("content").toString()).toBe("the quick brown fox");
+  });
+
+  it("a clean reviewer insert (no repair) still converges on a peer via the merged frame", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "start end");
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+    const peer = attachPeer(room, docRoom);
+
+    await reviewerApply(room, ws, (c) => c.getText("content").insert(5, " NEW"));
+
+    const syncFrames = syncFramesFor(peer.frames);
+    expect(syncFrames).toHaveLength(1);
+
+    applyFrameToPeer(syncFrames[0]!, peer.doc);
+    expect(peer.doc.getText("content").toString()).toBe("start NEW end");
+    expect(docRoom.doc.getText("content").toString()).toBe("start NEW end");
+  });
+
+  it("an editor's write still broadcasts immediately, one frame, excluding the sender", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    await room.loadDocRoom("doc1");
+    (room as any).sessions.set(ws, fakeSession("editor"));
+
+    const except: unknown[] = [];
+    const realBroadcast = room.broadcast.bind(room);
+    room.broadcast = (msg: Uint8Array, ex: unknown) => {
+      except.push(ex);
+      return realBroadcast(msg, ex);
+    };
+
+    await reviewerApply(room, ws, (c) => c.getText("content").insert(0, "hello"));
+
+    expect(except).toEqual([ws]); // one broadcast, sender excluded — unchanged behaviour
+  });
+
+  it("clears the deferred buffer even if the sync frame throws", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, MESSAGE_SYNC);
+    encoding.writeVarString(enc, "doc1");
+    encoding.writeVarUint(enc, 99); // not a valid sync sub-type
+    await room.handleMessage(ws, encoding.toUint8Array(enc).buffer as ArrayBuffer).catch(() => {});
+
+    expect((docRoom as unknown as { deferredUpdates: unknown }).deferredUpdates).toBeNull();
   });
 });
 

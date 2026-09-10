@@ -137,6 +137,13 @@ export interface DocRoom {
   // means a snapshot with fewer (or no) recorded authors.
   pendingAuthors: Set<string>;
   persistScheduled: boolean;
+  // Non-null only for the duration of one reviewer sync frame's
+  // apply-then-enforce: handleDocUpdate buffers every Y.Doc update here
+  // instead of broadcasting, and flushDeferredReviewerBroadcast then
+  // sends the raw delta + the enforceReviewerConstraints repair to peers
+  // as ONE merged frame, so a peer never applies the un-repaired state
+  // (MDE-13). null = broadcast each update immediately (every other case).
+  deferredUpdates: Uint8Array[] | null;
 }
 
 interface SessionInfo {
@@ -231,6 +238,7 @@ export class WorkspaceRoom {
       lastSnapshotAt: undefined,
       pendingAuthors: new Set(),
       persistScheduled: false,
+      deferredUpdates: null,
     };
     doc.on("update", (update: Uint8Array, origin: unknown) => this.handleDocUpdate(docId, docRoom, update, origin));
     // Server-side integrity net for the reviewer role (see suggestions.ts's
@@ -913,6 +921,10 @@ export class WorkspaceRoom {
         // type suggestions), but the server then enforces that they only
         // *proposed* changes — see enforceReviewerConstraints (MDE-05/06).
         const reviewerPre = session?.role === "reviewer" ? this.captureReviewerPreState(docRoom.doc, session.username ?? "Anonymous") : null;
+        // Hold every update this frame produces (the raw delta + the
+        // repair below) so peers get them merged into one, never the
+        // un-repaired intermediate (MDE-13).
+        if (reviewerPre) docRoom.deferredUpdates = [];
 
         const encoder = encoding.createEncoder();
         encoding.writeVarUint(encoder, MESSAGE_SYNC);
@@ -923,10 +935,14 @@ export class WorkspaceRoom {
         // uses, where the prefix is always exactly 1 byte) would either
         // under- or over-fire depending on docId length.
         const baseLength = encoding.length(encoder);
-        syncProtocol.readSyncMessage(decoder, encoder, docRoom.doc, ws);
-        if (encoding.length(encoder) > baseLength) ws.send(encoding.toUint8Array(encoder));
+        try {
+          syncProtocol.readSyncMessage(decoder, encoder, docRoom.doc, ws);
+          if (encoding.length(encoder) > baseLength) ws.send(encoding.toUint8Array(encoder));
 
-        if (reviewerPre) this.enforceReviewerConstraints(docRoom.doc, reviewerPre);
+          if (reviewerPre) this.enforceReviewerConstraints(docRoom.doc, reviewerPre);
+        } finally {
+          if (reviewerPre) this.flushDeferredReviewerBroadcast(docId, docRoom);
+        }
 
         // Step1 only pulls the RECIPIENT's content down to the sender —
         // it never pushes the sender's own content anywhere. CollabRoom's
@@ -1054,6 +1070,17 @@ export class WorkspaceRoom {
   }
 
   handleDocUpdate(docId: string, docRoom: DocRoom, update: Uint8Array, origin: unknown): void {
+    if (docRoom.deferredUpdates) {
+      // A reviewer sync frame is mid apply+enforce — hold this update; the
+      // flush after enforcement broadcasts the merged result once (MDE-13).
+      docRoom.deferredUpdates.push(update);
+      if (origin !== "storage" && origin !== "restore") {
+        const editor = this.sessions.get(origin as WebSocket);
+        if (editor?.username) docRoom.pendingAuthors.add(editor.username);
+        this.schedulePersist(docId, docRoom);
+      }
+      return;
+    }
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_SYNC);
     encoding.writeVarString(encoder, docId);
@@ -1066,6 +1093,25 @@ export class WorkspaceRoom {
     if (editor?.username) docRoom.pendingAuthors.add(editor.username);
     this.schedulePersist(docId, docRoom);
     if (origin !== "restore") void this.maybeSnapshot(docId, docRoom);
+  }
+
+  // Send everything a reviewer sync frame produced (their raw delta plus
+  // the enforceReviewerConstraints repair, both buffered by
+  // handleDocUpdate while docRoom.deferredUpdates was engaged) to every
+  // session as ONE merged update. Broadcast to all, not "except the
+  // reviewer": Yjs re-applying the reviewer's own delta is a no-op, and
+  // the reviewer needs the repair.
+  flushDeferredReviewerBroadcast(docId: string, docRoom: DocRoom): void {
+    const buffered = docRoom.deferredUpdates ?? [];
+    docRoom.deferredUpdates = null;
+    if (buffered.length === 0) return;
+    const merged = Y.mergeUpdates(buffered);
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    encoding.writeVarString(encoder, docId);
+    syncProtocol.writeUpdate(encoder, merged);
+    this.broadcast(encoding.toUint8Array(encoder), null);
+    void this.maybeSnapshot(docId, docRoom);
   }
 
   handleAwarenessUpdate(docId: string, docRoom: DocRoom, added: number[], updated: number[], removed: number[], origin: unknown): void {

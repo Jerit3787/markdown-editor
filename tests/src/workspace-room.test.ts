@@ -2752,4 +2752,10 @@ describe("WorkspaceRoom anon authorship", () => {
     const tid = listResolvedCommentThreads(docRoom.doc)[0]!.id;
     expect(getCommentsMap(docRoom.doc).get(tid)!.authorName).toBeUndefined();
   });
+
+  it("records an anon editor's guest name in a version snapshot", async () => {
+    const { room, ws, docRoom } = await roomWithAnon("editor");
+    await applyFrom(room, ws, docRoom, (c) => c.getText("content").insert(0, "hello from a guest"));
+    expect((await room.getSnapshots("doc1")).at(-1)!.authors).toEqual(["Bold Wren"]);
+  });
 });

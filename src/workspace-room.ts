@@ -1258,7 +1258,8 @@ export class WorkspaceRoom {
       docRoom.deferredUpdates.push(update);
       if (origin !== "storage" && origin !== "restore") {
         const editor = this.sessions.get(origin as WebSocket);
-        if (editor?.username) docRoom.pendingAuthors.add(editor.username);
+        const editorName = editor?.username ?? editor?.anonName;
+        if (editorName) docRoom.pendingAuthors.add(editorName);
         this.schedulePersist(docId, docRoom);
       }
       return;
@@ -1272,7 +1273,8 @@ export class WorkspaceRoom {
     // `origin` is the editing client's WebSocket for a real edit (and the
     // string "restore" for a restore, which isn't a sessions key).
     const editor = this.sessions.get(origin as WebSocket);
-    if (editor?.username) docRoom.pendingAuthors.add(editor.username);
+    const editorName = editor?.username ?? editor?.anonName;
+    if (editorName) docRoom.pendingAuthors.add(editorName);
     this.schedulePersist(docId, docRoom);
     if (origin !== "restore") void this.maybeSnapshot(docId, docRoom);
   }

@@ -121,7 +121,6 @@
       <div class="setting-row">
         <div class="setting-label">
           <span class="setting-title">Google Drive</span>
-          <span class="setting-desc">Connected — open markdown files straight from your Drive via File ▸ Open.</span>
         </div>
         <button type="button" class="secondary-btn" onclick={() => window.MDE.disconnectGoogleDrive?.()}>Disconnect</button>
       </div>

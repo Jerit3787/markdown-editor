@@ -34,3 +34,24 @@ test("v1.57: no Analytics row when analytics is unavailable", async () => {
   await expect.poll(() => screen.container.textContent).toContain("Appearance");
   expect(screen.container.textContent).not.toContain("Analytics");
 });
+
+test("DRIVE-1: Google Drive row toggles Connect/Disconnect; hidden when unconfigured + disconnected", async () => {
+  const { driveConnected, driveConfigured } = await import("../../../../client/src/stores/driveSync");
+  settingsModalOpen.set(true);
+
+  driveConnected.set(false);
+  driveConfigured.set(false);
+  const screen = await render(Settings);
+  await expect.poll(() => screen.container.textContent).toContain("Appearance");
+  expect(screen.container.textContent).not.toContain("Google Drive");
+
+  driveConfigured.set(true);
+  await expect.poll(() => screen.container.textContent).toContain("Google Drive");
+  await expect.element(screen.getByRole("button", { name: "Connect" })).toBeVisible();
+
+  driveConnected.set(true);
+  await expect.element(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
+
+  driveConnected.set(false);
+  driveConfigured.set(true);
+});

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.11] - 2026-09-10
+
+### Fixed
+
+- Security fixes from a follow-up external audit:
+  - Only an editor can add a new document to a shared workspace. A viewer or reviewer on an "anyone with the link" workspace could previously make the collaboration server register arbitrary document ids just by asking to sync them — cluttering the workspace and, in bulk, slowing its next restart.
+  - The `rel="noopener noreferrer"` hardening applied to raw `<a target="_blank">` links in a document now also catches uppercase variants (`target="_BLANK"`, `rel="OPENER"`) and links inside inline SVG.
+
 ## [1.62.10] - 2026-09-10
 
 ### Fixed

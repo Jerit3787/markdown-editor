@@ -54,12 +54,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
-| 10. Workspace collab               |      68 |       0 |    0 |    68 |
+| 10. Workspace collab               |      69 |       0 |    0 |    69 |
 | 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **338** |  **0** |  **0** | **338** |
+| **Total**                          | **339** |  **0** |  **0** | **339** |
 
 **Every enumerated scenario now has a test asserting its outcome —
 314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
@@ -435,7 +435,8 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | SEC-18 | `forceSnapshot` returns `null` on `this.deleted` (entry + after the `getSnapshots` yield); the version-restore handlers 410 instead of resurrecting `doc:*:snapshots` into wiped storage (MDE-18, same class as SEC-13) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
 | SEC-19 | The WS-upgrade `fetch` re-checks `this.deleted` after `authorize()` / `requireJoinTicket()` / `getAccess()` and before `new WebSocketPair()` — a DELETE landing mid-handshake → 410, no live socket on a wiped room (MDE-19) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
 | SEC-20 | `MESSAGE_ACCESS_REQUEST` (requester username + note) is sent only to the owner's own session(s), not `broadcast(null)` — an anonymous peer on a public workspace receives nothing (MDE-20) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
-| SEC-21 | Preview markdown sanitization: a raw HTML `<a target="_blank">` (or `rel="opener"`) always comes out `rel="noopener noreferrer"` — a DOMPurify `afterSanitizeAttributes` hook, since `ADD_ATTR: ["target"]` lets `target` through; citation keys are `escapeHtml`'d into the marker `href` and bibliography `id` (attribute breakout) | unit | covered | `tests/client/src/preview-sanitize.test.ts`, `tests/client/src/mmd-citations.test.ts` | v1.62.9 · external audit run-6 hardening |
+| SEC-21 | Preview markdown sanitization: a raw HTML `<a target="_blank">` (or `rel="opener"`) always comes out `rel="noopener noreferrer"` — a DOMPurify `afterSanitizeAttributes` hook, since `ADD_ATTR: ["target"]` lets `target` through. The hook matches the tag and `target` case-insensitively (`target="_BLANK"`, `rel="OPENER"`, and an SVG `<a>` whose `nodeName` is lowercase `a` are all caught — MDE-26); citation keys are `escapeHtml`'d into the marker `href` and bibliography `id` (attribute breakout) | unit | covered | `tests/client/src/preview-sanitize.test.ts`, `tests/client/src/mmd-citations.test.ts` | v1.62.9 · external audit run-6; case-insensitivity v1.62.11 · run-7 |
+| SEC-22 | Registering a new `docId` into a workspace's persisted membership list (`this.docIds` + `storage.put("docs")`) is editor-only — a `SYNC_STEP1` frame isn't an `isWrite`, so the viewer/reviewer gate never sees it; without the explicit `session.role === "editor"` check an "anyone with link" viewer or reviewer could push arbitrary docIds into storage and brick the DO's next cold start (its constructor awaits `loadDocRoom` for every persisted id in `blockConcurrencyWhile`) — MDE-25 | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.11 · external audit run-7 |
 
 ## 11. GitHub auth & Gist
 

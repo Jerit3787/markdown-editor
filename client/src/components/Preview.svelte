@@ -37,10 +37,16 @@
   // preview-link-render.ts's withBlankTarget), but a raw HTML
   // `<a target="_blank">` typed straight into the source bypasses that —
   // and `ADD_ATTR: ["target"]` below lets `target` through. Force the rel
-  // on any _blank anchor so raw HTML can't open a reverse-tabnabbing
-  // window. Registered once at module scope (addHook is global).
+  // on any anchor that opens a new window (or asks for `opener`) so raw
+  // HTML can't reverse-tabnab. Case-insensitive on both the tag (SVG
+  // `<a>` reports nodeName "a") and `target` (browsers match `_blank`
+  // ASCII-case-insensitively; MDE-26). Registered once at module scope —
+  // addHook is global.
   DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-    if (node.nodeName === "A" && node.getAttribute("target") === "_blank") {
+    if (node.nodeName.toUpperCase() !== "A") return;
+    const target = node.getAttribute("target")?.trim().toLowerCase();
+    const rel = node.getAttribute("rel")?.toLowerCase() ?? "";
+    if (target === "_blank" || rel.split(/\s+/).includes("opener")) {
       node.setAttribute("rel", "noopener noreferrer");
     }
   });

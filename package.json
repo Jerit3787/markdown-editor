@@ -1,7 +1,7 @@
 {
   "name": "markdown-editor",
   "private": true,
-  "version": "1.62.10",
+  "version": "1.62.11",
   "type": "module",
   "license": "MIT",
   "description": "A fast, static markdown editor with live preview and real-time multi-user collaboration.",

@@ -283,12 +283,48 @@
   display: block;
   margin-top: 2px;
 }
-.annotation-card-change ins {
+.annotation-card-change ins,
+.annotation-card-subedit ins {
   text-decoration: none;
   color: #2e7d32;
 }
-.annotation-card-change del {
+.annotation-card-change del,
+.annotation-card-subedit del {
   color: #c62828;
+}
+
+.annotation-card-subedits {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.annotation-card-subedit {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9em;
+}
+.annotation-card-subedit del {
+  text-decoration: line-through;
+}
+.annotation-card-subedit-acts {
+  flex-shrink: 0;
+  white-space: nowrap;
+
+  button {
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0 2px;
+    color: var(--text-dim);
+  }
+  button:hover {
+    color: var(--text);
+  }
 }
 .annotation-card-quote {
   display: block;

@@ -199,6 +199,38 @@ export function removeRanges(text: string, ranges: ReadonlyArray<readonly [numbe
   return out;
 }
 
+// Absolute index -> its index in the committed text (the full text minus
+// `insertRanges`). Subtracts the length of every range that ends at or
+// before `absIndex`. null when `absIndex` is strictly inside a range
+// (from < absIndex < to) — it has no committed-text position. Ranges may
+// be unordered; assumed non-overlapping.
+export function absoluteIndexToCommitted(absIndex: number, insertRanges: ReadonlyArray<readonly [number, number]>): number | null {
+  const sorted = [...insertRanges].filter((r) => r[1] > r[0]).sort((a, b) => a[0] - b[0]);
+  let shift = 0;
+  for (const [from, to] of sorted) {
+    if (to <= absIndex) shift += to - from;
+    else if (from < absIndex && absIndex < to) return null;
+    else break; // from >= absIndex — this and every later range are past it
+  }
+  return absIndex - shift;
+}
+
+// Committed-text index -> its absolute index in the full text (the inverse
+// of absoluteIndexToCommitted). `inclusive` (default true) counts a range
+// whose start coincides with the running position, pushing the result
+// past that insert — correct for an annotation's `from`. Pass false for a
+// `to` boundary so an insert sitting exactly at the annotation's end is
+// not pulled inside it.
+export function committedIndexToAbsolute(committedIndex: number, insertRanges: ReadonlyArray<readonly [number, number]>, inclusive = true): number {
+  const sorted = [...insertRanges].filter((r) => r[1] > r[0]).sort((a, b) => a[0] - b[0]);
+  let abs = committedIndex;
+  for (const [from, to] of sorted) {
+    if (inclusive ? from <= abs : from < abs) abs += to - from;
+    else break;
+  }
+  return abs;
+}
+
 // The insertions needed to turn `afterText` back into a text where the
 // reviewer only ever *added* content — computed by diffing the COMMITTED
 // text (preText minus the reviewer's own pending inserts) against

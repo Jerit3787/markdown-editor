@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { diffOps, unionCovers, removeRanges, reviewerTextRepairs, isValidNewSuggestionEntry } from "../../src/reviewer-integrity";
+import {
+  diffOps,
+  unionCovers,
+  removeRanges,
+  reviewerTextRepairs,
+  isValidNewSuggestionEntry,
+  absoluteIndexToCommitted,
+  committedIndexToAbsolute,
+} from "../../src/reviewer-integrity";
 import type { SuggestionEntry } from "../../src/suggestions";
 
 function applyOps(a: string, ops: ReturnType<typeof diffOps>): string {
@@ -131,6 +139,61 @@ describe("removeRanges", () => {
   });
   it("returns the whole string when nothing is removed", () => {
     expect(removeRanges("hello", [])).toBe("hello");
+  });
+});
+
+describe("committed <-> absolute index mapping", () => {
+  // full text "AB[cc]DE[ff]GH" — inserts at absolute [2,4) and [6,8);
+  // committed text is "ABDEGH"
+  const R: Array<[number, number]> = [
+    [2, 4],
+    [6, 8],
+  ];
+
+  it("absoluteIndexToCommitted: subtracts inserts fully before the index", () => {
+    expect(absoluteIndexToCommitted(0, R)).toBe(0); // 'A'
+    expect(absoluteIndexToCommitted(2, R)).toBe(2); // boundary: start of first insert
+    expect(absoluteIndexToCommitted(4, R)).toBe(2); // 'D' — first insert subtracted
+    expect(absoluteIndexToCommitted(5, R)).toBe(3); // 'E'
+    expect(absoluteIndexToCommitted(8, R)).toBe(4); // 'G' — both inserts subtracted
+    expect(absoluteIndexToCommitted(10, R)).toBe(6); // end
+  });
+
+  it("absoluteIndexToCommitted: null strictly inside an insert", () => {
+    expect(absoluteIndexToCommitted(3, R)).toBeNull(); // inside [2,4)
+    expect(absoluteIndexToCommitted(7, R)).toBeNull(); // inside [6,8)
+  });
+
+  it("absoluteIndexToCommitted: unordered input, empty ranges ignored", () => {
+    expect(
+      absoluteIndexToCommitted(8, [
+        [6, 8],
+        [2, 4],
+        [9, 9],
+      ]),
+    ).toBe(4);
+    expect(absoluteIndexToCommitted(5, [])).toBe(5);
+  });
+
+  it("committedIndexToAbsolute: adds back the inserts before the position", () => {
+    expect(committedIndexToAbsolute(0, R)).toBe(0);
+    expect(committedIndexToAbsolute(2, R)).toBe(4); // 'D' sits after [2,4)
+    expect(committedIndexToAbsolute(3, R)).toBe(5); // 'E'
+    expect(committedIndexToAbsolute(4, R)).toBe(8); // 'G' sits after both
+    expect(committedIndexToAbsolute(6, R)).toBe(10);
+  });
+
+  it("committedIndexToAbsolute: inclusive flag decides an insert exactly at the position", () => {
+    const r: Array<[number, number]> = [[3, 5]];
+    expect(committedIndexToAbsolute(3, r, true)).toBe(5); // from side: land after the insert
+    expect(committedIndexToAbsolute(3, r, false)).toBe(3); // to side: stay before it
+  });
+
+  it("round-trips an interior index", () => {
+    for (const c of [0, 1, 2, 3, 4, 5, 6]) {
+      const abs = committedIndexToAbsolute(c, R);
+      expect(absoluteIndexToCommitted(abs, R)).toBe(c);
+    }
   });
 });
 

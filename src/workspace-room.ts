@@ -185,6 +185,32 @@ function identityOf(session: SessionInfo | undefined | null): string | null {
   return session?.username ?? session?.anonId ?? null;
 }
 
+// Server-authoritative display-label stamping: for each map entry keyed by
+// `keys` whose `author` is an `anon:<id>`, write the guest name `nameFor`
+// resolves for that id. Runs in the same `origin` the map's observer
+// skips; the `!== name` guard makes the resulting re-fire a no-op.
+function stampAnonAuthorNames<T extends { author: string; authorName?: string }>(
+  map: Y.Map<T>,
+  keys: string[],
+  nameFor: (anonId: string) => string | undefined,
+  doc: Y.Doc,
+  origin: string,
+): void {
+  const stamps: Array<() => void> = [];
+  for (const key of keys) {
+    const cur = map.get(key);
+    if (!cur || !cur.author.startsWith("anon:")) continue;
+    const name = nameFor(cur.author);
+    if (name && cur.authorName !== name) {
+      stamps.push(() => {
+        const e = map.get(key);
+        if (e) map.set(key, { ...e, authorName: name });
+      });
+    }
+  }
+  if (stamps.length) doc.transact(() => stamps.forEach((s) => s()), origin);
+}
+
 function docStorageKey(docId: string, suffix: "update" | "snapshots" | "comments"): string {
   return `doc:${docId}:${suffix}`;
 }
@@ -337,24 +363,22 @@ export class WorkspaceRoom {
             }
           });
           if (replyReverts.length) doc.transact(() => replyReverts.forEach((r) => r()), "suggestion");
-
-          // Stamp the authoritative display label onto this session's own
-          // anon-authored entries — the client's `author` is the anon id;
-          // the guest name lives only in the session. Runs in the same
-          // "suggestion" origin the observer skips, so no recursion.
-          if (actor.startsWith("anon:") && session.anonName) {
-            const stamps: Array<() => void> = [];
-            event.changes.keys.forEach((change, key) => {
-              if (change.action === "delete") return;
-              const cur = suggestionsMap.get(key);
-              if (cur && cur.author === actor && cur.authorName !== session.anonName) {
-                stamps.push(() => suggestionsMap.set(key, { ...suggestionsMap.get(key)!, authorName: session.anonName }));
-              }
-            });
-            if (stamps.length) doc.transact(() => stamps.forEach((s) => s()), "suggestion");
-          }
         }
       }
+
+      // Stamp the authoritative guest-name label onto every anon-authored
+      // entry (`author` is the `anon:<id>`; the name lives only in the
+      // session). Runs for ANY origin — an entry can also be born from the
+      // server's own auto-wrap (reconcileReviewerDelta) or the self-heal
+      // merge below, both "suggestion"-origin. The `!== name` guard makes
+      // the re-fire of this same "suggestion"-origin write a no-op.
+      stampAnonAuthorNames(
+        suggestionsMap,
+        [...event.changes.keys.entries()].filter(([, c]) => c.action !== "delete").map(([k]) => k),
+        (id) => this.anonNameFor(id),
+        doc,
+        "suggestion",
+      );
 
       const byAuthorKind = new Map<string, ResolvedSuggestion[]>();
       for (const s of listResolvedSuggestions(doc)) {
@@ -447,19 +471,15 @@ export class WorkspaceRoom {
       });
       if (reverts.length) doc.transact(() => reverts.forEach((r) => r()), "comment-reconcile");
 
-      // Stamp the authoritative guest name onto this session's own
-      // anon-authored threads (see the suggestions observer above).
-      if (actor.startsWith("anon:") && session.anonName) {
-        const stamps: Array<() => void> = [];
-        event.changes.keys.forEach((change, key) => {
-          if (change.action === "delete") return;
-          const cur = commentsMap.get(key);
-          if (cur && cur.author === actor && cur.authorName !== session.anonName) {
-            stamps.push(() => commentsMap.set(key, { ...commentsMap.get(key)!, authorName: session.anonName }));
-          }
-        });
-        if (stamps.length) doc.transact(() => stamps.forEach((s) => s()), "comment-reconcile");
-      }
+      // Stamp the authoritative guest name onto anon-authored threads
+      // (see the suggestions observer).
+      stampAnonAuthorNames(
+        commentsMap,
+        [...event.changes.keys.entries()].filter(([, c]) => c.action !== "delete").map(([k]) => k),
+        (id) => this.anonNameFor(id),
+        doc,
+        "comment-reconcile",
+      );
     });
     awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
       this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin),
@@ -1219,6 +1239,13 @@ export class WorkspaceRoom {
       if (suggestion) suggestionsMap.set(id, { ...suggestion, from, to });
       else if (comment) commentsMap.set(id, { ...comment, from, to });
     }
+  }
+
+  // The guest name assigned to a currently-connected anonymous session,
+  // for stamping onto that session's authored suggestions / comments.
+  private anonNameFor(anonId: string): string | undefined {
+    for (const s of this.sessions.values()) if (s.anonId === anonId) return s.anonName;
+    return undefined;
   }
 
   broadcastPresence(exceptWs: WebSocket, session: SessionInfo | undefined): void {

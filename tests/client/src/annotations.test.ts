@@ -111,3 +111,33 @@ describe("railAnnotationsForLocal", () => {
     expect(a.replies).toEqual([{ id: "n1", author: "", body: "check this", createdAt: 5 }]);
   });
 });
+
+describe("displayName + authorName passthrough", () => {
+  it("displayName prefers authorName, falls back to author", async () => {
+    const { displayName } = await import("../../../client/src/annotations");
+    expect(displayName("anon:abc", "Swift Otter")).toBe("Swift Otter");
+    expect(displayName("alice", undefined)).toBe("alice");
+  });
+
+  it("carries authorName from a resolved suggestion onto the card", () => {
+    const sug = [{ id: "s1", kind: "insert" as const, author: "anon:abc", authorName: "Swift Otter", createdAt: 1, from: 0, to: 3, replies: undefined }];
+    const [card] = railAnnotationsForShared(sug, [], "abcdef");
+    expect(card!.authorName).toBe("Swift Otter");
+  });
+
+  it("carries authorName from a resolved comment thread onto the card", () => {
+    const t: ResolvedCommentThread = {
+      id: "t1",
+      author: "anon:abc",
+      authorName: "Bold Wren",
+      createdAt: 1,
+      from: 0,
+      to: 3,
+      quote: "abc",
+      resolved: false,
+      replies: [{ id: "r1", author: "anon:abc", body: "hi", createdAt: 1 }],
+    };
+    const [card] = railAnnotationsForShared([], [t], "abcdef");
+    expect(card!.authorName).toBe("Bold Wren");
+  });
+});

@@ -3,6 +3,7 @@
   import { get } from "svelte/store";
   import { commentsPanelOpen, unresolvedCommentCount } from "../stores/commentsPanel";
   import { effectiveMode, collabRole } from "../stores/collabMode";
+  import { collabIdentity } from "../stores/collabIdentity";
   import { commentDraft } from "../stores/commentDraft";
   import { activeIdStore, getActiveDoc, addDocNote, deleteDocNote } from "../stores/docs";
   import { fetchAndMergeRepoHistory } from "../repo-history-sync";
@@ -170,16 +171,19 @@
     if (doc) underlyingIds(a).forEach((id) => withdrawSuggestion(doc, id));
   }
 
-  const viewerName = () => window.MDE.githubUsername || "Anonymous";
+  // The current user's collaboration identity — a GitHub username or the
+  // server-assigned "anon:<id>". Empty only in the brief window before the
+  // MESSAGE_ANON_IDENTITY frame lands on a first-ever anonymous visit.
+  const viewerId = () => window.MDE.githubUsername || $collabIdentity.id;
 
   function submitReply(a: RailAnnotation, body: string) {
     const ctx = currentDocContext();
     const doc = ydoc();
     if (!ctx || !ctx.isShared || !doc || !body.trim()) return;
     if (a.kind === "suggestion") {
-      addSuggestionReply(doc, underlyingIds(a)[0], viewerName(), body.trim());
+      addSuggestionReply(doc, underlyingIds(a)[0], viewerId(), body.trim());
     } else {
-      addCommentReply(doc, a.id, viewerName(), body.trim());
+      addCommentReply(doc, a.id, viewerId(), body.trim());
     }
     void loadEntries();
   }
@@ -223,7 +227,7 @@
     if (ctx.isShared) {
       const doc = ydoc();
       if (!doc) showToast("Couldn't add comment", "error");
-      else createCommentThread(doc, $commentDraft.from, $commentDraft.to, quote, viewerName(), draftBody.trim());
+      else createCommentThread(doc, $commentDraft.from, $commentDraft.to, quote, viewerId(), draftBody.trim());
     } else {
       addDocNote($commentDraft.from, $commentDraft.to, quote, draftBody.trim());
     }
@@ -335,7 +339,7 @@
     };
   });
 
-  const viewer = $derived({ role: $collabRole, name: window.MDE.githubUsername ?? "" });
+  const viewer = $derived({ role: $collabRole, name: window.MDE.githubUsername || $collabIdentity.id });
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->

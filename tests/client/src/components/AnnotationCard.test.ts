@@ -106,3 +106,36 @@ test("a suggestion card with no replies and not focused renders no thread block"
   const screen = await render(AnnotationCard, { annotation: insertSug, viewer: { role: "editor", name: "carol" } });
   expect(screen.container.querySelector(".annotation-card-body")).toBeNull();
 });
+
+test("an anon reviewer sees Withdraw on their own suggestion (the anon-withdraw bug)", async () => {
+  const own: RailAnnotation = {
+    id: "s9",
+    kind: "suggestion",
+    author: "anon:abc123",
+    authorName: "Swift Otter",
+    createdAt: 0,
+    anchorFrom: 0,
+    anchorTo: 3,
+    changeKind: "insert",
+    changeText: "cat",
+  };
+  const screen = await render(AnnotationCard, { annotation: own, viewer: { role: "reviewer", name: "anon:abc123" } });
+  await expect.element(screen.getByRole("button", { name: /withdraw/i })).toBeInTheDocument();
+});
+
+test("a suggestion by an anon: author shows its guest name and a generic avatar", async () => {
+  const a: RailAnnotation = {
+    id: "s10",
+    kind: "suggestion",
+    author: "anon:abc123",
+    authorName: "Swift Otter",
+    createdAt: 0,
+    anchorFrom: 0,
+    anchorTo: 3,
+    changeKind: "insert",
+    changeText: "cat",
+  };
+  const screen = await render(AnnotationCard, { annotation: a, viewer: { role: "editor", name: "carol" } });
+  await expect.element(screen.getByText(/Swift Otter/)).toBeInTheDocument();
+  expect(screen.container.querySelector("img.annotation-card-avatar")).toBeNull();
+});

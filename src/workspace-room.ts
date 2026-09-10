@@ -17,7 +17,7 @@ import {
   toAbsoluteIndex,
 } from "./suggestions";
 import type { ResolvedSuggestion, SuggestionEntry } from "./suggestions";
-import { removeRanges, reviewerTextRepairs } from "./reviewer-integrity";
+import { removeRanges, reviewerTextRepairs, isValidNewSuggestionEntry } from "./reviewer-integrity";
 import { getCommentsMap, seedCommentThreadsIntoDoc, type CommentThreadEntry } from "./comments-doc";
 import { isValidNewThread, isAllowedThreadTransition } from "./comment-integrity";
 import type { Env } from "./env";
@@ -153,6 +153,12 @@ interface SessionInfo {
   // this connection's states on disconnect. Optional so tests that construct
   // a SessionInfo directly (bypassing handleSession) don't need to know about it.
   awarenessIdsByDoc?: Map<string, Set<number>>;
+  // A `?preview=1` pre-join socket (Turnstile-exempt, read-only). Pinned to
+  // `viewer` at handshake and kept there for the connection's whole life —
+  // without this flag reconcileSessionRoles would re-resolve an anonymous
+  // preview socket on a public "anyone can edit" workspace straight to
+  // `editor` the next time the owner touched access (MDE-11).
+  isPreview?: boolean;
 }
 
 function docStorageKey(docId: string, suffix: "update" | "snapshots" | "comments"): string {
@@ -270,14 +276,20 @@ export class WorkspaceRoom {
       // self-authored reply (D3). Any other change — an edited/removed
       // existing reply, a foreign reply author, or a structural edit to
       // `kind`/`author`/`from`/`to` (re-targeting an entry to self-accept
-      // or reclassify it, MDE-06) — is reverted. (A `delete` of an entry
-      // is handled by enforceReviewerConstraints, not here.)
+      // or reclassify it, MDE-06) — is reverted. A brand-new `add` may only
+      // be a real, self-authored suggestion with no discussion thread yet
+      // (MDE-15). (A `delete` of an entry is handled by
+      // enforceReviewerConstraints, not here.)
       if (transaction.origin !== "suggestion") {
         const session = this.sessions.get(transaction.origin as WebSocket);
         if (session && session.role !== "viewer") {
           const actor = session.username ?? "Anonymous";
           const replyReverts: Array<() => void> = [];
           event.changes.keys.forEach((change, key) => {
+            if (change.action === "add") {
+              if (!isValidNewSuggestionEntry(suggestionsMap.get(key), actor)) replyReverts.push(() => suggestionsMap.delete(key));
+              return;
+            }
             if (change.action !== "update") return;
             const now = suggestionsMap.get(key);
             const old = change.oldValue as SuggestionEntry;
@@ -459,18 +471,27 @@ export class WorkspaceRoom {
     const ticket = await this.requireJoinTicket(request);
     if (!ticket.ok) return new Response(ticket.message, { status: ticket.status });
 
+    // Re-resolve the role against the current access record rather than
+    // trusting `auth.role` from before the requireJoinTicket await — the
+    // owner may have changed access in that window, and this connection is
+    // not yet in `this.sessions` for reconcileSessionRoles to have caught
+    // it (MDE-16).
+    const freshRole = resolveRole(await this.getAccess(), auth.username);
+    if (!freshRole) return new Response("You no longer have access to this workspace.", { status: 403 });
+
     // `?preview=1` sockets are exempt from the Turnstile challenge
     // (requireJoinTicket returns early) because they are meant to be a
     // read-only pre-join content fetch. Pin them to `viewer` so that
     // exemption can never also hand out write access on a public
-    // "anyone can edit" workspace (MDE-01).
+    // "anyone can edit" workspace (MDE-01), and remember the pin so
+    // reconcileSessionRoles keeps it (MDE-11).
     const isPreview = url.searchParams.get("preview") === "1";
-    const effectiveRole: Role = isPreview ? "viewer" : auth.role;
+    const effectiveRole: Role = isPreview ? "viewer" : freshRole;
 
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-    this.handleSession(server, auth.username, effectiveRole);
+    this.handleSession(server, auth.username, effectiveRole, isPreview);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -637,7 +658,10 @@ export class WorkspaceRoom {
   // its stale in-memory role until the socket drops.
   reconcileSessionRoles(next: AccessRecord): void {
     for (const [ws, session] of Array.from(this.sessions.entries())) {
-      const role = resolveRole(next, session.username);
+      const resolved = resolveRole(next, session.username);
+      // A preview socket that still has *some* access stays pinned to
+      // viewer (MDE-11); one that lost all access is closed like any other.
+      const role = resolved && session.isPreview ? "viewer" : resolved;
       if (!role) {
         try {
           ws.close(4403, "Access revoked");
@@ -815,9 +839,9 @@ export class WorkspaceRoom {
 
   // ---------- WebSocket session ----------
 
-  handleSession(ws: WebSocket, username: string | null, role: Role): void {
+  handleSession(ws: WebSocket, username: string | null, role: Role, isPreview = false): void {
     ws.accept();
-    this.sessions.set(ws, { username, role, viewingDocId: null });
+    this.sessions.set(ws, { username, role, viewingDocId: null, isPreview });
 
     for (const docId of this.docIds) {
       const docRoom = this.docs.get(docId);
@@ -1113,6 +1137,12 @@ export class WorkspaceRoom {
   }
 
   async maybeSnapshot(docId: string, docRoom: DocRoom, now: number = Date.now()): Promise<void> {
+    // Fired fire-and-forget from handleDocUpdate, it yields at getSnapshots
+    // below. If DELETE /workspace's deleteAll() lands during that yield,
+    // the put() further down would resurrect doc:*:snapshots into wiped
+    // storage — guard both the entry and the write (MDE-14, same class as
+    // MDE-08's persist guards).
+    if (this.deleted) return;
     const SNAPSHOT_INTERVAL_MS = 30 * 1000;
     if (docRoom.lastSnapshotAt !== undefined && now - docRoom.lastSnapshotAt < SNAPSHOT_INTERVAL_MS) return;
     const content = docRoom.doc.getText("content").toString();
@@ -1134,6 +1164,7 @@ export class WorkspaceRoom {
     const authors = [...docRoom.pendingAuthors];
     snapshots.push({ id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom), authors: authors.length ? authors : undefined });
     while (snapshots.length > 300) snapshots.shift();
+    if (this.deleted) return; // re-check after the getSnapshots yield (MDE-14)
     await this.state.storage.put(docStorageKey(docId, "snapshots"), snapshots);
     docRoom.lastSnapshotAt = now;
     docRoom.pendingAuthors.clear();

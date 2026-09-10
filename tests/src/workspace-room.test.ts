@@ -387,6 +387,19 @@ describe("WorkspaceRoom websocket session role", () => {
   it("a normal socket keeps its resolved role", async () => {
     expect(await rolesAfterUpgrade("")).toEqual(["editor"]);
   });
+
+  it("re-resolves the role against current access after the join-ticket await, not the stale authorize() result (MDE-16)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    // Storage says restricted / no anon access — but authorize() is faked
+    // to have resolved 'editor' just before the owner locked it down.
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    (room as unknown as { authorize: () => Promise<unknown> }).authorize = async () => ({ ok: true, username: null, role: "editor" });
+
+    const res = await room.fetch(new Request("https://example.com/api/workspace/ws1", { headers: { Upgrade: "websocket" } })).catch((e) => e as Error);
+
+    expect((res as Response).status).toBe(403);
+    expect(room.sessions.size).toBe(0);
+  });
 });
 
 const fakeEnvWithTurnstile = {
@@ -513,6 +526,46 @@ describe("WorkspaceRoom.handleAccessRequest", () => {
     expect(room.sessions.get(bobWs)?.role).toBe("reviewer");
     expect(room.sessions.has(anonWs)).toBe(false); // anon lost all access → socket closed + dropped
     expect(anonWs.close as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(4403, "Access revoked");
+  });
+
+  it("keeps a ?preview=1 socket pinned to viewer through an access change (MDE-11)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+
+    const previewWs = { send: () => {}, close: vi.fn() } as unknown as WebSocket;
+    room.sessions.set(previewWs, { username: null, role: "viewer", viewingDocId: null, isPreview: true });
+
+    await room.handleAccessRequest(
+      new Request("https://example.com/w/ws1/access", {
+        method: "PUT",
+        headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }),
+      }),
+    );
+
+    expect(room.sessions.get(previewWs)?.role).toBe("viewer"); // NOT re-resolved to editor
+    expect(room.sessions.has(previewWs)).toBe(true);
+  });
+
+  it("still closes a preview socket that loses all access", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+
+    const previewWs = { send: () => {}, close: vi.fn() } as unknown as WebSocket;
+    room.sessions.set(previewWs, { username: null, role: "viewer", viewingDocId: null, isPreview: true });
+
+    await room.handleAccessRequest(
+      new Request("https://example.com/w/ws1/access", {
+        method: "PUT",
+        headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ generalAccess: "restricted", role: "viewer", invited: [] }),
+      }),
+    );
+
+    expect(room.sessions.has(previewWs)).toBe(false);
+    expect(previewWs.close as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(4403, "Access revoked");
   });
 
   it("rejects a non-owner's attempt to change access", async () => {
@@ -685,6 +738,20 @@ describe("WorkspaceRoom DELETE /api/workspace/:id (owner revoke)", () => {
     await room.alarm();
     expect(await room.state.storage.get("doc:docA:update")).toBeUndefined();
     expect(room.docs.size).toBe(0);
+  });
+
+  it("a snapshot in flight when DELETE lands does not resurrect doc:*:snapshots (MDE-14)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", OWNER_ACCESS);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.getText("content").insert(0, "secret content");
+
+    await room.fetch(await deleteRequest("alice"));
+    expect(await room.state.storage.get("doc:docA:snapshots")).toBeUndefined();
+
+    // A maybeSnapshot() call that was queued before the wipe now runs.
+    await room.maybeSnapshot("docA", docRoom, Date.now());
+    expect(await room.state.storage.get("doc:docA:snapshots")).toBeUndefined();
   });
 });
 
@@ -1740,6 +1807,47 @@ describe("reviewer writes", () => {
     });
 
     expect(getSuggestionsMap(docRoom.doc).get(sid)).toMatchObject({ kind: "insert" });
+  });
+
+  it("reverts a client-added suggestion entry with a forged author (MDE-15)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    (room as any).sessions.set(ws, fakeSession("reviewer")); // bob
+
+    await reviewerApply(room, ws, (c) => recordInsertSuggestion(c, 0, 5, "alice"));
+
+    expect(getSuggestionsMap(docRoom.doc).size).toBe(0);
+  });
+
+  it("reverts a client-added suggestion entry pre-populated with a fake discussion thread (MDE-15)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    (room as any).sessions.set(ws, fakeSession("reviewer")); // bob
+
+    await reviewerApply(room, ws, (c) => {
+      recordInsertSuggestion(c, 0, 5, "bob");
+      const id = listResolvedSuggestions(c)[0]!.id;
+      const m = getSuggestionsMap(c);
+      m.set(id, { ...m.get(id)!, replies: [{ id: "x", author: "alice", body: "Approved and merged", createdAt: 1 }] });
+    });
+
+    expect(getSuggestionsMap(docRoom.doc).size).toBe(0);
+  });
+
+  it("keeps a genuine self-authored suggestion a reviewer's client adds (MDE-15)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    (room as any).sessions.set(ws, fakeSession("reviewer")); // bob
+
+    await reviewerApply(room, ws, (c) => recordInsertSuggestion(c, 0, 5, "bob"));
+
+    expect(listResolvedSuggestions(docRoom.doc)).toMatchObject([{ author: "bob", kind: "insert" }]);
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { diffOps, unionCovers, removeRanges, reviewerTextRepairs } from "../../src/reviewer-integrity";
+import { diffOps, unionCovers, removeRanges, reviewerTextRepairs, isValidNewSuggestionEntry } from "../../src/reviewer-integrity";
+import type { SuggestionEntry } from "../../src/suggestions";
 
 function applyOps(a: string, ops: ReturnType<typeof diffOps>): string {
   let out = "";
@@ -117,5 +118,31 @@ describe("reviewerTextRepairs", () => {
     let out = "AB";
     for (const rp of [...repairs].sort((a, b) => b.at - a.at)) out = out.slice(0, rp.at) + rp.text + out.slice(rp.at);
     expect(out).toBe("AA  BB");
+  });
+});
+
+describe("isValidNewSuggestionEntry (MDE-15)", () => {
+  const relPos = { tname: "content", assoc: 0 };
+  const base: SuggestionEntry = { kind: "insert", author: "bob", createdAt: 1, from: relPos, to: { ...relPos, assoc: -1 } };
+
+  it("accepts a real self-authored entry with no replies", () => {
+    expect(isValidNewSuggestionEntry(base, "bob")).toBe(true);
+    expect(isValidNewSuggestionEntry({ ...base, replies: [] }, "bob")).toBe(true);
+    expect(isValidNewSuggestionEntry({ ...base, kind: "delete" }, "bob")).toBe(true);
+  });
+
+  it("rejects a forged author", () => {
+    expect(isValidNewSuggestionEntry({ ...base, author: "alice" }, "bob")).toBe(false);
+  });
+
+  it("rejects a brand-new entry that arrives with a discussion thread", () => {
+    const forged = { ...base, replies: [{ id: "x", author: "alice", body: "Approved", createdAt: 2 }] };
+    expect(isValidNewSuggestionEntry(forged, "bob")).toBe(false);
+  });
+
+  it("rejects a malformed shape", () => {
+    expect(isValidNewSuggestionEntry(undefined, "bob")).toBe(false);
+    expect(isValidNewSuggestionEntry({ ...base, kind: "bogus" as unknown as "insert" }, "bob")).toBe(false);
+    expect(isValidNewSuggestionEntry({ ...base, from: {} as unknown as SuggestionEntry["from"] }, "bob")).toBe(false);
   });
 });

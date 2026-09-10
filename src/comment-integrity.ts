@@ -38,7 +38,7 @@ function coreEqual(a: CommentThreadEntry, b: CommentThreadEntry): boolean {
 // which, resolved synchronously in every viewer's annotation rail, is a
 // persistent client-wide DoS. Reject anything that isn't shaped like a
 // real rel-pos so it never reaches the map.
-function isPlausibleRelPos(p: unknown): boolean {
+export function isPlausibleRelPos(p: unknown): boolean {
   if (typeof p !== "object" || p === null) return false;
   const o = p as Record<string, unknown>;
   const anchored = typeof o.tname === "string" || o.type != null || o.item != null;

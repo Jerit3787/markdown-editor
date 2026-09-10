@@ -4,6 +4,28 @@
 // own pending insert suggestion(s). Everything else must be restored.
 // Not hand-synced with client/src/.
 
+import type { SuggestionEntry } from "./suggestions";
+import { isPlausibleRelPos } from "./comment-integrity";
+
+// A brand-new `suggestions` map entry a client just added, validated in
+// WorkspaceRoom's suggestionsMap observer. The observer's D3 guard only
+// inspected `update`s, so a client could `add` an entry pre-populated
+// with a forged author and a fake discussion thread (MDE-15). A genuine
+// new entry is authored by the writing session, carries no replies yet
+// (those only ever arrive later as an `update`), and is shaped like a
+// real suggestion.
+export function isValidNewSuggestionEntry(entry: SuggestionEntry | undefined, actor: string): boolean {
+  if (!entry || typeof entry !== "object") return false;
+  return (
+    (entry.kind === "insert" || entry.kind === "delete") &&
+    entry.author === actor &&
+    typeof entry.createdAt === "number" &&
+    isPlausibleRelPos(entry.from) &&
+    isPlausibleRelPos(entry.to) &&
+    (entry.replies === undefined || (Array.isArray(entry.replies) && entry.replies.length === 0))
+  );
+}
+
 export interface DiffOp {
   type: "keep" | "del" | "ins";
   aFrom: number;

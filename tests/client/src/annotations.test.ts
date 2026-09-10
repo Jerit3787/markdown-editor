@@ -41,11 +41,14 @@ describe("railAnnotationsForShared — suggestions", () => {
     expect(underlyingIds(cards[0])).toEqual(cards[0].groupedIds);
   });
 
-  it("does NOT group a non-contiguous delete + insert", () => {
+  it("does NOT form a replace card from a non-contiguous delete + insert (but D4 line-groups them)", () => {
     const doc = docWith(CONTENT);
     recordDeleteSuggestion(doc, 0, 5, "alice");
-    recordInsertSuggestion(doc, 8, 11, "alice"); // gap between 5 and 8
-    expect(railAnnotationsForShared(listResolvedSuggestions(doc), [], CONTENT)).toHaveLength(2);
+    recordInsertSuggestion(doc, 8, 11, "alice"); // gap between 5 and 8 — not a replace pair
+    const cards = railAnnotationsForShared(listResolvedSuggestions(doc), [], CONTENT);
+    expect(cards).toHaveLength(1); // one line, same author, no thread -> one group
+    expect(cards[0]!.replacedText).toBeUndefined(); // not a "Replace X -> Y" card
+    expect(cards[0]!.subEdits).toHaveLength(2);
   });
 
   it("does NOT group a different-author adjacent pair", () => {
@@ -139,5 +142,36 @@ describe("displayName + authorName passthrough", () => {
     };
     const [card] = railAnnotationsForShared([], [t], "abcdef");
     expect(card!.authorName).toBe("Bold Wren");
+  });
+});
+
+describe("railAnnotationsForShared — line grouping (D4)", () => {
+  it("groups two separate same-line, same-author inserts into one card with two sub-edits", () => {
+    const doc = docWith("the quick brown fox");
+    recordInsertSuggestion(doc, 4, 9, "alice"); // "quick"
+    recordInsertSuggestion(doc, 16, 19, "alice"); // "fox" — gap, not a contiguous extend
+    const cards = railAnnotationsForShared(listResolvedSuggestions(doc), [], "the quick brown fox");
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.subEdits).toHaveLength(2);
+    expect(cards[0]!.groupedIds).toEqual(listResolvedSuggestions(doc).map((s) => s.id));
+  });
+
+  it("keeps a comment on the same line as its own separate card", () => {
+    const doc = docWith("the quick brown fox");
+    recordInsertSuggestion(doc, 4, 9, "alice");
+    recordInsertSuggestion(doc, 16, 19, "alice");
+    const thread: ResolvedCommentThread = {
+      id: "t1",
+      author: "bob",
+      createdAt: 1,
+      from: 0,
+      to: 3,
+      quote: "the",
+      resolved: false,
+      replies: [{ id: "r1", author: "bob", body: "hi", createdAt: 1 }],
+    };
+    const cards = railAnnotationsForShared(listResolvedSuggestions(doc), [thread], "the quick brown fox");
+    expect(cards.filter((c) => c.kind === "comment")).toHaveLength(1);
+    expect(cards.filter((c) => c.subEdits)).toHaveLength(1);
   });
 });

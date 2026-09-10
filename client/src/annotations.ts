@@ -2,6 +2,7 @@ import type { ResolvedSuggestion } from "./suggestions";
 import type { ResolvedCommentThread } from "./comments-doc";
 import type { Note } from "./types";
 import { relocateAnchor } from "./anchor";
+import { groupSuggestionCards } from "./suggestion-group";
 
 // One normalised shape for everything the annotation rail renders — a
 // suggestion or a comment thread (both from the doc's Y.Doc), or a
@@ -27,6 +28,17 @@ export interface RailAnnotation {
   // Display label for an `anon:<id>` author (server-stamped); absent for a
   // signed-in author, whose `author` is already their name.
   authorName?: string;
+  // D4 line-grouping — present only on a group card. One row per merged
+  // suggestion, document order. `ids` is that member's underlying entry
+  // ids (a replace-pair contributes both).
+  subEdits?: {
+    ids: string[];
+    kind: "insert" | "delete" | "replace";
+    changeText: string;
+    replacedText?: string;
+    from: number;
+    to: number;
+  }[];
 }
 
 /** The underlying suggestion-entry / thread ids a card represents. */
@@ -84,7 +96,7 @@ function suggestionCards(suggestions: ResolvedSuggestion[], content: string): Ra
       replies: s.replies,
     });
   }
-  return out;
+  return groupSuggestionCards(out, content);
 }
 
 // A shared-doc comment thread arrives already resolved to absolute

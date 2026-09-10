@@ -7,7 +7,7 @@
 // picker-token, used only for the Picker widget).
 import "./types";
 import { get } from "svelte/store";
-import { driveConnected, driveImportBusyLabel } from "./stores/driveSync";
+import { driveConnected, driveConfigured, driveImportBusyLabel } from "./stores/driveSync";
 import { workspacesStore } from "./stores/workspaces";
 import { createDoc, activeDocContent } from "./stores/docs";
 import { showToast } from "./stores/toast";
@@ -42,6 +42,7 @@ async function checkSession(): Promise<void> {
     const res = await fetch("/api/auth/google/status");
     const data = await res.json();
     driveConnected.set(!!data.connected);
+    driveConfigured.set(data.configured !== false);
   } catch {
     driveConnected.set(false);
   }

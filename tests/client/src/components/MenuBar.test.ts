@@ -79,6 +79,26 @@ test("GIST-13: signed in — the submenu is shown, the plain button hidden", asy
   githubUsername.set(null);
 });
 
+test("DRIVE-1: the Open > Google Drive item hides only when disconnected AND unconfigured", async () => {
+  const { driveConnected, driveConfigured } = await import("../../../../client/src/stores/driveSync");
+
+  driveConnected.set(false);
+  driveConfigured.set(false);
+  const screen = await render(MenuBar);
+  const item = () => screen.container.querySelector("#menuOpenDrive")!;
+  await expect.poll(() => item().hasAttribute("hidden")).toBe(true);
+
+  driveConfigured.set(true); // configured but not connected — still offered (click starts connect)
+  await expect.poll(() => item().hasAttribute("hidden")).toBe(false);
+
+  driveConfigured.set(false);
+  driveConnected.set(true); // connected — offered regardless
+  await expect.poll(() => item().hasAttribute("hidden")).toBe(false);
+
+  driveConnected.set(false);
+  driveConfigured.set(true);
+});
+
 test("CV2-1: Viewing condenses the Edit menu (keeps Find/Copy) and hides Format/Insert; Suggesting keeps all three", async () => {
   const screen = await render(MenuBar);
   const hidden = (sel: string) => screen.container.querySelector(sel)?.hasAttribute("hidden");

@@ -123,7 +123,9 @@ export async function getGoogleAccessToken(request: Request, env: Env): Promise<
 export async function handleGoogleStatus(request: Request, env: Env): Promise<Response> {
   const raw = getCookie(request, GOOGLE_SESSION_COOKIE);
   const session = raw ? await decryptJSON<GoogleSessionData>(env, raw) : null;
-  return Response.json({ connected: !!session });
+  // `configured` lets the client hide all Drive UI on a deploy with no
+  // Google OAuth creds, without a separate probe request.
+  return Response.json({ connected: !!session, configured: !notConfigured(env) });
 }
 
 export async function handleGoogleDisconnect(request: Request, env: Env): Promise<Response> {

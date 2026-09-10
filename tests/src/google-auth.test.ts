@@ -125,15 +125,20 @@ describe("handleGoogleStatus", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const none = await handleGoogleStatus(new Request("https://app.example/api/auth/google/status"), env);
-    expect(await none.json()).toEqual({ connected: false });
+    expect(await none.json()).toEqual({ connected: false, configured: true });
 
     const cookie = await encryptJSON(env, { refreshToken: "r", accessToken: "a", accessTokenExp: Date.now() + 3600_000 });
     const some = await handleGoogleStatus(
       new Request("https://app.example/api/auth/google/status", { headers: { Cookie: `mde_google_session=${cookie}` } }),
       env,
     );
-    expect(await some.json()).toEqual({ connected: true });
+    expect(await some.json()).toEqual({ connected: true, configured: true });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports configured:false when Google OAuth creds are absent", async () => {
+    const res = await handleGoogleStatus(new Request("https://app.example/api/auth/google/status"), { SESSION_SECRET: "x" } as unknown as Env);
+    expect(await res.json()).toEqual({ connected: false, configured: false });
   });
 });
 

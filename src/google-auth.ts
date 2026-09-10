@@ -1,4 +1,4 @@
-import { GOOGLE_SESSION_COOKIE, GOOGLE_STATE_COOKIE, encryptJSON, decryptJSON, getCookie, cookieHeader, popupResponse } from "./auth.js";
+import { GOOGLE_SESSION_COOKIE, GOOGLE_STATE_COOKIE, encryptJSON, decryptJSON, getCookie, cookieHeader, popupResponse, popupHtml } from "./auth.js";
 import type { Env, GoogleSessionData } from "./env";
 
 // Google OAuth 2.0 web-server flow for the Drive integration — mirrors
@@ -46,4 +46,76 @@ export async function handleGoogleConnect(request: Request, env: Env): Promise<R
   const headers = new Headers({ Location: authorize.toString() });
   headers.append("Set-Cookie", cookieHeader(GOOGLE_STATE_COOKIE, state, { maxAge: 600 }));
   return new Response(null, { status: 302, headers });
+}
+
+interface GoogleTokenResponse {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  error?: string;
+  error_description?: string;
+}
+
+async function exchange(env: Env, params: Record<string, string>): Promise<GoogleTokenResponse | null> {
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID!, client_secret: env.GOOGLE_CLIENT_SECRET!, ...params }),
+  });
+  const body = await safeJson<GoogleTokenResponse>(res);
+  if (!res.ok || !body || body.error) return null;
+  return body;
+}
+
+export async function handleGoogleCallback(request: Request, env: Env): Promise<Response> {
+  if (notConfigured(env)) return new Response("Google Drive is not configured.", { status: 503 });
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const expected = getCookie(request, GOOGLE_STATE_COOKIE);
+  if (!code || !state || state !== expected) return popupResponse("google", false, "Invalid state.");
+
+  const tok = await exchange(env, { grant_type: "authorization_code", code, redirect_uri: redirectUri(request) });
+  if (!tok || !tok.access_token) return popupResponse("google", false, "Google sign-in failed.");
+  if (!tok.refresh_token) {
+    // prompt=consent should always return one; if Google still withholds it
+    // the session would be unrefreshable — better to fail loudly.
+    return popupResponse("google", false, "Google didn't return a refresh token — disconnect any prior grant in your Google account and try again.");
+  }
+
+  const session: GoogleSessionData = {
+    refreshToken: tok.refresh_token,
+    accessToken: tok.access_token,
+    accessTokenExp: Date.now() + (tok.expires_in ?? 3600) * 1000,
+  };
+  const cookie = await encryptJSON(env, session, GOOGLE_SESSION_TTL_MS);
+  const headers = new Headers({ "Content-Type": "text/html; charset=utf-8" });
+  headers.append("Set-Cookie", cookieHeader(GOOGLE_SESSION_COOKIE, cookie, { maxAge: GOOGLE_SESSION_TTL_MS / 1000 }));
+  headers.append("Set-Cookie", cookieHeader(GOOGLE_STATE_COOKIE, "", { maxAge: 0 }));
+  return new Response(popupHtml("google", true, null), { headers });
+}
+
+// A live Drive access token, refreshing transparently if the stored one
+// is within 60s of expiry. When it refreshes, the caller MUST thread the
+// returned `setCookie` onto its own Response so the browser keeps the
+// re-encrypted session. `null` → no session or the refresh failed
+// (revoked / ~6-month idle / password change) → the caller 401s.
+export async function getGoogleAccessToken(request: Request, env: Env): Promise<{ token: string; setCookie?: string } | null> {
+  if (notConfigured(env)) return null;
+  const raw = getCookie(request, GOOGLE_SESSION_COOKIE);
+  if (!raw) return null;
+  const session = await decryptJSON<GoogleSessionData>(env, raw);
+  if (!session) return null;
+
+  if (session.accessTokenExp - Date.now() > 60_000) return { token: session.accessToken };
+
+  const tok = await exchange(env, { grant_type: "refresh_token", refresh_token: session.refreshToken });
+  if (!tok || !tok.access_token) return null;
+  const next: GoogleSessionData = {
+    refreshToken: session.refreshToken,
+    accessToken: tok.access_token,
+    accessTokenExp: Date.now() + (tok.expires_in ?? 3600) * 1000,
+  };
+  const cookie = await encryptJSON(env, next, GOOGLE_SESSION_TTL_MS);
+  return { token: tok.access_token, setCookie: cookieHeader(GOOGLE_SESSION_COOKIE, cookie, { maxAge: GOOGLE_SESSION_TTL_MS / 1000 }) };
 }

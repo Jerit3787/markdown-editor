@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleGoogleConnect } from "../../src/google-auth";
+import { handleGoogleConnect, handleGoogleCallback, getGoogleAccessToken } from "../../src/google-auth";
+import { encryptJSON } from "../../src/auth";
 import type { Env } from "../../src/env";
 
 const env = {
@@ -30,5 +31,91 @@ describe("handleGoogleConnect", () => {
   it("returns 503 when GOOGLE_CLIENT_ID is not configured", async () => {
     const res = await handleGoogleConnect(new Request("https://app.example/api/auth/google/connect"), { SESSION_SECRET: "x" } as unknown as Env);
     expect(res.status).toBe(503);
+  });
+});
+
+function tokenRes(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+describe("handleGoogleCallback", () => {
+  it("exchanges the code and sets an encrypted session cookie", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => tokenRes({ access_token: "at1", refresh_token: "rt1", expires_in: 3600 })),
+    );
+    const req = new Request("https://app.example/api/auth/google/callback?code=c&state=s", {
+      headers: { Cookie: "mde_google_oauth_state=s" },
+    });
+    const res = await handleGoogleCallback(req, env);
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get("Set-Cookie")!;
+    expect(setCookie).toContain("mde_google_session=");
+    expect(setCookie).toContain("HttpOnly");
+    expect(await res.text()).toContain("mde-google-auth");
+  });
+
+  it("fails the popup on a state mismatch, without calling Google", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const req = new Request("https://app.example/api/auth/google/callback?code=c&state=evil", {
+      headers: { Cookie: "mde_google_oauth_state=s" },
+    });
+    const res = await handleGoogleCallback(req, env);
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fails the popup when Google withholds a refresh token", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => tokenRes({ access_token: "at1", expires_in: 3600 })),
+    );
+    const req = new Request("https://app.example/api/auth/google/callback?code=c&state=s", {
+      headers: { Cookie: "mde_google_oauth_state=s" },
+    });
+    const res = await handleGoogleCallback(req, env);
+    expect(res.status).toBe(400);
+    expect(await res.text()).toMatch(/disconnect/i);
+  });
+});
+
+describe("getGoogleAccessToken", () => {
+  async function reqWithSession(session: object) {
+    const cookie = await encryptJSON(env, session);
+    return new Request("https://app.example/api/drive/x", { headers: { Cookie: `mde_google_session=${cookie}` } });
+  }
+
+  it("returns the stored token unchanged while it is still fresh", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const req = await reqWithSession({ refreshToken: "rt", accessToken: "at", accessTokenExp: Date.now() + 5 * 60_000 });
+    const out = await getGoogleAccessToken(req, env);
+    expect(out).toEqual({ token: "at" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refreshes an expired token and returns a Set-Cookie for the caller to thread", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => tokenRes({ access_token: "at2", expires_in: 3600 })),
+    );
+    const req = await reqWithSession({ refreshToken: "rt", accessToken: "old", accessTokenExp: Date.now() - 1000 });
+    const out = await getGoogleAccessToken(req, env);
+    expect(out!.token).toBe("at2");
+    expect(out!.setCookie).toContain("mde_google_session=");
+  });
+
+  it("returns null when the refresh token is rejected (revoked / idle)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => tokenRes({ error: "invalid_grant" }, 400)),
+    );
+    const req = await reqWithSession({ refreshToken: "rt", accessToken: "old", accessTokenExp: Date.now() - 1000 });
+    expect(await getGoogleAccessToken(req, env)).toBeNull();
+  });
+
+  it("returns null when there is no session cookie", async () => {
+    expect(await getGoogleAccessToken(new Request("https://app.example/api/drive/x"), env)).toBeNull();
   });
 });

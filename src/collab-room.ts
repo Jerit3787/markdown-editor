@@ -118,6 +118,12 @@ export class CollabRoom {
   // for why: comment creation has no throttle to narrow the race window
   // a read-modify-write pattern would otherwise have.
   commentThreads: CommentThread[];
+  // The workspace id this legacy room migrated into, or null. Once set,
+  // every request except POST /migrate (kept for discovery) is a 410 —
+  // the WorkspaceRoom is authoritative and any edit here would be lost,
+  // never synced (MDE-22). Warmed from storage in the constructor, set
+  // the moment handleMigrateRequest writes the tombstone.
+  migratedTo: string | null;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -126,6 +132,7 @@ export class CollabRoom {
     this.persistScheduled = false;
     this.lastSnapshotAt = undefined;
     this.commentThreads = [];
+    this.migratedTo = null;
 
     this.doc = new Y.Doc();
     this.awareness = new awarenessProtocol.Awareness(this.doc);
@@ -141,13 +148,20 @@ export class CollabRoom {
       if (stored) Y.applyUpdate(this.doc, new Uint8Array(stored), "storage");
       const storedComments = await this.state.storage.get<CommentThread[]>(COMMENTS_KEY);
       this.commentThreads = storedComments || [];
+      this.migratedTo = (await this.state.storage.get<string>("migratedTo")) ?? null;
     });
   }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
+    // /migrate stays reachable on a migrated room (idempotent discovery —
+    // a stale client learns where the doc went). Everything else on a
+    // migrated room is a dead end (MDE-22).
     if (url.pathname.endsWith("/migrate")) return this.handleMigrateRequest(request);
+    if (this.migratedTo) {
+      return new Response("This document has moved to a workspace.", { status: 410 });
+    }
+    if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
 
     const restoreMatch = url.pathname.match(/\/versions\/([^/]+)\/restore$/);
     if (restoreMatch) return this.handleVersionRestoreRequest(request, restoreMatch[1]!);
@@ -380,9 +394,29 @@ export class CollabRoom {
         invited: Array.isArray(body.invited) ? normalizeInvited(body.invited) : access.invited,
       };
       await this.state.storage.put(ACCESS_KEY, next);
+      this.reconcileSessionRoles(next);
       return Response.json(next);
     }
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  // Re-resolve every live session's role against a just-written access
+  // record so a downgrade or revocation bites immediately, not only on
+  // the client's next reconnect (MDE-23, mirrors WorkspaceRoom's MDE-02).
+  reconcileSessionRoles(next: AccessRecord): void {
+    for (const [ws, session] of Array.from(this.sessions.entries())) {
+      const role = resolveRole(next, session.username);
+      if (!role) {
+        try {
+          ws.close(4403, "Access revoked");
+        } catch {
+          /* already closed */
+        }
+        this.sessions.delete(ws);
+      } else {
+        session.role = role;
+      }
+    }
   }
 
   // ---------- Migration to WorkspaceRoom ----------
@@ -399,8 +433,11 @@ export class CollabRoom {
     // Already migrated — return the pointer. Idempotent and harmless, so
     // no auth needed (a stale client just needs to learn where the room
     // went).
-    const existingTombstone = await this.state.storage.get<string>("migratedTo");
-    if (existingTombstone) return Response.json({ workspaceId: existingTombstone });
+    const existingTombstone = this.migratedTo ?? (await this.state.storage.get<string>("migratedTo"));
+    if (existingTombstone) {
+      this.migratedTo = existingTombstone;
+      return Response.json({ workspaceId: existingTombstone });
+    }
 
     // The actual migration: anyone with real access to the legacy room
     // may trigger it (the client does so automatically on open), but an
@@ -438,6 +475,18 @@ export class CollabRoom {
     if (!res.ok) return new Response("Migration failed.", { status: 500 });
 
     await this.state.storage.put("migratedTo", workspaceId);
+    this.migratedTo = workspaceId;
+    // Any collaborator still connected to this legacy room is now editing
+    // a dead copy — close them so their client re-opens the link and
+    // migrates (MDE-22).
+    for (const ws of Array.from(this.sessions.keys())) {
+      try {
+        ws.close(1000, "Migrated to a workspace");
+      } catch {
+        /* already closed */
+      }
+      this.sessions.delete(ws);
+    }
     return Response.json({ workspaceId });
   }
 
@@ -468,6 +517,19 @@ export class CollabRoom {
   handleMessage(ws: WebSocket, data: unknown): void {
     if (typeof data === "string") return;
     const session = this.sessions.get(ws);
+    // No session: this socket was dropped from `this.sessions` (a broadcast
+    // failure evicted it, or a role reconcile / migration closed it) but a
+    // frame it had already buffered still arrived. Without this the write
+    // gate below (`isWrite && session && …`) reads falsy and the raw delta
+    // applies unconstrained (MDE-21, mirrors WorkspaceRoom's MDE-17 fix).
+    if (!session) {
+      try {
+        ws.close(4401, "Unauthorized");
+      } catch {
+        /* already closing */
+      }
+      return;
+    }
     const decoder = decoding.createDecoder(new Uint8Array(data as ArrayBuffer));
     const messageType = decoding.readVarUint(decoder);
 
@@ -479,7 +541,7 @@ export class CollabRoom {
       decoder.pos = savedPos;
 
       const isWrite = syncType === SYNC_STEP2 || syncType === SYNC_UPDATE;
-      if (isWrite && session && session.role !== "editor") return; // read-only: drop silently
+      if (isWrite && session.role !== "editor") return; // read-only: drop silently
 
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, MESSAGE_SYNC);

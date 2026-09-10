@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.7] - 2026-09-10
+
+### Fixed
+
+- Security hardening for the legacy single-document collaboration rooms (superseded by workspaces), from a follow-up external audit — the same three fixes already applied to the modern rooms:
+  - A frame from a socket the server no longer recognises is dropped, not applied.
+  - Once a legacy document has been migrated into a workspace, the old room turns every request away and disconnects anyone still on it, so edits can't be stranded in a dead copy.
+  - Changing who can access a legacy document now takes effect on already-connected sessions immediately.
+
 ## [1.62.6] - 2026-09-10
 
 ### Fixed

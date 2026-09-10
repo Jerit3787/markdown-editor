@@ -200,6 +200,44 @@ describe("WorkspaceRoom multiplexed sync", () => {
     expect(await room.state.storage.get("docs")).toContain("docNew");
   });
 
+  // MDE-25: a SYNC_STEP1 frame is not an `isWrite`, so the viewer gate
+  // higher up never sees it. Without an explicit editor-role check, a
+  // viewer or reviewer could step1 an unbounded stream of unknown docIds
+  // and each one would be pushed into `this.docIds` + DO storage
+  // permanently — a persistent DoS (the DO's next cold start awaits
+  // loadDocRoom for every registered id inside blockConcurrencyWhile).
+  it("does NOT register a new docId when a viewer step1's it (MDE-25)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const clientWs = { send: () => {} } as unknown as WebSocket;
+    room.sessions.set(clientWs, { username: "mallory", role: "viewer", viewingDocId: null });
+
+    const scratch = new Y.Doc();
+    const step1 = encoding.createEncoder();
+    encoding.writeVarUint(step1, MESSAGE_SYNC);
+    encoding.writeVarString(step1, "docIntruder");
+    syncProtocol.writeSyncStep1(step1, scratch);
+    await room.handleMessage(clientWs, encoding.toUint8Array(step1).buffer as ArrayBuffer);
+
+    expect(room.docIds).not.toContain("docIntruder");
+    expect((await room.state.storage.get<string[]>("docs")) ?? []).not.toContain("docIntruder");
+  });
+
+  it("does NOT register a new docId when a reviewer step1's it (MDE-25)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const clientWs = { send: () => {} } as unknown as WebSocket;
+    room.sessions.set(clientWs, { username: "rita", role: "reviewer", viewingDocId: null });
+
+    const scratch = new Y.Doc();
+    const step1 = encoding.createEncoder();
+    encoding.writeVarUint(step1, MESSAGE_SYNC);
+    encoding.writeVarString(step1, "docIntruder");
+    syncProtocol.writeSyncStep1(step1, scratch);
+    await room.handleMessage(clientWs, encoding.toUint8Array(step1).buffer as ArrayBuffer);
+
+    expect(room.docIds).not.toContain("docIntruder");
+    expect((await room.state.storage.get<string[]>("docs")) ?? []).not.toContain("docIntruder");
+  });
+
   it("loading a doc room (e.g. to read its version history) does NOT make the doc a workspace member", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     await room.state.storage.put("access", {

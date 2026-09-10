@@ -186,7 +186,16 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   audit of the shim found **0 High/Medium** and one **LOW** (MDE-24 —
   the `/migrate` tombstone was returned before `authorize()`, leaking the
   workspace id / doc title to an old-link holder); closed in **v1.62.9**
-  (auth-first) alongside two DOMPurify/citation hardening notes.
+  (auth-first) alongside two DOMPurify/citation hardening notes. A run-7
+  audit found one **HIGH** (MDE-25 — a viewer/reviewer `SYNC_STEP1` frame
+  for an unknown docId registered it into the workspace's persisted
+  membership list, an RBAC bypass + a persistent cold-start DoS) and one
+  **LOW** (MDE-26 — the v1.62.9 anchor-rel hook matched `target`/tag name
+  case-sensitively, so `target="_BLANK"` / `rel="OPENER"` / an SVG `<a>`
+  slipped past); both closed in **v1.62.11**. Deferred: a live wikilink
+  rename still does a wholesale `ytext` replace that collapses any
+  annotation anchor in the renamed doc — a real CRDT change, its own
+  follow-up.
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"

@@ -1006,7 +1006,15 @@ export class WorkspaceRoom {
         }
       });
 
-      if (isNewDoc && !this.docIds.includes(docId)) {
+      // Persisting a new docId into the workspace's membership list is
+      // editor-only, exactly like POST /docs and /internal/seed. A
+      // SYNC_STEP1 frame isn't an `isWrite`, so the viewer gate above
+      // never sees it — without this an "anyone with the link" viewer or
+      // reviewer could push arbitrary docIds into `this.docIds` + storage,
+      // and a burst of them would brick the DO's next cold start (its
+      // constructor awaits loadDocRoom for every persisted id inside
+      // blockConcurrencyWhile) — MDE-25.
+      if (isNewDoc && session.role === "editor" && !this.docIds.includes(docId)) {
         this.docIds.push(docId);
         await this.state.storage.put("docs", this.docIds);
       }

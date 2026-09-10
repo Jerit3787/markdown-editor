@@ -425,4 +425,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/anon-identity.png",
     category: "Collaboration",
   },
+  {
+    version: "1.64.0",
+    title: "One Card for a Line of Edits",
+    description:
+      "When someone leaves several small tracked-change suggestions on the same line, they now collapse into one card with a row per change — accept or reject each one, or the whole line at once, instead of wading through a stack of near-identical cards. A suggestion with an open reply thread stays on its own card.",
+    screenshot: "/whats-new/suggestion-line-grouping.png",
+    category: "Collaboration",
+  },
 ];

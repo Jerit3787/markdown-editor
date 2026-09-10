@@ -282,3 +282,67 @@ test("COLLAB-11: a reviewer withdraws their own pending suggestion, and it clear
   await ownerCtx.close();
   await reviewerCtx.close();
 });
+
+test("D4: two pending edits on one line group into a single card; Accept all resolves both", async ({ browser }) => {
+  const ownerCtx = await browser.newContext();
+  const reviewerCtx = await browser.newContext();
+  const owner = await ownerCtx.newPage();
+  const reviewer = await reviewerCtx.newPage();
+
+  await signInAsDevUser(owner, "lg-owner-e2e");
+  await signInAsDevUser(reviewer, "lg-reviewer-e2e");
+
+  await owner.goto(BASE);
+  await owner.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 15000 });
+  await dismissWhatsNew(owner);
+  await createFirstWorkspaceAndDoc(owner);
+  await owner.click("#editor-mount .cm-content");
+  await owner.keyboard.type("the quick brown fox jumps");
+
+  await owner.click('button:has-text("Share")');
+  const moveDialog = owner.locator('button:has-text("Continue")');
+  if (await moveDialog.isVisible({ timeout: 2000 }).catch(() => false)) await moveDialog.click();
+  const addPeopleInput = owner.locator('input[aria-label="Add people by GitHub username"]');
+  await addPeopleInput.waitFor({ state: "visible" });
+  await addPeopleInput.fill("lg-reviewer-e2e");
+  await Promise.all([
+    owner.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    addPeopleInput.press("Enter"),
+  ]);
+  const roleSelect = owner.locator('select[aria-label="Access level for lg-reviewer-e2e"]');
+  await roleSelect.waitFor({ state: "visible" });
+  await Promise.all([
+    owner.waitForResponse((res) => /\/api\/workspace\/[^/]+\/access$/.test(res.url()) && res.request().method() === "PUT"),
+    roleSelect.selectOption({ label: "Reviewer" }),
+  ]);
+  const shareState = await readSharedState(owner);
+  const shareUrl = `${BASE}/w/${shareState.ws.remoteId}/${shareState.activeDoc.id}/edit`;
+  await owner.keyboard.press("Escape").catch(() => {});
+
+  await joinSharedWorkspace(reviewer, shareUrl);
+  await expect.poll(() => reviewer.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("the quick brown fox jumps");
+
+  // Two separate edits on the one line, unchanged text between them so the
+  // contiguous-extend never merges the two suggestion entries.
+  await reviewer.click("#editor-mount .cm-content");
+  await reviewer.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: 10 } })); // after "the quick "
+  await reviewer.keyboard.insertText("VERY ");
+  await reviewer.evaluate(() => window.MDE.getEditor().dispatch({ selection: { anchor: window.MDE.getEditor().state.doc.length } }));
+  await reviewer.keyboard.insertText(" high");
+  await expect(reviewer.locator(".cm-suggestion-insert")).toHaveCount(2, { timeout: 15000 });
+
+  // Owner opens the rail: ONE grouped card, not two.
+  await owner.click("#commentsBtn");
+  await expect(owner.locator(".annotation-card.suggestion")).toHaveCount(1, { timeout: 10000 });
+  await expect(owner.locator(".annotation-card.suggestion")).toContainText(/2 changes/i);
+  await expect(owner.locator('.annotation-card.suggestion .annotation-card-subedit button[data-act="accept"]')).toHaveCount(2);
+
+  // Accept all resolves every underlying suggestion.
+  await owner.locator('.annotation-card.suggestion .annotation-card-actions button[data-act="accept"]').click();
+  await expect(owner.locator(".annotation-card.suggestion")).toHaveCount(0, { timeout: 10000 });
+  await expect(owner.locator(".cm-suggestion-insert")).toHaveCount(0, { timeout: 10000 });
+  await expect.poll(() => owner.evaluate(() => window.MDE.getEditor()?.state?.doc?.toString() ?? "")).toContain("VERY");
+
+  await ownerCtx.close();
+  await reviewerCtx.close();
+});

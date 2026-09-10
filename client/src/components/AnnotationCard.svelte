@@ -9,6 +9,7 @@
     onAccept,
     onReject,
     onWithdraw,
+    onSubEdit,
     onResolve,
     onDelete,
     onReply,
@@ -22,6 +23,7 @@
     onAccept?: () => void;
     onReject?: () => void;
     onWithdraw?: () => void;
+    onSubEdit?: (ids: string[], outcome: "accept" | "reject") => void;
     onResolve?: (resolved: boolean) => void;
     onDelete?: () => void;
     onReply?: (body: string) => void;
@@ -35,6 +37,7 @@
   const isOwn = $derived(!!annotation.author && annotation.author === viewer.name);
   const isEditor = $derived(viewer.role === "editor");
   const isAnon = $derived(annotation.author.startsWith("anon:"));
+  const isGroup = $derived(!!annotation.subEdits);
   const label = $derived(displayName(annotation.author, annotation.authorName));
   // encodeURIComponent so a hostile author string can't smuggle a query
   // param or path segment into the avatar URL. The server already
@@ -79,7 +82,9 @@
       <span class="annotation-card-author"
         >{label || "Someone"}{#if isSuggestion}<span class="annotation-card-role"> · suggesting</span>{/if}</span
       >
-      {#if isSuggestion}
+      {#if isSuggestion && isGroup}
+        <span class="annotation-card-change">{annotation.subEdits!.length} changes</span>
+      {:else if isSuggestion}
         <span class="annotation-card-change">
           {#if annotation.replacedText != null}
             Replace <del>{annotation.replacedText}</del> → <ins>{annotation.changeText}</ins>
@@ -96,6 +101,30 @@
       {/if}
     </div>
   </header>
+
+  {#if isGroup}
+    <ul class="annotation-card-subedits">
+      {#each annotation.subEdits! as sub, i (i)}
+        <li class="annotation-card-subedit">
+          <span class="annotation-card-subedit-text">
+            {#if sub.kind === "replace"}
+              Replace <del>{sub.replacedText}</del> → <ins>{sub.changeText}</ins>
+            {:else if sub.kind === "insert"}
+              Add <ins>{sub.changeText}</ins>
+            {:else}
+              Remove <del>{sub.replacedText ?? sub.changeText}</del>
+            {/if}
+          </span>
+          {#if isEditor}
+            <span class="annotation-card-subedit-acts">
+              <button type="button" data-act="accept" data-sub={i} title="Accept" onclick={() => onSubEdit?.(sub.ids, "accept")}>✓</button>
+              <button type="button" data-act="reject" data-sub={i} title="Reject" onclick={() => onSubEdit?.(sub.ids, "reject")}>✗</button>
+            </span>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
 
   {#if !isSuggestion || focused || (annotation.replies?.length ?? 0) > 0}
     <div class="annotation-card-body">
@@ -118,12 +147,12 @@
 
   {#if isSuggestion && isEditor}
     <div class="annotation-card-actions">
-      <button type="button" data-act="accept" class="primary-btn" onclick={() => onAccept?.()}>✓ Accept</button>
-      <button type="button" data-act="reject" class="secondary-btn" onclick={() => onReject?.()}>✗ Reject</button>
+      <button type="button" data-act="accept" class="primary-btn" onclick={() => onAccept?.()}>{isGroup ? "✓ Accept all" : "✓ Accept"}</button>
+      <button type="button" data-act="reject" class="secondary-btn" onclick={() => onReject?.()}>{isGroup ? "✗ Reject all" : "✗ Reject"}</button>
     </div>
   {:else if isSuggestion && isOwn}
     <div class="annotation-card-actions">
-      <button type="button" data-act="withdraw" class="secondary-btn" onclick={() => onWithdraw?.()}>Withdraw</button>
+      <button type="button" data-act="withdraw" class="secondary-btn" onclick={() => onWithdraw?.()}>{isGroup ? "Withdraw all" : "Withdraw"}</button>
     </div>
   {:else if !isSuggestion}
     <div class="annotation-card-actions">

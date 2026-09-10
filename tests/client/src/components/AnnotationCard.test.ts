@@ -139,3 +139,48 @@ test("a suggestion by an anon: author shows its guest name and a generic avatar"
   await expect.element(screen.getByText(/Swift Otter/)).toBeInTheDocument();
   expect(screen.container.querySelector("img.annotation-card-avatar")).toBeNull();
 });
+
+const groupSug: RailAnnotation = {
+  id: "a+b",
+  kind: "suggestion",
+  author: "alice",
+  createdAt: 0,
+  anchorFrom: 2,
+  anchorTo: 9,
+  groupedIds: ["a", "b"],
+  subEdits: [
+    { ids: ["a"], kind: "replace", changeText: "the", replacedText: "teh", from: 2, to: 5 },
+    { ids: ["b"], kind: "insert", changeText: " really", from: 8, to: 15 },
+  ],
+};
+
+test("a grouped suggestion card renders one row per sub-edit with a change count", async () => {
+  const screen = await render(AnnotationCard, { annotation: groupSug, viewer: { role: "editor", name: "carol" } });
+  await expect.element(screen.getByText(/2 changes/i)).toBeInTheDocument();
+  expect(screen.container.querySelectorAll(".annotation-card-subedit")).toHaveLength(2);
+  await expect.element(screen.getByText("teh")).toBeInTheDocument();
+  await expect.element(screen.getByText("really")).toBeInTheDocument();
+});
+
+test("an editor gets per-row accept/reject and Accept all / Reject all on a group", async () => {
+  const onSubEdit = vi.fn();
+  const onAccept = vi.fn();
+  const screen = await render(AnnotationCard, { annotation: groupSug, viewer: { role: "editor", name: "carol" }, onSubEdit, onAccept });
+  expect(screen.container.querySelectorAll('.annotation-card-subedit button[data-act="accept"]')).toHaveLength(2);
+  screen.container.querySelector('.annotation-card-subedit button[data-act="reject"][data-sub="1"]')!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  expect(onSubEdit).toHaveBeenCalledWith(["b"], "reject");
+  await screen.getByRole("button", { name: /accept all/i }).click();
+  expect(onAccept).toHaveBeenCalledOnce();
+});
+
+test("the author sees Withdraw all on a group, no per-row buttons", async () => {
+  const screen = await render(AnnotationCard, { annotation: groupSug, viewer: { role: "reviewer", name: "alice" } });
+  await expect.element(screen.getByRole("button", { name: /withdraw all/i })).toBeInTheDocument();
+  expect(screen.container.querySelector(".annotation-card-subedit button")).toBeNull();
+});
+
+test("a third-party reviewer sees the group rows but no action buttons", async () => {
+  const screen = await render(AnnotationCard, { annotation: groupSug, viewer: { role: "reviewer", name: "dave" } });
+  expect(screen.container.querySelectorAll(".annotation-card-subedit")).toHaveLength(2);
+  expect(screen.container.querySelector(".annotation-card-actions")).toBeNull();
+});

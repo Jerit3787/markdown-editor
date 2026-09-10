@@ -170,6 +170,10 @@
     const doc = ydoc();
     if (doc) underlyingIds(a).forEach((id) => withdrawSuggestion(doc, id));
   }
+  function resolveSubEdit(ids: string[], outcome: "accept" | "reject") {
+    const doc = ydoc();
+    if (doc) ids.forEach((id) => resolveSuggestion(doc, id, outcome));
+  }
 
   // The current user's collaboration identity — a GitHub username or the
   // server-assigned "anon:<id>". Empty only in the brief window before the
@@ -405,6 +409,7 @@
             onAccept={() => acceptSuggestion(a)}
             onReject={() => rejectSuggestion(a)}
             onWithdraw={() => withdrawOwn(a)}
+            onSubEdit={(ids, outcome) => resolveSubEdit(ids, outcome)}
             onResolve={(r) => toggleResolve(a.id, r)}
             onDelete={() => removeAnnotation(a)}
             onReply={(body) => submitReply(a, body)}

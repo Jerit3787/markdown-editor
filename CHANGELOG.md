@@ -12,6 +12,12 @@ All notable changes to this project are documented here. Format follows
   - Only an editor can add a new document to a shared workspace. A viewer or reviewer on an "anyone with the link" workspace could previously make the collaboration server register arbitrary document ids just by asking to sync them — cluttering the workspace and, in bulk, slowing its next restart.
   - The `rel="noopener noreferrer"` hardening applied to raw `<a target="_blank">` links in a document now also catches uppercase variants (`target="_BLANK"`, `rel="OPENER"`) and links inside inline SVG.
 
+## [1.62.10] - 2026-09-10
+
+### Fixed
+
+- The Command Palette could get stuck invisible if you pressed Escape in the instant right after opening it (before its search box took focus) — its close is now handled the same way as every other dialog.
+
 ## [1.62.9] - 2026-09-10
 
 ### Fixed

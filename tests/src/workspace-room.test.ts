@@ -2612,7 +2612,7 @@ describe("WorkspaceRoom anon identity", () => {
     await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
     const session = await upgrade(room);
     const frame = serverSends.map(decodeAnonIdentityFrame).find((f) => f !== null)!;
-    expect(frame.anonId).toMatch(/^anon:[0-9A-Za-z]{16}$/);
+    expect(frame.anonId).toMatch(/^anon:[0-9a-f]{32}$/);
     expect(frame.anonName).toMatch(/^\w+ \w+$/);
     expect(await verifyAnonToken(fakeEnvWithSecret, frame.token)).toEqual({ anonId: frame.anonId, anonName: frame.anonName });
     expect(session.anonId).toBe(frame.anonId);

@@ -5,12 +5,13 @@
 export const GUEST_ADJECTIVES = ["Quiet", "Curious", "Swift", "Gentle", "Bold", "Clever", "Calm", "Bright"];
 export const GUEST_ANIMALS = ["Fox", "Owl", "Otter", "Falcon", "Panda", "Lynx", "Heron", "Wren"];
 
-const ID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
 export function randomAnonId(): string {
+  // Hex-encode the raw CSPRNG bytes — no modulo, so no bias (js/biased-
+  // cryptographic-random). 16 bytes = 128 bits, plenty for an
+  // unguessable, namespaced label.
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   let s = "";
-  for (const b of bytes) s += ID_ALPHABET[b % ID_ALPHABET.length];
+  for (const b of bytes) s += b.toString(16).padStart(2, "0");
   return `anon:${s}`;
 }
 

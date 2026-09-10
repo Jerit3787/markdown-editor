@@ -50,20 +50,11 @@
   const repoLinkLabel = $derived(activeWorkspace?.repoLink ? `${activeWorkspace.repoLink.owner}/${activeWorkspace.repoLink.repo}` : "");
   const repoLastSyncedLabel = $derived(activeWorkspace?.repoLastSyncedAt ? `Synced ${window.MDE.formatRelativeTime(activeWorkspace.repoLastSyncedAt)}` : "");
 
-  // #suggestionsBtn/#suggestionsBadge are plain HTML (index.html), not this
-  // component's own markup — same reasoning as AnnotationRail.svelte's own
-  // #commentsBtn/#commentsBadge sync. No dedicated "suggestions panel"
-  // component exists to own this (unlike comments), so it lives here on
-  // MenuBar, which is always mounted regardless of active document.
-  $effect(() => {
-    const btn = document.getElementById("suggestionsBtn");
-    const badge = document.getElementById("suggestionsBadge");
-    if (!btn || !badge) return;
-    const count = $pendingSuggestionCount;
-    btn.hidden = count === 0;
-    badge.hidden = count === 0;
-    badge.textContent = count > 99 ? "99+" : String(count);
-  });
+  // Combined "annotations needing attention" count — the rail (opened by
+  // #commentsBtn) shows comments and suggestions together, so one number
+  // covers both. AnnotationRail owns the #commentsBadge sync; this is the
+  // File ▸ Comments menu entry's own badge.
+  const annotationCount = $derived($unresolvedCommentCount + $pendingSuggestionCount);
 
   // Every action below closes the menu it came from afterward — matching
   // the old per-menu closeFileMenu()/closeEditMenu()/etc., which
@@ -212,8 +203,8 @@
       <div class="menu-divider"></div>
       <button id="menuComments" type="button" disabled={viewing || !hasActiveDoc} onclick={() => act(() => commentsPanelOpen.set(true))}>
         <svg class="icon"><use href="#icon-message-square"></use></svg> Comments
-        {#if $unresolvedCommentCount > 0}
-          <span class="menu-badge">{$unresolvedCommentCount > 99 ? "99+" : $unresolvedCommentCount}</span>
+        {#if annotationCount > 0}
+          <span class="menu-badge">{annotationCount > 99 ? "99+" : annotationCount}</span>
         {/if}
       </button>
 

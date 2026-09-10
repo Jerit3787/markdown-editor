@@ -192,10 +192,11 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   membership list, an RBAC bypass + a persistent cold-start DoS) and one
   **LOW** (MDE-26 — the v1.62.9 anchor-rel hook matched `target`/tag name
   case-sensitively, so `target="_BLANK"` / `rel="OPENER"` / an SVG `<a>`
-  slipped past); both closed in **v1.62.11**. Deferred: a live wikilink
-  rename still does a wholesale `ytext` replace that collapses any
-  annotation anchor in the renamed doc — a real CRDT change, its own
-  follow-up.
+  slipped past); both closed in **v1.62.11**. The run-7 follow-up — a
+  live wikilink rename replaced the whole `ytext` of every backlinking
+  shared doc, collapsing their comment / suggestion anchors — shipped in
+  **v1.62.12**: the server splices each `[[Old]]` occurrence in place now
+  (spec `2026-09-10-wikilink-rename-anchor-preservation`).
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"

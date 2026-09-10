@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.12] - 2026-09-10
+
+### Fixed
+
+- Renaming a shared document no longer drops the comments and tracked-change suggestions in the _other_ shared documents that link to it. The server rewrites each `[[Old Name]]` reference in place now, instead of replacing the whole document body — so anchors elsewhere in those documents stay put.
+
 ## [1.62.11] - 2026-09-10
 
 ### Fixed

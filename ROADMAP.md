@@ -168,7 +168,12 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   collapsing when a reverted delete re-inserts text under new item IDs —
   is closed by server-side anchor rebinding in committed-text coordinates
   (spec/plan `2026-09-10-reviewer-delete-anchor-rebinding`), **shipped
-  v1.62.5**.
+  v1.62.5**. A run-4 audit of the session lifecycle / storage-deletion
+  boundaries then closed MDE-17..MDE-20 in **v1.62.6** (small defensive
+  fixes, no spec): `handleMessage` drops a frame from an unknown socket;
+  `forceSnapshot` bails on a deleted workspace; the WS handshake
+  re-checks the tombstone before accepting; `MESSAGE_ACCESS_REQUEST` goes
+  to the owner's socket only.
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"

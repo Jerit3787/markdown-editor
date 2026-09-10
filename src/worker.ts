@@ -6,11 +6,10 @@ import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handl
 import type { Env } from "./env";
 import { generateNonce, appCsp, legalCsp } from "./csp.js";
 
-const ROOM_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})$/;
-const ROOM_ACCESS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/access$/;
+// The legacy per-document CollabRoom is a migration-only shim now (see
+// src/collab-room.ts) — /migrate is its only live endpoint; everything
+// else moved to WorkspaceRoom in the workspace pivot.
 const ROOM_MIGRATE_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/migrate$/;
-const ROOM_VERSIONS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/versions(\/.*)?$/;
-const ROOM_COMMENTS_PATH = /^\/api\/collab\/([A-Za-z0-9_-]{1,128})\/comments(\/.*)?$/;
 const WORKSPACE_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})$/;
 const WORKSPACE_ACCESS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/access$/;
 const WORKSPACE_ACCESS_REQUEST_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/access-request(\/[A-Za-z0-9_.@-]{1,128})?$/;
@@ -92,33 +91,6 @@ export default {
     const roomMigrateMatch = url.pathname.match(ROOM_MIGRATE_PATH);
     if (roomMigrateMatch) {
       const id = env.COLLAB_ROOM.idFromName(roomMigrateMatch[1]!);
-      return env.COLLAB_ROOM.get(id).fetch(request);
-    }
-
-    const roomAccessMatch = url.pathname.match(ROOM_ACCESS_PATH);
-    if (roomAccessMatch) {
-      const id = env.COLLAB_ROOM.idFromName(roomAccessMatch[1]!);
-      return env.COLLAB_ROOM.get(id).fetch(request);
-    }
-
-    const roomVersionsMatch = url.pathname.match(ROOM_VERSIONS_PATH);
-    if (roomVersionsMatch) {
-      const id = env.COLLAB_ROOM.idFromName(roomVersionsMatch[1]!);
-      return env.COLLAB_ROOM.get(id).fetch(request);
-    }
-
-    const roomCommentsMatch = url.pathname.match(ROOM_COMMENTS_PATH);
-    if (roomCommentsMatch) {
-      const id = env.COLLAB_ROOM.idFromName(roomCommentsMatch[1]!);
-      return env.COLLAB_ROOM.get(id).fetch(request);
-    }
-
-    const roomMatch = url.pathname.match(ROOM_PATH);
-    if (roomMatch) {
-      if (request.headers.get("Upgrade") !== "websocket") {
-        return new Response("Expected websocket", { status: 426 });
-      }
-      const id = env.COLLAB_ROOM.idFromName(roomMatch[1]!);
       return env.COLLAB_ROOM.get(id).fetch(request);
     }
 

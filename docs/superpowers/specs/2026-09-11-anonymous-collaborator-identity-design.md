@@ -240,13 +240,15 @@ Handled by:
 - `viewer` prop type changes from `{ role; name }` to `{ role; id }`
   across `AnnotationCard` and `AnnotationRail`.
 
-**Version history:** `DocRoom.pendingAuthors` accumulates `identityOf(session)`
-(was `session.username` only — anon edits were dropped). The snapshot
-gains `authorNames?: Record<string, string>` populated from
-`session.anonName` for any `anon:` author in that window.
-`VersionHistory.svelte` resolves an `anon:` author via `authorNames`
-(fallback `"Guest"`) and uses the generic avatar. `authors` for
-pre-feature snapshots stays `string[]` of usernames — unchanged.
+**Version history:** `DocRoom.pendingAuthors` (a `Set<string>`) currently
+records `session.username` and skips anon edits entirely. Change it to
+record the **display name** — `session.username ?? session.anonName` —
+so anon edits show up. `Snapshot.authors` stays `string[]`; it already
+holds display strings and `VersionHistory.svelte` already renders them as
+coloured initials (no GitHub avatar fetch there), so no schema or
+component change — an anon's guest name just appears alongside usernames.
+(Telling two identically-named guests apart in version history is not
+worth an id-keyed schema — it is a display surface, not an authz one.)
 
 ### 5. Resolved-entry plumbing
 

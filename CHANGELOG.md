@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.10] - 2026-09-10
+
+### Fixed
+
+- The Command Palette could get stuck invisible if you pressed Escape in the instant right after opening it (before its search box took focus) — its close is now handled the same way as every other dialog.
+
 ## [1.62.9] - 2026-09-10
 
 ### Fixed

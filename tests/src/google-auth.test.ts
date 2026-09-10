@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleGoogleConnect, handleGoogleCallback, getGoogleAccessToken } from "../../src/google-auth";
+import { handleGoogleConnect, handleGoogleCallback, getGoogleAccessToken, handleGoogleStatus, handleGoogleDisconnect } from "../../src/google-auth";
 import { encryptJSON } from "../../src/auth";
 import type { Env } from "../../src/env";
 
@@ -117,5 +117,40 @@ describe("getGoogleAccessToken", () => {
 
   it("returns null when there is no session cookie", async () => {
     expect(await getGoogleAccessToken(new Request("https://app.example/api/drive/x"), env)).toBeNull();
+  });
+});
+
+describe("handleGoogleStatus", () => {
+  it("connected:false with no cookie, connected:true with a valid one, without calling Google", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const none = await handleGoogleStatus(new Request("https://app.example/api/auth/google/status"), env);
+    expect(await none.json()).toEqual({ connected: false });
+
+    const cookie = await encryptJSON(env, { refreshToken: "r", accessToken: "a", accessTokenExp: Date.now() + 3600_000 });
+    const some = await handleGoogleStatus(
+      new Request("https://app.example/api/auth/google/status", { headers: { Cookie: `mde_google_session=${cookie}` } }),
+      env,
+    );
+    expect(await some.json()).toEqual({ connected: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleGoogleDisconnect", () => {
+  it("revokes best-effort and clears the cookie, 204 even if revoke fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network");
+      }),
+    );
+    const cookie = await encryptJSON(env, { refreshToken: "r", accessToken: "a", accessTokenExp: Date.now() + 3600_000 });
+    const res = await handleGoogleDisconnect(
+      new Request("https://app.example/api/auth/google/disconnect", { method: "POST", headers: { Cookie: `mde_google_session=${cookie}` } }),
+      env,
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Set-Cookie")).toMatch(/mde_google_session=;.*Max-Age=0/);
   });
 });

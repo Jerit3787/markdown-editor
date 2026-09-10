@@ -119,3 +119,24 @@ export async function getGoogleAccessToken(request: Request, env: Env): Promise<
   const cookie = await encryptJSON(env, next, GOOGLE_SESSION_TTL_MS);
   return { token: tok.access_token, setCookie: cookieHeader(GOOGLE_SESSION_COOKIE, cookie, { maxAge: GOOGLE_SESSION_TTL_MS / 1000 }) };
 }
+
+export async function handleGoogleStatus(request: Request, env: Env): Promise<Response> {
+  const raw = getCookie(request, GOOGLE_SESSION_COOKIE);
+  const session = raw ? await decryptJSON<GoogleSessionData>(env, raw) : null;
+  return Response.json({ connected: !!session });
+}
+
+export async function handleGoogleDisconnect(request: Request, env: Env): Promise<Response> {
+  const raw = getCookie(request, GOOGLE_SESSION_COOKIE);
+  const session = raw ? await decryptJSON<GoogleSessionData>(env, raw) : null;
+  if (session) {
+    try {
+      await fetch(`${REVOKE_URL}?token=${encodeURIComponent(session.refreshToken)}`, { method: "POST" });
+    } catch {
+      /* best effort — the cookie is cleared regardless */
+    }
+  }
+  const headers = new Headers();
+  headers.append("Set-Cookie", cookieHeader(GOOGLE_SESSION_COOKIE, "", { maxAge: 0 }));
+  return new Response(null, { status: 204, headers });
+}

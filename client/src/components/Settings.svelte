@@ -121,6 +121,9 @@
       <div class="setting-row">
         <div class="setting-label">
           <span class="setting-title">Google Drive</span>
+          {#if $driveConnected}
+            <span class="setting-desc">Connected</span>
+          {/if}
         </div>
         {#if $driveConnected}
           <button type="button" class="secondary-btn" onclick={() => window.MDE.disconnectGoogleDrive?.()}>Disconnect</button>

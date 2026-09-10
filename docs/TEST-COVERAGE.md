@@ -54,12 +54,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
-| 10. Workspace collab               |      70 |       0 |    0 |    70 |
+| 10. Workspace collab               |      74 |       0 |    0 |    74 |
 | 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **340** |  **0** |  **0** | **340** |
+| **Total**                          | **344** |  **0** |  **0** | **344** |
 
 **Every enumerated scenario now has a test asserting its outcome —
 314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
@@ -437,6 +437,10 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | SEC-20 | `MESSAGE_ACCESS_REQUEST` (requester username + note) is sent only to the owner's own session(s), not `broadcast(null)` — an anonymous peer on a public workspace receives nothing (MDE-20) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
 | SEC-21 | Preview markdown sanitization: a raw HTML `<a target="_blank">` (or `rel="opener"`) always comes out `rel="noopener noreferrer"` — a DOMPurify `afterSanitizeAttributes` hook, since `ADD_ATTR: ["target"]` lets `target` through. The hook matches the tag and `target` case-insensitively (`target="_BLANK"`, `rel="OPENER"`, and an SVG `<a>` whose `nodeName` is lowercase `a` are all caught — MDE-26); citation keys are `escapeHtml`'d into the marker `href` and bibliography `id` (attribute breakout) | unit | covered | `tests/client/src/preview-sanitize.test.ts`, `tests/client/src/mmd-citations.test.ts` | v1.62.9 · external audit run-6; case-insensitivity v1.62.11 · run-7 |
 | SEC-22 | Registering a new `docId` into a workspace's persisted membership list (`this.docIds` + `storage.put("docs")`) is editor-only — a `SYNC_STEP1` frame isn't an `isWrite`, so the viewer/reviewer gate never sees it; without the explicit `session.role === "editor"` check an "anyone with link" viewer or reviewer could push arbitrary docIds into storage and brick the DO's next cold start (its constructor awaits `loadDocRoom` for every persisted id in `blockConcurrencyWhile`) — MDE-25 | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.11 · external audit run-7 |
+| SEC-23 | `signAnonToken` / `verifyAnonToken` — HMAC-SHA256 over `SESSION_SECRET`, `{anonId, anonName, iat}` payload; `verify` returns `null` on a bad signature, malformed value, a non-`anon:` id, or an `iat` older than 30 days | unit | covered | `tests/src/auth.test.ts` | v1.63.0 |
+| SEC-24 | The WS upgrade mints `{anonId, anonName}` for a null-username session (skipped for `?preview=1`, for a signed-in session, and when `SESSION_SECRET` is unset), sends a `MESSAGE_ANON_IDENTITY` frame with a verifiable token, and reuses the identity from a valid presented token (re-mints on a tampered one) | integration | covered | `tests/src/workspace-room.test.ts` | v1.63.0 |
+| SEC-25 | The `suggestions` / `comments` integrity observers key ownership on `identityOf(session)` (`username ?? anonId`) — an anon reviewer's own suggestion is kept, they can withdraw it, a second anon cannot raw-delete their inserted text, and an anon comment thread is kept; `isValidNewThread` no longer rejects a real `anon:` actor | unit + integration | covered | `tests/src/comment-integrity.test.ts`, `tests/src/reviewer-integrity.test.ts`, `tests/src/workspace-room.test.ts` | v1.63.0 |
+| SEC-26 | The observers stamp an authoritative `authorName` (the session's `anonName`, via a live-session scan) onto every `anon:`-authored suggestion / comment — covering entries born from the client, the server's auto-wrap, and the self-heal merge; a signed-in author gets none; version-history snapshots record an anon editor by guest name | integration | covered | `tests/src/workspace-room.test.ts` | v1.63.0 |
 
 ## 11. GitHub auth & Gist
 

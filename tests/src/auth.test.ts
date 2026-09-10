@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { encryptSession, decryptSession, cookieHeader, getCookie } from "../../src/auth";
+import { encryptSession, decryptSession, cookieHeader, getCookie, signAnonToken, verifyAnonToken } from "../../src/auth";
 import type { Env } from "../../src/env";
 
 const fakeEnv = { SESSION_SECRET: "test-secret-key-not-real" } as unknown as Env;
@@ -92,5 +92,45 @@ describe("cookieHeader", () => {
     const header = cookieHeader("mde_gh_session", "a b;c", {});
     const request = new Request("https://example.com", { headers: { Cookie: header.split(";")[0]! } });
     expect(getCookie(request, "mde_gh_session")).toBe("a b;c");
+  });
+});
+
+describe("anon token round trip", () => {
+  it("verifies a token it just signed", async () => {
+    const t = await signAnonToken(fakeEnv, { anonId: "anon:abc123", anonName: "Swift Otter" });
+    expect(await verifyAnonToken(fakeEnv, t)).toEqual({ anonId: "anon:abc123", anonName: "Swift Otter" });
+  });
+
+  it("rejects a token signed under a different secret", async () => {
+    const t = await signAnonToken({ SESSION_SECRET: "other" } as unknown as Env, { anonId: "anon:abc123", anonName: "Swift Otter" });
+    expect(await verifyAnonToken(fakeEnv, t)).toBeNull();
+  });
+
+  it("rejects a tampered payload", async () => {
+    const t = await signAnonToken(fakeEnv, { anonId: "anon:abc123", anonName: "Swift Otter" });
+    const [, sig] = t.split(".");
+    const forgedBody = btoa(JSON.stringify({ anonId: "anon:evil", anonName: "x", iat: Date.now() }))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    expect(await verifyAnonToken(fakeEnv, `${forgedBody}.${sig}`)).toBeNull();
+  });
+
+  it("rejects a malformed value", async () => {
+    expect(await verifyAnonToken(fakeEnv, "nope")).toBeNull();
+  });
+
+  it("rejects a token older than 30 days", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    const t = await signAnonToken(fakeEnv, { anonId: "anon:abc123", anonName: "Swift Otter" });
+    vi.setSystemTime(new Date("2026-02-05T00:00:00Z")); // +35 days
+    expect(await verifyAnonToken(fakeEnv, t)).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it("rejects a payload whose anonId lacks the anon: prefix", async () => {
+    const t = await signAnonToken(fakeEnv, { anonId: "danishhakim", anonName: "x" });
+    expect(await verifyAnonToken(fakeEnv, t)).toBeNull();
   });
 });

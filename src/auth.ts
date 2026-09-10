@@ -22,9 +22,9 @@ async function deriveKey(env: Env): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", hash, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
-function toBase64Url(buffer: ArrayBuffer): string {
+function toBase64Url(buffer: ArrayBuffer | Uint8Array): string {
   let binary = "";
-  for (const byte of new Uint8Array(buffer)) binary += String.fromCharCode(byte);
+  for (const byte of buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -60,6 +60,38 @@ export async function decryptSession(env: Env, value: string): Promise<SessionDa
     if (typeof session.exp !== "number" || session.exp <= Date.now()) return null;
     return session;
   } catch (err) {
+    return null;
+  }
+}
+
+// A signed (not encrypted) identity label for an anonymous collaborator.
+// The payload isn't secret — anonId/anonName are visible to every
+// collaborator as an entry's `author` — it only needs to be tamper-proof,
+// so HMAC-SHA256 over SESSION_SECRET, not AES-GCM.
+const ANON_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function anonHmacKey(env: Env): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", new TextEncoder().encode(env.SESSION_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+}
+
+export async function signAnonToken(env: Env, data: { anonId: string; anonName: string }): Promise<string> {
+  const body = toBase64Url(new TextEncoder().encode(JSON.stringify({ ...data, iat: Date.now() })));
+  const sig = await crypto.subtle.sign("HMAC", await anonHmacKey(env), new TextEncoder().encode(body));
+  return `${body}.${toBase64Url(sig)}`;
+}
+
+export async function verifyAnonToken(env: Env, token: string): Promise<{ anonId: string; anonName: string } | null> {
+  try {
+    const [body, sig] = token.split(".");
+    if (!body || !sig) return null;
+    const ok = await crypto.subtle.verify("HMAC", await anonHmacKey(env), fromBase64Url(sig), new TextEncoder().encode(body));
+    if (!ok) return null;
+    const p = JSON.parse(new TextDecoder().decode(fromBase64Url(body))) as { anonId?: unknown; anonName?: unknown; iat?: unknown };
+    if (typeof p.anonId !== "string" || typeof p.anonName !== "string" || typeof p.iat !== "number") return null;
+    if (!p.anonId.startsWith("anon:")) return null;
+    if (p.iat + ANON_TOKEN_TTL_MS <= Date.now()) return null;
+    return { anonId: p.anonId, anonName: p.anonName };
+  } catch {
     return null;
   }
 }

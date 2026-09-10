@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.5] - 2026-09-10
+
+### Fixed
+
+- When the server rejects a reviewer's direct deletion of document text and puts the text back, comment threads and suggestions anchored in that text now keep their exact position instead of collapsing — previously an affected suggestion could disappear entirely.
+
 ## [1.62.4] - 2026-09-10
 
 ### Fixed

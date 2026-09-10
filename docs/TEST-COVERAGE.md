@@ -54,12 +54,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
-| 10. Workspace collab               |      62 |       0 |    0 |    62 |
+| 10. Workspace collab               |      63 |       0 |    0 |    63 |
 | 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **332** |  **0** |  **0** | **332** |
+| **Total**                          | **333** |  **0** |  **0** | **333** |
 
 **Every enumerated scenario now has a test asserting its outcome —
 314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
@@ -430,6 +430,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | SEC-13 | `maybeSnapshot` bails on `this.deleted` at entry and again before its `storage.put` — a snapshot in flight when `DELETE /workspace` lands can't resurrect `doc:*:snapshots` (MDE-14, same class as SEC-06) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.3 · external audit run-3 |
 | SEC-14 | `diffOps` aligns a reviewer's edit with a bounded Myers diff (not an 8 KB LCS give-up) so `reviewerTextRepairs` restores only the runs the reviewer removed — a change at both ends of a >8 KB middle no longer re-inserts the whole middle (MDE-12); the whole-middle `del`+`ins` remains only as a `MAX_EDIT_DISTANCE` fallback; a 400-case fuzz checks round-trip | unit | covered | `tests/src/reviewer-integrity.test.ts` | v1.62.4 · external audit run-3 |
 | SEC-15 | A reviewer sync frame's raw delta + the `enforceReviewerConstraints` repair are buffered (`DocRoom.deferredUpdates`) and broadcast to peers as one `Y.mergeUpdates` frame — a synced peer converges straight to the repaired text, never the un-repaired intermediate; a non-reviewer write still broadcasts immediately, sender-excluded; the buffer is cleared on a throwing frame; e2e the owner never observes a shortened document (MDE-13) | integration + e2e-collab | covered | `tests/src/workspace-room.test.ts`, `tests/e2e/collab/suggestion-mode.spec.ts` | v1.62.4 · external audit run-3 |
+| SEC-16 | `enforceReviewerConstraints` rebinds every comment / suggestion anchor that collapses when it reverts a raw reviewer delete — `captureReviewerPreState` records each anchor in committed-text coords (`absoluteIndexToCommitted`), the enforcement transaction maps them back (`committedIndexToAbsolute`) and rewrites any drifted `from`/`to` in its own `"suggestion"` txn; a suggestion (no `quote`) survives without vanishing, a comment resolves to its exact span with **no** quote fallback, a same-frame kept insert shifts it, and a plain reviewer insert rewrites nothing | unit + integration | covered | `tests/src/reviewer-integrity.test.ts`, `tests/src/workspace-room.test.ts` | v1.62.5 · external audit run-3 |
 
 ## 11. GitHub auth & Gist
 

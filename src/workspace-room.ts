@@ -17,7 +17,7 @@ import {
   toAbsoluteIndex,
 } from "./suggestions";
 import type { ResolvedSuggestion, SuggestionEntry } from "./suggestions";
-import { removeRanges, reviewerTextRepairs, isValidNewSuggestionEntry } from "./reviewer-integrity";
+import { removeRanges, reviewerTextRepairs, isValidNewSuggestionEntry, absoluteIndexToCommitted, committedIndexToAbsolute } from "./reviewer-integrity";
 import { getCommentsMap, seedCommentThreadsIntoDoc, type CommentThreadEntry } from "./comments-doc";
 import { isValidNewThread, isAllowedThreadTransition } from "./comment-integrity";
 import type { Env } from "./env";
@@ -287,7 +287,9 @@ export class WorkspaceRoom {
       // or reclassify it, MDE-06) — is reverted. A brand-new `add` may only
       // be a real, self-authored suggestion with no discussion thread yet
       // (MDE-15). (A `delete` of an entry is handled by
-      // enforceReviewerConstraints, not here.)
+      // enforceReviewerConstraints, not here — and its own
+      // "suggestion"-origin transaction, which also rebinds a collapsed
+      // anchor, is skipped by the origin check below.)
       if (transaction.origin !== "suggestion") {
         const session = this.sessions.get(transaction.origin as WebSocket);
         if (session && session.role !== "viewer") {
@@ -391,6 +393,9 @@ export class WorkspaceRoom {
     commentsMap.observe((event, transaction) => {
       if (transaction.origin === "comment-reconcile" || transaction.origin === "comment-migrate") return;
       const session = this.sessions.get(transaction.origin as WebSocket);
+      // enforceReviewerConstraints rebinds a collapsed comment anchor in a
+      // "suggestion"-origin transaction; no live session for that origin, so
+      // the guard below bails and the rewrite stands.
       if (!session || session.role === "viewer") return; // isWrite already drops a viewer's write; defensive
       const actor = session.username ?? "Anonymous";
       const owner = this.cachedAccess?.owner ?? null;
@@ -986,18 +991,40 @@ export class WorkspaceRoom {
 
   // Snapshot the state a reviewer's incoming sync frame will be validated
   // against — the document text, the reviewer's own pending insert
-  // suggestion ranges (the only text they may delete), and a copy of the
-  // suggestions map (to detect a deleted/mutated entry).
+  // suggestion ranges (the only text they may delete), a copy of the
+  // suggestions map (to detect a deleted/mutated entry), and every
+  // annotation anchor in committed-text coordinates (to rebind any that
+  // collapse when a raw delete is reverted).
   private captureReviewerPreState(doc: Y.Doc, username: string) {
+    const ytext = doc.getText("content");
     const ownInsertRanges: Array<[number, number]> = [];
     for (const s of listResolvedSuggestions(doc)) {
       if (s.kind === "insert" && s.author === username) ownInsertRanges.push([s.from, s.to]);
     }
+    // Every comment + suggestion anchor in committed-text coordinates. When
+    // rebindCollapsedAnchors runs after a reverted delete, the re-inserted
+    // text has new item IDs — relative positions bound to the deleted items
+    // never rebind — but each annotation's committed-coordinate position is
+    // unchanged by a net-zero revert, so it can be restored from here.
+    const anchorsC = new Map<string, { fromC: number; toC: number }>();
+    const capture = (id: string, fromJson: SuggestionEntry["from"], toJson: SuggestionEntry["to"]) => {
+      const fa = toAbsoluteIndex(doc, ytext, fromJson);
+      const ta = toAbsoluteIndex(doc, ytext, toJson);
+      if (fa === null || ta === null) return;
+      const fc = absoluteIndexToCommitted(fa, ownInsertRanges);
+      const tc = absoluteIndexToCommitted(ta, ownInsertRanges);
+      if (fc === null || tc === null) return; // anchor sat inside the reviewer's own insert
+      anchorsC.set(id, { fromC: fc, toC: tc });
+    };
+    for (const [id, e] of getCommentsMap(doc).entries()) capture(id, e.from, e.to);
+    for (const [id, e] of getSuggestionsMap(doc).entries()) capture(id, e.from, e.to);
+
     return {
       username,
-      text: doc.getText("content").toString(),
+      text: ytext.toString(),
       ownInsertRanges,
       entriesById: new Map<string, SuggestionEntry>(getSuggestionsMap(doc).entries()),
+      anchorsC,
     };
   }
 
@@ -1036,7 +1063,50 @@ export class WorkspaceRoom {
     doc.transact(() => {
       for (const r of [...textRepairs].sort((a, b) => b.at - a.at)) ytext.insert(r.at, r.text);
       for (const revert of entryReverts) revert();
+      this.rebindCollapsedAnchors(doc, pre, committedBefore);
     }, "suggestion");
+  }
+
+  // Runs inside enforceReviewerConstraints' "suggestion" transaction, after
+  // the text repairs. A reverted reviewer delete leaves committed text
+  // net-unchanged, so each annotation's committed-coordinate position
+  // (captured in pre.anchorsC) still holds — map it back to an absolute
+  // index and rewrite any anchor whose live resolved span drifted (it
+  // collapsed onto the re-inserted, new-ID text, or an entryRevert just
+  // restored it with stale relative positions). A suggestion has no
+  // `quote` to recover from at read time, so this is its only safety net.
+  private rebindCollapsedAnchors(doc: Y.Doc, pre: ReturnType<WorkspaceRoom["captureReviewerPreState"]>, committedBefore: string): void {
+    if (pre.anchorsC.size === 0) return;
+    const ytext = doc.getText("content");
+    const suggestionsMap = getSuggestionsMap(doc);
+    const commentsMap = getCommentsMap(doc);
+
+    const ownInsertsNow: Array<[number, number]> = [];
+    for (const s of listResolvedSuggestions(doc)) {
+      if (s.kind === "insert" && s.author === pre.username) ownInsertsNow.push([s.from, s.to]);
+    }
+    // Only rebind against a document whose committed text was fully restored.
+    if (removeRanges(ytext.toString(), ownInsertsNow) !== committedBefore) return;
+
+    for (const [id, { fromC, toC }] of pre.anchorsC) {
+      const suggestion = suggestionsMap.get(id);
+      const comment = suggestion ? undefined : commentsMap.get(id);
+      const entry = suggestion ?? comment;
+      if (!entry) continue; // annotation gone this frame
+
+      const targetFrom = committedIndexToAbsolute(fromC, ownInsertsNow, true);
+      const targetTo = committedIndexToAbsolute(toC, ownInsertsNow, false);
+      if (targetTo < targetFrom) continue;
+
+      const curFrom = toAbsoluteIndex(doc, ytext, entry.from);
+      const curTo = toAbsoluteIndex(doc, ytext, entry.to);
+      if (curFrom === targetFrom && curTo === targetTo) continue; // anchor survived
+
+      const from = Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(ytext, targetFrom, 0));
+      const to = Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(ytext, targetTo, -1));
+      if (suggestion) suggestionsMap.set(id, { ...suggestion, from, to });
+      else if (comment) commentsMap.set(id, { ...comment, from, to });
+    }
   }
 
   broadcastPresence(exceptWs: WebSocket, session: SessionInfo | undefined): void {

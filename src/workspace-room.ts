@@ -3,7 +3,8 @@ import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
-import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
+import { getCookie, decryptSession, SESSION_COOKIE, signAnonToken, verifyAnonToken } from "./auth.js";
+import { randomAnonId, randomGuestName } from "./guest-names.js";
 import { relocateAnchor } from "./anchor";
 import { redactAccessForOutsider } from "./access-visibility";
 import { findWikilinkOccurrences } from "./wikilink-rewrite";
@@ -60,6 +61,10 @@ const MESSAGE_ACCESS_REQUEST = 6;
 // deny, or a plain PUT /access role edit. Every client re-fetches
 // GET /access and, if its own resolved role changed, rejoins the room.
 const MESSAGE_ACCESS_CHANGED = 7;
+// [type, anonId, anonName, token] — docId-less. Sent once to an
+// anonymous session right after the meta greeting so the client knows
+// its own server-assigned identity and can persist the token for reuse.
+const MESSAGE_ANON_IDENTITY = 8;
 
 const SYNC_STEP1 = 0;
 const SYNC_STEP2 = 1;
@@ -166,6 +171,44 @@ interface SessionInfo {
   // preview socket on a public "anyone can edit" workspace straight to
   // `editor` the next time the owner touched access (MDE-11).
   isPreview?: boolean;
+  // Server-assigned identity for an anonymous connection (username === null).
+  // `identityOf(session)` is the single accessor; the integrity observers
+  // key ownership on it. Absent for a signed-in session.
+  anonId?: string;
+  anonName?: string;
+}
+
+// The one "who is this connection" accessor — a GitHub username, or the
+// server-minted "anon:<id>" for an anonymous session. Replaces the
+// scattered `session.username ?? "Anonymous"` fallbacks.
+function identityOf(session: SessionInfo | undefined | null): string | null {
+  return session?.username ?? session?.anonId ?? null;
+}
+
+// Server-authoritative display-label stamping: for each map entry keyed by
+// `keys` whose `author` is an `anon:<id>`, write the guest name `nameFor`
+// resolves for that id. Runs in the same `origin` the map's observer
+// skips; the `!== name` guard makes the resulting re-fire a no-op.
+function stampAnonAuthorNames<T extends { author: string; authorName?: string }>(
+  map: Y.Map<T>,
+  keys: string[],
+  nameFor: (anonId: string) => string | undefined,
+  doc: Y.Doc,
+  origin: string,
+): void {
+  const stamps: Array<() => void> = [];
+  for (const key of keys) {
+    const cur = map.get(key);
+    if (!cur || !cur.author.startsWith("anon:")) continue;
+    const name = nameFor(cur.author);
+    if (name && cur.authorName !== name) {
+      stamps.push(() => {
+        const e = map.get(key);
+        if (e) map.set(key, { ...e, authorName: name });
+      });
+    }
+  }
+  if (stamps.length) doc.transact(() => stamps.forEach((s) => s()), origin);
 }
 
 function docStorageKey(docId: string, suffix: "update" | "snapshots" | "comments"): string {
@@ -254,7 +297,7 @@ export class WorkspaceRoom {
       if (transaction.origin === "suggestion") return; // our own reconciliation write — never re-reconcile it
       const session = this.sessions.get(transaction.origin as WebSocket);
       if (!session || session.role !== "reviewer") return;
-      reconcileReviewerDelta(doc, event.changes.delta, session.username || "Anonymous");
+      reconcileReviewerDelta(doc, event.changes.delta, identityOf(session) ?? "Anonymous");
     });
     // A correctly-behaving reviewer client's own suggestion-map write for
     // an insert ALWAYS arrives as a separate update from the ytext insert
@@ -292,8 +335,8 @@ export class WorkspaceRoom {
       // anchor, is skipped by the origin check below.)
       if (transaction.origin !== "suggestion") {
         const session = this.sessions.get(transaction.origin as WebSocket);
-        if (session && session.role !== "viewer") {
-          const actor = session.username ?? "Anonymous";
+        const actor = identityOf(session);
+        if (session && session.role !== "viewer" && actor) {
           const replyReverts: Array<() => void> = [];
           event.changes.keys.forEach((change, key) => {
             if (change.action === "add") {
@@ -322,6 +365,20 @@ export class WorkspaceRoom {
           if (replyReverts.length) doc.transact(() => replyReverts.forEach((r) => r()), "suggestion");
         }
       }
+
+      // Stamp the authoritative guest-name label onto every anon-authored
+      // entry (`author` is the `anon:<id>`; the name lives only in the
+      // session). Runs for ANY origin — an entry can also be born from the
+      // server's own auto-wrap (reconcileReviewerDelta) or the self-heal
+      // merge below, both "suggestion"-origin. The `!== name` guard makes
+      // the re-fire of this same "suggestion"-origin write a no-op.
+      stampAnonAuthorNames(
+        suggestionsMap,
+        [...event.changes.keys.entries()].filter(([, c]) => c.action !== "delete").map(([k]) => k),
+        (id) => this.anonNameFor(id),
+        doc,
+        "suggestion",
+      );
 
       const byAuthorKind = new Map<string, ResolvedSuggestion[]>();
       for (const s of listResolvedSuggestions(doc)) {
@@ -397,7 +454,8 @@ export class WorkspaceRoom {
       // "suggestion"-origin transaction; no live session for that origin, so
       // the guard below bails and the rewrite stands.
       if (!session || session.role === "viewer") return; // isWrite already drops a viewer's write; defensive
-      const actor = session.username ?? "Anonymous";
+      const actor = identityOf(session);
+      if (!actor) return;
       const owner = this.cachedAccess?.owner ?? null;
       const reverts: Array<() => void> = [];
       event.changes.keys.forEach((change, key) => {
@@ -412,6 +470,16 @@ export class WorkspaceRoom {
         }
       });
       if (reverts.length) doc.transact(() => reverts.forEach((r) => r()), "comment-reconcile");
+
+      // Stamp the authoritative guest name onto anon-authored threads
+      // (see the suggestions observer).
+      stampAnonAuthorNames(
+        commentsMap,
+        [...event.changes.keys.entries()].filter(([, c]) => c.action !== "delete").map(([k]) => k),
+        (id) => this.anonNameFor(id),
+        doc,
+        "comment-reconcile",
+      );
     });
     awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
       this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin),
@@ -507,10 +575,23 @@ export class WorkspaceRoom {
     // would put a live connection on a wiped room (MDE-19).
     if (this.deleted) return new Response("This workspace has been deleted.", { status: 410 });
 
+    // An anonymous connection is assigned a stable identity — reused from
+    // a signed token the client stored, or freshly minted. It grants no
+    // access (role is already resolved above) and is independent of the
+    // Turnstile join ticket.
+    let anon: { anonId: string; anonName: string; token: string } | undefined;
+    if (auth.username === null && !isPreview && this.env.SESSION_SECRET) {
+      const presented = url.searchParams.get("anon");
+      const reused = presented ? await verifyAnonToken(this.env, presented) : null;
+      const anonId = reused?.anonId ?? randomAnonId();
+      const anonName = reused?.anonName ?? randomGuestName();
+      anon = { anonId, anonName, token: await signAnonToken(this.env, { anonId, anonName }) };
+    }
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-    this.handleSession(server, auth.username, effectiveRole, isPreview);
+    this.handleSession(server, auth.username, effectiveRole, isPreview, anon);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -872,9 +953,9 @@ export class WorkspaceRoom {
 
   // ---------- WebSocket session ----------
 
-  handleSession(ws: WebSocket, username: string | null, role: Role, isPreview = false): void {
+  handleSession(ws: WebSocket, username: string | null, role: Role, isPreview = false, anon?: { anonId: string; anonName: string; token: string }): void {
     ws.accept();
-    this.sessions.set(ws, { username, role, viewingDocId: null, isPreview });
+    this.sessions.set(ws, { username, role, viewingDocId: null, isPreview, ...(anon ? { anonId: anon.anonId, anonName: anon.anonName } : {}) });
 
     for (const docId of this.docIds) {
       const docRoom = this.docs.get(docId);
@@ -895,6 +976,15 @@ export class WorkspaceRoom {
       }
     }
     ws.send(this.encodeWorkspaceMeta());
+
+    if (anon) {
+      const enc = encoding.createEncoder();
+      encoding.writeVarUint(enc, MESSAGE_ANON_IDENTITY);
+      encoding.writeVarString(enc, anon.anonId);
+      encoding.writeVarString(enc, anon.anonName);
+      encoding.writeVarString(enc, anon.token);
+      ws.send(encoding.toUint8Array(enc));
+    }
 
     ws.addEventListener("message", (event: MessageEvent) => this.handleMessage(ws, event.data));
     ws.addEventListener("close", () => this.handleClose(ws));
@@ -959,7 +1049,7 @@ export class WorkspaceRoom {
         // A reviewer's write is allowed to apply (they must be able to
         // type suggestions), but the server then enforces that they only
         // *proposed* changes — see enforceReviewerConstraints (MDE-05/06).
-        const reviewerPre = session?.role === "reviewer" ? this.captureReviewerPreState(docRoom.doc, session.username ?? "Anonymous") : null;
+        const reviewerPre = session?.role === "reviewer" ? this.captureReviewerPreState(docRoom.doc, identityOf(session) ?? "Anonymous") : null;
         // Hold every update this frame produces (the raw delta + the
         // repair below) so peers get them merged into one, never the
         // un-repaired intermediate (MDE-13).
@@ -1151,10 +1241,20 @@ export class WorkspaceRoom {
     }
   }
 
+  // The guest name assigned to a currently-connected anonymous session,
+  // for stamping onto that session's authored suggestions / comments.
+  private anonNameFor(anonId: string): string | undefined {
+    for (const s of this.sessions.values()) if (s.anonId === anonId) return s.anonName;
+    return undefined;
+  }
+
   broadcastPresence(exceptWs: WebSocket, session: SessionInfo | undefined): void {
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_PRESENCE);
-    encoding.writeVarString(encoder, session?.username || "");
+    // Cross-document "who's viewing what" — the display label, so an
+    // anonymous collaborator shows up as their assigned guest name
+    // instead of being dropped (the client ignores an empty string).
+    encoding.writeVarString(encoder, session?.username || session?.anonName || "");
     encoding.writeVarString(encoder, session?.viewingDocId || "");
     const message = encoding.toUint8Array(encoder);
     for (const ws of this.sessions.keys()) {
@@ -1188,7 +1288,8 @@ export class WorkspaceRoom {
       docRoom.deferredUpdates.push(update);
       if (origin !== "storage" && origin !== "restore") {
         const editor = this.sessions.get(origin as WebSocket);
-        if (editor?.username) docRoom.pendingAuthors.add(editor.username);
+        const editorName = editor?.username ?? editor?.anonName;
+        if (editorName) docRoom.pendingAuthors.add(editorName);
         this.schedulePersist(docId, docRoom);
       }
       return;
@@ -1202,7 +1303,8 @@ export class WorkspaceRoom {
     // `origin` is the editing client's WebSocket for a real edit (and the
     // string "restore" for a restore, which isn't a sessions key).
     const editor = this.sessions.get(origin as WebSocket);
-    if (editor?.username) docRoom.pendingAuthors.add(editor.username);
+    const editorName = editor?.username ?? editor?.anonName;
+    if (editorName) docRoom.pendingAuthors.add(editorName);
     this.schedulePersist(docId, docRoom);
     if (origin !== "restore") void this.maybeSnapshot(docId, docRoom);
   }

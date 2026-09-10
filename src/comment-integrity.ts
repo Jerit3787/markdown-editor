@@ -45,16 +45,16 @@ export function isPlausibleRelPos(p: unknown): boolean {
   return anchored && typeof o.assoc === "number";
 }
 
-export function isValidNewThread(entry: CommentThreadEntry | undefined, username: string | null): boolean {
-  if (!entry || !username) return false;
+export function isValidNewThread(entry: CommentThreadEntry | undefined, actor: string | null): boolean {
+  if (!entry || !actor) return false;
   const first = entry.replies?.[0];
   return (
-    entry.author === username &&
+    entry.author === actor &&
     entry.resolved === false &&
     Array.isArray(entry.replies) &&
     entry.replies.length === 1 &&
     !!first &&
-    first.author === username &&
+    first.author === actor &&
     typeof first.body === "string" &&
     first.body.trim() !== "" &&
     isPlausibleRelPos(entry.from) &&
@@ -62,7 +62,7 @@ export function isValidNewThread(entry: CommentThreadEntry | undefined, username
   );
 }
 
-export function isAllowedThreadTransition(oldEntry: CommentThreadEntry, newEntry: CommentThreadEntry | undefined, username: string | null): boolean {
+export function isAllowedThreadTransition(oldEntry: CommentThreadEntry, newEntry: CommentThreadEntry | undefined, actor: string | null): boolean {
   if (!newEntry) return false;
   if (!coreEqual(oldEntry, newEntry)) return false;
 
@@ -79,7 +79,7 @@ export function isAllowedThreadTransition(oldEntry: CommentThreadEntry, newEntry
     repliesEqual(oldEntry.replies, newEntry.replies.slice(0, oldEntry.replies.length))
   ) {
     const appended = newEntry.replies[newEntry.replies.length - 1];
-    if (!!username && !!appended && appended.author === username && appended.body.trim() !== "") return true;
+    if (!!actor && !!appended && appended.author === actor && appended.body.trim() !== "") return true;
   }
 
   return false;

@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.63.0] - 2026-09-11
+
+### Added
+
+- Anonymous collaborators on a shared link each get a stable, distinct identity and a guest name (e.g. "Quiet Lynx"). Their suggestions, comments, edits in version history, and presence cursor are all attributed to that one guest instead of a shared "Anonymous", and the guest identity survives a page reload.
+
+### Fixed
+
+- An anonymous reviewer can now withdraw their own pending suggestion — the Withdraw button was never appearing for them.
+
 ## [1.62.12] - 2026-09-10
 
 ### Fixed

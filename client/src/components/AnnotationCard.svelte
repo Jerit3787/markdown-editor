@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { RailAnnotation } from "../annotations";
+  import { displayName, type RailAnnotation } from "../annotations";
 
   let {
     annotation,
@@ -34,11 +34,14 @@
   const isSuggestion = $derived(annotation.kind === "suggestion");
   const isOwn = $derived(!!annotation.author && annotation.author === viewer.name);
   const isEditor = $derived(viewer.role === "editor");
+  const isAnon = $derived(annotation.author.startsWith("anon:"));
+  const label = $derived(displayName(annotation.author, annotation.authorName));
   // encodeURIComponent so a hostile author string can't smuggle a query
   // param or path segment into the avatar URL. The server already
-  // constrains `author` to a real GitHub username or "Anonymous", but the
-  // card renders local-note and legacy data too — cheap defence in depth.
-  const avatarUrl = $derived(annotation.author ? `https://github.com/${encodeURIComponent(annotation.author.trim())}.png` : "");
+  // constrains `author` to a real GitHub username or an `anon:` id, but
+  // the card renders local-note and legacy data too — cheap defence in
+  // depth. An `anon:` author has no GitHub avatar → generic icon.
+  const avatarUrl = $derived(annotation.author && !isAnon ? `https://github.com/${encodeURIComponent(annotation.author.trim())}.png` : "");
 
   function submitReply() {
     const b = replyBody.trim();
@@ -67,10 +70,14 @@
         alt=""
         onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = "hidden")}
       />
+    {:else if isAnon}
+      <span class="annotation-card-avatar annotation-card-avatar-anon" aria-hidden="true">
+        <svg class="icon"><use href="#icon-user"></use></svg>
+      </span>
     {/if}
     <div class="annotation-card-meta">
       <span class="annotation-card-author"
-        >{annotation.author || "Someone"}{#if isSuggestion}<span class="annotation-card-role"> · suggesting</span>{/if}</span
+        >{label || "Someone"}{#if isSuggestion}<span class="annotation-card-role"> · suggesting</span>{/if}</span
       >
       {#if isSuggestion}
         <span class="annotation-card-change">

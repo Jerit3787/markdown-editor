@@ -417,4 +417,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/suggestion-replies.png",
     category: "Collaboration",
   },
+  {
+    version: "1.63.0",
+    title: "Guests Have Names Now",
+    description:
+      'Someone opening a shared link without signing in used to show up as "Anonymous" — the same as every other guest, so no one could tell them apart or even withdraw their own suggestion. Each guest now gets their own name (like "Quiet Lynx") that sticks with their suggestions, comments, edits in version history, and their live cursor. Signed-in collaborators are unchanged.',
+    screenshot: "/whats-new/anon-identity.png",
+    category: "Collaboration",
+  },
 ];

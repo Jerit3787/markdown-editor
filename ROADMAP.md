@@ -441,10 +441,14 @@ editor experience while writing the collab-chrome-v2 spec. Not committed
       equivalent; only worth it for menu/keyboard discoverability.
 - [ ] **Email the document** (Google's File ▸ Email — send as
       attachment / paste into email body). Niche.
-- [ ] **Friendly identities for anonymous link viewers** (Google's
-      "Anonymous Hedgehog" etc. in presence + version history). This app
-      shows a username or nothing; an anon collaborator on an
-      "anyone with link" workspace has no distinguishing label.
+- [x] **Friendly identities for anonymous link viewers — shipped v1.63.0.**
+      A null-username WS session is assigned a stable `anon:<id>` + a
+      guest name ("Quiet Lynx"), signed into a 30-day token the client
+      stores; the integrity observers key ownership on `identityOf(session)`
+      and stamp the label onto anon-authored suggestions / comments;
+      presence + version history carry the guest name. Fixes the anon
+      "can't withdraw my own suggestion" bug. Spec/plan
+      `2026-09-11-anonymous-collaborator-identity`.
 - [ ] **Print layout / show non-printing characters toggles**
       (Google's View menu). Low value for a markdown preview.
 

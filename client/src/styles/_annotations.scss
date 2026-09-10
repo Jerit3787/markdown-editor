@@ -257,6 +257,17 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+.annotation-card-avatar-anon {
+  display: grid;
+  place-items: center;
+  background: var(--bg-alt);
+  color: var(--text-dim);
+
+  .icon {
+    width: 14px;
+    height: 14px;
+  }
+}
 .annotation-card-meta {
   flex: 1;
   min-width: 0;

@@ -58,6 +58,12 @@ describe("isValidNewThread", () => {
     expect(isValidNewThread(thread({ resolved: true }), "alice")).toBe(false);
     expect(isValidNewThread(thread({ replies: [{ id: "r1", author: "alice", body: "   ", createdAt: 1 }] }), "alice")).toBe(false);
   });
+
+  it("accepts a thread authored by an anon: id actor, rejects a different anon id", () => {
+    const t = thread({ author: "anon:abc123", replies: [{ id: "r1", author: "anon:abc123", body: "q?", createdAt: 1 }] });
+    expect(isValidNewThread(t, "anon:abc123")).toBe(true);
+    expect(isValidNewThread(t, "anon:zzz999")).toBe(false);
+  });
 });
 
 describe("isAllowedThreadTransition", () => {

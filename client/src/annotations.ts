@@ -24,11 +24,19 @@ export interface RailAnnotation {
   changeText?: string; // inserted text (insert / replace) or removed text (delete)
   replacedText?: string; // set only for a replace: the removed text
   groupedIds?: string[]; // the underlying suggestion entry ids when this card is a replace
+  // Display label for an `anon:<id>` author (server-stamped); absent for a
+  // signed-in author, whose `author` is already their name.
+  authorName?: string;
 }
 
 /** The underlying suggestion-entry / thread ids a card represents. */
 export function underlyingIds(a: RailAnnotation): string[] {
   return a.groupedIds ?? [a.id];
+}
+
+/** The human label for an author string — a guest name if we have one, else the author itself. */
+export function displayName(author: string, authorName?: string): string {
+  return authorName || author;
 }
 
 function suggestionCards(suggestions: ResolvedSuggestion[], content: string): RailAnnotation[] {
@@ -59,6 +67,7 @@ function suggestionCards(suggestions: ResolvedSuggestion[], content: string): Ra
         changeText: content.slice(ins.from, ins.to),
         replacedText: content.slice(del.from, del.to),
         groupedIds: [del.id, ins.id],
+        authorName: del.authorName ?? ins.authorName,
       });
       continue;
     }
@@ -66,6 +75,7 @@ function suggestionCards(suggestions: ResolvedSuggestion[], content: string): Ra
       id: s.id,
       kind: "suggestion",
       author: s.author,
+      authorName: s.authorName,
       createdAt: s.createdAt,
       anchorFrom: s.from,
       anchorTo: s.to,
@@ -85,6 +95,7 @@ function commentCard(thread: ResolvedCommentThread): RailAnnotation {
     id: thread.id,
     kind: "comment",
     author: thread.replies[0]?.author ?? thread.author,
+    authorName: thread.replies[0]?.authorName ?? thread.authorName,
     createdAt: thread.replies[0]?.createdAt ?? thread.createdAt,
     anchorFrom: thread.from,
     anchorTo: thread.to,

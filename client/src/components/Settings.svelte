@@ -6,7 +6,7 @@
   import { settingsModalOpen } from "../stores/settingsModal";
   import { analyticsAvailable } from "../analytics";
   import { analyticsConsent, setConsent } from "../stores/analyticsConsent";
-  import { driveConnected } from "../stores/driveSync";
+  import { driveConnected, driveConfigured } from "../stores/driveSync";
 
   const STORAGE_THEME = "mde:theme";
   const STORAGE_CUSTOM_CSS = "mde:customExportCss";
@@ -117,12 +117,16 @@
       </div>
     {/if}
 
-    {#if $driveConnected}
+    {#if $driveConfigured || $driveConnected}
       <div class="setting-row">
         <div class="setting-label">
           <span class="setting-title">Google Drive</span>
         </div>
-        <button type="button" class="secondary-btn" onclick={() => window.MDE.disconnectGoogleDrive?.()}>Disconnect</button>
+        {#if $driveConnected}
+          <button type="button" class="secondary-btn" onclick={() => window.MDE.disconnectGoogleDrive?.()}>Disconnect</button>
+        {:else}
+          <button type="button" class="secondary-btn" onclick={() => window.MDE.connectGoogleDrive?.()}>Connect</button>
+        {/if}
       </div>
     {/if}
 

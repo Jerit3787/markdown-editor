@@ -1941,6 +1941,88 @@ describe("reviewer writes", () => {
 
     expect((docRoom as unknown as { deferredUpdates: unknown }).deferredUpdates).toBeNull();
   });
+
+  // ── anchor rebinding after a reverted reviewer delete (MDE-13 follow-up) ──
+
+  it("rebinds a comment anchor collapsed by a reviewer's reverted delete", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "the quick brown fox jumps");
+    createCommentThread(docRoom.doc, 4, 9, "quick", "alice", "note"); // "quick" is [4,9)
+    const cid = [...getCommentsMap(docRoom.doc).keys()][0]!;
+    (room as any).sessions.set(ws, fakeSession("reviewer")); // bob
+
+    // hostile reviewer deletes [4,12) — swallows the whole comment anchor
+    await reviewerApply(room, ws, (c) => c.getText("content").delete(4, 12));
+
+    expect(docRoom.doc.getText("content").toString()).toBe("the quick brown fox jumps");
+    // resolve WITHOUT the quote fallback (no `content` arg) — proves the
+    // stored relative positions themselves are correct, not just recoverable
+    const threads = listResolvedCommentThreads(docRoom.doc);
+    expect(threads).toHaveLength(1);
+    expect(threads.find((t) => t.id === cid)).toMatchObject({ from: 4, to: 9 });
+  });
+
+  it("rebinds a suggestion anchor collapsed by a reviewer's reverted delete (no quote to fall back on)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "the quick brown fox jumps");
+    recordDeleteSuggestion(docRoom.doc, 4, 9, "carol"); // a delete-suggestion on "quick"
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    (room as any).sessions.set(ws, fakeSession("reviewer")); // bob
+
+    await reviewerApply(room, ws, (c) => c.getText("content").delete(4, 12)); // swallows "quick"
+
+    expect(docRoom.doc.getText("content").toString()).toBe("the quick brown fox jumps");
+    const s = listResolvedSuggestions(docRoom.doc).find((x) => x.id === sid);
+    expect(s).toMatchObject({ from: 4, to: 9 });
+  });
+
+  it("shifts a rebound comment anchor by a reviewer's kept insert when a same-frame delete is reverted", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "the quick brown fox jumps");
+    createCommentThread(docRoom.doc, 4, 9, "quick", "alice", "note"); // "quick" is [4,9)
+    const cid = [...getCommentsMap(docRoom.doc).keys()][0]!;
+    (room as any).sessions.set(ws, fakeSession("reviewer")); // bob
+
+    // one frame: delete [4,12) (contains the comment anchor, reverted) AND
+    // insert "NEW " at 0 (kept, auto-wrapped as a suggestion)
+    await reviewerApply(room, ws, (c) => {
+      c.transact(() => {
+        c.getText("content").delete(4, 12);
+        c.getText("content").insert(0, "NEW ");
+      });
+    });
+
+    expect(docRoom.doc.getText("content").toString()).toBe("NEW the quick brown fox jumps");
+    const t = listResolvedCommentThreads(docRoom.doc).find((x) => x.id === cid)!;
+    // "quick" is 4 chars further along; resolve without the quote fallback
+    expect(docRoom.doc.getText("content").toString().slice(t.from, t.to)).toBe("quick");
+    expect(t).toMatchObject({ from: 8, to: 13 });
+  });
+
+  it("does not rewrite any anchor when the reviewer only inserted (rebind pass never runs)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "the quick brown fox");
+    createCommentThread(docRoom.doc, 10, 15, "brown", "alice", "note");
+    const cid = [...getCommentsMap(docRoom.doc).keys()][0]!;
+    const beforeFrom = JSON.stringify(getCommentsMap(docRoom.doc).get(cid)!.from);
+    (room as any).sessions.set(ws, fakeSession("reviewer"));
+
+    await reviewerApply(room, ws, (c) => c.getText("content").insert(0, "AA "));
+
+    // the anchor's stored relative position is byte-for-byte unchanged
+    expect(JSON.stringify(getCommentsMap(docRoom.doc).get(cid)!.from)).toBe(beforeFrom);
+    // and it still points at "brown" (relative positions tracked the shift)
+    const t = listResolvedCommentThreads(docRoom.doc, docRoom.doc.getText("content").toString()).find((x) => x.id === cid)!;
+    expect(docRoom.doc.getText("content").toString().slice(t.from, t.to)).toBe("brown");
+  });
 });
 
 describe("WorkspaceRoom comments (Y.Doc)", () => {

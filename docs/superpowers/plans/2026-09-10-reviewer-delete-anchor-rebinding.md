@@ -471,7 +471,7 @@ Expected: PASS — the two "rebinds" tests, the "shifts" test, and the "does not
 Run: `npm run typecheck` then `npx vitest run --project=unit`
 Expected: 0 type errors; unit suite green.
 
-- [ ] **Step 10: Extend the collab e2e**
+- [ ] **Step 10: Extend the collab e2e** — **DESCOPED during execution.** Seeding a comment in the `e2e-collab` harness needs either a runtime `import("/src/comments-doc.ts")` (the harness serves the *built* bundle from `wrangler dev`, not `/src/`) or the full select-text → "Add comment" UI dance inside the already-dense `suggestion-mode.spec.ts` after its Share-dialog ceremony (flaky — the marker never propagated to the reviewer in trials). More to the point, a **comment** e2e can't distinguish this fix: `listResolvedCommentThreads`' quote re-match already recovers a comment whose anchor collapsed, so the marker survives with or without the rebind. The unique win (suggestions, no quote) needs a 3-party scenario too heavy for a smoke test. The Task 2 integration tests drive a real `WorkspaceRoom` + real `Y.Doc` + a real sync frame and assert the *no-quote-fallback* resolution — coverage the e2e couldn't add. Leave `suggestion-mode.spec.ts` unchanged; `SEC-16` is unit + integration.
 
 `tests/e2e/collab/suggestion-mode.spec.ts` — the MDE-05 block currently starts by deleting `[0,5)` on the reviewer side. Before that delete, seed a comment on the owner side over a stable phrase, and after the reverted-delete assertions, check the comment marker survived. Locate the block (search `MDE-05`). Add before `reviewer.evaluate(() => window.MDE.getActiveYDoc().getText("content").delete(0, 5))`:
 
@@ -508,11 +508,11 @@ and after the two `expect.poll(...).toContain("owner-authored content")` asserti
 
 Keep it simple — if importing `/src/comments-doc.ts` at runtime in the page proves awkward, instead seed the comment through the UI (select the text, click "Add comment", type, submit) exactly as `tests/e2e/local/comments.spec.ts` does, then assert `.cm-comment-marker` count is 1 before and after. Use whichever is stable; the assertion that matters is **one comment marker, on the right text, after the reverted delete**.
 
-- [ ] **Step 11: Run the collab e2e**
+- [ ] **Step 11: Run the collab e2e** (regression check — no new assertions after Step 10 descope)
 
 Run: `npm run test:e2e:collab`
-Precondition: `git diff -- src/worker.ts` is empty (this plan never touches it). If the sandbox Playwright browser is stale, apply the `playwright.config.ts` `executablePath` workaround from `CLAUDE.md`, run, then revert before committing.
-Expected: `suggestion-mode.spec.ts` passes with the new comment-survival assertions.
+Precondition: `git diff -- src/worker.ts` is empty (this plan never touches it).
+Expected: all pass — the server-only rebind must not regress any existing reviewer / comment collab flow.
 
 - [ ] **Step 12: CHANGELOG + coverage**
 

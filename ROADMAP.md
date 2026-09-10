@@ -177,10 +177,12 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   in the **legacy `CollabRoom`** (never given the WorkspaceRoom fixes) —
   MDE-21/22/23 closed in **v1.62.7** (session guard; a migrated room 410s
   everything but `/migrate` and drops live sockets; `PUT /access`
-  reconciles roles). **Follow-up:** reduce `CollabRoom` to a
-  migration-only shim (strip live collab + the HTTP comment/version
-  endpoints entirely, not just gate them) so future audits stop finding
-  parity gaps in it — its own small plan.
+  reconciles roles). Then **done in v1.62.8** (spec/plan
+  `2026-09-10-collabroom-migration-shim`): `CollabRoom` is ~135 lines now
+  — `POST /migrate` and storage reads only, everything else `410`. The
+  four non-migrate `/api/collab/*` worker routes and the live-collab /
+  comment / version machinery are gone, not just gated; the class and its
+  DO binding stay until every legacy link has been opened once.
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"

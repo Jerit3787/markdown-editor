@@ -41,11 +41,16 @@ There's no database involved:
 - If nobody has the link, nothing is shared — the document behaves
   exactly like before, saved only to your browser's `localStorage`.
 
-`CollabRoom` (`src/collab-room.ts`) is a **legacy**, one-Durable-Object-
-per-document predecessor, kept alive only so an old single-document share
-link still works — opening one transparently migrates it into a fresh
-`WorkspaceRoom` before any live sync attaches. New work targets
-`WorkspaceRoom`; treat `CollabRoom` as migration-path-only.
+`CollabRoom` (`src/collab-room.ts`) is a **migration-only shim** — the
+pre-workspace one-Durable-Object-per-document design, now reduced to just
+`POST /api/collab/<id>/migrate`, which seeds a fresh `WorkspaceRoom` from
+whatever was last checkpointed in the legacy room (doc state, access
+record, version snapshots, comment threads) and writes a `migratedTo`
+tombstone. Every other legacy endpoint (live WebSocket, `/access`,
+`/versions`, `/comments`) is gone; `client/src/collab.ts`'s
+`migrateLegacyDoc` calls `/migrate` on open, then talks only to the
+resulting `WorkspaceRoom`. The class stays only until every legacy link
+has been opened once.
 
 ## GitHub sign-in, Gists, and repo sync
 

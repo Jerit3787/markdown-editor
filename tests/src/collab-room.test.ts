@@ -1,18 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import * as Y from "yjs";
-import * as syncProtocol from "y-protocols/sync";
-import * as encoding from "lib0/encoding";
-import { CollabRoom, normalizeInvited, type AccessRecord, type Snapshot, type CommentThread } from "../../src/collab-room";
+import { CollabRoom } from "../../src/collab-room";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
 
-const MESSAGE_SYNC = 0;
-
-// Minimal in-memory stand-in for DurableObjectState — CollabRoom only ever
-// touches .storage.{get,put,setAlarm} and .blockConcurrencyWhile, so that's
-// all this needs to implement. Using the real class under test against this
-// fake, rather than re-implementing its logic in the test, is what makes
-// these tests meaningful.
+// Minimal in-memory stand-in for DurableObjectState — the CollabRoom shim
+// only touches .storage.{get,put} and .blockConcurrencyWhile. Using the
+// real class under test against this fake, rather than re-implementing its
+// logic, is what makes these tests meaningful.
 function fakeState() {
   const store = new Map<string, unknown>();
   return {
@@ -37,14 +31,17 @@ async function sessionRequest(username: string | null): Promise<Request> {
   return new Request("https://example.com/room1", { headers: { Cookie: `mde_gh_session=${cookie}` } });
 }
 
-async function putAccess(room: CollabRoom, username: string, body: Record<string, unknown>): Promise<Response> {
-  const cookie = await encryptSession(fakeEnv, { token: "gh-token", username });
-  const request = new Request("https://example.com/room1/access", {
-    method: "PUT",
-    headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+// The /access endpoint that used to claim ownership + set the access
+// record is gone (the shim has no PUT /access) — seed the record straight
+// into storage instead, same as workspace-room.test.ts does.
+async function putAccess(room: CollabRoom, owner: string, body: Record<string, unknown>): Promise<void> {
+  await room.state.storage.put("access", {
+    owner,
+    generalAccess: body.generalAccess ?? "restricted",
+    requireAccount: body.requireAccount ?? false,
+    role: body.role ?? "viewer",
+    invited: body.invited ?? [],
   });
-  return room.handleAccessRequest(request);
 }
 
 async function authedRequest(username: string, path: string, init?: RequestInit): Promise<Request> {
@@ -54,455 +51,6 @@ async function authedRequest(username: string, path: string, init?: RequestInit)
     headers: { ...(init?.headers || {}), Cookie: `mde_gh_session=${cookie}` },
   });
 }
-
-describe("normalizeInvited", () => {
-  it("keeps a valid {username, role} entry", () => {
-    expect(normalizeInvited([{ username: "alice", role: "editor" }])).toEqual([{ username: "alice", role: "editor" }]);
-  });
-
-  it("dedupes by username, keeping the first occurrence", () => {
-    const result = normalizeInvited([
-      { username: "alice", role: "viewer" },
-      { username: "alice", role: "editor" },
-    ]);
-    expect(result).toEqual([{ username: "alice", role: "viewer" }]);
-  });
-
-  it("trims whitespace and skips empty usernames", () => {
-    const result = normalizeInvited([
-      { username: "  bob  ", role: "editor" },
-      { username: "   ", role: "editor" },
-    ]);
-    expect(result).toEqual([{ username: "bob", role: "editor" }]);
-  });
-
-  it("defaults an invalid or missing role to editor", () => {
-    const result = normalizeInvited([{ username: "alice", role: "owner" }, { username: "bob" }]);
-    expect(result).toEqual([
-      { username: "alice", role: "editor" },
-      { username: "bob", role: "editor" },
-    ]);
-  });
-
-  it("treats a legacy plain-string entry as an editor invite", () => {
-    expect(normalizeInvited(["carol"])).toEqual([{ username: "carol", role: "editor" }]);
-  });
-
-  it("caps the list at 100 entries", () => {
-    const raw = Array.from({ length: 150 }, (_, i) => ({ username: `user${i}`, role: "viewer" }));
-    expect(normalizeInvited(raw)).toHaveLength(100);
-  });
-});
-
-// Every content mutation below is wrapped in transact(fn, "storage") — the
-// same origin the constructor's own disk-load path already uses to mean
-// "not a live edit" (see handleDocUpdate). Without it, the constructor's
-// doc.on("update", ...) listener fires handleDocUpdate for the mutation
-// itself, which calls the real (un-awaited, real-Date.now()) maybeSnapshot
-// in parallel with these tests' own explicit, timestamp-controlled calls —
-// racing them and making snapshot counts non-deterministic.
-describe("CollabRoom version snapshots", () => {
-  it("does not snapshot before the throttle window elapses", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
-    await room.maybeSnapshot(1_000);
-    room.doc.transact(() => room.doc.getText("content").insert(5, " world"), "storage");
-    await room.maybeSnapshot(1_000 + 4 * 60 * 1000); // 4 min later
-    expect(await room.getSnapshots()).toHaveLength(1);
-  });
-
-  it("snapshots again once the throttle window elapses and content changed", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
-    await room.maybeSnapshot(1_000);
-    room.doc.transact(() => room.doc.getText("content").insert(5, " world"), "storage");
-    await room.maybeSnapshot(1_000 + 6 * 60 * 1000); // 6 min later
-    const snapshots = await room.getSnapshots();
-    expect(snapshots).toHaveLength(2);
-    expect(snapshots[1]!.content).toBe("hello world");
-  });
-
-  it("does not snapshot if content is unchanged, even past the throttle window", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
-    await room.maybeSnapshot(1_000);
-    await room.maybeSnapshot(1_000 + 6 * 60 * 1000);
-    expect(await room.getSnapshots()).toHaveLength(1);
-  });
-
-  it("prunes the oldest snapshot past the 50 cap", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    for (let i = 0; i < 51; i++) {
-      room.doc.transact(() => {
-        const t = room.doc.getText("content");
-        t.delete(0, t.length);
-        t.insert(0, `v${i}`);
-      }, "storage");
-      await room.maybeSnapshot(1_000 + i * 6 * 60 * 1000);
-    }
-    const snapshots = await room.getSnapshots();
-    expect(snapshots).toHaveLength(50);
-    expect(snapshots[0]!.content).toBe("v1"); // v0 pruned
-    expect(snapshots[49]!.content).toBe("v50");
-  });
-
-  it("forceSnapshot always appends, bypassing the throttle", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
-    await room.maybeSnapshot(1_000);
-    await room.forceSnapshot("restored content", 1_001);
-    const snapshots = await room.getSnapshots();
-    expect(snapshots).toHaveLength(2);
-    expect(snapshots[1]!.content).toBe("restored content");
-  });
-
-  it("captures the doc's images Y.Map into the snapshot", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    room.doc.transact(() => {
-      room.doc.getText("content").insert(0, "v1");
-      room.doc.getMap<string>("images").set("img-1", "data:image/png;base64,aGk=");
-    }, "storage");
-    await room.maybeSnapshot(1_000);
-    const snapshots = await room.getSnapshots();
-    expect(snapshots[0]!.images).toEqual({ "img-1": "data:image/png;base64,aGk=" });
-  });
-
-  it("stores undefined images for a doc with an empty images map", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    room.doc.transact(() => room.doc.getText("content").insert(0, "v1"), "storage");
-    await room.maybeSnapshot(1_000);
-    const snapshots = await room.getSnapshots();
-    expect(snapshots[0]!.images).toBeUndefined();
-  });
-
-  it("forceSnapshot also captures images", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    room.doc.transact(() => room.doc.getMap<string>("images").set("img-2", "data:image/png;base64,eHk="), "storage");
-    const created = await room.forceSnapshot("forced content", 2_000);
-    expect(created.images).toEqual({ "img-2": "data:image/png;base64,eHk=" });
-  });
-});
-
-describe("CollabRoom.handleVersionRestoreRequest — images", () => {
-  it("replaces the doc's images with the restored snapshot's, not merges them", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
-    room.doc.transact(() => {
-      room.doc.getText("content").insert(0, "old content");
-      room.doc.getMap<string>("images").set("img-current-only", "data:image/png;base64,Y3Vycg==");
-    }, "storage");
-    const oldSnap = await room.forceSnapshot("old content", 1_000);
-    // oldSnap captured "img-current-only" too (same doc state) -- overwrite
-    // the doc's images to something ELSE before restoring, so the test can
-    // tell "replaced back to the snapshot's" apart from "left untouched".
-    room.doc.transact(() => {
-      const map = room.doc.getMap<string>("images");
-      for (const key of Array.from(map.keys())) map.delete(key);
-      map.set("img-newer", "data:image/png;base64,bmV3");
-    }, "local");
-
-    const req = await authedRequest("alice", `/room1/versions/${oldSnap.id}/restore`, { method: "POST" });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(200);
-    expect(room.doc.getMap<string>("images").toJSON()).toEqual({ "img-current-only": "data:image/png;base64,Y3Vycg==" });
-  });
-
-  it("clears the doc's images when restoring a snapshot that had none", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
-    room.doc.transact(() => room.doc.getText("content").insert(0, "no images here"), "storage");
-    const snapNoImages = await room.forceSnapshot("no images here", 1_000);
-    room.doc.transact(() => room.doc.getMap<string>("images").set("img-x", "data:image/png;base64,eA=="), "local");
-
-    const req = await authedRequest("alice", `/room1/versions/${snapNoImages.id}/restore`, { method: "POST" });
-    await room.fetch(req);
-    expect(room.doc.getMap<string>("images").toJSON()).toEqual({});
-  });
-});
-
-describe("CollabRoom comment threads", () => {
-  it("creates a thread with one comment", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const thread = room.createThread(0, 5, "hello", "alice", "nice greeting");
-    expect(room.getComments()).toHaveLength(1);
-    expect(thread.comments).toHaveLength(1);
-    expect(thread.comments[0]!.author).toBe("alice");
-    expect(thread.orphaned).toBe(false);
-    expect(thread.resolved).toBe(false);
-  });
-
-  it("survives two overlapping creates without losing either", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    // Simulates concurrent requests: both mutate the in-memory
-    // commentThreads field directly, with no read-from-storage gap that
-    // could let one overwrite the other.
-    room.createThread(0, 5, "hello", "alice", "comment A");
-    room.createThread(6, 11, "world", "bob", "comment B");
-    expect(room.getComments()).toHaveLength(2);
-  });
-
-  it("adds a reply to an existing thread", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const thread = room.createThread(0, 5, "hello", "alice", "first");
-    room.addReply(thread.id, "bob", "reply");
-    expect(room.getComments()[0]!.comments).toHaveLength(2);
-  });
-
-  it("addReply returns null for an unknown thread", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    expect(room.addReply("nope", "bob", "reply")).toBeNull();
-  });
-
-  it("resolves and reopens a thread", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const thread = room.createThread(0, 5, "hello", "alice", "first");
-    room.resolveThread(thread.id, true);
-    expect(room.getComments()[0]!.resolved).toBe(true);
-    room.resolveThread(thread.id, false);
-    expect(room.getComments()[0]!.resolved).toBe(false);
-  });
-
-  it("deleteThread allows the starting author", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const thread = room.createThread(0, 5, "hello", "alice", "first");
-    expect(room.deleteThread(thread.id, "alice", false)).toBe("deleted");
-    expect(room.getComments()).toHaveLength(0);
-  });
-
-  it("deleteThread allows the document owner", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const thread = room.createThread(0, 5, "hello", "alice", "first");
-    expect(room.deleteThread(thread.id, "owner", true)).toBe("deleted");
-  });
-
-  it("deleteThread rejects a non-author non-owner", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const thread = room.createThread(0, 5, "hello", "alice", "first");
-    expect(room.deleteThread(thread.id, "bob", false)).toBe("forbidden");
-    expect(room.getComments()).toHaveLength(1);
-  });
-
-  it("deleteThread returns not_found for an unknown id", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    expect(room.deleteThread("nope", "alice", false)).toBe("not_found");
-  });
-
-  it("refreshCommentAnchors relocates a moved quote and marks a missing one orphaned", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    room.createThread(0, 5, "hello", "alice", "first");
-    room.refreshCommentAnchors("say hello there");
-    expect(room.getComments()[0]).toMatchObject({ from: 4, to: 9, orphaned: false });
-    room.refreshCommentAnchors("nothing matches here");
-    expect(room.getComments()[0]!.orphaned).toBe(true);
-  });
-});
-
-describe("GET/POST /room1/comments", () => {
-  it("rejects an unshared room", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const res = await room.fetch(new Request("https://example.com/room1/comments"));
-    expect(res.status).toBe(403);
-  });
-
-  it("creates a thread and returns it", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
-    const req = await authedRequest("alice", "/room1/comments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ from: 0, to: 5, quote: "hello", body: "nice" }),
-    });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(200);
-    const thread = (await res.json()) as CommentThread;
-    expect(thread.comments[0]!.body).toBe("nice");
-  });
-
-  it("rejects a viewer's attempt to create a comment", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
-    const req = await authedRequest("bob", "/room1/comments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ from: 0, to: 5, quote: "hello", body: "nice" }),
-    });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(403);
-  });
-
-  it("rejects an empty comment body", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
-    const req = await authedRequest("alice", "/room1/comments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ from: 0, to: 5, quote: "hello", body: "   " }),
-    });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(400);
-  });
-
-  it("lists created threads", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
-    room.createThread(0, 5, "hello", "alice", "first");
-    const res = await room.fetch(new Request("https://example.com/room1/comments"));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toHaveLength(1);
-  });
-});
-
-describe("POST /room1/comments/:id/reply and /resolve", () => {
-  it("replies to a thread", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
-    const thread = room.createThread(0, 5, "hello", "alice", "first");
-    const req = await authedRequest("bob", `/room1/comments/${thread.id}/reply`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: "reply" }),
-    });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(200);
-    const updated = (await res.json()) as CommentThread;
-    expect(updated.comments).toHaveLength(2);
-  });
-
-  it("returns 404 replying to an unknown thread", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
-    const req = await authedRequest("alice", "/room1/comments/nope/reply", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: "reply" }),
-    });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(404);
-  });
-
-  it("resolves a thread", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
-    const thread = room.createThread(0, 5, "hello", "alice", "first");
-    const req = await authedRequest("alice", `/room1/comments/${thread.id}/resolve`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolved: true }),
-    });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as CommentThread).resolved).toBe(true);
-  });
-});
-
-describe("DELETE /room1/comments/:id", () => {
-  it("allows the starting author to delete", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
-    const thread = room.createThread(0, 5, "hello", "alice", "first");
-    const req = await authedRequest("alice", `/room1/comments/${thread.id}`, { method: "DELETE" });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(204);
-    expect(room.getComments()).toHaveLength(0);
-  });
-
-  it("rejects a non-author non-owner", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
-    const thread = room.createThread(0, 5, "hello", "alice", "first");
-    const req = await authedRequest("bob", `/room1/comments/${thread.id}`, { method: "DELETE" });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(403);
-    expect(room.getComments()).toHaveLength(1);
-  });
-
-  it("allows the document owner to delete any thread", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "reviewer", invited: [] });
-    const thread = room.createThread(0, 5, "hello", "bob", "first");
-    const req = await authedRequest("alice", `/room1/comments/${thread.id}`, { method: "DELETE" });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(204);
-  });
-});
-
-describe("GET /room1/versions", () => {
-  it("rejects an unshared room", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const res = await room.fetch(new Request("https://example.com/room1/versions"));
-    expect(res.status).toBe(403);
-  });
-
-  it("lists snapshot summaries without content, newest first", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
-    room.doc.transact(() => room.doc.getText("content").insert(0, "v1"), "storage");
-    await room.maybeSnapshot(1_000);
-    room.doc.transact(() => room.doc.getText("content").insert(2, "-v2"), "storage");
-    await room.maybeSnapshot(1_000 + 6 * 60 * 1000);
-
-    const res = await room.fetch(new Request("https://example.com/room1/versions"));
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as Array<{ id: string; timestamp: number; content?: string }>;
-    expect(body).toHaveLength(2);
-    expect(body[0]!.timestamp).toBeGreaterThan(body[1]!.timestamp);
-    expect(body[0]!.content).toBeUndefined();
-  });
-});
-
-describe("GET /room1/versions/:id", () => {
-  it("returns 404 for an unknown id", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
-    const res = await room.fetch(new Request("https://example.com/room1/versions/nope"));
-    expect(res.status).toBe(404);
-  });
-
-  it("returns the snapshot's content", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
-    room.doc.transact(() => room.doc.getText("content").insert(0, "hello"), "storage");
-    await room.maybeSnapshot(1_000);
-    const [snap] = await room.getSnapshots();
-    const res = await room.fetch(new Request(`https://example.com/room1/versions/${snap!.id}`));
-    expect(res.status).toBe(200);
-    expect((await res.json()) as Snapshot).toMatchObject({ id: snap!.id, content: "hello" });
-  });
-});
-
-describe("POST /room1/versions/:id/restore", () => {
-  it("rejects a non-editor role", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
-    room.doc.transact(() => room.doc.getText("content").insert(0, "v1"), "storage");
-    await room.maybeSnapshot(1_000);
-    const [snap] = await room.getSnapshots();
-    const req = await authedRequest("bob", `/room1/versions/${snap!.id}/restore`, { method: "POST" });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(403);
-  });
-
-  it("applies the restored content to the live doc and force-writes a new snapshot", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [] });
-    room.doc.transact(() => room.doc.getText("content").insert(0, "v1"), "storage");
-    await room.maybeSnapshot(1_000);
-    room.doc.transact(() => room.doc.getText("content").insert(2, "-v2"), "storage");
-    await room.maybeSnapshot(1_000 + 6 * 60 * 1000);
-    const [v1] = await room.getSnapshots();
-
-    // alice is the room's owner (set by the putAccess call above), so she
-    // has editor access regardless of the room's general role.
-    const req = await authedRequest("alice", `/room1/versions/${v1!.id}/restore`, { method: "POST" });
-    const res = await room.fetch(req);
-    expect(res.status).toBe(200);
-    expect(room.doc.getText("content").toString()).toBe("v1");
-
-    const after = await room.getSnapshots();
-    expect(after).toHaveLength(3); // v1, v1-v2, restored-v1
-    expect(after[2]!.content).toBe("v1");
-  });
-});
 
 describe("CollabRoom.getAccess", () => {
   it("returns the default record when nothing has been stored", async () => {
@@ -580,180 +128,6 @@ describe("CollabRoom.authorize", () => {
   });
 });
 
-describe("CollabRoom.handleAccessRequest", () => {
-  it("GET returns the current access record", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const res = await room.handleAccessRequest(new Request("https://example.com/room1/access"));
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as AccessRecord;
-    expect(body.owner).toBeNull();
-  });
-
-  it("PUT without a session is rejected", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const res = await room.handleAccessRequest(new Request("https://example.com/room1/access", { method: "PUT", body: "{}" }));
-    expect(res.status).toBe(401);
-  });
-
-  it("the first PUT claims ownership for whoever sent it", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const res = await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [] });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as AccessRecord;
-    expect(body.owner).toBe("alice");
-  });
-
-  it("rejects a PUT from anyone other than the existing owner", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [] });
-    const res = await putAccess(room, "mallory", { generalAccess: "anyone", role: "editor", invited: [] });
-    expect(res.status).toBe(403);
-    // and the room's access record is unchanged
-    const access = await room.getAccess();
-    expect(access.owner).toBe("alice");
-    expect(access.generalAccess).toBe("restricted");
-  });
-
-  it("normalizes the invited list on write", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", {
-      generalAccess: "restricted",
-      role: "viewer",
-      invited: [
-        { username: "bob", role: "editor" },
-        { username: "bob", role: "viewer" },
-      ],
-    });
-    const access = await room.getAccess();
-    expect(access.invited).toEqual([{ username: "bob", role: "editor" }]);
-  });
-
-  it("rejects invalid JSON with a 400", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const cookie = await encryptSession(fakeEnv, { token: "gh-token", username: "alice" });
-    const res = await room.handleAccessRequest(
-      new Request("https://example.com/room1/access", {
-        method: "PUT",
-        headers: { Cookie: `mde_gh_session=${cookie}` },
-        body: "not json",
-      }),
-    );
-    expect(res.status).toBe(400);
-  });
-
-  // Same rule as WorkspaceRoom's: GET stays open for the join flow, but the
-  // roster is only for participants. See src/access-visibility.ts.
-  it("blanks the owner and invite roster for a GET from someone with no access", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [{ username: "bob", role: "reviewer" }] });
-
-    const res = await room.handleAccessRequest(new Request("https://example.com/room1/access"));
-
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as AccessRecord;
-    expect(body.owner).toBeNull();
-    expect(body.invited).toEqual([]);
-    expect(body.generalAccess).toBe("restricted");
-    expect(body.role).toBe("viewer");
-  });
-
-  it("returns the full roster to an invited collaborator", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [{ username: "bob", role: "reviewer" }] });
-    const cookie = await encryptSession(fakeEnv, { token: "gh-token", username: "bob" });
-
-    const res = await room.handleAccessRequest(new Request("https://example.com/room1/access", { headers: { Cookie: `mde_gh_session=${cookie}` } }));
-
-    const body = (await res.json()) as AccessRecord;
-    expect(body.owner).toBe("alice");
-    expect(body.invited).toEqual([{ username: "bob", role: "reviewer" }]);
-  });
-});
-
-describe("CollabRoom.handleMessage — read-only enforcement", () => {
-  function syncUpdateMessage(update: Uint8Array): ArrayBuffer {
-    const encoder = encoding.createEncoder();
-    encoding.writeVarUint(encoder, MESSAGE_SYNC);
-    syncProtocol.writeUpdate(encoder, update);
-    return encoding.toUint8Array(encoder).buffer as ArrayBuffer;
-  }
-
-  it("drops a write from a viewer session without applying it to the document", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const scratch = new Y.Doc();
-    scratch.getText("content").insert(0, "hello");
-    const update = Y.encodeStateAsUpdate(scratch);
-
-    const fakeWs = {} as WebSocket;
-    room.sessions.set(fakeWs, { username: "viewer-user", role: "viewer", awarenessIds: new Set() });
-
-    room.handleMessage(fakeWs, syncUpdateMessage(update));
-
-    expect(room.doc.getText("content").toString()).toBe("");
-  });
-
-  it("applies a write from an editor session to the document", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const scratch = new Y.Doc();
-    scratch.getText("content").insert(0, "hello");
-    const update = Y.encodeStateAsUpdate(scratch);
-
-    const fakeWs = {} as WebSocket;
-    room.sessions.set(fakeWs, { username: "editor-user", role: "editor", awarenessIds: new Set() });
-
-    room.handleMessage(fakeWs, syncUpdateMessage(update));
-
-    expect(room.doc.getText("content").toString()).toBe("hello");
-  });
-
-  it("drops (and 4401-closes) a write from a socket with no session (MDE-21)", () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    const scratch = new Y.Doc();
-    scratch.getText("content").insert(0, "injected");
-    const update = Y.encodeStateAsUpdate(scratch);
-
-    let closeCode: number | undefined;
-    const orphanWs = { close: (c: number) => (closeCode = c) } as unknown as WebSocket;
-    // orphanWs is NOT in room.sessions — evicted by a broadcast failure, say.
-
-    room.handleMessage(orphanWs, syncUpdateMessage(update));
-
-    expect(room.doc.getText("content").toString()).toBe(""); // untouched
-    expect(closeCode).toBe(4401);
-  });
-});
-
-describe("CollabRoom.reconcileSessionRoles (MDE-23)", () => {
-  it("PUT /access downgrades a live editor and closes a fully-revoked socket", async () => {
-    const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", {
-      generalAccess: "anyone",
-      requireAccount: false,
-      role: "editor",
-      invited: [{ username: "bob", role: "editor" }],
-    });
-
-    let bobClosed: [number, string] | undefined;
-    const bobWs = { close: (c: number, r: string) => (bobClosed = [c, r]) } as unknown as WebSocket;
-    let anonClosed: [number, string] | undefined;
-    const anonWs = { close: (c: number, r: string) => (anonClosed = [c, r]) } as unknown as WebSocket;
-    room.sessions.set(bobWs, { username: "bob", role: "editor", awarenessIds: new Set() });
-    room.sessions.set(anonWs, { username: null, role: "editor", awarenessIds: new Set() });
-
-    // Close the public link entirely and drop bob to reviewer.
-    await putAccess(room, "alice", {
-      generalAccess: "restricted",
-      role: "viewer",
-      invited: [{ username: "bob", role: "reviewer" }],
-    });
-
-    expect(room.sessions.get(bobWs)?.role).toBe("reviewer");
-    expect(room.sessions.has(anonWs)).toBe(false); // no anon role left → socket closed
-    expect(anonClosed).toEqual([4403, "Access revoked"]);
-    expect(bobClosed).toBeUndefined();
-  });
-});
-
 describe("CollabRoom.handleMigrateRequest", () => {
   it("rejects a caller with no access to the legacy room (MDE-04)", async () => {
     const room = new CollabRoom(fakeState(), fakeEnv);
@@ -775,11 +149,10 @@ describe("CollabRoom.handleMigrateRequest", () => {
       seeded.push(await req.json());
       return new Response(null, { status: 204 });
     };
-    const envWithBinding = {
+    room.env = {
       ...fakeEnv,
       WORKSPACE_ROOM: { idFromName: (name: string) => name, get: () => ({ fetch: fakeWorkspaceRoomFetch }) },
     } as unknown as Env;
-    room.env = envWithBinding;
 
     const res = await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     expect(res.status).toBe(200);
@@ -800,7 +173,7 @@ describe("CollabRoom.handleMigrateRequest", () => {
     }, "storage");
 
     const seeded: Array<{ docName?: string }> = [];
-    const envWithBinding = {
+    room.env = {
       ...fakeEnv,
       WORKSPACE_ROOM: {
         idFromName: (name: string) => name,
@@ -812,7 +185,6 @@ describe("CollabRoom.handleMigrateRequest", () => {
         }),
       },
     } as unknown as Env;
-    room.env = envWithBinding;
 
     await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     expect(seeded[0]!.docName).toBe("Meeting Notes");
@@ -850,40 +222,33 @@ describe("CollabRoom.handleMigrateRequest", () => {
     expect(body.workspaceId).toBe("ws-existing");
   });
 
-  it("410s every request except /migrate once migrated, and closes live sessions (MDE-22)", async () => {
+  it("410s every legacy endpoint except /migrate — before OR after a migration (the surface is gone, not gated)", async () => {
     const room = new CollabRoom(fakeState(), fakeEnv);
-    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+
+    const gone = async () => {
+      for (const path of ["/room1/access", "/room1/versions", "/room1/comments/x/reply"]) {
+        expect((await room.fetch(await authedRequest("alice", path, { method: "GET" }))).status).toBe(410);
+      }
+      expect((await room.fetch(new Request("https://example.com/room1", { headers: { Upgrade: "websocket" } }))).status).toBe(410);
+    };
+
+    await gone(); // never migrated
+
     room.doc.transact(() => room.doc.getText("content").insert(0, "legacy"), "storage");
     room.env = {
       ...fakeEnv,
-      WORKSPACE_ROOM: {
-        idFromName: (name: string) => name,
-        get: () => ({ fetch: async () => new Response(null, { status: 204 }) }),
-      },
+      WORKSPACE_ROOM: { idFromName: (name: string) => name, get: () => ({ fetch: async () => new Response(null, { status: 204 }) }) },
     } as unknown as Env;
-
-    let closed: string | undefined;
-    const liveWs = { close: (_c: number, r: string) => (closed = r) } as unknown as WebSocket;
-    room.sessions.set(liveWs, { username: "alice", role: "editor", awarenessIds: new Set() });
-
     const mig = await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     const { workspaceId } = (await mig.json()) as { workspaceId: string };
 
-    expect(closed).toBe("Migrated to a workspace");
-    expect(room.sessions.size).toBe(0);
+    await gone(); // after migration
 
     // /migrate still answers (discovery)
     const again = await room.fetch(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     expect(again.status).toBe(200);
     expect(((await again.json()) as { workspaceId: string }).workspaceId).toBe(workspaceId);
-
-    // everything else is gone
-    for (const path of ["/room1/access", "/room1/versions", "/room1/comments"]) {
-      const res = await room.fetch(await authedRequest("alice", path, { method: "GET" }));
-      expect(res.status).toBe(410);
-    }
-    const wsRes = await room.fetch(new Request("https://example.com/room1", { headers: { Upgrade: "websocket" } }));
-    expect(wsRes.status).toBe(410);
   });
 
   it("410s a room that was already migrated in a previous instance (tombstone warmed from storage)", async () => {

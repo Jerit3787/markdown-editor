@@ -53,10 +53,19 @@ describe("worker routing", () => {
     expect(assetsFetch).not.toHaveBeenCalled();
   });
 
-  it("dispatches /api/collab/:id/comments/... to the CollabRoom DO", async () => {
+  it("dispatches /api/collab/:id/migrate to the CollabRoom DO", async () => {
     const { env, doFetch } = fakeEnv();
-    await worker.fetch(new Request("https://app.example.com/api/collab/room1/comments/t1/reply", { method: "POST" }), env);
+    await worker.fetch(new Request("https://app.example.com/api/collab/room1/migrate", { method: "POST" }), env);
     expect(doFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("no longer routes the removed legacy /api/collab endpoints to a DO — they fall through to the SPA handler", async () => {
+    for (const path of ["/api/collab/room1", "/api/collab/room1/access", "/api/collab/room1/versions", "/api/collab/room1/comments/t1/reply"]) {
+      const { env, doFetch, assetsFetch } = fakeEnv();
+      await worker.fetch(new Request(`https://app.example.com${path}`, { method: "GET" }), env);
+      expect(doFetch).not.toHaveBeenCalled();
+      expect(assetsFetch).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("a non-websocket request to the bare workspace path is 426, not a DO call", async () => {

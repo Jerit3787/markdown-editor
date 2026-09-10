@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.8] - 2026-09-10
+
+### Changed
+
+- The legacy single-document collaboration rooms (superseded by workspaces long ago) are now a thin migration shim: opening an old share link still moves the document into a workspace exactly as before, but the retired room no longer runs any live-editing, version-history or comment code at all — closing the surface that several audit rounds kept finding gaps in.
+
 ## [1.62.7] - 2026-09-10
 
 ### Fixed

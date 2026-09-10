@@ -515,8 +515,8 @@ import katexCss from "katex/dist/katex.min.css?raw";
   function saveNow() {
     saveActiveDocContent();
     const doc = getActiveDoc();
-    // Once a document has ever been shared, CollabRoom (server-side) is
-    // the sole owner of its history — see history.ts's own comment.
+    // Once a document has ever been shared, its workspace room (server-
+    // side) is the sole owner of its history — see history.ts's comment.
     if (doc && !doc.shared) {
       void maybeSnapshotVersion(doc.id, doc.content, undefined, doc.images);
       refreshDocNoteAnchors(doc.content);

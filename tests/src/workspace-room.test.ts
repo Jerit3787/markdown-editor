@@ -8,6 +8,7 @@ import { WorkspaceRoom } from "../../src/workspace-room";
 import type { AccessRecord, DocRoom } from "../../src/workspace-room";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
+import { rewriteWikilinkReferences } from "../../src/wikilink-rewrite";
 import { getSuggestionsMap, recordInsertSuggestion, recordDeleteSuggestion, listResolvedSuggestions } from "../../src/suggestions";
 import {
   getCommentsMap,
@@ -1257,6 +1258,77 @@ describe("WorkspaceRoom.handleWikilinkRenameRequest", () => {
     expect(body.changed).toBe(false);
     expect(docRoom.doc.getText("content").toString()).toBe("unrelated content");
     expect(updateFired).toBe(false);
+  });
+
+  it("preserves comment + suggestion anchors when it rewrites a link (targeted splice, not whole-text replace)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    // "see [[Old]] then flagword end" — "flagword" is [17, 25).
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "see [[Old]] then flagword end"), "storage");
+    createCommentThread(docRoom.doc, 17, 25, "flagword", "alice", "note", 1);
+    recordDeleteSuggestion(docRoom.doc, 17, 25, "carol", 1);
+
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/wikilink-rename", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName: "Old", newName: "Newer" }),
+    });
+    const res = await room.handleWikilinkRenameRequest(request, "docA");
+    expect(res.status).toBe(200);
+
+    // [[Old]] (7 chars) -> [[Newer]] (9 chars): everything after shifts +2.
+    expect(docRoom.doc.getText("content").toString()).toBe("see [[Newer]] then flagword end");
+
+    // Resolve from the stored relative positions alone (no `content` arg /
+    // quote fallback) — proof the positions tracked the splice instead of
+    // collapsing.
+    const threads = listResolvedCommentThreads(docRoom.doc);
+    expect(threads).toHaveLength(1);
+    expect(threads[0]).toMatchObject({ from: 19, to: 27 });
+
+    const suggestions = listResolvedSuggestions(docRoom.doc);
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]).toMatchObject({ from: 19, to: 27, kind: "delete" });
+  });
+
+  it("produces exactly the text rewriteWikilinkReferences would, in-code occurrences left alone", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    const before = "start [[Old]] mid `[[Old]]` and [[Old]] end";
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, before), "storage");
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/wikilink-rename", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName: "Old", newName: "Newer" }),
+    });
+    await room.handleWikilinkRenameRequest(request, "docA");
+    const after = docRoom.doc.getText("content").toString();
+    expect(after).toBe(rewriteWikilinkReferences(before, "Old", "Newer"));
+    expect(after).toBe("start [[Newer]] mid `[[Old]]` and [[Newer]] end");
+  });
+
+  it("rewrites every occurrence in a single transaction", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "[[Old]] a [[Old]] b [[Old]]"), "storage");
+    let updates = 0;
+    docRoom.doc.on("update", () => {
+      updates++;
+    });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const request = new Request("https://example.com/w/ws1/docs/docA/wikilink-rename", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ oldName: "Old", newName: "New" }),
+    });
+    await room.handleWikilinkRenameRequest(request, "docA");
+    expect(docRoom.doc.getText("content").toString()).toBe("[[New]] a [[New]] b [[New]]");
+    expect(updates).toBe(1);
   });
 });
 

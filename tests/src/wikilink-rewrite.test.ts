@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rewriteWikilinkReferences } from "../../src/wikilink-rewrite";
+import { rewriteWikilinkReferences, findWikilinkOccurrences } from "../../src/wikilink-rewrite";
 
 describe("rewriteWikilinkReferences (Worker copy)", () => {
   it("rewrites a single exact match", () => {
@@ -20,5 +20,36 @@ describe("rewriteWikilinkReferences (Worker copy)", () => {
 
   it("does not rewrite [[Old]] inside a code span (Worker copy)", () => {
     expect(rewriteWikilinkReferences("`[[Old]]` and [[Old]]", "Old", "New")).toBe("`[[Old]]` and [[New]]");
+  });
+});
+
+describe("findWikilinkOccurrences (Worker copy)", () => {
+  it("returns the character range of each exact match", () => {
+    const content = "See [[Old]] here";
+    const occurrences = findWikilinkOccurrences(content, "Old");
+    expect(occurrences).toEqual([{ from: 4, to: 11 }]);
+    expect(content.slice(occurrences[0]!.from, occurrences[0]!.to)).toBe("[[Old]]");
+  });
+
+  it("returns one range per occurrence, in ascending order", () => {
+    const occurrences = findWikilinkOccurrences("[[Old]] x [[Old]]", "Old");
+    expect(occurrences).toHaveLength(2);
+    expect(occurrences[0]!.from).toBe(0);
+    expect(occurrences[1]!.from).toBe(10);
+  });
+
+  it("returns an empty array when the name doesn't appear", () => {
+    expect(findWikilinkOccurrences("nothing here", "Old")).toEqual([]);
+  });
+
+  it("ignores a near-miss name", () => {
+    expect(findWikilinkOccurrences("[[OldSuffix]]", "Old")).toEqual([]);
+  });
+
+  it("skips an in-code occurrence, keeps correct offsets for the rest", () => {
+    const content = "`[[Old]]` x [[Old]] y";
+    const occ = findWikilinkOccurrences(content, "Old");
+    expect(occ).toEqual([{ from: 12, to: 19 }]);
+    expect(content.slice(occ[0]!.from, occ[0]!.to)).toBe("[[Old]]");
   });
 });

@@ -54,12 +54,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
-| 10. Workspace collab               |      69 |       0 |    0 |    69 |
+| 10. Workspace collab               |      70 |       0 |    0 |    70 |
 | 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **339** |  **0** |  **0** | **339** |
+| **Total**                          | **340** |  **0** |  **0** | **340** |
 
 **Every enumerated scenario now has a test asserting its outcome —
 314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
@@ -381,7 +381,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | COLLAB-35 | A rapid second doc-switch landing mid-join supersedes the first instead of racing it                | unit        | covered | `tests/client/src/collab.test.ts`                      | join-generation guard                                                   |
 | COLLAB-36 | `pushWorkspaceRename` / `pushWorkspaceDocDelete` PUT / DELETE to the room only for a shared workspace, and the delete tears down the local Y.Doc binding immediately | unit | covered | `tests/client/src/collab.test.ts`                     |                                                                       |
 | COLLAB-37 | Version snapshots + restore (content and images) enforce editor-only and replace-not-merge semantics server-side, capped at 300 | integration | covered | `tests/src/workspace-room.test.ts` | cross-ref §8; CollabRoom's own version history went with the migration-shim change |
-| COLLAB-38 | `handleWikilinkRenameRequest` rejects no-session / non-editor / missing names, rewrites live content, returns `changed` accurately | integration | covered | `tests/src/workspace-room.test.ts` | cross-ref §3                                                           |
+| COLLAB-38 | `handleWikilinkRenameRequest` rejects no-session / non-editor / missing names, rewrites live content, returns `changed` accurately; rewrites each `[[Old]]` occurrence as a targeted in-place splice (back-to-front, one `"wikilink-rename"` transaction) so comment / suggestion anchors elsewhere in the doc survive — the whole-text delete+reinsert that collapsed them is gone (v1.62.12); result is byte-identical to `rewriteWikilinkReferences` | integration | covered | `tests/src/workspace-room.test.ts`, `tests/src/wikilink-rewrite.test.ts` | cross-ref §3 |
 | COLLAB-39 | Legacy `CollabRoom` single-doc share link migrates to a fresh `WorkspaceRoom` on open — `handleMigrateRequest` gates on `authorize()`, forwards the doc state / access / snapshots / `meta.name` / comment threads to `/internal/seed`, writes the `migratedTo` tombstone, and is idempotent | integration | covered | `tests/src/collab-room.test.ts`, `tests/src/workspace-room.test.ts` | the end-to-end `legacy-migration.spec.ts` was removed with the CollabRoom migration-shim change (it needed a writable legacy room to seed); the client `migrateLegacyDoc` orchestration is an accepted coverage gap — see the shim spec |
 | COLLAB-40 | `CollabRoom.getAccess` normalizes a legacy `string[]` invited list to `{username, role: editor}[]` and returns the default record when nothing is stored | unit | covered | `tests/src/collab-room.test.ts` | `normalizeInvited` (its write-path helper) went with the migration-shim change; WorkspaceRoom keeps its own copy |
 | COLLAB-41 | `handleInternalSeedRequest` seeds a document's Yjs state, access and snapshots from a migration payload; a legacy payload's `comments` are seeded into the doc's `comments` Y.Map (SP-B) | integration | covered | `tests/src/workspace-room.test.ts`                    |                                                                       |

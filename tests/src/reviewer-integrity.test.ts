@@ -35,13 +35,59 @@ describe("diffOps", () => {
     expect(applyOps("color me", ops)).toBe("colour me");
   });
 
-  it("falls back to one del + one ins for a bulk change past the threshold", () => {
-    const a = "PFX " + "x".repeat(9000) + " SFX";
-    const b = "PFX " + "y".repeat(9000) + " SFX";
+  it("aligns a replacement mid-string instead of a bulk del+ins (small middle)", () => {
+    const ops = diffOps("the quick brown fox", "the slow brown fox");
+    expect(applyOps("the quick brown fox", ops)).toBe("the slow brown fox");
+    // "brown fox" is kept, not deleted-and-reinserted
+    expect(ops.some((o) => o.type === "keep" && "the quick brown fox".slice(o.aFrom, o.aTo).includes("brown"))).toBe(true);
+  });
+
+  it("aligns a change at BOTH ends of a large middle without duplicating it (MDE-12)", () => {
+    const big = "x".repeat(20_000);
+    const a = "A" + big + "B";
+    const b = "C" + big + "D";
+    const ops = diffOps(a, b);
+    expect(applyOps(a, ops)).toBe(b);
+    // the 20k identical middle survives as keeps; total del text is 2 chars ("A","B")
+    const delChars = ops.filter((o) => o.type === "del").reduce((n, o) => n + (o.aTo - o.aFrom), 0);
+    expect(delChars).toBe(2);
+  });
+
+  it("falls back to one del + one ins when the edit distance is enormous", () => {
+    const a = "P " + "a".repeat(9000) + " S";
+    const b = "P " + "z".repeat(9000) + " S"; // 9000 subs -> D ~ 18000, way past the bound
     const ops = diffOps(a, b);
     expect(applyOps(a, ops)).toBe(b);
     expect(ops.filter((o) => o.type === "del")).toHaveLength(1);
     expect(ops.filter((o) => o.type === "ins")).toHaveLength(1);
+  });
+
+  it("round-trips a fuzz of small random edits (Myers correctness)", () => {
+    // deterministic LCG so a failure is reproducible
+    let seed = 0x2f6e2b1;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const alpha = "abcde \n";
+    const pick = () => alpha[Math.floor(rnd() * alpha.length)]!;
+    for (let t = 0; t < 400; t++) {
+      const a = Array.from({ length: Math.floor(rnd() * 40) }, pick).join("");
+      // derive b by a few random splices so both middles stay non-empty-ish
+      let b = a;
+      const edits = 1 + Math.floor(rnd() * 4);
+      for (let e = 0; e < edits; e++) {
+        const at = Math.floor(rnd() * (b.length + 1));
+        if (rnd() < 0.5 && b.length > 0) b = b.slice(0, at) + b.slice(at + 1 + Math.floor(rnd() * 3));
+        else b = b.slice(0, at) + pick() + b.slice(at);
+      }
+      const ops = diffOps(a, b);
+      expect(applyOps(a, ops)).toBe(b);
+      // every del range is within `a`, in ascending order
+      let last = -1;
+      for (const o of ops.filter((x) => x.type !== "ins")) {
+        expect(o.aFrom).toBeGreaterThanOrEqual(last);
+        expect(o.aTo).toBeLessThanOrEqual(a.length);
+        last = o.aTo;
+      }
+    }
   });
 });
 
@@ -118,6 +164,40 @@ describe("reviewerTextRepairs", () => {
     let out = "AB";
     for (const rp of [...repairs].sort((a, b) => b.at - a.at)) out = out.slice(0, rp.at) + rp.text + out.slice(rp.at);
     expect(out).toBe("AA  BB");
+  });
+
+  it("restores only the changed runs, not the whole shared middle (MDE-12 property)", () => {
+    // `commonInfix` is a known-large common subsequence of pre-minus-own
+    // and after, so a correct repair set restores at most
+    // (committed.length - commonInfix.length) characters — the old bulk
+    // fallback restored the entire committed middle.
+    const cases: Array<{ pre: string; after: string; own: Array<[number, number]>; commonInfix: string }> = [
+      { pre: "the quick brown fox jumps far", after: "the brown fox jumps", own: [], commonInfix: " brown fox jumps" },
+      { pre: "A" + "x".repeat(15_000) + "B", after: "C" + "x".repeat(15_000) + "D", own: [], commonInfix: "x".repeat(15_000) },
+      { pre: "start OWN middle end", after: "start middle end", own: [[6, 9]], commonInfix: "start middle end" },
+      { pre: "TOP\n" + "line\n".repeat(4000) + "BOT", after: "top\n" + "line\n".repeat(4000) + "bot", own: [], commonInfix: "\n" + "line\n".repeat(4000) },
+    ];
+
+    function isSubsequence(needle: string, hay: string): boolean {
+      let i = 0;
+      for (let j = 0; j < hay.length && i < needle.length; j++) if (hay[j] === needle[i]) i++;
+      return i === needle.length;
+    }
+
+    for (const { pre, after, own, commonInfix } of cases) {
+      const committed = removeRanges(pre, own);
+      expect(isSubsequence(commonInfix, committed)).toBe(true);
+      expect(isSubsequence(commonInfix, after)).toBe(true);
+
+      const repairs = reviewerTextRepairs(committed, after);
+      const restored = repairs.reduce((n, r) => n + r.text.length, 0);
+      expect(restored).toBeLessThanOrEqual(committed.length - commonInfix.length);
+
+      // and the repaired text really does contain every committed char in order
+      let out = after;
+      for (const r of [...repairs].sort((a, b) => b.at - a.at)) out = out.slice(0, r.at) + r.text + out.slice(r.at);
+      expect(isSubsequence(committed, out)).toBe(true);
+    }
   });
 });
 

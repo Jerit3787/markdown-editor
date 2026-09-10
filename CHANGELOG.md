@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.4] - 2026-09-10
+
+### Fixed
+
+- A reviewer's larger edits (a big block replace, or fixing something near the top and the bottom of a long document at once) no longer make the server re-insert a whole copy of the surrounding text when it reconciles the change — it now restores only the part the reviewer actually removed.
+
 ## [1.62.3] - 2026-09-10
 
 ### Fixed

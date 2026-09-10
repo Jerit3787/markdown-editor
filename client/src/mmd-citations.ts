@@ -1,4 +1,5 @@
 import { marked } from "marked";
+import { escapeHtml } from "./escape-html";
 
 export interface BibEntry {
   key: string;
@@ -46,7 +47,7 @@ export function transformCitations(text: string, prefs: CitationPrefs, structure
     if (!order.includes(key)) order.push(key);
     if (prefs.displayStyle === "numbered") {
       const n = order.indexOf(key) + 1;
-      return `<sup><a href="#cite-${key}">${n}</a></sup>`;
+      return `<sup><a href="#cite-${escapeHtml(key)}">${n}</a></sup>`;
     }
     const label = entry.author && entry.year ? `${entry.author}, ${entry.year}` : entry.author || entry.year || entry.key;
     return `(${label})`;
@@ -59,8 +60,8 @@ export function transformCitations(text: string, prefs: CitationPrefs, structure
   const items = cited
     .map((entry) =>
       prefs.displayStyle === "numbered"
-        ? `<li id="cite-${entry.key}">${marked.parseInline(entry.text)}</li>`
-        : `<li id="cite-${entry.key}">${entry.author} (${entry.year}). ${marked.parseInline(entry.text)}</li>`,
+        ? `<li id="cite-${escapeHtml(entry.key)}">${marked.parseInline(entry.text)}</li>`
+        : `<li id="cite-${escapeHtml(entry.key)}">${entry.author} (${entry.year}). ${marked.parseInline(entry.text)}</li>`,
     )
     .join("");
   const listTag = prefs.displayStyle === "numbered" ? "ol" : "ul";

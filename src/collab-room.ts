@@ -131,14 +131,20 @@ export class CollabRoom {
   async handleMigrateRequest(request: Request): Promise<Response> {
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
+    // Authorize BEFORE looking at the tombstone: returning `{ workspaceId }`
+    // to an unauthenticated caller lets someone who only knows an old
+    // legacy docId pivot to GET /api/workspace/<id>/access and read the
+    // (private) document's title + access policy (MDE-24). A public
+    // "anyone with link" legacy room still authorizes an anon caller, so
+    // its own migration + discovery keep working.
+    const auth = await this.authorize(request);
+    if (!auth.ok) return new Response(auth.message, { status: auth.status });
+
     const existingTombstone = this.migratedTo ?? (await this.state.storage.get<string>("migratedTo"));
     if (existingTombstone) {
       this.migratedTo = existingTombstone;
       return Response.json({ workspaceId: existingTombstone });
     }
-
-    const auth = await this.authorize(request);
-    if (!auth.ok) return new Response(auth.message, { status: auth.status });
 
     const workspaceId = uid() + uid(); // wider than a doc id's uid() to avoid colliding with existing workspace ids
     const access = await this.getAccess();
@@ -164,6 +170,15 @@ export class CollabRoom {
     );
     if (!res.ok) return new Response("Migration failed.", { status: 500 });
 
+    // A concurrent /migrate for the same room may have won the race while
+    // the seed subrequest above was in flight — if so, adopt its result
+    // (our freshly-seeded WorkspaceRoom is unreferenced and gets no
+    // traffic) rather than overwriting the tombstone with a second id.
+    const raced = await this.state.storage.get<string>("migratedTo");
+    if (raced) {
+      this.migratedTo = raced;
+      return Response.json({ workspaceId: raced });
+    }
     await this.state.storage.put("migratedTo", workspaceId);
     this.migratedTo = workspaceId;
     return Response.json({ workspaceId });

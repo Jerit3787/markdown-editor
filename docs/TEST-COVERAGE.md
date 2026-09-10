@@ -54,12 +54,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
-| 10. Workspace collab               |      67 |       0 |    0 |    67 |
+| 10. Workspace collab               |      68 |       0 |    0 |    68 |
 | 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **337** |  **0** |  **0** | **337** |
+| **Total**                          | **338** |  **0** |  **0** | **338** |
 
 **Every enumerated scenario now has a test asserting its outcome —
 314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
@@ -418,7 +418,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | SEC-01 | `?preview=1` websockets are pinned to `viewer` — the Turnstile exemption for a pre-join content fetch can't also grant editor writes on a public "anyone can edit" link (MDE-01) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.1 · external audit |
 | SEC-02 | `PUT /access` and an owner approve re-resolve every live session's role on the spot — a downgrade updates `session.role`, a full revocation closes the socket (4403) and drops it (MDE-02) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.1 |
 | SEC-03 | `GET /api/auth/github/logout` → 405; only `POST` clears the session / revokes the OAuth grant (CSRF, MDE-03) | integration | covered | `tests/src/worker.test.ts` | v1.62.1 · cross-ref §11 |
-| SEC-04 | Legacy `CollabRoom` is a **migration-only shim** — `fetch` serves `POST /migrate` (`authorize()`-gated per MDE-04; idempotent via the `migratedTo` tombstone, warmed from storage on a cold start) and `410`s everything else, before or after a migration. No session map, no WebSocket, no HTTP mutation endpoints — the run-3/4/5 parity findings (MDE-21/22/23) are gone with the code that had them | integration | covered | `tests/src/collab-room.test.ts` | v1.62.1 (MDE-04) · shrunk to a shim in the CollabRoom migration-shim change (spec `2026-09-10-collabroom-migration-shim`) |
+| SEC-04 | Legacy `CollabRoom` is a **migration-only shim** — `fetch` serves `POST /migrate` and `410`s everything else, before or after a migration. `handleMigrateRequest` runs `authorize()` **first** (an unauthenticated / outsider caller can't even learn the workspace id off an already-migrated room — MDE-24; a public "anyone with link" room still authorizes an anon caller); it is idempotent via the `migratedTo` tombstone (warmed from storage on a cold start; re-checked after the seed so a concurrent migration doesn't double-allocate). No session map, no WebSocket, no HTTP mutation endpoints — the run-3/4/5 parity findings (MDE-21/22/23) are gone with the code that had them | integration | covered | `tests/src/collab-room.test.ts` | v1.62.1 (MDE-04) · shim (spec `2026-09-10-collabroom-migration-shim`) · MDE-24 auth-first in v1.62.9 |
 | SEC-05 | A malformed comment-thread anchor (`{}` / `null`) is rejected by `isValidNewThread`; `toAbsoluteIndex` (comments-doc + suggestions) swallows the Yjs throw so an already-poisoned doc drops the bad entry instead of white-screening every viewer (MDE-07) | unit | covered | `tests/src/comment-integrity.test.ts`, `tests/client/src/comments-doc.test.ts` | v1.62.1 · cross-ref §9 |
 | SEC-06 | A persist alarm scheduled just before `DELETE /workspace` does not resurrect document content — `handleDeleteRequest` `deleteAlarm()` + `docs.clear()`, and `alarm()`/`persistAllNow()` bail on `this.deleted` (MDE-08) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.1 |
 | SEC-07 | The same-author suggestion merge (observer + `recordInsertSuggestion` contiguous-extend) carries every merged entry's `replies` onto the survivor instead of dropping them (MDE-09) | integration + unit | covered | `tests/src/workspace-room.test.ts`, `tests/src/suggestions.test.ts` | v1.62.1 |
@@ -435,6 +435,7 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | SEC-18 | `forceSnapshot` returns `null` on `this.deleted` (entry + after the `getSnapshots` yield); the version-restore handlers 410 instead of resurrecting `doc:*:snapshots` into wiped storage (MDE-18, same class as SEC-13) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
 | SEC-19 | The WS-upgrade `fetch` re-checks `this.deleted` after `authorize()` / `requireJoinTicket()` / `getAccess()` and before `new WebSocketPair()` — a DELETE landing mid-handshake → 410, no live socket on a wiped room (MDE-19) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
 | SEC-20 | `MESSAGE_ACCESS_REQUEST` (requester username + note) is sent only to the owner's own session(s), not `broadcast(null)` — an anonymous peer on a public workspace receives nothing (MDE-20) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
+| SEC-21 | Preview markdown sanitization: a raw HTML `<a target="_blank">` (or `rel="opener"`) always comes out `rel="noopener noreferrer"` — a DOMPurify `afterSanitizeAttributes` hook, since `ADD_ATTR: ["target"]` lets `target` through; citation keys are `escapeHtml`'d into the marker `href` and bibliography `id` (attribute breakout) | unit | covered | `tests/client/src/preview-sanitize.test.ts`, `tests/client/src/mmd-citations.test.ts` | v1.62.9 · external audit run-6 hardening |
 
 ## 11. GitHub auth & Gist
 

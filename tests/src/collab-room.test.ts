@@ -213,13 +213,34 @@ describe("CollabRoom.handleMigrateRequest", () => {
     expect(seeded[0]!.docName).toBe("");
   });
 
-  it("returns the existing tombstone on a second migration call instead of migrating again", async () => {
+  it("returns the existing tombstone on a second migration call from someone with access, instead of migrating again", async () => {
     const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [] });
     await room.state.storage.put("migratedTo", "ws-existing");
     const res = await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { workspaceId: string };
     expect(body.workspaceId).toBe("ws-existing");
+  });
+
+  it("does NOT hand the tombstone to an unauthenticated / outsider caller (MDE-24)", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", role: "viewer", invited: [] });
+    await room.state.storage.put("migratedTo", "ws-secret");
+
+    const anon = await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    expect(anon.status).toBe(401);
+    const stranger = await room.handleMigrateRequest(await authedRequest("mallory", "/room1/migrate", { method: "POST" }));
+    expect(stranger.status).toBe(403);
+  });
+
+  it("a public 'anyone with link' legacy room still hands the tombstone to an anon caller", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "anyone", requireAccount: false, role: "viewer", invited: [] });
+    await room.state.storage.put("migratedTo", "ws-public");
+    const res = await room.handleMigrateRequest(new Request("https://example.com/room1/migrate", { method: "POST" }));
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { workspaceId: string }).workspaceId).toBe("ws-public");
   });
 
   it("410s every legacy endpoint except /migrate — before OR after a migration (the surface is gone, not gated)", async () => {
@@ -254,6 +275,7 @@ describe("CollabRoom.handleMigrateRequest", () => {
   it("410s a room that was already migrated in a previous instance (tombstone warmed from storage)", async () => {
     const state = fakeState();
     const room1 = new CollabRoom(state, fakeEnv);
+    await room1.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
     await room1.state.storage.put("migratedTo", "ws-prev");
 
     const room2 = new CollabRoom(state, fakeEnv);

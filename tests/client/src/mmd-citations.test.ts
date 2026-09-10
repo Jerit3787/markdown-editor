@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { transformCitations, DEFAULT_CITATION_PREFS, type CitationPrefs, type BibEntry } from "../../../client/src/mmd-citations";
+import { escapeHtml } from "../../../client/src/escape-html";
 
 function prefs(overrides: Partial<CitationPrefs> = {}): CitationPrefs {
   return { ...DEFAULT_CITATION_PREFS, ...overrides };
@@ -33,6 +34,14 @@ describe("transformCitations — text source", () => {
   it("returns the text unchanged when nothing is cited", () => {
     const input = "Just a paragraph, no citations.\n";
     expect(transformCitations(input, prefs(), [])).toBe(input);
+  });
+
+  it("HTML-escapes a citation key in the marker href and the bibliography id (attribute breakout)", () => {
+    const key = 'a"><b>'; // no whitespace — the marker regex is [^\]\s]+
+    const out = transformCitations(`Claim.[@${key}]\n\n[@${key}]: Ref.\n`, prefs(), []);
+    expect(out).not.toContain('"><b>'); // no raw breakout
+    expect(out).toContain(`href="#cite-${escapeHtml(key)}"`);
+    expect(out).toContain(`id="cite-${escapeHtml(key)}"`);
   });
 });
 

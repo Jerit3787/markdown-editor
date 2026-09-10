@@ -182,7 +182,11 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   — `POST /migrate` and storage reads only, everything else `410`. The
   four non-migrate `/api/collab/*` worker routes and the live-collab /
   comment / version machinery are gone, not just gated; the class and its
-  DO binding stay until every legacy link has been opened once.
+  DO binding stay until every legacy link has been opened once. A run-6
+  audit of the shim found **0 High/Medium** and one **LOW** (MDE-24 —
+  the `/migrate` tombstone was returned before `authorize()`, leaking the
+  workspace id / doc title to an old-link holder); closed in **v1.62.9**
+  (auth-first) alongside two DOMPurify/citation hardening notes.
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"

@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.9] - 2026-09-10
+
+### Fixed
+
+- Security hardening from a follow-up external audit:
+  - Asking where a migrated legacy document went now requires access to that document — previously an unauthenticated request could learn the workspace id (and from there the document's title) if it already knew the old link.
+  - A raw HTML `<a target="_blank">` typed into a document's markdown always gets `rel="noopener noreferrer"` now, matching the app's own generated links.
+  - Citation keys are HTML-escaped where they're placed into link/id attributes.
+
 ## [1.62.8] - 2026-09-10
 
 ### Changed

@@ -33,6 +33,18 @@
   // superscript numbers, matching GitHub's own footnote rendering.
   marked.use(markedFootnote({ headingClass: "sr-only" }));
 
+  // Markdown-generated links already get rel="noopener noreferrer" (see
+  // preview-link-render.ts's withBlankTarget), but a raw HTML
+  // `<a target="_blank">` typed straight into the source bypasses that —
+  // and `ADD_ATTR: ["target"]` below lets `target` through. Force the rel
+  // on any _blank anchor so raw HTML can't open a reverse-tabnabbing
+  // window. Registered once at module scope (addHook is global).
+  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    if (node.nodeName === "A" && node.getAttribute("target") === "_blank") {
+      node.setAttribute("rel", "noopener noreferrer");
+    }
+  });
+
   let hostEl: HTMLDivElement | undefined = $state();
   let activeDocTitle = $state("");
   let currentMathSources: Map<string, MathSource> = new Map();

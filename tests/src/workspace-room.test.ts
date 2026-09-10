@@ -2722,4 +2722,34 @@ describe("WorkspaceRoom anon authorship", () => {
     expect(list).toHaveLength(1);
     expect(list[0]!.author).toBe("anon:abc123");
   });
+
+  it("stamps authorName onto an anon-authored suggestion from the session", async () => {
+    const { room, ws, docRoom } = await roomWithAnon("reviewer");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    await applyFrom(room, ws, docRoom, (c) => {
+      c.getText("content").insert(11, " again");
+      recordInsertSuggestion(c, 11, 17, "anon:abc123", 1);
+    });
+    const sid = listResolvedSuggestions(docRoom.doc)[0]!.id;
+    expect(getSuggestionsMap(docRoom.doc).get(sid)!.authorName).toBe("Bold Wren");
+  });
+
+  it("stamps authorName onto an anon-authored comment thread", async () => {
+    const { room, ws, docRoom } = await roomWithAnon("editor");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "anon:abc123", "hi", 1));
+    const tid = listResolvedCommentThreads(docRoom.doc)[0]!.id;
+    expect(getCommentsMap(docRoom.doc).get(tid)!.authorName).toBe("Bold Wren");
+  });
+
+  it("does not stamp authorName onto a signed-in user's entry", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, { username: "alice", role: "editor", viewingDocId: null });
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "alice", "hi", 1));
+    const tid = listResolvedCommentThreads(docRoom.doc)[0]!.id;
+    expect(getCommentsMap(docRoom.doc).get(tid)!.authorName).toBeUndefined();
+  });
 });

@@ -12,6 +12,10 @@ export interface SuggestionEntry {
   // addSuggestionReply; reconcileReviewerDelta and the self-heal
   // observer never read or touch it.
   replies?: { id: string; author: string; body: string; createdAt: number }[];
+  // Display label for an anon:<id> author, stamped authoritatively by the
+  // server's suggestions observer from the session's assigned guest name.
+  // Absent for a signed-in author (their `author` is already their name).
+  authorName?: string;
 }
 
 export interface ResolvedSuggestion extends Omit<SuggestionEntry, "from" | "to"> {
@@ -74,7 +78,7 @@ export function listResolvedSuggestions(doc: Y.Doc): ResolvedSuggestion[] {
     const from = toAbsoluteIndex(doc, ytext, entry.from);
     const to = toAbsoluteIndex(doc, ytext, entry.to);
     if (from === null || to === null) return;
-    result.push({ id, kind: entry.kind, author: entry.author, createdAt: entry.createdAt, from, to, replies: entry.replies });
+    result.push({ id, kind: entry.kind, author: entry.author, authorName: entry.authorName, createdAt: entry.createdAt, from, to, replies: entry.replies });
   });
   return result.sort((a, b) => a.from - b.from);
 }
@@ -99,8 +103,17 @@ export function recordInsertSuggestion(doc: Y.Doc, from: number, to: number, aut
   // this suggestion — rebuilding the entry without it silently erased
   // review history (MDE-09).
   const replies = existing?.replies;
+  const authorName = existing?.authorName;
   doc.transact(() => {
-    map.set(id, { kind: "insert", author, createdAt, from: fromJson, to: toRelative(ytext, to, -1), ...(replies ? { replies } : {}) });
+    map.set(id, {
+      kind: "insert",
+      author,
+      createdAt,
+      from: fromJson,
+      to: toRelative(ytext, to, -1),
+      ...(replies ? { replies } : {}),
+      ...(authorName ? { authorName } : {}),
+    });
   }, "suggestion");
 }
 

@@ -337,6 +337,22 @@ export class WorkspaceRoom {
             }
           });
           if (replyReverts.length) doc.transact(() => replyReverts.forEach((r) => r()), "suggestion");
+
+          // Stamp the authoritative display label onto this session's own
+          // anon-authored entries — the client's `author` is the anon id;
+          // the guest name lives only in the session. Runs in the same
+          // "suggestion" origin the observer skips, so no recursion.
+          if (actor.startsWith("anon:") && session.anonName) {
+            const stamps: Array<() => void> = [];
+            event.changes.keys.forEach((change, key) => {
+              if (change.action === "delete") return;
+              const cur = suggestionsMap.get(key);
+              if (cur && cur.author === actor && cur.authorName !== session.anonName) {
+                stamps.push(() => suggestionsMap.set(key, { ...suggestionsMap.get(key)!, authorName: session.anonName }));
+              }
+            });
+            if (stamps.length) doc.transact(() => stamps.forEach((s) => s()), "suggestion");
+          }
         }
       }
 
@@ -430,6 +446,20 @@ export class WorkspaceRoom {
         }
       });
       if (reverts.length) doc.transact(() => reverts.forEach((r) => r()), "comment-reconcile");
+
+      // Stamp the authoritative guest name onto this session's own
+      // anon-authored threads (see the suggestions observer above).
+      if (actor.startsWith("anon:") && session.anonName) {
+        const stamps: Array<() => void> = [];
+        event.changes.keys.forEach((change, key) => {
+          if (change.action === "delete") return;
+          const cur = commentsMap.get(key);
+          if (cur && cur.author === actor && cur.authorName !== session.anonName) {
+            stamps.push(() => commentsMap.set(key, { ...commentsMap.get(key)!, authorName: session.anonName }));
+          }
+        });
+        if (stamps.length) doc.transact(() => stamps.forEach((s) => s()), "comment-reconcile");
+      }
     });
     awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) =>
       this.handleAwarenessUpdate(docId, docRoom, added, updated, removed, origin),

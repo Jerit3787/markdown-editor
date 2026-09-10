@@ -17,6 +17,8 @@ export interface Reply {
   author: string;
   body: string;
   createdAt: number;
+  // Display label for an anon:<id> author — see CommentThreadEntry.authorName.
+  authorName?: string;
 }
 
 export interface CommentThreadEntry {
@@ -27,11 +29,16 @@ export interface CommentThreadEntry {
   quote: string;
   resolved: boolean;
   replies: Reply[];
+  // Display label for an anon:<id> author, stamped authoritatively by the
+  // server's comments observer from the session's assigned guest name.
+  // Absent for a signed-in author (their `author` is already their name).
+  authorName?: string;
 }
 
 export interface ResolvedCommentThread {
   id: string;
   author: string;
+  authorName?: string;
   createdAt: number;
   from: number;
   to: number;
@@ -103,6 +110,7 @@ export function listResolvedCommentThreads(doc: Y.Doc, content?: string): Resolv
     out.push({
       id,
       author: entry.author,
+      authorName: entry.authorName,
       createdAt: entry.createdAt,
       from,
       to,

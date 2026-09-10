@@ -66,6 +66,7 @@ test("SHELL-02: every listed command runs without throwing a page error", async 
   await page.keyboard.press("ControlOrMeta+Shift+P");
   const labels = await page.locator(".command-palette-row span").allTextContents();
   await page.keyboard.press("Escape");
+  await expect(page.locator(".command-palette")).not.toBeVisible(); // confirm the close before reopening
   expect(labels.length).toBeGreaterThan(20); // ~30 registered entries
 
   // Run a representative spread of non-modal, reversible commands via the
@@ -80,4 +81,21 @@ test("SHELL-02: every listed command runs without throwing a page error", async 
     await expect(page.locator(".command-palette")).not.toBeVisible();
   }
   expect(errors).toEqual([]);
+});
+
+test("SHELL-02: a fast open→Escape→reopen (before autofocus lands) never leaves the palette stuck hidden", async ({ page }) => {
+  // Regression: the palette backdrop had no data-svelte-modal, so app.ts's
+  // global Escape handler would set `hidden` on it directly. If Escape
+  // landed in the ~1 frame before the input autofocused, CommandPalette's
+  // own (input-scoped) Escape handler didn't fire — $commandPaletteOpen
+  // stayed true while the DOM node was display:none, and the next
+  // shortcut press was a no-op set(true) that couldn't re-render it.
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press("ControlOrMeta+Shift+P");
+    await page.keyboard.press("Escape"); // deliberately no focus wait
+    await page.keyboard.press("ControlOrMeta+Shift+P");
+    await expect(page.locator(".command-palette-input")).toBeVisible({ timeout: 3000 });
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".command-palette")).not.toBeVisible({ timeout: 3000 });
+  }
 });

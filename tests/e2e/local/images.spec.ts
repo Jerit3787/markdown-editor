@@ -105,15 +105,20 @@ test("Replace on a row overwrites the same key without changing the document tex
 
   await expect(page.getByRole("heading", { name: "Manage images" })).toBeVisible();
 
+  // The replace reads the file async then debounces persistDocs() — poll
+  // localStorage until the new bytes land rather than racing the debounce.
+  const readImage = () =>
+    page.evaluate(() => {
+      const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
+      return (docs[0]?.images ?? {})["pixel.png"] as string | undefined;
+    });
+  await expect.poll(readImage).not.toBe("data:image/png;base64," + PIXEL_PNG_BASE64);
+  expect(await readImage()).toMatch(/^data:image\/png;base64,/);
+
+  // The `![pixel](pixel.png)` reference in the document is untouched by a
+  // same-key replace.
   const finalText = await page.evaluate(() => window.MDE.getEditor().state.doc.toString());
   expect(finalText).toBe(originalText);
-
-  const images = await page.evaluate(() => {
-    const docs = JSON.parse(localStorage.getItem("mde:docs") || "[]");
-    return docs[0]?.images ?? {};
-  });
-  expect(images["pixel.png"]).not.toBe("data:image/png;base64," + PIXEL_PNG_BASE64);
-  expect(images["pixel.png"]).toMatch(/^data:image\/png;base64,/);
 });
 
 test("Replacing with an oversized file shows an error and leaves the original image untouched", async ({ page }) => {

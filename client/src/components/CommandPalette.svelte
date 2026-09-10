@@ -200,6 +200,16 @@
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p") {
         e.preventDefault();
         commandPaletteOpen.set(true);
+      } else if (e.key === "Escape" && $commandPaletteOpen) {
+        // Close from the store, the same as every other Svelte modal
+        // (AboutModal etc.). onInputKeydown's Escape only fires while the
+        // input has focus — in the ~1 frame right after opening, before
+        // the autofocus lands, it wouldn't, and app.ts's initModalEscapeKey
+        // would then imperatively set `hidden` on our backdrop (we carry
+        // no data-svelte-modal), leaving $commandPaletteOpen true but the
+        // DOM display:none — a desync Svelte can't undo on the next
+        // no-op set(true).
+        close();
       }
     };
     document.addEventListener("keydown", onGlobalKeydown);
@@ -210,7 +220,7 @@
 {#if $commandPaletteOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal-backdrop command-palette-backdrop" onclick={backdropClick}>
+  <div class="modal-backdrop command-palette-backdrop" data-svelte-modal onclick={backdropClick}>
     <div class="command-palette" role="dialog" aria-modal="true" aria-label="Command palette">
       <div class="command-palette-input-row">
         <svg class="icon"><use href="#icon-search"></use></svg>

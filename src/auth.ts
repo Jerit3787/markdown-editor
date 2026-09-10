@@ -6,6 +6,10 @@ import type { Env, SessionData } from "./env";
 // editor can't exfiltrate it — only this Worker can decrypt it.
 export const SESSION_COOKIE = "mde_gh_session";
 export const STATE_COOKIE = "mde_oauth_state";
+// The Google Drive connection's own cookie pair (src/google-auth.ts) —
+// entirely independent of the GitHub session above.
+export const GOOGLE_SESSION_COOKIE = "mde_google_session";
+export const GOOGLE_STATE_COOKIE = "mde_google_oauth_state";
 
 // The encrypted cookie is a bearer credential: whoever can replay the
 // string is the session. `Max-Age` on the Set-Cookie header only asks the
@@ -39,29 +43,43 @@ function fromBase64Url(str: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-export async function encryptSession(env: Env, data: SessionData): Promise<string> {
+// Generic AES-GCM-encrypted-JSON cookie helper. `ttlMs` is stamped into
+// the ciphertext as `exp` and enforced by decryptJSON on the way back in,
+// so the cookie has a real lifetime even if the browser is told (via
+// Max-Age) to keep it forever — see the SESSION_TTL_MS comment above.
+// encryptSession / decryptSession are thin wrappers; src/google-auth.ts
+// uses this directly for the mde_google_session cookie.
+export async function encryptJSON<T>(env: Env, data: T, ttlMs: number = SESSION_TTL_MS): Promise<string> {
   const key = await deriveKey(env);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const payload: SessionData = { ...data, exp: Date.now() + SESSION_TTL_MS };
+  const payload = { ...data, exp: Date.now() + ttlMs };
   const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(payload)));
   return `${toBase64Url(iv.buffer)}.${toBase64Url(ciphertext)}`;
 }
 
-export async function decryptSession(env: Env, value: string): Promise<SessionData | null> {
+export async function decryptJSON<T>(env: Env, value: string): Promise<(T & { exp: number }) | null> {
   try {
     const [ivPart, ctPart] = value.split(".");
     if (!ivPart || !ctPart) return null;
     const key = await deriveKey(env);
     const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64Url(ivPart) }, key, fromBase64Url(ctPart));
-    const session = JSON.parse(new TextDecoder().decode(plaintext)) as SessionData;
-    // A session minted before `exp` existed carries no verifiable lifetime
+    const parsed = JSON.parse(new TextDecoder().decode(plaintext)) as T & { exp?: number };
+    // A payload minted before `exp` existed carries no verifiable lifetime
     // at all — treat that as expired rather than as unlimited. The cost is
     // one re-authentication for anyone holding a pre-existing cookie.
-    if (typeof session.exp !== "number" || session.exp <= Date.now()) return null;
-    return session;
+    if (typeof parsed.exp !== "number" || parsed.exp <= Date.now()) return null;
+    return parsed as T & { exp: number };
   } catch (err) {
     return null;
   }
+}
+
+export async function encryptSession(env: Env, data: SessionData): Promise<string> {
+  return encryptJSON(env, data);
+}
+
+export async function decryptSession(env: Env, value: string): Promise<SessionData | null> {
+  return decryptJSON<SessionData>(env, value);
 }
 
 // A signed (not encrypted) identity label for an anonymous collaborator.
@@ -107,4 +125,42 @@ export function cookieHeader(name: string, value: string, { maxAge }: { maxAge?:
   if (maxAge != null) cookie += `; Max-Age=${maxAge}`;
   if (maxAge === 0) cookie += `; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
   return cookie;
+}
+
+function escapeHtml(str: string): string {
+  const map: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  return String(str).replace(/[&<>"']/g, (c) => map[c] as string);
+}
+
+// The OAuth popup window's final page: postMessages the result to
+// window.opener and closes itself — success closes immediately, failure
+// shows the reason for ~2.5s first. `kind` selects the `postMessage`
+// `type` the client listeners key off ("mde-github-auth" — see
+// GithubSignInModal.svelte — / "mde-google-auth" — see drive-files.ts).
+// Moved here from github-auth.ts so both OAuth flows share it.
+export function popupHtml(kind: "github" | "google", ok: boolean, message: string | null): string {
+  const type = kind === "github" ? "mde-github-auth" : "mde-google-auth";
+  // JSON.stringify escapes quotes and backslashes but leaves "<" and "/"
+  // alone, so a message containing "</script>" would close this inline
+  // script early and land as live markup on the app's own origin. The
+  // message comes from an OAuth token endpoint rather than a request
+  // param, but "upstream text is safe to inline" isn't worth depending
+  // on — escape the three characters that can start a tag boundary.
+  const payload = JSON.stringify({ type, ok, message: message || null })
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+  const label = kind === "github" ? "GitHub sign-in" : "Google Drive";
+  const body = ok
+    ? `${kind === "github" ? "Signed in" : "Connected"} — this window will close automatically.`
+    : `${kind === "github" ? "Sign-in" : "Connection"} failed: ${escapeHtml(message || "unknown error")}`;
+  const closeDelay = ok ? 0 : 2500;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${label}</title></head><body style="font:14px system-ui;padding:24px;color:${ok ? "#333" : "#c0392b"}">${body}<script>
+    if (window.opener) window.opener.postMessage(${payload}, window.location.origin);
+    setTimeout(function () { window.close(); }, ${closeDelay});
+  </script></body></html>`;
+}
+
+export function popupResponse(kind: "github" | "google", ok: boolean, message: string): Response {
+  return new Response(popupHtml(kind, ok, message), { status: ok ? 200 : 400, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }

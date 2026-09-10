@@ -6,7 +6,7 @@ import * as decoding from "lib0/decoding";
 import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
 import { relocateAnchor } from "./anchor";
 import { redactAccessForOutsider } from "./access-visibility";
-import { rewriteWikilinkReferences } from "./wikilink-rewrite";
+import { findWikilinkOccurrences } from "./wikilink-rewrite";
 import { groupSnapshotsIntoSessions, SESSION_GAP_MS } from "./version-grouping";
 import {
   reconcileReviewerDelta,
@@ -1447,13 +1447,22 @@ export class WorkspaceRoom {
 
     const docRoom = await this.loadDocRoom(docId);
     const text = docRoom.doc.getText("content");
-    const current = text.toString();
-    const rewritten = rewriteWikilinkReferences(current, oldName, newName);
-    if (rewritten === current) return Response.json({ changed: false });
+    const occurrences = findWikilinkOccurrences(text.toString(), oldName);
+    if (occurrences.length === 0) return Response.json({ changed: false });
 
+    const replacement = `[[${newName}]]`;
     docRoom.doc.transact(() => {
-      text.delete(0, text.length);
-      text.insert(0, rewritten);
+      // Splice each [[oldName]] -> [[newName]] in place, back to front so
+      // an earlier occurrence's offset stays valid while we edit later
+      // ones. The previous whole-text delete+reinsert tombstoned every
+      // character item, collapsing every comment / suggestion anchor in
+      // the doc; a targeted splice leaves every relative position
+      // anchored outside a [[oldName]] span physically untouched.
+      for (let i = occurrences.length - 1; i >= 0; i--) {
+        const o = occurrences[i]!;
+        text.delete(o.from, o.to - o.from);
+        text.insert(o.from, replacement);
+      }
     }, "wikilink-rename");
     return Response.json({ changed: true });
   }

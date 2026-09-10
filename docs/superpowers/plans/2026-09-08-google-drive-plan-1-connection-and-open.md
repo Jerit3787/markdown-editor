@@ -87,7 +87,7 @@ If you can't get creds, the server tests (Tasks 3–6) still run fully (they stu
 
 **Interfaces produced:** `Env.GOOGLE_CLIENT_ID?`, `Env.GOOGLE_CLIENT_SECRET?`, `Env.GOOGLE_API_KEY?` (all `string | undefined`); `GoogleSessionData { refreshToken: string; accessToken: string; accessTokenExp: number; exp?: number }`.
 
-- [ ] **Step 1: Add the fields**
+- [x] **Step 1: Add the fields**
 
 In `src/env.ts`, inside `interface Env`, after the existing `TEST_GITHUB_*` block:
 
@@ -117,12 +117,12 @@ export interface GoogleSessionData {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `npm run typecheck`
 Expected: PASS (nothing consumes the new fields yet).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/env.ts
@@ -147,7 +147,7 @@ EOF
 - `GOOGLE_SESSION_COOKIE = "mde_google_session"`, `GOOGLE_STATE_COOKIE = "mde_google_oauth_state"`.
 - `popupHtml(kind: "github" | "google", ok: boolean, message: string | null): string` and `popupResponse(kind, ok, message): Response` — moved here from `github-auth.ts`, `kind` selects the `postMessage` `type` (`"mde-github-auth"` / `"mde-google-auth"`) and the `<title>`.
 
-- [ ] **Step 1: Write the failing test** — **append** to the existing `tests/src/auth.test.ts` (it already imports from `../../src/auth` and defines `fakeEnv`; reuse that name, don't redefine). Add `encryptJSON, decryptJSON` to the import line, then a new describe block:
+- [x] **Step 1: Write the failing test** — **append** to the existing `tests/src/auth.test.ts` (it already imports from `../../src/auth` and defines `fakeEnv`; reuse that name, don't redefine). Add `encryptJSON, decryptJSON` to the import line, then a new describe block:
 
 ```ts
 describe("encryptJSON / decryptJSON", () => {
@@ -174,7 +174,7 @@ describe("encryptJSON / decryptJSON", () => {
 Run: `npx vitest run tests/src/auth.test.ts`
 Expected: FAIL (`encryptJSON` not exported).
 
-- [ ] **Step 2: Refactor `src/auth.ts`**
+- [x] **Step 2: Refactor `src/auth.ts`**
 
 Replace the `encryptSession` / `decryptSession` bodies with generic helpers, keeping the old names as wrappers. New content of that section:
 
@@ -224,7 +224,7 @@ export async function decryptSession(env: Env, value: string): Promise<SessionDa
 
 Add `import type { Env } from "./env";` already present — keep it. `SessionData` import already present.
 
-- [ ] **Step 3: Move `popupHtml` / `popupResponse` into `src/auth.ts`**
+- [x] **Step 3: Move `popupHtml` / `popupResponse` into `src/auth.ts`**
 
 Cut them from `src/github-auth.ts` (lines ~118–151, plus the local `escapeHtml`) and paste into `src/auth.ts`, parameterised:
 
@@ -261,12 +261,12 @@ export function popupResponse(kind: "github" | "google", ok: boolean, message: s
 
 In `src/github-auth.ts`: `import { ..., popupHtml, popupResponse } from "./auth.js";` and update its three call sites — `popupHtml(true, null)` → `popupHtml("github", true, null)`, `popupResponse(false, "...")` → `popupResponse("github", false, "...")`. Delete the now-unused local `escapeHtml`.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `npx vitest run tests/src/auth.test.ts tests/src/github-auth.test.ts && npm run typecheck`
 Expected: PASS — the new `auth.test.ts` cases and the whole existing `github-auth.test.ts` suite (the popup-html assertion in `handleCallback happy path` still matches; check the test for the exact expected string and adjust the test if it asserted `type: "mde-github-auth"` positionally — it should still pass since the payload is unchanged for `kind: "github"`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/auth.ts src/github-auth.ts tests/src/auth.test.ts
@@ -292,7 +292,7 @@ EOF
 
 **Interfaces produced:** `handleGoogleConnect(request: Request, env: Env): Promise<Response>` — 302 to Google's authorize URL with a state cookie; `503` if `GOOGLE_CLIENT_ID` unset.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/src/google-auth.test.ts`:
 
@@ -335,7 +335,7 @@ describe("handleGoogleConnect", () => {
 
 Run: `npx vitest run tests/src/google-auth.test.ts` → FAIL (module missing).
 
-- [ ] **Step 2: Create `src/google-auth.ts` with the connect handler + shared bits**
+- [x] **Step 2: Create `src/google-auth.ts` with the connect handler + shared bits**
 
 ```ts
 import {
@@ -390,9 +390,9 @@ export async function handleGoogleConnect(request: Request, env: Env): Promise<R
 }
 ```
 
-- [ ] **Step 3: Run the test** — `npx vitest run tests/src/google-auth.test.ts` → PASS.
+- [x] **Step 3: Run the test** — `npx vitest run tests/src/google-auth.test.ts` → PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/google-auth.ts tests/src/google-auth.test.ts
@@ -414,7 +414,7 @@ EOF
 - `handleGoogleCallback(request, env): Promise<Response>` — verifies state, exchanges the code, sets `mde_google_session`, renders `popupHtml("google", true, null)`.
 - `getGoogleAccessToken(request, env): Promise<{ token: string; setCookie?: string } | null>` — a live token, refreshing if `accessTokenExp` is within 60s; `null` if no session or the refresh fails.
 
-- [ ] **Step 1: Write the failing tests** — append to `tests/src/google-auth.test.ts`:
+- [x] **Step 1: Write the failing tests** — append to `tests/src/google-auth.test.ts`:
 
 ```ts
 import { handleGoogleCallback, getGoogleAccessToken } from "../../src/google-auth";
@@ -500,7 +500,7 @@ describe("getGoogleAccessToken", () => {
 
 Run → FAIL (exports missing).
 
-- [ ] **Step 2: Implement** — append to `src/google-auth.ts`:
+- [x] **Step 2: Implement** — append to `src/google-auth.ts`:
 
 ```ts
 interface GoogleTokenResponse {
@@ -571,9 +571,9 @@ export async function getGoogleAccessToken(request: Request, env: Env): Promise<
 }
 ```
 
-- [ ] **Step 3: Run** — `npx vitest run tests/src/google-auth.test.ts && npm run typecheck` → PASS.
+- [x] **Step 3: Run** — `npx vitest run tests/src/google-auth.test.ts && npm run typecheck` → PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/google-auth.ts tests/src/google-auth.test.ts
@@ -595,7 +595,7 @@ EOF
 - `handleGoogleStatus(request, env): Promise<Response>` → `Response.json({ connected: boolean })`. Cheap — decrypts the cookie, never calls Google.
 - `handleGoogleDisconnect(request, env): Promise<Response>` → best-effort `POST REVOKE_URL`, clears the cookie, always `204`.
 
-- [ ] **Step 1: Tests** — append:
+- [x] **Step 1: Tests** — append:
 
 ```ts
 import { handleGoogleStatus, handleGoogleDisconnect } from "../../src/google-auth";
@@ -631,7 +631,7 @@ describe("handleGoogleDisconnect", () => {
 });
 ```
 
-- [ ] **Step 2: Implement** — append to `src/google-auth.ts`:
+- [x] **Step 2: Implement** — append to `src/google-auth.ts`:
 
 ```ts
 export async function handleGoogleStatus(request: Request, env: Env): Promise<Response> {
@@ -656,7 +656,7 @@ export async function handleGoogleDisconnect(request: Request, env: Env): Promis
 }
 ```
 
-- [ ] **Step 3: Run + commit**
+- [x] **Step 3: Run + commit**
 
 ```bash
 npx vitest run tests/src/google-auth.test.ts && npm run typecheck
@@ -679,7 +679,7 @@ EOF
 - `handleDrivePickerToken(request, env): Promise<Response>` → `{ token, apiKey }` (threads `setCookie`); `401` if not connected; `503` if `GOOGLE_API_KEY` unset.
 - `handleDriveImport(request, env): Promise<Response>` — body `{ fileIds: string[] }` → `{ results: [{ fileId, name, contentBase64, ok, error? }] }`, HTTP `200` even with per-file failures; `401` if not connected.
 
-- [ ] **Step 1: Tests** — `tests/src/google-drive.test.ts`:
+- [x] **Step 1: Tests** — `tests/src/google-drive.test.ts`:
 
 ```ts
 import { describe, it, expect, vi, afterEach } from "vitest";
@@ -748,7 +748,7 @@ describe("handleDriveImport", () => {
 });
 ```
 
-- [ ] **Step 2: Implement** — `src/google-drive.ts`:
+- [x] **Step 2: Implement** — `src/google-drive.ts`:
 
 ```ts
 import { getGoogleAccessToken } from "./google-auth.js";
@@ -815,7 +815,7 @@ export async function handleDriveImport(request: Request, env: Env): Promise<Res
 }
 ```
 
-- [ ] **Step 3: Run + commit**
+- [x] **Step 3: Run + commit**
 
 ```bash
 npx vitest run tests/src/google-drive.test.ts && npm run typecheck
@@ -834,7 +834,7 @@ EOF
 
 **Files:** Modify `src/worker.ts`, `wrangler.jsonc`
 
-- [ ] **Step 1: `wrangler.jsonc`** — in `"vars"`, after `GITHUB_CLIENT_ID`:
+- [x] **Step 1: `wrangler.jsonc`** — in `"vars"`, after `GITHUB_CLIENT_ID`:
 
 ```jsonc
     "GITHUB_CLIENT_ID": "Ov23liV4lb0YiRtTwpm9",
@@ -848,7 +848,7 @@ EOF
 
 (Leave them empty strings in the committed config — the real prod values go in via `wrangler secret put` / the Cloudflare dashboard, or the maintainer fills them here. Empty → the `notConfigured` / `!GOOGLE_API_KEY` guards fire and the feature is hidden, which is the desired default.)
 
-- [ ] **Step 2: `src/worker.ts`** — add the import after the `github-repo.js` import:
+- [x] **Step 2: `src/worker.ts`** — add the import after the `github-repo.js` import:
 
 ```ts
 import { handleGoogleConnect, handleGoogleCallback, handleGoogleStatus, handleGoogleDisconnect } from "./google-auth.js";
@@ -866,7 +866,7 @@ Add the routes right after the `/api/auth/github/*` block:
     if (url.pathname === "/api/drive/import" && request.method === "POST") return handleDriveImport(request, env);
 ```
 
-- [ ] **Step 3: Typecheck + a routing smoke test**
+- [x] **Step 3: Typecheck + a routing smoke test**
 
 Run: `npm run typecheck`
 Expected: PASS.
@@ -874,7 +874,7 @@ Expected: PASS.
 Add to `tests/src/worker-routing.test.ts` if it exists, else skip — the handler tests already cover behaviour; this is just wiring. Manually confirm with:
 `grep -n "google" src/worker.ts` shows the six new routes.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/worker.ts wrangler.jsonc
@@ -894,7 +894,7 @@ EOF
 
 Since v1.60.3 the app sets a per-request nonce CSP header from `src/csp.ts` `appCsp(nonce)` (prod, via `src/worker.ts`), and keeps a dev-only `<meta http-equiv="Content-Security-Policy">` in `client/index.html`. The Google Picker loads `https://apis.google.com/js/api.js` and renders a `docs.google.com` iframe; without these additions the Picker is silently CSP-blocked.
 
-- [ ] **Step 1: `src/csp.ts` — `appCsp(nonce)`**
+- [x] **Step 1: `src/csp.ts` — `appCsp(nonce)`**
 
 In the array returned by `appCsp`, change three lines:
 
@@ -907,11 +907,11 @@ In the array returned by `appCsp`, change three lines:
 
 Leave `legalCsp(nonce)` untouched (the `/privacy` `/terms` pages never touch Drive).
 
-- [ ] **Step 2: `client/index.html` — the dev `<meta>` CSP**
+- [x] **Step 2: `client/index.html` — the dev `<meta>` CSP**
 
 Apply the identical three edits to the `content="…"` of `<meta http-equiv="Content-Security-Policy">` (it uses `'sha256-…'` instead of `'nonce-…'` in `script-src` — that difference stays; only add `https://apis.google.com`, `https://www.googleapis.com`, `https://docs.google.com` in the same three directives).
 
-- [ ] **Step 3: Test**
+- [x] **Step 3: Test**
 
 If `tests/src/csp.test.ts` exists, add cases; else create it:
 
@@ -932,7 +932,7 @@ describe("appCsp — Google Drive origins", () => {
 
 Run: `npx vitest run tests/src/csp.test.ts && npm test` (the built-bundle CSP e2e — `tests/e2e/collab/csp-built.spec.ts` — is exercised by `e2e-collab` in CI; it should still pass since the inline-script hash is unchanged).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/csp.ts client/index.html tests/src/csp.test.ts
@@ -955,14 +955,14 @@ EOF
 
 Task 7 added two `import` lines to the top region of `src/worker.ts` — the exact region `dev-login.patch` anchors on (its hunk-1 context includes `import type { Env }` and the first route `const` declarations). `git apply --check` of the current patch now **fails**, which breaks the `e2e-collab` / `e2e-github` CI jobs. Regenerate it — the procedure from the project memory `project_dev_login_patch_fragility`:
 
-- [ ] **Step 1: Confirm it's broken**
+- [x] **Step 1: Confirm it's broken**
 
 ```bash
 git apply --check tests/scripts/manual-testing/dev-login.patch
 ```
 Expected: FAIL (`patch does not apply` at `src/worker.ts`).
 
-- [ ] **Step 2: Regenerate**
+- [x] **Step 2: Regenerate**
 
 The three dev-login insertions the patch makes into `src/worker.ts` (an import, a `DEV_LOGIN_PATH` const near the other route consts, and the route handler near the other `/api/auth/*` routes) — read the current patch to see the exact three insertions, then:
 
@@ -975,7 +975,7 @@ git diff src/worker.ts > tests/scripts/manual-testing/dev-login.patch
 git checkout src/worker.ts
 ```
 
-- [ ] **Step 3: Verify apply + reverse both clean**
+- [x] **Step 3: Verify apply + reverse both clean**
 
 ```bash
 git apply --check tests/scripts/manual-testing/dev-login.patch          # applies
@@ -986,7 +986,7 @@ git diff --quiet src/worker.ts && echo "clean"
 node scripts/check-no-dev-login.mjs                                     # clean again
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/scripts/manual-testing/dev-login.patch
@@ -1004,7 +1004,7 @@ EOF
 
 **Files:** Create `client/src/stores/driveSync.ts`; Modify `client/src/types.ts`
 
-- [ ] **Step 1: `client/src/stores/driveSync.ts`**
+- [x] **Step 1: `client/src/stores/driveSync.ts`**
 
 ```ts
 import { writable } from "svelte/store";
@@ -1020,7 +1020,7 @@ export const driveConnected = writable(false);
 export const driveImportBusyLabel = writable<string | null>(null);
 ```
 
-- [ ] **Step 2: `client/src/types.ts`** — inside the `MDEBridge` interface (near `publishGist` / `openGistPicker`):
+- [x] **Step 2: `client/src/types.ts`** — inside the `MDEBridge` interface (near `publishGist` / `openGistPicker`):
 
 ```ts
   // Google Drive integration — see client/src/drive-files.ts.
@@ -1032,9 +1032,9 @@ export const driveImportBusyLabel = writable<string | null>(null);
   onGoogleAuthComplete?: () => void;
 ```
 
-- [ ] **Step 3: Typecheck** — `npm run typecheck` → PASS (svelte-check; nothing implements these yet, optional members are fine).
+- [x] **Step 3: Typecheck** — `npm run typecheck` → PASS (svelte-check; nothing implements these yet, optional members are fine).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add client/src/stores/driveSync.ts client/src/types.ts
@@ -1054,7 +1054,7 @@ EOF
 
 **Interfaces produced:** module registers `window.MDE.connectGoogleDrive`, `window.MDE.disconnectGoogleDrive`, and chains `window.MDE.onGoogleAuthComplete`; keeps `driveConnected` in sync.
 
-- [ ] **Step 1: Failing test** — `tests/client/src/drive-files.test.ts`:
+- [x] **Step 1: Failing test** — `tests/client/src/drive-files.test.ts`:
 
 ```ts
 // @vitest-environment jsdom
@@ -1092,7 +1092,7 @@ describe("drive-files connection lifecycle", () => {
 
 Run → FAIL.
 
-- [ ] **Step 2: Create `client/src/drive-files.ts`** (connection part; the Picker/import part is Task 10):
+- [x] **Step 2: Create `client/src/drive-files.ts`** (connection part; the Picker/import part is Task 10):
 
 ```ts
 // Google Drive integration, client side. Two flows in later plans (save,
@@ -1152,13 +1152,13 @@ async function disconnect(): Promise<void> {
 export { checkSession, driveImportBusyLabel };
 ```
 
-- [ ] **Step 3: `client/src/main.ts`** — add after `import "./gist";`:
+- [x] **Step 3: `client/src/main.ts`** — add after `import "./gist";`:
 
 ```ts
 import "./drive-files";
 ```
 
-- [ ] **Step 4: `client/src/drive-files.ts` — own the popup `message` listener**
+- [x] **Step 4: `client/src/drive-files.ts` — own the popup `message` listener**
 
 **Revised 2026-09-11:** the GitHub `mde-github-auth` `message` listener lives in `client/src/components/GithubSignInModal.svelte` (line ~23), **not** `app.ts` — `app.ts` only does `window.open(...)`. So `drive-files.ts` registers **its own** listener at module load (mirrors what `GithubSignInModal` does for GitHub), and does not touch `app.ts`:
 
@@ -1174,9 +1174,9 @@ window.addEventListener("message", (e) => {
 
 (`connectGoogleDrive` opens `window.open("/api/auth/google/connect", "google-oauth", …)` — same window-features string `app.ts` uses for the GitHub popup.)
 
-- [ ] **Step 5: Run** — `npx vitest run tests/client/src/drive-files.test.ts && npm run typecheck` → PASS.
+- [x] **Step 5: Run** — `npx vitest run tests/client/src/drive-files.test.ts && npm run typecheck` → PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add client/src/drive-files.ts client/src/main.ts client/src/app.ts tests/client/src/drive-files.test.ts
@@ -1196,7 +1196,7 @@ EOF
 
 **Interfaces produced:** `window.MDE.importMarkdownFromDrive: () => Promise<void>` — opens the Picker (connecting first if needed), imports the picked `.md` files into the current workspace via `createDoc`, toasts a summary.
 
-- [ ] **Step 1: Failing test** — append to `tests/client/src/drive-files.test.ts`. Stub the Picker so the test drives its callback directly:
+- [x] **Step 1: Failing test** — append to `tests/client/src/drive-files.test.ts`. Stub the Picker so the test drives its callback directly:
 
 ```ts
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
@@ -1236,7 +1236,7 @@ it("importMarkdownFromDrive creates docs in the current workspace from the picke
 });
 ```
 
-- [ ] **Step 2: Implement** — append to `client/src/drive-files.ts`:
+- [x] **Step 2: Implement** — append to `client/src/drive-files.ts`:
 
 ```ts
 import { get } from "svelte/store";
@@ -1370,9 +1370,9 @@ async function importMarkdownFromDrive(): Promise<void> {
 
 Verify `createDoc`'s signature accepts `{ name, content }` — it does (`createDoc(partial?: Partial<Doc> & { id?; name? })`, and it activates the new doc in the current workspace).
 
-- [ ] **Step 3: Run** — `npx vitest run tests/client/src/drive-files.test.ts && npm run typecheck` → PASS.
+- [x] **Step 3: Run** — `npx vitest run tests/client/src/drive-files.test.ts && npm run typecheck` → PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add client/src/drive-files.ts tests/client/src/drive-files.test.ts
@@ -1390,7 +1390,7 @@ EOF
 
 **Files:** Modify `client/src/components/MenuBar.svelte`; Test `tests/client/src/components/MenuBar.test.ts`
 
-- [ ] **Step 1: Add the menu item**
+- [x] **Step 1: Add the menu item**
 
 Find the `#menuOpenGist` button (the `From GitHub Gist...` row in the Open submenu). Add directly after it:
 
@@ -1409,7 +1409,7 @@ At the top of the `<script>`: `import { driveConnected } from "../stores/driveSy
 
 Add `#icon-drive` to the sprite sheet (`client/public/icons.svg` or wherever `#icon-github` lives) — a simple Drive-triangle or cloud-arrow path. Reuse `#icon-cloud`/`#icon-download` if one exists and a dedicated mark isn't worth it (open question 3 in the spec — decide here, note it in the commit).
 
-- [ ] **Step 2: Component test** — add to `tests/client/src/components/MenuBar.test.ts` (or create it):
+- [x] **Step 2: Component test** — add to `tests/client/src/components/MenuBar.test.ts` (or create it):
 
 ```ts
 it("shows 'Markdown from Google Drive' in the Open submenu when Drive is connected", async () => {
@@ -1423,9 +1423,9 @@ it("shows 'Markdown from Google Drive' in the Open submenu when Drive is connect
 
 Match the file's existing render/props/interaction pattern (check how it tests `#menuOpenGist`).
 
-- [ ] **Step 3: Run** — `npx vitest run --project=components tests/client/src/components/MenuBar.test.ts && npm run typecheck` → PASS.
+- [x] **Step 3: Run** — `npx vitest run --project=components tests/client/src/components/MenuBar.test.ts && npm run typecheck` → PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add client/src/components/MenuBar.svelte client/public/icons.svg tests/client/src/components/MenuBar.test.ts
@@ -1443,7 +1443,7 @@ EOF
 
 **Files:** Modify `client/src/components/Settings.svelte`, `CONTRIBUTING.md`; Test `tests/client/src/components/Settings.test.ts`
 
-- [ ] **Step 1: Settings row**
+- [x] **Step 1: Settings row**
 
 `Settings.svelte` is opened from the topbar account menu via the `settingsModalOpen` store (v1.56.0) — no code change needed for that; the modal is already mounted. Find where it renders the GitHub sign-in / sign-out control (it uses `githubUsername`) or the analytics-consent toggle, and add a sibling "Google Drive" row in the same section:
 
@@ -1460,7 +1460,7 @@ EOF
 
 `import { driveConnected } from "../stores/driveSync";`. Match the existing row markup/classes.
 
-- [ ] **Step 2: `CONTRIBUTING.md`** — after the `## GitHub OAuth App (optional, for sign-in/Gist/Share)` section, add:
+- [x] **Step 2: `CONTRIBUTING.md`** — after the `## GitHub OAuth App (optional, for sign-in/Gist/Share)` section, add:
 
 ```markdown
 ## Google OAuth (optional, for Google Drive)
@@ -1490,7 +1490,7 @@ works — same as GitHub OAuth above.
    `wrangler secret put`.)
 ```
 
-- [ ] **Step 3: Component test** — add to `tests/client/src/components/Settings.test.ts`:
+- [x] **Step 3: Component test** — add to `tests/client/src/components/Settings.test.ts`:
 
 ```ts
 it("shows a Google Drive Connect button, switching to Disconnect once connected", async () => {
@@ -1502,9 +1502,9 @@ it("shows a Google Drive Connect button, switching to Disconnect once connected"
 });
 ```
 
-- [ ] **Step 4: Run** — `npx vitest run --project=components tests/client/src/components/Settings.test.ts && npm run typecheck` → PASS.
+- [x] **Step 4: Run** — `npx vitest run --project=components tests/client/src/components/Settings.test.ts && npm run typecheck` → PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add client/src/components/Settings.svelte CONTRIBUTING.md tests/client/src/components/Settings.test.ts
@@ -1522,7 +1522,7 @@ EOF
 
 **Files:** Modify `CHANGELOG.md`
 
-- [ ] **Step 1: Provisional CHANGELOG entry**
+- [x] **Step 1: Provisional CHANGELOG entry**
 
 At the very top of `CHANGELOG.md` (above the current top section):
 
@@ -1536,7 +1536,7 @@ At the very top of `CHANGELOG.md` (above the current top section):
 
 (`- UNRELEASED` heading + no version bump: this is edited across the Drive plans, then the version/date/whats-new go in on the final plan, per the spec and CLAUDE.md's "don't bump while implementing".)
 
-- [ ] **Step 2: Whole suite**
+- [x] **Step 2: Whole suite**
 
 ```bash
 npm test            # unit + components — all green
@@ -1546,7 +1546,7 @@ npm run format:check
 
 Fix any formatting with `npm run format` and re-stage.
 
-- [ ] **Step 3: Manual verification (needs `.dev.vars` with real Google creds — see the Setup note)**
+- [x] **Step 3: Manual verification (needs `.dev.vars` with real Google creds — see the Setup note)**
 
 ```bash
 npm run build
@@ -1561,7 +1561,7 @@ Then in a browser at `http://localhost:8787`:
 
 Note anything that didn't match in the task's PR description.
 
-- [ ] **Step 4: Commit + open the PR**
+- [x] **Step 4: Commit + open the PR**
 
 ```bash
 git add CHANGELOG.md

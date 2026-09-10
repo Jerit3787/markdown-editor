@@ -3,7 +3,8 @@ import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
-import { getCookie, decryptSession, SESSION_COOKIE } from "./auth.js";
+import { getCookie, decryptSession, SESSION_COOKIE, signAnonToken, verifyAnonToken } from "./auth.js";
+import { randomAnonId, randomGuestName } from "./guest-names.js";
 import { relocateAnchor } from "./anchor";
 import { redactAccessForOutsider } from "./access-visibility";
 import { findWikilinkOccurrences } from "./wikilink-rewrite";
@@ -60,6 +61,10 @@ const MESSAGE_ACCESS_REQUEST = 6;
 // deny, or a plain PUT /access role edit. Every client re-fetches
 // GET /access and, if its own resolved role changed, rejoins the room.
 const MESSAGE_ACCESS_CHANGED = 7;
+// [type, anonId, anonName, token] — docId-less. Sent once to an
+// anonymous session right after the meta greeting so the client knows
+// its own server-assigned identity and can persist the token for reuse.
+const MESSAGE_ANON_IDENTITY = 8;
 
 const SYNC_STEP1 = 0;
 const SYNC_STEP2 = 1;
@@ -166,6 +171,18 @@ interface SessionInfo {
   // preview socket on a public "anyone can edit" workspace straight to
   // `editor` the next time the owner touched access (MDE-11).
   isPreview?: boolean;
+  // Server-assigned identity for an anonymous connection (username === null).
+  // `identityOf(session)` is the single accessor; the integrity observers
+  // key ownership on it. Absent for a signed-in session.
+  anonId?: string;
+  anonName?: string;
+}
+
+// The one "who is this connection" accessor — a GitHub username, or the
+// server-minted "anon:<id>" for an anonymous session. Replaces the
+// scattered `session.username ?? "Anonymous"` fallbacks.
+function identityOf(session: SessionInfo | undefined | null): string | null {
+  return session?.username ?? session?.anonId ?? null;
 }
 
 function docStorageKey(docId: string, suffix: "update" | "snapshots" | "comments"): string {
@@ -507,10 +524,23 @@ export class WorkspaceRoom {
     // would put a live connection on a wiped room (MDE-19).
     if (this.deleted) return new Response("This workspace has been deleted.", { status: 410 });
 
+    // An anonymous connection is assigned a stable identity — reused from
+    // a signed token the client stored, or freshly minted. It grants no
+    // access (role is already resolved above) and is independent of the
+    // Turnstile join ticket.
+    let anon: { anonId: string; anonName: string; token: string } | undefined;
+    if (auth.username === null && !isPreview && this.env.SESSION_SECRET) {
+      const presented = url.searchParams.get("anon");
+      const reused = presented ? await verifyAnonToken(this.env, presented) : null;
+      const anonId = reused?.anonId ?? randomAnonId();
+      const anonName = reused?.anonName ?? randomGuestName();
+      anon = { anonId, anonName, token: await signAnonToken(this.env, { anonId, anonName }) };
+    }
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-    this.handleSession(server, auth.username, effectiveRole, isPreview);
+    this.handleSession(server, auth.username, effectiveRole, isPreview, anon);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -872,9 +902,9 @@ export class WorkspaceRoom {
 
   // ---------- WebSocket session ----------
 
-  handleSession(ws: WebSocket, username: string | null, role: Role, isPreview = false): void {
+  handleSession(ws: WebSocket, username: string | null, role: Role, isPreview = false, anon?: { anonId: string; anonName: string; token: string }): void {
     ws.accept();
-    this.sessions.set(ws, { username, role, viewingDocId: null, isPreview });
+    this.sessions.set(ws, { username, role, viewingDocId: null, isPreview, ...(anon ? { anonId: anon.anonId, anonName: anon.anonName } : {}) });
 
     for (const docId of this.docIds) {
       const docRoom = this.docs.get(docId);
@@ -895,6 +925,15 @@ export class WorkspaceRoom {
       }
     }
     ws.send(this.encodeWorkspaceMeta());
+
+    if (anon) {
+      const enc = encoding.createEncoder();
+      encoding.writeVarUint(enc, MESSAGE_ANON_IDENTITY);
+      encoding.writeVarString(enc, anon.anonId);
+      encoding.writeVarString(enc, anon.anonName);
+      encoding.writeVarString(enc, anon.token);
+      ws.send(encoding.toUint8Array(enc));
+    }
 
     ws.addEventListener("message", (event: MessageEvent) => this.handleMessage(ws, event.data));
     ws.addEventListener("close", () => this.handleClose(ws));

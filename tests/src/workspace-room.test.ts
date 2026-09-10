@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import * as Y from "yjs";
 import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
@@ -6,7 +6,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { WorkspaceRoom } from "../../src/workspace-room";
 import type { AccessRecord, DocRoom } from "../../src/workspace-room";
-import { encryptSession } from "../../src/auth";
+import { encryptSession, signAnonToken, verifyAnonToken } from "../../src/auth";
 import type { Env } from "../../src/env";
 import { rewriteWikilinkReferences } from "../../src/wikilink-rewrite";
 import { getSuggestionsMap, recordInsertSuggestion, recordDeleteSuggestion, listResolvedSuggestions } from "../../src/suggestions";
@@ -2564,5 +2564,90 @@ describe("GET /access — access-request visibility (CV2-5)", () => {
     expect(body.accessRequests).toBeUndefined();
     expect(body.myAccessRequestPending).toBeUndefined();
     expect(body.owner).toBeNull();
+  });
+});
+
+const MESSAGE_ANON_IDENTITY = 8;
+
+function decodeAnonIdentityFrame(buf: ArrayBuffer): { anonId: string; anonName: string; token: string } | null {
+  const d = decoding.createDecoder(new Uint8Array(buf));
+  if (decoding.readVarUint(d) !== MESSAGE_ANON_IDENTITY) return null;
+  return { anonId: decoding.readVarString(d), anonName: decoding.readVarString(d), token: decoding.readVarString(d) };
+}
+
+describe("WorkspaceRoom anon identity", () => {
+  let serverSends: ArrayBuffer[];
+  const origPair = (globalThis as unknown as { WebSocketPair: unknown }).WebSocketPair;
+
+  beforeEach(() => {
+    serverSends = [];
+    class Rec {
+      accept() {}
+      close() {}
+      addEventListener() {}
+      removeEventListener() {}
+      send(d: ArrayBuffer) {
+        serverSends.push(d);
+      }
+    }
+    (globalThis as unknown as { WebSocketPair: unknown }).WebSocketPair = class {
+      0 = new Rec();
+      1 = new Rec();
+    };
+  });
+  afterEach(() => {
+    (globalThis as unknown as { WebSocketPair: unknown }).WebSocketPair = origPair;
+  });
+
+  async function upgrade(room: WorkspaceRoom, opts: { anon?: string; cookie?: string; query?: string } = {}) {
+    const headers: Record<string, string> = { Upgrade: "websocket" };
+    if (opts.cookie) headers.Cookie = `mde_gh_session=${opts.cookie}`;
+    const q = opts.query ?? (opts.anon !== undefined ? `?anon=${encodeURIComponent(opts.anon)}` : "");
+    await room.fetch(new Request(`https://example.com/api/workspace/ws1${q}`, { headers })).catch(() => {});
+    return [...(room as unknown as { sessions: Map<unknown, any> }).sessions.values()].at(-1)!;
+  }
+
+  it("mints an anonId + anonName and sends a MESSAGE_ANON_IDENTITY frame when no token is presented", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    const session = await upgrade(room);
+    const frame = serverSends.map(decodeAnonIdentityFrame).find((f) => f !== null)!;
+    expect(frame.anonId).toMatch(/^anon:[0-9A-Za-z]{16}$/);
+    expect(frame.anonName).toMatch(/^\w+ \w+$/);
+    expect(await verifyAnonToken(fakeEnvWithSecret, frame.token)).toEqual({ anonId: frame.anonId, anonName: frame.anonName });
+    expect(session.anonId).toBe(frame.anonId);
+    expect(session.anonName).toBe(frame.anonName);
+  });
+
+  it("reuses the identity from a valid token", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    const token = await signAnonToken(fakeEnvWithSecret, { anonId: "anon:keepme0000000000", anonName: "Bold Wren" });
+    const session = await upgrade(room, { anon: token });
+    expect(session.anonId).toBe("anon:keepme0000000000");
+    expect(session.anonName).toBe("Bold Wren");
+  });
+
+  it("re-mints when the token signature is bad", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    const session = await upgrade(room, { anon: "garbage.token" });
+    expect(session.anonId).toMatch(/^anon:/);
+  });
+
+  it("does not mint for a signed-in session", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const session = await upgrade(room, { cookie });
+    expect(session.anonId).toBeUndefined();
+    expect(serverSends.some((b) => decodeAnonIdentityFrame(b) !== null)).toBe(false);
+  });
+
+  it("does not mint for a ?preview=1 socket", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", { owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] });
+    const session = await upgrade(room, { query: "?preview=1" });
+    expect(session.anonId).toBeUndefined();
   });
 });

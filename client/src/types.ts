@@ -333,6 +333,14 @@ export interface MDEBridge {
   // method above lives) is typed/assigned before gist.ts's module code runs.
   publishGist?(): void;
   openGistPicker?(): void;
+  // Google Drive integration — see client/src/drive-files.ts. Same
+  // optional-member pattern as publishGist? above.
+  connectGoogleDrive?: () => void;
+  disconnectGoogleDrive?: () => Promise<void>;
+  importMarkdownFromDrive?: () => Promise<void>;
+  // Chained by drive-files.ts's own `message` listener when the Google
+  // connect popup reports success — gist.ts-style chaining if needed.
+  onGoogleAuthComplete?: () => void;
   // Set by repo-sync-ui.ts at module load, same pattern as the two above.
   openRepoLinkModal?(): void;
   openRepoModal?(): void;

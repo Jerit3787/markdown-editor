@@ -55,6 +55,15 @@ describe("appCsp", () => {
   });
 });
 
+describe("appCsp — Google Drive origins", () => {
+  const csp = appCsp("test-nonce");
+  it("allows the Picker loader and Drive API", () => {
+    expect(csp).toMatch(/script-src [^;]*https:\/\/apis\.google\.com/);
+    expect(csp).toMatch(/connect-src [^;]*https:\/\/www\.googleapis\.com/);
+    expect(csp).toMatch(/frame-src [^;]*https:\/\/docs\.google\.com/);
+  });
+});
+
 describe("legalCsp", () => {
   const nonce = "LEGALNONCElegalnonce9876==";
   const csp = legalCsp(nonce);

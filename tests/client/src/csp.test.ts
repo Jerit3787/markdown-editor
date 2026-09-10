@@ -50,6 +50,10 @@ describe("app Content-Security-Policy (dev <meta> policy)", () => {
     expect(csp).toMatch(/connect-src [^;]*'self'/);
     expect(csp).toContain("https://*.google-analytics.com");
     expect(csp).toContain("frame-src https://challenges.cloudflare.com");
+    // Google Drive: the Picker loader, the Drive REST API, the Picker iframe.
+    expect(csp).toMatch(/script-src [^;]*https:\/\/apis\.google\.com/);
+    expect(csp).toMatch(/connect-src [^;]*https:\/\/www\.googleapis\.com/);
+    expect(csp).toMatch(/frame-src [^;]*https:\/\/docs\.google\.com/);
     expect(csp).toContain("worker-src 'self' blob:");
     expect(csp).toContain("form-action 'self'");
     // `upgrade-insecure-requests` is deliberately absent: WebKit applies it

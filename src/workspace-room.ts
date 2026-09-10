@@ -1224,7 +1224,10 @@ export class WorkspaceRoom {
   broadcastPresence(exceptWs: WebSocket, session: SessionInfo | undefined): void {
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_PRESENCE);
-    encoding.writeVarString(encoder, session?.username || "");
+    // Cross-document "who's viewing what" — the display label, so an
+    // anonymous collaborator shows up as their assigned guest name
+    // instead of being dropped (the client ignores an empty string).
+    encoding.writeVarString(encoder, session?.username || session?.anonName || "");
     encoding.writeVarString(encoder, session?.viewingDocId || "");
     const message = encoding.toUint8Array(encoder);
     for (const ws of this.sessions.keys()) {

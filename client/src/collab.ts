@@ -66,12 +66,14 @@ import { suggestionExtensions } from "./suggestion-editor";
 import { getSuggestionsMap, listResolvedSuggestions } from "./suggestions";
 import { getCommentsMap } from "./comments-doc";
 import { pendingSuggestionCount } from "./stores/suggestions";
+import { collabIdentity } from "./stores/collabIdentity";
+import { githubUsername } from "./stores/github";
 import { lockToPreviewOnly, unlockViewMode } from "./stores/view";
 import { enterCollabRoom, leaveCollabRoom, effectiveMode, collabIsOwner, type Mode, type Role } from "./stores/collabMode";
 import { initModeAnnounce } from "./mode-announce";
 import { track } from "./analytics";
 import { turnstileEnabled, getJoinTicket, clearJoinTicket } from "./turnstile";
-import { COLORS, colorForUsername } from "./user-color";
+import { colorForUsername } from "./user-color";
 // Share links look like /w/<workspaceId>/<docId>/<view|review|edit>
 // (Google-Docs-style), not query params. The mode segment is purely
 // informational for whoever's reading the link — actual access is always
@@ -89,6 +91,7 @@ const MESSAGE_WORKSPACE_META = 3;
 const MESSAGE_WORKSPACE_DELETED = 5;
 const MESSAGE_ACCESS_REQUEST = 6; // [type, username, message] — only the owner acts (a toast)
 const MESSAGE_ACCESS_CHANGED = 7; // [type] — every client re-fetches /access, rejoins if its own role changed
+const MESSAGE_ANON_IDENTITY = 8; // [type, anonId, anonName, token] — sent once to an anon session; persist + set collabIdentity
 
 // CV2-5 — remoteIds this session has already nudged the owner about
 // ("N people waiting for edit access"). Cleared on teardownWorkspace so
@@ -323,6 +326,22 @@ effectiveMode.subscribe((mode) => {
   if (!mode || !workspaceRoom.activeDocId) return;
   const binding = workspaceRoom.docs.get(workspaceRoom.activeDocId);
   if (binding) applyEditorMode(binding, mode);
+});
+
+// A signed-in user's identity is their GitHub username. An anonymous
+// user's arrives asynchronously in the MESSAGE_ANON_IDENTITY frame — when
+// it lands (or a returning visitor's seed differs), rebuild the active
+// editor compartment so the suggestion author + cursor label are right.
+githubUsername.subscribe((u) => {
+  if (u) collabIdentity.set({ id: u, name: u });
+});
+let lastIdentityId = get(collabIdentity).id;
+collabIdentity.subscribe((v) => {
+  if (v.id === lastIdentityId) return;
+  lastIdentityId = v.id;
+  if (!workspaceRoom.activeDocId) return;
+  const binding = workspaceRoom.docs.get(workspaceRoom.activeDocId);
+  if (binding) applyEditorMode(binding, get(effectiveMode) ?? "editing");
 });
 
 // Flash a toast when the collab mode changes, or on first entry to a
@@ -1022,8 +1041,7 @@ function applyEditorMode(binding: DocBinding, mode: Mode): void {
   const viewing = mode === "viewing";
   const undoManager = binding.undoManager || new Y.UndoManager(binding.ytext);
   binding.undoManager = undoManager;
-  const username = window.MDE.githubUsername;
-  const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
+  const identity = localCollabIdentity();
   const extensions = [yCollab(binding.ytext, binding.awareness, { undoManager }), keymap.of(yUndoManagerKeymap)];
   if (!viewing) {
     // suggestionExtensions gates its own pieces: the decoration field
@@ -1032,7 +1050,7 @@ function applyEditorMode(binding: DocBinding, mode: Mode): void {
     // viewerRole "reviewer" — i.e. Suggesting mode, or an editor who
     // chose Suggesting.
     const viewerRole = mode === "suggesting" ? "reviewer" : "editor";
-    extensions.push(...suggestionExtensions(binding.ydoc, identity.name, { viewerRole, viewerName: identity.name }));
+    extensions.push(...suggestionExtensions(binding.ydoc, identity.id, { viewerRole, viewerName: identity.name }));
   }
   // One observer per binding: tell the annotation rail whenever this
   // doc's suggestions change (a local edit, or a remote accept/reject/
@@ -1131,11 +1149,12 @@ async function bindActiveDoc(docId: string): Promise<void> {
   applyEditorMode(binding, get(effectiveMode) ?? "editing");
 
   const username = window.MDE.githubUsername;
-  const identity = username ? { name: username, color: colorForUsername(username) } : getGuestIdentity();
+  const { name: identityName, color: identityColor } = localCollabIdentity();
   // Presence still carries the TRUE role, not the self-selected mode —
   // other collaborators see "Editor" even while this person reads in
-  // Viewing mode.
-  binding.awareness.setLocalState({ user: identity, role: binding.role, username });
+  // Viewing mode. `username` stays the GitHub username (null for a guest);
+  // the guest's label rides in `user.name`.
+  binding.awareness.setLocalState({ user: { name: identityName, color: identityColor }, role: binding.role, username });
   binding.awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
     sendAwareness(docId, binding.awareness, added.concat(updated, removed));
     updatePresence();
@@ -1274,7 +1293,19 @@ function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: s
 function connectWorkspace(): void {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const base = `${proto}//${location.host}/api/workspace/${encodeURIComponent(workspaceRoom.workspaceId!)}`;
-  const url = workspaceRoom.joinTicket ? `${base}?ticket=${encodeURIComponent(workspaceRoom.joinTicket)}` : base;
+  const params = new URLSearchParams();
+  if (workspaceRoom.joinTicket) params.set("ticket", workspaceRoom.joinTicket);
+  if (!window.MDE.githubUsername) {
+    let anonToken = "";
+    try {
+      anonToken = localStorage.getItem("mde_anon_token") ?? "";
+    } catch {
+      /* blocked */
+    }
+    if (anonToken) params.set("anon", anonToken);
+  }
+  const qs = params.toString();
+  const url = qs ? `${base}?${qs}` : base;
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
   workspaceRoom.ws = ws;
@@ -1347,6 +1378,20 @@ function handleServerMessage(data: Uint8Array): void {
     // just defaults to false rather than throwing.
     const repoLinked = decoding.hasContent(decoder) ? decoding.readVarUint(decoder) === 1 : false;
     if (workspaceRoom.workspaceId) applyWorkspaceMeta(workspaceRoom.workspaceId, name, docOrder, repoLinked);
+    return;
+  }
+
+  if (messageType === MESSAGE_ANON_IDENTITY) {
+    const id = decoding.readVarString(decoder);
+    const name = decoding.readVarString(decoder);
+    const token = decoding.readVarString(decoder);
+    try {
+      localStorage.setItem("mde_anon_token", token);
+      localStorage.setItem("mde_anon_identity", JSON.stringify({ id, name }));
+    } catch {
+      /* blocked — we just re-mint next connect */
+    }
+    collabIdentity.set({ id, name });
     return;
   }
 
@@ -1477,23 +1522,16 @@ function send(bytes: Uint8Array) {
 // ---------- User identity ----------
 // Signed-in identity is the GitHub username with a color hashed from it
 // (stable across devices/sessions). A public ("anyone with the link") room
-// doesn't require an account at all, though — anonymous visitors get a
-// random guest name + color instead, generated once per tab and reused for
-// every room they join in that session (not regenerated per-join, so their
-// presence avatar/cursor label stays consistent while they're around).
+// doesn't require an account — an anonymous visitor is assigned a stable
+// "anon:<id>" and a guest name by the server (MESSAGE_ANON_IDENTITY),
+// mirrored into the collabIdentity store. Until that frame lands the store
+// is either the localStorage-seeded value (a returning visitor) or empty.
 
-const GUEST_ADJECTIVES = ["Quiet", "Curious", "Swift", "Gentle", "Bold", "Clever", "Calm", "Bright"];
-const GUEST_ANIMALS = ["Fox", "Owl", "Otter", "Falcon", "Panda", "Lynx", "Heron", "Wren"];
-let guestIdentity: { name: string; color: string } | null = null;
-
-function getGuestIdentity() {
-  if (!guestIdentity) {
-    const adjective = GUEST_ADJECTIVES[Math.floor(Math.random() * GUEST_ADJECTIVES.length)];
-    const animal = GUEST_ANIMALS[Math.floor(Math.random() * GUEST_ANIMALS.length)];
-    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
-    guestIdentity = { name: `${adjective} ${animal}`, color };
-  }
-  return guestIdentity;
+function localCollabIdentity(): { id: string; name: string; color: string } {
+  const username = window.MDE.githubUsername;
+  if (username) return { id: username, name: username, color: colorForUsername(username) };
+  const me = get(collabIdentity);
+  return { id: me.id, name: me.name || "Guest", color: colorForUsername(me.id || "guest") };
 }
 
 // ---------- Server access-control API ----------

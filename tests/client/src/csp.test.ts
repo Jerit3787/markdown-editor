@@ -80,7 +80,11 @@ describe("app Content-Security-Policy (dev <meta> policy)", () => {
     expect(headerValue(headersFile, "X-Content-Type-Options")).toBe("nosniff");
     expect(headerValue(headersFile, "Referrer-Policy")).toBe("strict-origin-when-cross-origin");
     expect(headerValue(headersFile, "Permissions-Policy")).toContain("camera=()");
-    expect(headerValue(headersFile, "Cross-Origin-Opener-Policy")).toBe("same-origin");
+    // same-origin-allow-popups, not same-origin: the GitHub / Google OAuth
+    // popups postMessage their result back to window.opener, which plain
+    // `same-origin` severs the moment the popup navigates to the provider.
+    // The app uses no crossOriginIsolated-gated APIs, so this costs nothing.
+    expect(headerValue(headersFile, "Cross-Origin-Opener-Policy")).toBe("same-origin-allow-popups");
   });
 
   it("_headers applies the rules to every path", () => {

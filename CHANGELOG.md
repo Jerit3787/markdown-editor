@@ -10,6 +10,10 @@ All notable changes to this project are documented here. Format follows
 
 - **Google Drive — Open markdown from Drive.** Connect Google Drive from Settings or File ▸ Open, then pick markdown files from anywhere in your Drive to import them as documents. (Save-to-Drive and full folder sync land in the same release — see the plans.)
 
+### Fixed
+
+- The GitHub and Google Drive sign-in popups now update the app immediately on success instead of only after a page reload — the `Cross-Origin-Opener-Policy` header was severing the popup's link back to the app before it could report the result.
+
 ## [1.64.1] - 2026-09-11
 
 ### Fixed

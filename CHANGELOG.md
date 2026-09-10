@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.64.1] - 2026-09-11
+
+### Fixed
+
+- Removed the topbar "Suggestions" button — it opened nothing (there is no separate suggestions panel; suggestions live in the comments rail). Its pending-suggestion count now folds into the comments button's badge, which counts unresolved comments plus pending suggestions together.
+
 ## [1.64.0] - 2026-09-11
 
 ### Changed

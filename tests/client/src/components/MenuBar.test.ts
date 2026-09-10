@@ -4,6 +4,7 @@ import MenuBar from "../../../../client/src/components/MenuBar.svelte";
 import { docsStore, activeIdStore } from "../../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../../client/src/stores/workspaces";
 import { unresolvedCommentCount } from "../../../../client/src/stores/commentsPanel";
+import { pendingSuggestionCount } from "../../../../client/src/stores/suggestions";
 import { enterCollabRoom, leaveCollabRoom, setChosenMode } from "../../../../client/src/stores/collabMode";
 
 beforeEach(() => {
@@ -19,10 +20,12 @@ beforeEach(() => {
   docsStore.set([{ id: "d1", name: "Doc", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1" }]);
   activeIdStore.set("d1");
   unresolvedCommentCount.set(0);
+  pendingSuggestionCount.set(0);
 });
 
-test("CMT-16: the File-menu Comments entry shows the unresolved-count badge", async () => {
-  unresolvedCommentCount.set(3);
+test("CMT-16: the File-menu Comments entry badges unresolved comments + pending suggestions", async () => {
+  unresolvedCommentCount.set(2);
+  pendingSuggestionCount.set(1);
   const screen = await render(MenuBar);
   const badge = () => screen.container.querySelector("#menuComments .menu-badge");
   await expect.poll(() => badge()?.textContent?.trim()).toBe("3");

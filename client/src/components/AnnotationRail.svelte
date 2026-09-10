@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { get } from "svelte/store";
   import { commentsPanelOpen, unresolvedCommentCount } from "../stores/commentsPanel";
+  import { pendingSuggestionCount } from "../stores/suggestions";
   import { effectiveMode, collabRole } from "../stores/collabMode";
   import { collabIdentity } from "../stores/collabIdentity";
   import { commentDraft } from "../stores/commentDraft";
@@ -63,6 +64,7 @@
     if (!ctx) {
       annotations = [];
       unresolvedCommentCount.set(0);
+      pendingSuggestionCount.set(0);
       if (lastMarkerKey !== "[]") {
         lastMarkerKey = "[]";
         window.MDE.setCommentMarkers?.([]);
@@ -85,6 +87,7 @@
       const freshDoc = getActiveDoc(); // re-read: repo history may have updated doc.notes
       annotations = railAnnotationsForLocal(freshDoc?.notes ?? [], editorContent());
       unresolvedCommentCount.set(0);
+      pendingSuggestionCount.set(0); // a local doc has no suggestions
     }
     loading = false;
     // Editor highlights for comment anchors only — suggestion marks are
@@ -275,10 +278,13 @@
     if (viewing) commentsPanelOpen.set(false);
   });
 
+  // One badge for everything the rail surfaces — unresolved comment
+  // threads plus pending suggestions (the dedicated #suggestionsBtn and
+  // its own badge were removed; that button had no panel to open).
   $effect(() => {
     const badge = document.getElementById("commentsBadge");
     if (!badge) return;
-    const count = $unresolvedCommentCount;
+    const count = $unresolvedCommentCount + $pendingSuggestionCount;
     badge.hidden = count === 0;
     badge.textContent = count > 99 ? "99+" : String(count);
   });

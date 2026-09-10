@@ -138,10 +138,13 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   (SP-B): a suggestion card carries its own `replies` thread
   (`SuggestionEntry.replies`, `comments-doc.ts` `addSuggestionReply`),
   rendered by the same `AnnotationCard` block as a comment thread.
-- **D4** _(needs brainstorm)_ — Granularity. Google Docs splits
-  aggressively on whitespace and produces card spam. Anchor a suggestion
-  to a line/span rather than per-character, without losing independent
-  accept/reject.
+- **D4 — Granularity. Shipped v1.64.0** (spec/plan
+  `2026-09-11-suggestion-line-grouping`). Several small pending
+  suggestions on one source line collapse into one `RailAnnotation` with
+  a `subEdits` row per member (`groupSuggestionCards`, pure — no CRDT /
+  schema / server change); the card carries per-row and whole-group
+  accept / reject. A suggestion with a reply thread stays standalone.
+  Closes the D1–D5 arc.
 - **D5** — The standalone "edit" icon on suggestions is unclear. Fold
   suggestion actions into the comment-thread UI (Google Docs merges
   suggestion + comment into one card). **Visual half shipped v1.61.0**
@@ -198,9 +201,9 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   **v1.62.12**: the server splices each `[[Old]]` occurrence in place now
   (spec `2026-09-10-wikilink-rename-anchor-preservation`).
 
-**Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
-piece — its own brainstorm. D2 overlaps with the "just-inserted delete"
-regression; D4 needs its own granularity decision before a plan.
+**Shape:** the D1–D5 suggesting-mode redesign is complete — D1 (SP-A
+v1.61.0), D2 (v1.60.4), D3 + D5 (SP-B v1.62.0), D4 (v1.64.0), D6
+(v1.50.0).
 
 ### Preview links & wikilinks — shipped v1.51.0
 

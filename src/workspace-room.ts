@@ -271,7 +271,7 @@ export class WorkspaceRoom {
       if (transaction.origin === "suggestion") return; // our own reconciliation write — never re-reconcile it
       const session = this.sessions.get(transaction.origin as WebSocket);
       if (!session || session.role !== "reviewer") return;
-      reconcileReviewerDelta(doc, event.changes.delta, session.username || "Anonymous");
+      reconcileReviewerDelta(doc, event.changes.delta, identityOf(session) ?? "Anonymous");
     });
     // A correctly-behaving reviewer client's own suggestion-map write for
     // an insert ALWAYS arrives as a separate update from the ytext insert
@@ -309,8 +309,8 @@ export class WorkspaceRoom {
       // anchor, is skipped by the origin check below.)
       if (transaction.origin !== "suggestion") {
         const session = this.sessions.get(transaction.origin as WebSocket);
-        if (session && session.role !== "viewer") {
-          const actor = session.username ?? "Anonymous";
+        const actor = identityOf(session);
+        if (session && session.role !== "viewer" && actor) {
           const replyReverts: Array<() => void> = [];
           event.changes.keys.forEach((change, key) => {
             if (change.action === "add") {
@@ -414,7 +414,8 @@ export class WorkspaceRoom {
       // "suggestion"-origin transaction; no live session for that origin, so
       // the guard below bails and the rewrite stands.
       if (!session || session.role === "viewer") return; // isWrite already drops a viewer's write; defensive
-      const actor = session.username ?? "Anonymous";
+      const actor = identityOf(session);
+      if (!actor) return;
       const owner = this.cachedAccess?.owner ?? null;
       const reverts: Array<() => void> = [];
       event.changes.keys.forEach((change, key) => {
@@ -998,7 +999,7 @@ export class WorkspaceRoom {
         // A reviewer's write is allowed to apply (they must be able to
         // type suggestions), but the server then enforces that they only
         // *proposed* changes — see enforceReviewerConstraints (MDE-05/06).
-        const reviewerPre = session?.role === "reviewer" ? this.captureReviewerPreState(docRoom.doc, session.username ?? "Anonymous") : null;
+        const reviewerPre = session?.role === "reviewer" ? this.captureReviewerPreState(docRoom.doc, identityOf(session) ?? "Anonymous") : null;
         // Hold every update this frame produces (the raw delta + the
         // repair below) so peers get them merged into one, never the
         // un-repaired intermediate (MDE-13).

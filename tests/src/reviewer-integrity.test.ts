@@ -288,4 +288,10 @@ describe("isValidNewSuggestionEntry (MDE-15)", () => {
     expect(isValidNewSuggestionEntry({ ...base, kind: "bogus" as unknown as "insert" }, "bob")).toBe(false);
     expect(isValidNewSuggestionEntry({ ...base, from: {} as unknown as SuggestionEntry["from"] }, "bob")).toBe(false);
   });
+
+  it("accepts an entry authored by an anon: id actor, rejects a different anon id", () => {
+    const e = { ...base, author: "anon:abc123" };
+    expect(isValidNewSuggestionEntry(e, "anon:abc123")).toBe(true);
+    expect(isValidNewSuggestionEntry(e, "anon:other0")).toBe(false);
+  });
 });

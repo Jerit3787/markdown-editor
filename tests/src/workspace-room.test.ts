@@ -2651,3 +2651,75 @@ describe("WorkspaceRoom anon identity", () => {
     expect(session.anonId).toBeUndefined();
   });
 });
+
+describe("WorkspaceRoom anon authorship", () => {
+  async function roomWithAnon(role: "reviewer" | "editor", anonId = "anon:abc123", anonName = "Bold Wren") {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(ws, { username: null, anonId, anonName, role, viewingDocId: null });
+    const docRoom = await room.loadDocRoom("doc1");
+    return { room, ws, docRoom };
+  }
+
+  async function applyFrom(room: WorkspaceRoom, ws: WebSocket, docRoom: any, mutate: (client: Y.Doc) => void) {
+    const client = new Y.Doc();
+    Y.applyUpdate(client, Y.encodeStateAsUpdate(docRoom.doc));
+    const before = Y.encodeStateVector(client);
+    mutate(client);
+    await room.handleMessage(ws, encodeSyncUpdate("doc1", Y.encodeStateAsUpdate(client, before)));
+  }
+
+  it("keeps an anon reviewer's suggestion authored with their anonId", async () => {
+    const { room, ws, docRoom } = await roomWithAnon("reviewer");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    await applyFrom(room, ws, docRoom, (c) => {
+      c.getText("content").insert(11, " again");
+      recordInsertSuggestion(c, 11, 17, "anon:abc123", 1);
+    });
+    const list = listResolvedSuggestions(docRoom.doc);
+    expect(list).toHaveLength(1);
+    expect(list[0]!.author).toBe("anon:abc123");
+  });
+
+  it("lets an anon reviewer withdraw (reject) their own pending insert", async () => {
+    const { room, ws, docRoom } = await roomWithAnon("reviewer");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    await applyFrom(room, ws, docRoom, (c) => {
+      c.getText("content").insert(5, " dear");
+      recordInsertSuggestion(c, 5, 10, "anon:abc123", 1);
+    });
+    expect(listResolvedSuggestions(docRoom.doc)).toHaveLength(1);
+    await applyFrom(room, ws, docRoom, (c) => {
+      const sid = listResolvedSuggestions(c)[0]!.id;
+      c.getText("content").delete(5, 5);
+      getSuggestionsMap(c).delete(sid);
+    });
+    expect(docRoom.doc.getText("content").toString()).toBe("hello world");
+    expect(listResolvedSuggestions(docRoom.doc)).toHaveLength(0);
+  });
+
+  it("does not let a different anon reviewer raw-delete the first anon's inserted text", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const wsA = { send: () => {} } as unknown as WebSocket;
+    const wsB = { send: () => {} } as unknown as WebSocket;
+    (room as any).sessions.set(wsA, { username: null, anonId: "anon:aaa0000000000000", anonName: "A", role: "reviewer", viewingDocId: null });
+    (room as any).sessions.set(wsB, { username: null, anonId: "anon:bbb0000000000000", anonName: "B", role: "reviewer", viewingDocId: null });
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "the quick brown fox");
+    await applyFrom(room, wsA, docRoom, (c) => {
+      c.getText("content").insert(9, "X");
+      recordInsertSuggestion(c, 9, 10, "anon:aaa0000000000000", 1);
+    });
+    await applyFrom(room, wsB, docRoom, (c) => c.getText("content").delete(9, 1));
+    expect(docRoom.doc.getText("content").toString().includes("X")).toBe(true);
+  });
+
+  it("keeps an anon editor's comment thread authored with their anonId", async () => {
+    const { room, ws, docRoom } = await roomWithAnon("editor");
+    docRoom.doc.getText("content").insert(0, "hello world");
+    await applyFrom(room, ws, docRoom, (c) => createCommentThread(c, 0, 5, "hello", "anon:abc123", "hi", 1));
+    const list = listResolvedCommentThreads(docRoom.doc);
+    expect(list).toHaveLength(1);
+    expect(list[0]!.author).toBe("anon:abc123");
+  });
+});

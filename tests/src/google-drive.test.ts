@@ -5,7 +5,7 @@ import type { Env } from "../../src/env";
 
 const env = {
   SESSION_SECRET: "test-secret-key-not-real",
-  GOOGLE_CLIENT_ID: "gcid",
+  GOOGLE_CLIENT_ID: "111222333444-abcdef.apps.googleusercontent.com",
   GOOGLE_CLIENT_SECRET: "gcs",
   GOOGLE_API_KEY: "gak",
 } as unknown as Env;
@@ -18,10 +18,10 @@ async function connectedReq(url: string, init?: RequestInit) {
 }
 
 describe("handleDrivePickerToken", () => {
-  it("returns the live token + api key when connected", async () => {
+  it("returns the live token, api key, and the project-number appId when connected", async () => {
     vi.stubGlobal("fetch", vi.fn());
     const res = await handleDrivePickerToken(await connectedReq("https://app/api/auth/google/picker-token"), env);
-    expect(await res.json()).toEqual({ token: "live-token", apiKey: "gak" });
+    expect(await res.json()).toEqual({ token: "live-token", apiKey: "gak", appId: "111222333444" });
   });
   it("401 when not connected", async () => {
     const res = await handleDrivePickerToken(new Request("https://app/api/auth/google/picker-token"), env);

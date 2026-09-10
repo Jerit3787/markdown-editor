@@ -62,7 +62,7 @@ describe("importMarkdownFromDrive", () => {
       "fetch",
       vi.fn(async (url: string) => {
         const u = String(url);
-        if (u.includes("/picker-token")) return new Response(JSON.stringify({ token: "t", apiKey: "k" }), { status: 200 });
+        if (u.includes("/picker-token")) return new Response(JSON.stringify({ token: "t", apiKey: "k", appId: "999" }), { status: 200 });
         if (u.includes("/api/drive/import")) {
           return new Response(
             JSON.stringify({
@@ -82,7 +82,7 @@ describe("importMarkdownFromDrive", () => {
     docsStore.set([]);
     activeIdStore.set(null);
 
-    (mod as any).__setPickerForTest((_t: string, _k: string, onPicked: (f: { id: string; name: string }[]) => void) =>
+    (mod as any).__setPickerForTest((_t: string, _k: string, _appId: string, onPicked: (f: { id: string; name: string }[]) => void) =>
       onPicked([
         { id: "a", name: "Todo.md" },
         { id: "b", name: "Ideas.md" },

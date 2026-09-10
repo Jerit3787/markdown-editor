@@ -69,8 +69,8 @@ async function disconnect(): Promise<void> {
 
 // ---- Picker loading (client-side Google widget) ----
 // Injected so tests can bypass the real Google iframe. Signature:
-// (oauthToken, apiKey, onPicked) => void, where onPicked gets [{id,name}].
-type OpenPicker = (token: string, apiKey: string, onPicked: (files: { id: string; name: string }[]) => void) => void;
+// (oauthToken, apiKey, appId, onPicked) => void, onPicked gets [{id,name}].
+type OpenPicker = (token: string, apiKey: string, appId: string, onPicked: (files: { id: string; name: string }[]) => void) => void;
 let openPickerImpl: OpenPicker | null = null;
 
 /** @internal test seam */
@@ -93,8 +93,8 @@ function loadGapi(): Promise<void> {
   return gapiLoad;
 }
 
-async function openPicker(token: string, apiKey: string, onPicked: (files: { id: string; name: string }[]) => void): Promise<void> {
-  if (openPickerImpl) return openPickerImpl(token, apiKey, onPicked);
+async function openPicker(token: string, apiKey: string, appId: string, onPicked: (files: { id: string; name: string }[]) => void): Promise<void> {
+  if (openPickerImpl) return openPickerImpl(token, apiKey, appId, onPicked);
   await loadGapi();
   const google = (window as any).google;
   const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
@@ -103,10 +103,11 @@ async function openPicker(token: string, apiKey: string, onPicked: (files: { id:
     // loose MIME hint — the import step re-checks each file's name and
     // skips anything that isn't markdown-ish.
     .setMimeTypes("text/markdown,text/plain,text/x-markdown");
-  const picker = new google.picker.PickerBuilder()
-    .setOAuthToken(token)
-    .setDeveloperKey(apiKey)
-    .addView(view)
+  const builder = new google.picker.PickerBuilder().setOAuthToken(token).setDeveloperKey(apiKey).addView(view);
+  // Required for the drive.file scope — without it the files the user
+  // picks are never actually shared with the app and every download 404s.
+  if (appId) builder.setAppId(appId);
+  const picker = builder
     .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
     .setTitle("Choose markdown files to import")
     .setCallback((data: any) => {
@@ -144,9 +145,9 @@ async function importMarkdownFromDrive(): Promise<void> {
     showToast("Google Drive isn't available right now", "error");
     return;
   }
-  const { token, apiKey } = await tokRes.json();
+  const { token, apiKey, appId } = await tokRes.json();
 
-  await openPicker(token, apiKey, async (files) => {
+  await openPicker(token, apiKey, appId ?? "", async (files) => {
     const wanted = files.filter((f) => isMarkdownName(f.name));
     const skipped = files.filter((f) => !isMarkdownName(f.name));
     if (wanted.length === 0) {
@@ -161,7 +162,7 @@ async function importMarkdownFromDrive(): Promise<void> {
         body: JSON.stringify({ fileIds: wanted.map((f) => f.id) }),
       });
       if (!res.ok) throw new Error(`import ${res.status}`);
-      const { results } = (await res.json()) as { results: { name: string; contentBase64: string; ok: boolean }[] };
+      const { results } = (await res.json()) as { results: { name: string; contentBase64: string; ok: boolean; error?: string }[] };
       let imported = 0;
       let unresolvedImages = 0;
       for (const r of results) {
@@ -180,9 +181,10 @@ async function importMarkdownFromDrive(): Promise<void> {
         activeDocContent.set(content);
         imported++;
       }
-      const failed = results.length - results.filter((r) => r.ok).length;
+      const failures = results.filter((r) => !r.ok);
+      const failed = failures.length;
       let msg = `Imported ${imported} file${imported === 1 ? "" : "s"} from Drive`;
-      if (failed) msg += `, ${failed} failed`;
+      if (failed) msg += `, ${failed} failed${failures[0]?.error ? ` (${failures[0].error})` : ""}`;
       if (skipped.length) msg += `; ${skipped.length} non-markdown skipped`;
       if (unresolvedImages) msg += `. ${unresolvedImages} image reference${unresolvedImages === 1 ? "" : "s"} won't resolve`;
       showToast(msg, failed || unresolvedImages ? "info" : "success");

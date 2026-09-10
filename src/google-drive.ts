@@ -35,7 +35,12 @@ export async function handleDrivePickerToken(request: Request, env: Env): Promis
   if (!env.GOOGLE_API_KEY) return new Response("Google Drive is not configured.", { status: 503 });
   const auth = await getGoogleAccessToken(request, env);
   if (!auth) return new Response("Reconnect Google Drive.", { status: 401 });
-  return withCookie(Response.json({ token: auth.token, apiKey: env.GOOGLE_API_KEY }), auth.setCookie);
+  // The Picker MUST be given the Cloud project number via setAppId for
+  // `drive.file`-scoped picks to actually grant the app access to the
+  // chosen files — without it every later files.get returns 404. The
+  // project number is the numeric prefix of the OAuth client id.
+  const appId = (env.GOOGLE_CLIENT_ID ?? "").split("-")[0] ?? "";
+  return withCookie(Response.json({ token: auth.token, apiKey: env.GOOGLE_API_KEY, appId }), auth.setCookie);
 }
 
 export async function handleDriveImport(request: Request, env: Env): Promise<Response> {

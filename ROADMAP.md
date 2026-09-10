@@ -163,7 +163,12 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   guard) in **v1.62.3**, and the reviewer repair diff + broadcast ordering
   (spec/plan `2026-09-10-reviewer-repair-diff-and-broadcast`) in
   **v1.62.4** — MDE-12 (Myers-aligned repair, no whole-middle re-insert)
-  and MDE-13 (raw delta + repair delivered as one merged frame).
+  and MDE-13 (raw delta + repair delivered as one merged frame). The last
+  rough edge of the revert model — a comment / suggestion anchor
+  collapsing when a reverted delete re-inserts text under new item IDs —
+  is closed by server-side anchor rebinding in committed-text coordinates
+  (spec/plan `2026-09-10-reviewer-delete-anchor-rebinding`), **shipped
+  v1.62.5**.
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"
@@ -446,12 +451,15 @@ turn out to matter later.
       suggestion resolution (accept / reject / withdraw) off the CRDT onto
       an RPC endpoint
 - [ ] Reviewer repair diff + broadcast (v1.62.4, MDE-12/13) non-goals:
-      preventing the Yjs relative-position anchor collapse on a reviewer
-      delete (needs validate-before-apply — a reviewer-sync-path rewrite;
-      quote re-anchoring stays the mitigation); emitting a tight suggestion
-      diff for a huge reviewer block replace instead of restoring the whole
-      committed middle (D4 / SP-C granularity work); deferring broadcast for
-      any non-reviewer write
+      emitting a tight suggestion diff for a huge reviewer block replace
+      instead of restoring the whole committed middle (D4 / SP-C
+      granularity work); deferring broadcast for any non-reviewer write
+- [ ] Reviewer-delete anchor rebinding (v1.62.5) non-goals: adding a
+      `quote` field to `SuggestionEntry` (the index rebind makes it
+      unnecessary; would only help read-time recovery on a version
+      restore); client-side hardening of `suggestionTransactionFilter` so
+      fewer raw deletes escape a buggy client; retroactively rebinding
+      anchors already collapsed on disk by a pre-v1.62.5 delete
 - [ ] Diagram export: additional formats/options beyond SVG + PNG — JPG/WebP,
       scale factor, padding, transparent-background toggle (explicitly out
       of scope for the export feature shipped in v1.3.0)

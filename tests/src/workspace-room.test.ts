@@ -753,6 +753,66 @@ describe("WorkspaceRoom DELETE /api/workspace/:id (owner revoke)", () => {
     await room.maybeSnapshot("docA", docRoom, Date.now());
     expect(await room.state.storage.get("doc:docA:snapshots")).toBeUndefined();
   });
+
+  it("forceSnapshot bails on a deleted workspace and the restore handler 410s (MDE-18)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", OWNER_ACCESS);
+    const docRoom = await room.loadDocRoom("docA");
+    docRoom.doc.getText("content").insert(0, "v1 content");
+    const first = await room.forceSnapshot("docA", docRoom, "v1 content", 1000, "alice");
+    expect(first).not.toBeNull();
+
+    await room.fetch(await deleteRequest("alice"));
+    expect(await room.state.storage.get("doc:docA:snapshots")).toBeUndefined();
+
+    // A forceSnapshot() from a restore request that was in flight during DELETE.
+    expect(await room.forceSnapshot("docA", docRoom, "v2 content", 2000, "alice")).toBeNull();
+    expect(await room.state.storage.get("doc:docA:snapshots")).toBeUndefined();
+
+    // And the HTTP restore path returns 410 rather than a bogus 200.
+    const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
+    const restore = new Request("https://example.com/w/ws1/docs/docA/versions/restore-content", {
+      method: "POST",
+      headers: { Cookie: `mde_gh_session=${cookie}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "resurrected" }),
+    });
+    expect((await room.fetch(restore)).status).toBe(410);
+  });
+
+  it("a session-less socket's write frame is rejected, not applied (MDE-17)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const docRoom = await room.loadDocRoom("doc1");
+    docRoom.doc.getText("content").insert(0, "committed");
+
+    let closeCode: number | undefined;
+    const orphanWs = { send: () => {}, close: (c: number) => (closeCode = c) } as unknown as WebSocket;
+    // orphanWs is NOT in room.sessions — e.g. reconcileSessionRoles just dropped it.
+
+    const scratch = new Y.Doc();
+    Y.applyUpdate(scratch, Y.encodeStateAsUpdate(docRoom.doc));
+    scratch.getText("content").delete(0, 9);
+    await room.handleMessage(orphanWs, encodeSyncUpdate("doc1", Y.encodeStateAsUpdate(scratch, Y.encodeStateVector(docRoom.doc))));
+
+    expect(docRoom.doc.getText("content").toString()).toBe("committed"); // untouched
+    expect(closeCode).toBe(4401);
+  });
+
+  it("re-checks the tombstone before accepting a websocket (handshake TOCTOU, MDE-19)", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    await room.state.storage.put("access", OWNER_ACCESS);
+    // Simulate DELETE landing during the handshake's authorize() await.
+    const realAuthorize = room.authorize.bind(room);
+    (room as unknown as { authorize: (r: Request) => Promise<unknown> }).authorize = async (r: Request) => {
+      const out = await realAuthorize(r);
+      (room as unknown as { deleted: boolean }).deleted = true;
+      return out;
+    };
+
+    const res = await room.fetch(new Request("https://example.com/api/workspace/ws1", { headers: { Upgrade: "websocket" } })).catch((e) => e as Error);
+
+    expect((res as Response).status).toBe(410);
+    expect(room.sessions.size).toBe(0);
+  });
 });
 
 const SNAPSHOT_INTERVAL_MS = 30 * 1000;
@@ -815,7 +875,7 @@ describe("WorkspaceRoom version snapshots", () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     const docRoom = await room.loadDocRoom("docA");
     docRoom.doc.transact(() => docRoom.doc.getMap<string>("images").set("img-2", "data:image/png;base64,eHk="), "storage");
-    const created = await room.forceSnapshot("docA", docRoom, "forced content", 2000);
+    const created = (await room.forceSnapshot("docA", docRoom, "forced content", 2000))!;
     expect(created.images).toEqual({ "img-2": "data:image/png;base64,eHk=" });
   });
 
@@ -934,7 +994,7 @@ describe("Snapshot authorship", () => {
   it("forceSnapshot records the given author", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnv);
     const docRoom = await room.loadDocRoom("d1");
-    const snap = await room.forceSnapshot("d1", docRoom, "restored", 2000, "carol");
+    const snap = (await room.forceSnapshot("d1", docRoom, "restored", 2000, "carol"))!;
     expect(snap.authors).toEqual(["carol"]);
   });
 
@@ -965,7 +1025,7 @@ describe("WorkspaceRoom.handleVersionRestoreRequest — images", () => {
       docRoom.doc.getText("content").insert(0, "old content");
       docRoom.doc.getMap<string>("images").set("img-current-only", "data:image/png;base64,Y3Vycg==");
     }, "storage");
-    const oldSnap = await room.forceSnapshot("docA", docRoom, "old content", 1000);
+    const oldSnap = (await room.forceSnapshot("docA", docRoom, "old content", 1000))!;
     // oldSnap captured "img-current-only" too (same doc state) -- overwrite
     // the doc's images to something ELSE before restoring, so the test can
     // tell "replaced back to the snapshot's" apart from "left untouched".
@@ -990,7 +1050,7 @@ describe("WorkspaceRoom.handleVersionRestoreRequest — images", () => {
     await room.state.storage.put("access", { owner: "alice", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
     const docRoom = await room.loadDocRoom("docA");
     docRoom.doc.transact(() => docRoom.doc.getText("content").insert(0, "no images here"), "storage");
-    const snapNoImages = await room.forceSnapshot("docA", docRoom, "no images here", 1000);
+    const snapNoImages = (await room.forceSnapshot("docA", docRoom, "no images here", 1000))!;
     docRoom.doc.transact(() => docRoom.doc.getMap<string>("images").set("img-x", "data:image/png;base64,eA=="), "local");
 
     const cookie = await encryptSession(fakeEnvWithSecret, { token: "gh-token", username: "alice" });
@@ -2237,22 +2297,30 @@ describe("WorkspaceRoom POST /access-request (CV2-5, requester)", () => {
     return new Request("https://x/api/workspace/w1/access-request", { method: "POST", headers, body: JSON.stringify(body) });
   }
 
-  it("a viewer's request is stored and broadcast as MESSAGE_ACCESS_REQUEST", async () => {
+  it("a viewer's request is stored and sent as MESSAGE_ACCESS_REQUEST to the owner's socket only (MDE-20)", async () => {
     const r = await roomWithRole("viewer");
-    const sent: ArrayBuffer[] = [];
-    const ws = { send: (m: ArrayBuffer) => sent.push(m), accept() {}, addEventListener() {} } as unknown as WebSocket;
-    r.handleSession(ws, "alice", "editor");
-    sent.length = 0;
+    const ownerSent: ArrayBuffer[] = [];
+    const peerSent: ArrayBuffer[] = [];
+    const ownerWs = { send: (m: ArrayBuffer) => ownerSent.push(m), accept() {}, addEventListener() {} } as unknown as WebSocket;
+    const peerWs = { send: (m: ArrayBuffer) => peerSent.push(m), accept() {}, addEventListener() {} } as unknown as WebSocket;
+    r.handleSession(ownerWs, "alice", "editor"); // alice is the owner
+    r.handleSession(peerWs, null, "viewer"); // an anonymous eavesdropper
+    ownerSent.length = 0;
+    peerSent.length = 0;
     const cookie = await encryptSession(fakeEnvWithSecret, { token: "t", username: "bob" });
     const res = await r.fetch(submitReq(cookie, { message: "  need to fix a typo  " }));
     expect(res.status).toBe(200);
     const list = await r.getAccessRequests();
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ username: "bob", message: "need to fix a typo" });
-    const d = decoding.createDecoder(new Uint8Array(sent.at(-1)!));
+
+    // The owner got the frame …
+    const d = decoding.createDecoder(new Uint8Array(ownerSent.at(-1)!));
     expect(decoding.readVarUint(d)).toBe(6);
     expect(decoding.readVarString(d)).toBe("bob");
     expect(decoding.readVarString(d)).toBe("need to fix a typo");
+    // … the anonymous peer got nothing — no username / note on the wire.
+    expect(peerSent.some((b) => decoding.readVarUint(decoding.createDecoder(new Uint8Array(b))) === 6)).toBe(false);
   });
 
   it("re-requesting replaces the prior entry", async () => {

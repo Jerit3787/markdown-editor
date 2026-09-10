@@ -501,6 +501,12 @@ export class WorkspaceRoom {
     const isPreview = url.searchParams.get("preview") === "1";
     const effectiveRole: Role = isPreview ? "viewer" : freshRole;
 
+    // Re-check the tombstone: the entry check at the top of fetch() ran
+    // before authorize() / requireJoinTicket() / getAccess() yielded, and
+    // DELETE /workspace can land in that window — accepting the socket now
+    // would put a live connection on a wiped room (MDE-19).
+    if (this.deleted) return new Response("This workspace has been deleted.", { status: 410 });
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
@@ -747,16 +753,30 @@ export class WorkspaceRoom {
     }
     const message = (typeof body.message === "string" ? body.message : "").trim().slice(0, 500);
 
+    const access = await this.getAccess();
     const requests = await this.getAccessRequests();
     const next = requests.filter((r) => r.username !== auth.username);
     next.push({ username: auth.username, message, createdAt: Date.now() });
     await this.state.storage.put("accessRequests", next);
 
+    // Only the owner's own live socket(s) get the requester's username and
+    // note — a plain broadcast(null) put both on the wire for every peer,
+    // including anonymous viewers, even though the client only shows the
+    // toast to the owner (MDE-20). GET /access already redacts the pending
+    // list for non-owners; this closes the same leak on the live channel.
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_ACCESS_REQUEST);
     encoding.writeVarString(encoder, auth.username);
     encoding.writeVarString(encoder, message);
-    this.broadcast(encoding.toUint8Array(encoder), null);
+    const frame = encoding.toUint8Array(encoder);
+    for (const [ws, session] of this.sessions) {
+      if (!access.owner || session.username !== access.owner) continue;
+      try {
+        ws.send(frame);
+      } catch {
+        this.sessions.delete(ws);
+      }
+    }
 
     return Response.json({ ok: true });
   }
@@ -889,12 +909,26 @@ export class WorkspaceRoom {
   async handleMessage(ws: WebSocket, data: unknown): Promise<void> {
     if (typeof data === "string") return;
     const session = this.sessions.get(ws);
+    // No session means this socket was dropped from `this.sessions` (an
+    // access revocation closed it via reconcileSessionRoles) but a frame
+    // it had already buffered still reached us before teardown finished.
+    // Without this guard the write gate below (`isWrite && session && …`)
+    // reads as falsy and the raw delta applies unconstrained — a revoked
+    // collaborator racing the close could still deface the doc (MDE-17).
+    if (!session) {
+      try {
+        ws.close(4401, "Unauthorized");
+      } catch {
+        /* already closing */
+      }
+      return;
+    }
     const decoder = decoding.createDecoder(new Uint8Array(data as ArrayBuffer));
     const messageType = decoding.readVarUint(decoder);
 
     if (messageType === MESSAGE_PRESENCE) {
       const viewingDocId = decoding.readVarString(decoder);
-      if (session) session.viewingDocId = viewingDocId || null;
+      session.viewingDocId = viewingDocId || null;
       this.broadcastPresence(ws, session);
       return;
     }
@@ -907,7 +941,7 @@ export class WorkspaceRoom {
       decoder.pos = savedPos;
 
       const isWrite = syncType === SYNC_STEP2 || syncType === SYNC_UPDATE;
-      if (isWrite && session && session.role === "viewer") return; // read-only: drop silently
+      if (isWrite && session.role === "viewer") return; // read-only: drop silently
       // A reviewer's write is now allowed to apply (both ytext and the
       // suggestions map need to sync — a reviewer must be able to
       // actually type); loadDocRoom's ytext.observe hook independently
@@ -1286,8 +1320,15 @@ export class WorkspaceRoom {
     docRoom.pendingAuthors.clear();
   }
 
-  async forceSnapshot(docId: string, docRoom: DocRoom, content: string, now: number = Date.now(), author?: string): Promise<Snapshot> {
+  // Returns null when the workspace was deleted (before or during the
+  // getSnapshots yield) — the version-restore handlers turn that into a
+  // 410. Without the guard an in-flight restore racing DELETE /workspace
+  // would write doc:*:snapshots back into wiped storage (MDE-18, same
+  // class as MDE-14's maybeSnapshot guards).
+  async forceSnapshot(docId: string, docRoom: DocRoom, content: string, now: number = Date.now(), author?: string): Promise<Snapshot | null> {
+    if (this.deleted) return null;
     const snapshots = await this.getSnapshots(docId);
+    if (this.deleted) return null;
     const snap: Snapshot = { id: uid(), timestamp: now, content, images: this.imagesFromDoc(docRoom), authors: author ? [author] : undefined };
     snapshots.push(snap);
     while (snapshots.length > 50) snapshots.shift();
@@ -1337,6 +1378,7 @@ export class WorkspaceRoom {
       }
     }, "restore");
     const created = await this.forceSnapshot(docId, docRoom, snap.content, Date.now(), auth.username ?? undefined);
+    if (!created) return new Response("This workspace has been deleted.", { status: 410 });
     return Response.json(created);
   }
 
@@ -1365,6 +1407,7 @@ export class WorkspaceRoom {
       text.insert(0, content);
     }, "restore");
     const created = await this.forceSnapshot(docId, docRoom, content, Date.now(), auth.username ?? undefined);
+    if (!created) return new Response("This workspace has been deleted.", { status: 410 });
     return Response.json(created);
   }
 

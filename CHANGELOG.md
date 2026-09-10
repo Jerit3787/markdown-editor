@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.6] - 2026-09-10
+
+### Fixed
+
+- More collaboration-layer security hardening from a follow-up external audit:
+  - A collaborator whose access was just revoked can no longer land a last write on the shared document by racing the connection close — a frame from a socket the server no longer recognises is dropped.
+  - Restoring a version can no longer write document history back into storage moments after the workspace was deleted.
+  - A WebSocket that finishes connecting just after the workspace is deleted is now turned away instead of joining a dead room.
+  - A "request edit access" note and the requester's name are now sent only to the owner's own session, not broadcast to every connected collaborator.
+
 ## [1.62.5] - 2026-09-10
 
 ### Fixed

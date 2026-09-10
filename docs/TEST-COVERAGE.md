@@ -54,12 +54,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
-| 10. Workspace collab               |      67 |       0 |    0 |    67 |
+| 10. Workspace collab               |      70 |       0 |    0 |    70 |
 | 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **337** |  **0** |  **0** | **337** |
+| **Total**                          | **340** |  **0** |  **0** | **340** |
 
 **Every enumerated scenario now has a test asserting its outcome —
 314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
@@ -435,6 +435,9 @@ _Source: `client/src/collab.ts`, `src/workspace-room.ts`, `src/collab-room.ts`, 
 | SEC-18 | `forceSnapshot` returns `null` on `this.deleted` (entry + after the `getSnapshots` yield); the version-restore handlers 410 instead of resurrecting `doc:*:snapshots` into wiped storage (MDE-18, same class as SEC-13) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
 | SEC-19 | The WS-upgrade `fetch` re-checks `this.deleted` after `authorize()` / `requireJoinTicket()` / `getAccess()` and before `new WebSocketPair()` — a DELETE landing mid-handshake → 410, no live socket on a wiped room (MDE-19) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
 | SEC-20 | `MESSAGE_ACCESS_REQUEST` (requester username + note) is sent only to the owner's own session(s), not `broadcast(null)` — an anonymous peer on a public workspace receives nothing (MDE-20) | integration | covered | `tests/src/workspace-room.test.ts` | v1.62.6 · external audit run-4 |
+| SEC-21 | `CollabRoom.handleMessage` drops (and 4401-closes) a frame from a socket not in `this.sessions` — legacy-room parity for the MDE-17 fix (MDE-21) | integration | covered | `tests/src/collab-room.test.ts` | v1.62.7 · external audit run-5 |
+| SEC-22 | Once a legacy `CollabRoom` has a `migratedTo` tombstone, `fetch` 410s every path except `POST /migrate` (discovery) and `handleMigrateRequest` closes every live socket; the tombstone is warmed from storage on a cold start (MDE-22) | integration | covered | `tests/src/collab-room.test.ts` | v1.62.7 · external audit run-5 |
+| SEC-23 | `CollabRoom` `PUT /access` reconciles live session roles (`reconcileSessionRoles`) — a downgrade updates `session.role`, a full revocation 4403-closes the socket — legacy-room parity for the MDE-02 fix (MDE-23) | integration | covered | `tests/src/collab-room.test.ts` | v1.62.7 · external audit run-5 |
 
 ## 11. GitHub auth & Gist
 

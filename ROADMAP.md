@@ -173,7 +173,14 @@ plan `.../plans/2026-09-10-annotation-model-unification.md`), **SP-C**
   fixes, no spec): `handleMessage` drops a frame from an unknown socket;
   `forceSnapshot` bails on a deleted workspace; the WS handshake
   re-checks the tombstone before accepting; `MESSAGE_ACCESS_REQUEST` goes
-  to the owner's socket only.
+  to the owner's socket only. A run-5 audit found the same class of gaps
+  in the **legacy `CollabRoom`** (never given the WorkspaceRoom fixes) —
+  MDE-21/22/23 closed in **v1.62.7** (session guard; a migrated room 410s
+  everything but `/migrate` and drops live sockets; `PUT /access`
+  reconciles roles). **Follow-up:** reduce `CollabRoom` to a
+  migration-only shim (strip live collab + the HTTP comment/version
+  endpoints entirely, not just gate them) so future audits stop finding
+  parity gaps in it — its own small plan.
 
 **Shape:** D1–D5 are a separate suggesting-mode redesign, the largest
 piece — its own brainstorm. D2 overlaps with the "just-inserted delete"

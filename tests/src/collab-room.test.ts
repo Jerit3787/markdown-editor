@@ -705,6 +705,53 @@ describe("CollabRoom.handleMessage — read-only enforcement", () => {
 
     expect(room.doc.getText("content").toString()).toBe("hello");
   });
+
+  it("drops (and 4401-closes) a write from a socket with no session (MDE-21)", () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "injected");
+    const update = Y.encodeStateAsUpdate(scratch);
+
+    let closeCode: number | undefined;
+    const orphanWs = { close: (c: number) => (closeCode = c) } as unknown as WebSocket;
+    // orphanWs is NOT in room.sessions — evicted by a broadcast failure, say.
+
+    room.handleMessage(orphanWs, syncUpdateMessage(update));
+
+    expect(room.doc.getText("content").toString()).toBe(""); // untouched
+    expect(closeCode).toBe(4401);
+  });
+});
+
+describe("CollabRoom.reconcileSessionRoles (MDE-23)", () => {
+  it("PUT /access downgrades a live editor and closes a fully-revoked socket", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", {
+      generalAccess: "anyone",
+      requireAccount: false,
+      role: "editor",
+      invited: [{ username: "bob", role: "editor" }],
+    });
+
+    let bobClosed: [number, string] | undefined;
+    const bobWs = { close: (c: number, r: string) => (bobClosed = [c, r]) } as unknown as WebSocket;
+    let anonClosed: [number, string] | undefined;
+    const anonWs = { close: (c: number, r: string) => (anonClosed = [c, r]) } as unknown as WebSocket;
+    room.sessions.set(bobWs, { username: "bob", role: "editor", awarenessIds: new Set() });
+    room.sessions.set(anonWs, { username: null, role: "editor", awarenessIds: new Set() });
+
+    // Close the public link entirely and drop bob to reviewer.
+    await putAccess(room, "alice", {
+      generalAccess: "restricted",
+      role: "viewer",
+      invited: [{ username: "bob", role: "reviewer" }],
+    });
+
+    expect(room.sessions.get(bobWs)?.role).toBe("reviewer");
+    expect(room.sessions.has(anonWs)).toBe(false); // no anon role left → socket closed
+    expect(anonClosed).toEqual([4403, "Access revoked"]);
+    expect(bobClosed).toBeUndefined();
+  });
 });
 
 describe("CollabRoom.handleMigrateRequest", () => {
@@ -801,5 +848,54 @@ describe("CollabRoom.handleMigrateRequest", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { workspaceId: string };
     expect(body.workspaceId).toBe("ws-existing");
+  });
+
+  it("410s every request except /migrate once migrated, and closes live sessions (MDE-22)", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", { generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] });
+    room.doc.transact(() => room.doc.getText("content").insert(0, "legacy"), "storage");
+    room.env = {
+      ...fakeEnv,
+      WORKSPACE_ROOM: {
+        idFromName: (name: string) => name,
+        get: () => ({ fetch: async () => new Response(null, { status: 204 }) }),
+      },
+    } as unknown as Env;
+
+    let closed: string | undefined;
+    const liveWs = { close: (_c: number, r: string) => (closed = r) } as unknown as WebSocket;
+    room.sessions.set(liveWs, { username: "alice", role: "editor", awarenessIds: new Set() });
+
+    const mig = await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
+    const { workspaceId } = (await mig.json()) as { workspaceId: string };
+
+    expect(closed).toBe("Migrated to a workspace");
+    expect(room.sessions.size).toBe(0);
+
+    // /migrate still answers (discovery)
+    const again = await room.fetch(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
+    expect(again.status).toBe(200);
+    expect(((await again.json()) as { workspaceId: string }).workspaceId).toBe(workspaceId);
+
+    // everything else is gone
+    for (const path of ["/room1/access", "/room1/versions", "/room1/comments"]) {
+      const res = await room.fetch(await authedRequest("alice", path, { method: "GET" }));
+      expect(res.status).toBe(410);
+    }
+    const wsRes = await room.fetch(new Request("https://example.com/room1", { headers: { Upgrade: "websocket" } }));
+    expect(wsRes.status).toBe(410);
+  });
+
+  it("410s a room that was already migrated in a previous instance (tombstone warmed from storage)", async () => {
+    const state = fakeState();
+    const room1 = new CollabRoom(state, fakeEnv);
+    await room1.state.storage.put("migratedTo", "ws-prev");
+
+    const room2 = new CollabRoom(state, fakeEnv);
+    await new Promise((r) => setTimeout(r, 0)); // let the constructor's blockConcurrencyWhile drain
+    const res = await room2.fetch(new Request("https://example.com/room1", { headers: { Upgrade: "websocket" } }));
+    expect(res.status).toBe(410);
+    const disc = await room2.fetch(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
+    expect(((await disc.json()) as { workspaceId: string }).workspaceId).toBe("ws-prev");
   });
 });

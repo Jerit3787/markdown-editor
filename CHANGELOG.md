@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.3] - 2026-09-10
+
+### Fixed
+
+- More collaboration-layer security hardening from a follow-up external audit:
+  - A read-only pre-join preview connection stays read-only for its whole life. It could previously be promoted to editor on a public "anyone can edit" link the next time the owner changed access settings.
+  - A collaborator can no longer plant a suggestion attributed to someone else, or pre-fill one with a fake approval discussion — the server now checks a new suggestion the same way it already checked edits to an existing one.
+  - A WebSocket connection's permissions are re-checked against the current access settings at the moment it connects, closing a small window where an access change mid-handshake wouldn't apply.
+  - Deleting a shared workspace can no longer have a version snapshot written back to storage moments later.
+
 ## [1.62.2] - 2026-09-10
 
 ### Fixed

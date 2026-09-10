@@ -121,9 +121,12 @@ Local (never-shared) documents keep plain single-body notes in
   pass (`csp.ts`) and set as a response header, so the policy needs no
   `'unsafe-inline'` and Cloudflare's edge-injected scripts still run.
 - **Collaboration** — role is resolved once server-side (`authorize()` /
-  `access-role.ts`); every `Y.Doc` write is gated (`isWrite`), a
-  reviewer's is further constrained to proposals, and an access change
-  re-resolves live sessions immediately (downgrade or 4403 close).
+  `access-role.ts`), re-checked at the moment the socket connects, and an
+  access change re-resolves live sessions immediately (downgrade or 4403
+  close) — except a `?preview=1` pre-join socket, which stays pinned to
+  `viewer` for its whole life. Every `Y.Doc` write is gated (`isWrite`); a
+  reviewer's is further constrained to proposals, and a new `suggestions`
+  entry is validated the same way an edit to one is.
 - **Rendering sinks** — DOMPurify (MathML allowlist), KaTeX
   `trust: false`, Mermaid `securityLevel: "strict"`.
 - Anonymous "anyone with link" joins can be gated behind a Cloudflare

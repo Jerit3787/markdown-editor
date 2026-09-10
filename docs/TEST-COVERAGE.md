@@ -54,12 +54,12 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
-| 10. Workspace collab               |      70 |       0 |    0 |    70 |
+| 10. Workspace collab               |      67 |       0 |    0 |    67 |
 | 11. GitHub auth & Gist             |      23 |       0 |    0 |    23 |
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **340** |  **0** |  **0** | **340** |
+| **Total**                          | **337** |  **0** |  **0** | **337** |
 
 **Every enumerated scenario now has a test asserting its outcome —
 314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2

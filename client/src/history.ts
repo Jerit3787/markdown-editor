@@ -2,8 +2,8 @@
 // database, since localStorage (used for the docs array itself) is both
 // synchronous and shares one small quota across every doc, image, and
 // diagram already. Shared documents' history instead lives server-side in
-// CollabRoom's own Durable Object storage (see src/collab-room.ts) and is
-// fetched via the functions in the second half of this file — once a
+// the workspace's Durable Object storage (see src/workspace-room.ts) and
+// is fetched via the functions in the second half of this file — once a
 // document is shared, the Durable Object is the sole owner of its
 // history; app.ts only calls the functions in this first half for
 // documents that have never been shared.

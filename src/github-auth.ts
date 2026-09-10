@@ -1,4 +1,4 @@
-import { SESSION_COOKIE, STATE_COOKIE, encryptSession, decryptSession, getCookie, cookieHeader } from "./auth.js";
+import { SESSION_COOKIE, STATE_COOKIE, encryptSession, decryptSession, getCookie, cookieHeader, popupHtml, popupResponse } from "./auth.js";
 import type { Env, SessionData } from "./env";
 
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
@@ -49,7 +49,7 @@ export async function handleCallback(request: Request, env: Env): Promise<Respon
   const expectedState = getCookie(request, STATE_COOKIE);
 
   if (!code || !state || state !== expectedState) {
-    return popupResponse(false, "Invalid state.");
+    return popupResponse("github", false, "Invalid state.");
   }
 
   const tokenRes = await fetch(TOKEN_URL, {
@@ -65,20 +65,20 @@ export async function handleCallback(request: Request, env: Env): Promise<Respon
   const tokenData = await safeJson<TokenResponse>(tokenRes);
   if (!tokenData || !tokenData.access_token) {
     const detail = (tokenData && (tokenData.error_description || tokenData.error)) || `HTTP ${tokenRes.status}`;
-    return popupResponse(false, detail);
+    return popupResponse("github", false, detail);
   }
 
   const userRes = await fetch(`${API}/user`, { headers: ghHeaders(tokenData.access_token) });
   const userData = await safeJson<GitHubUser>(userRes);
   if (!userData || !userData.login) {
-    return popupResponse(false, "Could not read GitHub profile.");
+    return popupResponse("github", false, "Could not read GitHub profile.");
   }
 
   const session = await encryptSession(env, { token: tokenData.access_token, username: userData.login });
   const headers = new Headers({ "Content-Type": "text/html; charset=utf-8" });
   headers.append("Set-Cookie", cookieHeader(SESSION_COOKIE, session, { maxAge: 60 * 60 * 24 * 30 }));
   headers.append("Set-Cookie", cookieHeader(STATE_COOKIE, "", { maxAge: 0 }));
-  return new Response(popupHtml(true, null), { headers });
+  return new Response(popupHtml("github", true, null), { headers });
 }
 
 export async function handleLogout(request: Request, env: Env): Promise<Response> {
@@ -113,41 +113,6 @@ export async function handleLogout(request: Request, env: Env): Promise<Response
   }
   headers.set("Location", "/");
   return new Response(null, { status: 302, headers });
-}
-
-// The login/callback round trip happens in a popup window (see
-// window.MDE.openGithubSignIn in app.js), not a full-page redirect — this
-// is what the popup's final page renders. It hands the result back to the
-// opener via postMessage and closes itself: success closes immediately,
-// failure shows the reason for a couple seconds first so it's not just a
-// window vanishing with no explanation.
-function popupHtml(ok: boolean, message: string | null): string {
-  // JSON.stringify escapes quotes and backslashes but leaves "<" and "/"
-  // alone, so a message containing "</script>" would close this inline
-  // script early and land as live markup on the app's own origin. The
-  // message comes from GitHub's token endpoint rather than directly from a
-  // request param, but "upstream text is safe to inline" isn't a property
-  // worth depending on — escape the three characters that can start a tag
-  // boundary instead.
-  const payload = JSON.stringify({ type: "mde-github-auth", ok, message: message || null })
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/&/g, "\\u0026");
-  const body = ok ? "Signed in — this window will close automatically." : `Sign-in failed: ${escapeHtml(message || "unknown error")}`;
-  const closeDelay = ok ? 0 : 2500;
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>GitHub sign-in</title></head><body style="font:14px system-ui;padding:24px;color:${ok ? "#333" : "#c0392b"}">${body}<script>
-    if (window.opener) window.opener.postMessage(${payload}, window.location.origin);
-    setTimeout(function () { window.close(); }, ${closeDelay});
-  </script></body></html>`;
-}
-
-function popupResponse(ok: boolean, message: string): Response {
-  return new Response(popupHtml(ok, message), { status: ok ? 200 : 400, headers: { "Content-Type": "text/html; charset=utf-8" } });
-}
-
-function escapeHtml(str: string): string {
-  const map: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-  return String(str).replace(/[&<>"']/g, (c) => map[c] as string);
 }
 
 export async function handleMe(request: Request, env: Env): Promise<Response> {

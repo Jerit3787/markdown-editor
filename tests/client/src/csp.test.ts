@@ -50,6 +50,10 @@ describe("app Content-Security-Policy (dev <meta> policy)", () => {
     expect(csp).toMatch(/connect-src [^;]*'self'/);
     expect(csp).toContain("https://*.google-analytics.com");
     expect(csp).toContain("frame-src https://challenges.cloudflare.com");
+    // Google Drive: the Picker loader, the Drive REST API, the Picker iframe.
+    expect(csp).toMatch(/script-src [^;]*https:\/\/apis\.google\.com/);
+    expect(csp).toMatch(/connect-src [^;]*https:\/\/www\.googleapis\.com/);
+    expect(csp).toMatch(/frame-src [^;]*https:\/\/docs\.google\.com/);
     expect(csp).toContain("worker-src 'self' blob:");
     expect(csp).toContain("form-action 'self'");
     // `upgrade-insecure-requests` is deliberately absent: WebKit applies it
@@ -76,7 +80,11 @@ describe("app Content-Security-Policy (dev <meta> policy)", () => {
     expect(headerValue(headersFile, "X-Content-Type-Options")).toBe("nosniff");
     expect(headerValue(headersFile, "Referrer-Policy")).toBe("strict-origin-when-cross-origin");
     expect(headerValue(headersFile, "Permissions-Policy")).toContain("camera=()");
-    expect(headerValue(headersFile, "Cross-Origin-Opener-Policy")).toBe("same-origin");
+    // same-origin-allow-popups, not same-origin: the GitHub / Google OAuth
+    // popups postMessage their result back to window.opener, which plain
+    // `same-origin` severs the moment the popup navigates to the provider.
+    // The app uses no crossOriginIsolated-gated APIs, so this costs nothing.
+    expect(headerValue(headersFile, "Cross-Origin-Opener-Policy")).toBe("same-origin-allow-popups");
   });
 
   it("_headers applies the rules to every path", () => {

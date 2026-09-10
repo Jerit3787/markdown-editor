@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { encryptSession, decryptSession, cookieHeader, getCookie, signAnonToken, verifyAnonToken } from "../../src/auth";
+import { encryptSession, decryptSession, cookieHeader, getCookie, signAnonToken, verifyAnonToken, encryptJSON, decryptJSON } from "../../src/auth";
 import type { Env } from "../../src/env";
 
 const fakeEnv = { SESSION_SECRET: "test-secret-key-not-real" } as unknown as Env;
@@ -132,5 +132,30 @@ describe("anon token round trip", () => {
   it("rejects a payload whose anonId lacks the anon: prefix", async () => {
     const t = await signAnonToken(fakeEnv, { anonId: "danishhakim", anonName: "x" });
     expect(await verifyAnonToken(fakeEnv, t)).toBeNull();
+  });
+});
+
+describe("encryptJSON / decryptJSON", () => {
+  it("round-trips an arbitrary object and stamps an exp", async () => {
+    const token = await encryptJSON(fakeEnv, { refreshToken: "r", accessToken: "a", accessTokenExp: 123 });
+    const back = await decryptJSON<{ refreshToken: string; accessToken: string; accessTokenExp: number }>(fakeEnv, token);
+    expect(back).toMatchObject({ refreshToken: "r", accessToken: "a", accessTokenExp: 123 });
+    expect(typeof back!.exp).toBe("number");
+    expect(back!.exp).toBeGreaterThan(Date.now());
+  });
+
+  it("returns null for a tampered / malformed value", async () => {
+    expect(await decryptJSON(fakeEnv, "not.a.token")).toBeNull();
+    expect(await decryptJSON(fakeEnv, "")).toBeNull();
+  });
+
+  it("returns null once exp has passed", async () => {
+    const token = await encryptJSON(fakeEnv, { x: 1 }, -1000); // already expired
+    expect(await decryptJSON<{ x: number }>(fakeEnv, token)).toBeNull();
+  });
+
+  it("returns null under a different secret", async () => {
+    const token = await encryptJSON({ SESSION_SECRET: "other-secret" } as unknown as Env, { x: 1 });
+    expect(await decryptJSON(fakeEnv, token)).toBeNull();
   });
 });

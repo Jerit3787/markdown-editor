@@ -7,6 +7,7 @@
 import "./app";
 import "./collab";
 import "./gist";
+import "./drive-files";
 import "./repo-sync-ui";
 import "./formatting-commands";
 import "./style.scss";

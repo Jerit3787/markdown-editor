@@ -12,6 +12,7 @@
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
+  import { driveConnected, driveConfigured } from "../stores/driveSync";
   import { openFindBar } from "../stores/findReplace";
   import { effectiveMode, collabRole, collabIsOwner } from "../stores/collabMode";
 
@@ -112,6 +113,14 @@
           </button>
           <button id="menuOpenRepo" type="button" onclick={() => act(() => window.MDE.openRepoModal?.())}>
             <svg class="icon"><use href="#icon-github"></use></svg> From GitHub Repo...
+          </button>
+          <button
+            id="menuOpenDrive"
+            type="button"
+            hidden={!$driveConnected && !$driveConfigured}
+            onclick={() => act(() => window.MDE.importMarkdownFromDrive?.())}
+          >
+            <svg class="icon"><use href="#icon-cloud"></use></svg> Markdown from Google Drive...
           </button>
         </div>
       </div>

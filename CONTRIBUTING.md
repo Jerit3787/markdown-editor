@@ -65,6 +65,32 @@ for local dev. Then:
 Setting these up for a production deployment is covered separately in
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
+## Google OAuth (optional, for Google Drive)
+
+Drive integration (open markdown from Drive, and later save + folder sync)
+needs a Google Cloud project. Without it the Google menu items are hidden
+and everything else works — same as GitHub OAuth above.
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → new project
+   → **enable the Google Drive API and the Google Picker API**.
+2. OAuth consent screen → External → fill the app name / emails → add the
+   `.../auth/drive.file` scope → add your Google account as a **test
+   user** (keeps the app in "testing" mode; the consent screen just warns
+   "unverified" — fine for local dev).
+3. Credentials → **OAuth client ID** → Web application → Authorized
+   redirect URIs: `http://localhost:8787/api/auth/google/callback`.
+4. Credentials → **API key** (for the Picker); optionally restrict it by
+   HTTP referrer.
+5. Add to your git-ignored `.dev.vars`:
+   ```
+   GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=...
+   GOOGLE_API_KEY=...
+   ```
+   (`GOOGLE_CLIENT_ID` / `GOOGLE_API_KEY` are non-secret; in production
+   they're plain `wrangler.jsonc` vars and `GOOGLE_CLIENT_SECRET` is a
+   `wrangler secret put`.)
+
 ## Build-time variables (optional, production)
 
 These are read at build time (Cloudflare's build environment for the

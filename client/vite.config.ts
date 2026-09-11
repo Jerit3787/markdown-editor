@@ -40,9 +40,22 @@ export default defineConfig({
   // `--config client/vite.config.ts` from the repo root (see package.json
   // scripts), so Vite's normal "root = the config file's own directory"
   // default doesn't apply — it'd otherwise look for index.html in the repo
-  // root instead of client/.
   root: import.meta.dirname,
-  plugins: [svelte()],
+  plugins: [
+    svelte(),
+    {
+      name: "clean-html-routes",
+      configureServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          const pathname = req.url?.split("?")[0];
+          if (pathname === "/privacy" || pathname === "/terms" || pathname === "/home") {
+            req.url = req.url?.replace(pathname, `${pathname}.html`);
+          }
+          next();
+        });
+      },
+    },
+  ],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __OSS_LICENSES__: JSON.stringify(collectLicenses()),

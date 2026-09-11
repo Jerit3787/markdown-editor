@@ -308,6 +308,9 @@
       <button type="button" onclick={() => act(() => whatsNewOpen.set(true))}>
         <svg class="icon"><use href="#icon-rocket"></use></svg> What's New
       </button>
+      <a class="menu-link-item" href="/home">
+        <svg class="icon"><use href="#icon-home"></use></svg> Homepage &amp; Features
+      </a>
       <a class="menu-link-item" href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener">
         <svg class="icon"><use href="#icon-github"></use></svg> View Source on GitHub
       </a>

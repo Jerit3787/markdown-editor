@@ -30,6 +30,7 @@
       </div>
     </div>
     <div class="about-links">
+      <a class="menu-link-item" href="/home" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-home"></use></svg> Homepage &amp; Features</a>
       <a class="menu-link-item" href="/terms" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-file"></use></svg> Terms of Service</a>
       <a class="menu-link-item" href="/privacy" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-lock"></use></svg> Privacy Policy</a>
       <button class="menu-link-item" type="button" onclick={openLicenses}><svg class="icon"><use href="#icon-file"></use></svg> Open Source Licenses</button>

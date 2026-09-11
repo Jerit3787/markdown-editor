@@ -90,14 +90,14 @@ describe("worker routing", () => {
     expect(post.status).not.toBe(405);
   });
 
-  it("passes /privacy and /terms to the asset layer with the request URL unchanged, and sets the strict CSP header", async () => {
-    // client/public/{privacy,terms}.html are served at the clean URLs by
+  it("passes /privacy, /terms, and /home to the asset layer with the request URL unchanged, and sets the strict CSP header", async () => {
+    // client/public/{privacy,terms,home}.html are served at the clean URLs by
     // Cloudflare's html_handling. A worker rewrite to `.html` would be
     // 307'd back and loop — so the worker must forward the ORIGINAL
     // request unchanged. It does add the per-request nonce CSP header to
     // the HTML response on the way back (the strict `default-src 'none'`
-    // variant for these two pages).
-    for (const path of ["/privacy", "/terms"]) {
+    // variant for these pages).
+    for (const path of ["/privacy", "/terms", "/home"]) {
       const { env, assetsFetch, doFetch } = fakeEnv();
       const res = await worker.fetch(new Request(`https://app.example.com${path}`), env);
       expect(doFetch).not.toHaveBeenCalled();

@@ -154,13 +154,13 @@ export default {
     const repoPushMatch = url.pathname.match(REPO_PUSH_PATH);
     if (repoPushMatch && request.method === "POST") return handleRepoPush(request, env, repoPushMatch[1]!, repoPushMatch[2]!);
 
-    // Terms / Privacy (client/public/{privacy,terms}.html) are served at
-    // the clean URLs /privacy and /terms directly by the asset layer's
-    // html_handling (it maps /privacy → privacy.html). No worker route:
+    // Terms / Privacy / Home (client/public/{privacy,terms,home}.html) are served at
+    // the clean URLs /privacy, /terms, and /home directly by the asset layer's
+    // html_handling (it maps /home → home.html). No worker route:
     // an explicit rewrite to `/privacy.html` gets 307'd back to
     // `/privacy` by that same html_handling, which is an infinite loop.
     // `not_found_handling: single-page-application` only fires for paths
-    // with NO matching asset, so it never shadows these two.
+    // with NO matching asset, so it never shadows these.
     const assetRes = await env.ASSETS.fetch(request);
     const contentType = assetRes.headers.get("content-type") ?? "";
     if (!contentType.includes("text/html")) return assetRes;
@@ -171,8 +171,8 @@ export default {
     // this header — the only way JSD (rotating inline body, unhashable)
     // and a CSP without 'unsafe-inline' can coexist. See src/csp.ts.
     const nonce = generateNonce();
-    const isLegalPage = url.pathname === "/privacy" || url.pathname === "/terms";
-    const policy = isLegalPage ? legalCsp(nonce) : appCsp(nonce);
+    const isStaticDoc = url.pathname === "/privacy" || url.pathname === "/terms" || url.pathname === "/home";
+    const policy = isStaticDoc ? legalCsp(nonce) : appCsp(nonce);
 
     const rewritten = new HTMLRewriter()
       .on('meta[http-equiv="Content-Security-Policy"]', {

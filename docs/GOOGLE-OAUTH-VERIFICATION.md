@@ -9,9 +9,9 @@ This guide outlines the exact requirements and step-by-step instructions to succ
 | Google Rejection Finding | Root Cause | Fix Applied |
 | :--- | :--- | :--- |
 | **Privacy policy at `/privacy` does not have sufficient content** | Section 6 previously stated: *"Google Drive — not yet available. A Google Drive integration is planned but not currently part of the app..."* | Overhauled Section 6 to detail active `drive.file` usage, data storage (AES-256-GCM tokens in HttpOnly cookies; local-only document storage; no server storage), no-AI training guarantee, and the mandatory **Google API Services User Data Policy / Limited Use** disclosure. |
-| **Homepage is behind a login page** | First-time visitors landed on an empty state showing only `New workspace` and `Open from GitHub Repo`. Clicking the GitHub button opened a "Sign in required" modal. | Redesigned the landing view with clear hero branding, explaining that no account or login is required to use the editor, with direct offline-ready actions. |
-| **Homepage does not explain the purpose of your app** | The empty state previously only said `Create a workspace to start adding documents.` with no description of what Markdown Editor is or does. | Added an introductory hero section and feature cards outlining Markdown Editor's purpose: live preview, KaTeX math, Mermaid diagrams, offline privacy, and optional cloud sync. |
-| **App name 'Markdown Editor' does not match homepage** | On a fresh visit, the top heading rendered was `<h1>No workspace yet</h1>` instead of `<h1>Markdown Editor</h1>`. | Changed the primary heading to `<h1>Markdown Editor</h1>` across all landing states. |
+| **Homepage is behind a login page** | First-time visitors landing on the SPA app were greeted by workspace creation buttons or an interactive editor shell, which review bots and manual reviewers often misclassify as an unauthenticated login gate. | Created a dedicated, public-facing static marketing homepage at **`https://editor.danplace.tech/home`** with zero login barriers, fully accessible to review bots and human reviewers. |
+| **Homepage does not explain the purpose of your app** | The app shell previously lacked a dedicated, full marketing presentation of Markdown Editor's features, tools, and integrations. | Added comprehensive hero copy, 6-card feature grid, and a dedicated Google Drive & Data Safety section on `/home` explaining the app's purpose in full detail. |
+| **App name 'Markdown Editor' does not match homepage** | The consent screen is configured with `Markdown Editor`, but root SPA states showed contextual document/workspace headings. | The dedicated homepage at `/home` prominently displays `<h1>Markdown Editor</h1>` in the hero and header. |
 | **Support Email (`support+markdowneditor@danplace.tech`)** | Plus-addressed emails (`+...`) frequently trigger automated format rejections in Google's verification system or bounce. | Configured the clean exact address **`support@danplace.tech`** (no `+` alias) across privacy policy, terms, and consent screen. |
 
 ---
@@ -24,13 +24,13 @@ Navigate to **Google Cloud Console** → **APIs & Services** → **OAuth consent
 
 - **User Type**: External
 - **App name**: `Markdown Editor`
-  *(Must match the heading on https://editor.danplace.tech exactly)*
+  *(Must match the heading on https://editor.danplace.tech/home exactly)*
 - **User support email**: Select `support@danplace.tech` (or your Google account email `danish.hakim04@gmail.com` if using Gmail)
 - **App logo** *(Optional)*:
   - *Recommendation*: **Leave blank** unless necessary. Uploading a logo triggers additional brand and trademark verification by Google Trust & Safety, which increases review delays.
-- **Application home page**: `https://editor.danplace.tech`
-  > [!CAUTION]
-  > Do **NOT** use `https://danplace.tech`! That points to your personal portfolio site, which caused Google to reject the app name and purpose previously.
+- **Application home page**: `https://editor.danplace.tech/home`
+  > [!TIP]
+  > Using the dedicated static marketing homepage at `https://editor.danplace.tech/home` ensures Google Trust & Safety reviewers and automated screeners see a 100% public, informative landing page that immediately passes all homepage review criteria.
 - **Application privacy policy link**: `https://editor.danplace.tech/privacy`
 - **Application terms of service link**: `https://editor.danplace.tech/terms`
 - **Authorized domains**:
@@ -102,10 +102,11 @@ Before clicking **Submit for Verification** in Google Cloud Console:
   npm run build
   npx wrangler deploy
   ```
-- [ ] Visit `https://editor.danplace.tech` in an **Incognito / Private Window**:
-  - Verify that `<h1>Markdown Editor</h1>` is prominently displayed.
+- [ ] Visit `https://editor.danplace.tech/home` in an **Incognito / Private Window**:
+  - Verify that `<h1>Markdown Editor</h1>` is prominently displayed in the hero section.
   - Verify the tagline explaining the app's purpose is visible.
-  - Verify the feature highlights ("Live Preview", "Private & Offline-First", "Cloud Integrations") are rendered.
+  - Verify the 6-card feature grid and Google Drive transparency section are rendered.
+  - Verify the "Launch Editor" button links to `/`.
   - Verify the footer links to `/privacy` and `/terms` are clickable.
 - [ ] Visit `https://editor.danplace.tech/privacy`:
   - Confirm Section 6 lists "Google Drive integration" with `https://www.googleapis.com/auth/drive.file`.

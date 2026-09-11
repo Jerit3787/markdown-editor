@@ -112,6 +112,7 @@
     // Help
     { id: "shortcuts", label: "Keyboard Shortcuts", category: "Help", run: () => window.MDE.openShortcuts() },
     { id: "about", label: "About & Privacy", category: "Help", run: () => window.MDE.openAbout() },
+    { id: "homepage", label: "Homepage & Features", category: "Help", run: () => (window.location.href = "/home") },
     { id: "settings", label: "Open Settings", category: "Help", run: () => document.getElementById("settingsBtn")?.click() },
   ]);
 

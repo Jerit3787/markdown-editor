@@ -31,7 +31,7 @@ function main() {
   const srcDir = resolve(ROOT, "legal");
   const outDir = resolve(ROOT, "client/public");
   mkdirSync(outDir, { recursive: true });
-  const email = process.env.SUPPORT_EMAIL;
+  const email = process.env.SUPPORT_EMAIL || "support@danplace.tech";
   for (const file of readdirSync(srcDir).filter((f) => f.endsWith(".html"))) {
     const out = applyContact(readFileSync(resolve(srcDir, file), "utf8"), email);
     writeFileSync(resolve(outDir, file), out);

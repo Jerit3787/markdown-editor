@@ -88,7 +88,7 @@
     <div class="doc">
       <a class="brand" href="/"><span>Md</span> Markdown Editor</a>
       <h1>Privacy Policy</h1>
-      <p class="updated">Last updated: 2026-09-09</p>
+      <p class="updated">Last updated: 2026-09-11</p>
 
       <p>
         Markdown Editor ("the app", at <code>editor.danplace.tech</code>) is a free, open-source markdown editor. This policy explains what happens to your data
@@ -98,7 +98,7 @@
       <h2>1. Your documents stay on your device.</h2>
       <p>
         Documents, workspaces, version history, and personal notes are stored in your browser's <code>localStorage</code>, on your device only. They are never
-        sent to or stored on the app's servers unless you take one of the explicit actions in sections 3–5. Clearing your browser storage deletes them
+        sent to or stored on the app's servers unless you take one of the explicit actions in sections 3–6. Clearing your browser storage deletes them
         permanently; nothing is backed up for you.
       </p>
 
@@ -142,12 +142,35 @@
         <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.
       </p>
 
-      <h2>6. Google Drive — not yet available.</h2>
+      <h2>6. Google Drive integration.</h2>
+      <p>Markdown Editor provides an optional integration with Google Drive to open, import, and edit markdown files directly from your Google Drive.</p>
       <p>
-        A Google Drive integration is planned but <strong>not currently part of the app</strong>. When it ships, it will request only the
-        <code>drive.file</code> scope, which limits the app to files you specifically open or create with it — it cannot see the rest of your Drive. Files you
-        open or save through that feature would be read from and written to your Drive at your request only. Google user data obtained this way will never be
-        sold, never used for advertising, and never used to train AI models. This section will be finalised before the feature is released.
+        <strong>Scope requested:</strong> Connecting Google Drive requests only the narrow, non-restricted scope
+        <code>https://www.googleapis.com/auth/drive.file</code>. This scope is strictly per-file: it grants access only to files that you explicitly create with
+        Markdown Editor or specifically select using the Google Picker file chooser. Markdown Editor cannot view, search, list, access, or modify any other
+        files, folders, or documents in your Google Drive.
+      </p>
+      <p>
+        <strong>How we access and use Google user data:</strong> When you use "Open markdown from Google Drive", the Google Picker is loaded in your browser so
+        you can choose specific markdown (<code>.md</code>, <code>.txt</code>) files. The app's server proxies the download of the chosen files solely to
+        transfer their text content into your active workspace in Markdown Editor. All subsequent viewing and editing occurs locally in your browser session.
+      </p>
+      <p>
+        <strong>How we store and protect Google user data:</strong> When you authorize Google Drive, Google returns an OAuth access token and refresh token.
+        These credentials are encrypted using AES-256-GCM (Web Crypto API) and stored in an <code>HttpOnly</code>, <code>Secure</code>,
+        <code>SameSite=Lax</code> cookie (<code>mde_google_session</code>). These credentials are never accessible to client-side JavaScript and are used
+        exclusively by the app's server-side proxy to authenticate API requests you initiate. Markdown Editor does not maintain any server-side database of your
+        Google Drive files or document contents. Disconnecting Google Drive immediately clears the session cookie and revokes the grant with Google.
+      </p>
+      <p>
+        <strong>Sharing, selling, and AI training:</strong> Google user data obtained via Google Drive APIs is never sold, never shared with third parties,
+        never used for advertising, and never used to train machine learning or artificial intelligence (AI) models.
+      </p>
+      <p>
+        <strong>Google API Services User Data Policy:</strong> Markdown Editor's use and transfer of information received from Google APIs to any other app will
+        adhere to the
+        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>,
+        including the Limited Use requirements.
       </p>
 
       <h2>7. Hosting.</h2>
@@ -158,9 +181,10 @@
 
       <h2>8. Data retention and deletion.</h2>
       <p>
-        Local documents: until you clear them. The GitHub session cookie: until you sign out or it expires. A shared workspace's server copy: until you delete
-        that workspace. Analytics: per Google Analytics' configured retention (set to the minimum, 2 months, for event data). To delete everything the app holds
-        for you: sign out, delete any shared workspaces you own, and clear the site's browser storage.
+        Local documents: until you clear them. The GitHub session cookie: until you sign out or it expires (30 days). The Google Drive session cookie: until you
+        disconnect Google Drive or it expires (90 days). A shared workspace's server copy: until you delete that workspace. Analytics: per Google Analytics'
+        configured retention (set to the minimum, 2 months, for event data). To delete everything the app holds for you: sign out of GitHub, disconnect Google
+        Drive, delete any shared workspaces you own, and clear the site's browser storage.
       </p>
 
       <h2>9. Children.</h2>

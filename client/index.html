@@ -488,9 +488,11 @@
            remaining document. -->
             <div id="emptyState" class="empty-state" hidden>
               <div class="empty-state-inner empty-state-has-workspace">
-                <img src="/logo.svg" width="52" height="52" alt="" />
+                <img src="/logo.svg" width="56" height="56" alt="Markdown Editor" />
                 <h1>Markdown Editor</h1>
-                <p>A fast, distraction-free markdown editor that runs entirely in your browser — no server, no account, nothing leaves your machine.</p>
+                <p class="empty-state-desc">
+                  A fast, distraction-free markdown editor that runs entirely in your browser — no server, no account, nothing leaves your machine.
+                </p>
                 <div class="empty-state-actions">
                   <button type="button" id="emptyNewDocBtn" class="primary-btn">
                     <svg class="icon"><use href="#icon-file-plus"></use></svg> New document
@@ -502,11 +504,35 @@
                     <svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Gist
                   </button>
                 </div>
+                <div class="empty-state-footer">
+                  <a href="/privacy">Privacy Policy</a>
+                  <span class="dot">&bull;</span>
+                  <a href="/terms">Terms of Service</a>
+                  <span class="dot">&bull;</span>
+                  <a href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener">GitHub</a>
+                </div>
               </div>
               <div class="empty-state-inner empty-state-no-workspace">
-                <img src="/logo.svg" width="52" height="52" alt="" />
-                <h1>No workspace yet</h1>
-                <p>Create a workspace to start adding documents.</p>
+                <img src="/logo.svg" width="56" height="56" alt="Markdown Editor" />
+                <h1>Markdown Editor</h1>
+                <p class="empty-state-desc">
+                  A fast, privacy-focused markdown editor with live preview, real-time collaboration, and local or cloud storage. Free, open source, and runs
+                  entirely in your browser — no account or login required.
+                </p>
+                <div class="empty-state-features">
+                  <div class="empty-state-feature">
+                    <strong>Live Preview &amp; Rich Formatting</strong>
+                    <span>Side-by-side rendering with syntax highlighting, KaTeX math, and Mermaid diagrams</span>
+                  </div>
+                  <div class="empty-state-feature">
+                    <strong>Private &amp; Offline-First</strong>
+                    <span>Your notes stay in your browser; no account or sign-in needed to write</span>
+                  </div>
+                  <div class="empty-state-feature">
+                    <strong>Cloud Integrations</strong>
+                    <span>Optional sync with Google Drive and GitHub Gists or repositories</span>
+                  </div>
+                </div>
                 <div class="empty-state-actions">
                   <button type="button" id="emptyNewWorkspaceBtn" class="primary-btn">
                     <svg class="icon"><use href="#icon-plus"></use></svg> New workspace
@@ -514,6 +540,13 @@
                   <button type="button" id="emptyOpenRepoBtn" class="secondary-btn">
                     <svg class="icon"><use href="#icon-github"></use></svg> Open from GitHub Repo
                   </button>
+                </div>
+                <div class="empty-state-footer">
+                  <a href="/privacy">Privacy Policy</a>
+                  <span class="dot">&bull;</span>
+                  <a href="/terms">Terms of Service</a>
+                  <span class="dot">&bull;</span>
+                  <a href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener">GitHub</a>
                 </div>
               </div>
             </div>

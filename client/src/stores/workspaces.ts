@@ -284,6 +284,34 @@ export function clearPendingDriveDeletions(workspaceId: string, sentFileIds: str
   persistWorkspaces();
 }
 
+// See Workspace.pendingDriveHistoryDeletions's own comment.
+export function queueDriveHistoryDeletion(workspaceId: string, historyPath: string): void {
+  workspacesStore.update((all) =>
+    all.map((w) => {
+      if (w.id !== workspaceId) return w;
+      const existing = w.pendingDriveHistoryDeletions || [];
+      if (existing.includes(historyPath)) return w;
+      return { ...w, pendingDriveHistoryDeletions: [...existing, historyPath], updatedAt: Date.now() };
+    }),
+  );
+  persistWorkspaces();
+}
+
+export function clearPendingDriveHistoryDeletions(workspaceId: string, sentPaths: string[]): void {
+  if (sentPaths.length === 0) return;
+  const sent = new Set(sentPaths);
+  workspacesStore.update((all) =>
+    all.map((w) => {
+      if (w.id !== workspaceId) return w;
+      const existing = w.pendingDriveHistoryDeletions;
+      if (!existing?.some((path) => sent.has(path))) return w;
+      const next = existing.filter((path) => !sent.has(path));
+      return { ...w, pendingDriveHistoryDeletions: next.length ? next : undefined, updatedAt: Date.now() };
+    }),
+  );
+  persistWorkspaces();
+}
+
 export function renameWorkspace(id: string, name: string) {
   workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, name: name || "Untitled workspace", updatedAt: Date.now() } : w)));
   persistWorkspaces();

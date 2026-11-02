@@ -12,7 +12,16 @@ import { confirmAction } from "./confirmDialog";
 import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
 import { rewriteWikilinkReferences } from "../wikilink-rewrite";
-import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace, queueRepoDeletion, queueDriveDeletion } from "./workspaces";
+import {
+  activeWorkspaceIdStore,
+  workspacesStore,
+  switchWorkspace,
+  createWorkspace,
+  queueRepoDeletion,
+  queueDriveDeletion,
+  queueDriveHistoryDeletion,
+} from "./workspaces";
+import { historyPathFor } from "../history-paths";
 import { mergeById } from "../merge-records";
 import { parseMetadataBlock, type MetadataPair } from "../mmd-metadata";
 import type { BibEntry, CitationPrefs } from "../mmd-citations";
@@ -391,6 +400,11 @@ export function removeDocById(id: string, source?: "repo" | "drive" | "remote") 
   // delete it there.
   if (!source && removedDoc?.repoPath && removedWorkspaceId) queueRepoDeletion(removedWorkspaceId, removedDoc.repoPath);
   if (!source && removedDoc?.driveFileId && removedWorkspaceId) queueDriveDeletion(removedWorkspaceId, removedDoc.driveFileId);
+  // The companion history file's path is derived from the doc's synthetic
+  // path; capture it before the doc row disappears.
+  if (!source && removedDoc?.drivePath && removedWorkspaceId) {
+    queueDriveHistoryDeletion(removedWorkspaceId, historyPathFor(removedDoc.drivePath));
+  }
   docsStore.update((docs) => docs.filter((d) => d.id !== id));
   // Deleting the last remaining doc leaves docs empty and activeId null —
   // the reactive editor subscription shows the empty state rather than

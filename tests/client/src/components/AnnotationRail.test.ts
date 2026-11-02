@@ -11,6 +11,10 @@ import { viewMode } from "../../../../client/src/stores/view";
 beforeEach(() => {
   window.MDE = new Proxy({}, { get: () => vi.fn() }) as unknown as typeof window.MDE;
   leaveCollabRoom();
+  // A prior test/file may have persisted a chosen mode for r2 (e.g.
+  // "viewing"); without clearing it, entering r2 as reviewer loads that
+  // preference and leaves the comments button disabled.
+  localStorage.removeItem("mde:collabMode");
   commentsPanelOpen.set(false);
   activeIdStore.set("d1");
   document.getElementById("commentsBtn")?.remove();

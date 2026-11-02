@@ -15,6 +15,7 @@ import {
 } from "../../../client/src/drive-sync";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { docsStore, activeIdStore, activeDocContent } from "../../../client/src/stores/docs";
+import { getHistory, maybeSnapshotVersion } from "../../../client/src/history";
 import type { Doc } from "../../../client/src/types";
 
 function json(body: unknown, status = 200): Response {
@@ -760,5 +761,140 @@ describe("Drive revision helpers", () => {
       vi.fn(async () => new Response("unauthorized", { status: 401 })),
     );
     await expect(pullDriveRevisions("f1")).rejects.toBeInstanceOf(DriveReconnectError);
+  });
+});
+
+describe("Drive folder-backed history", () => {
+  it("pushes the companion history JSON in its own request", async () => {
+    linkedWorkspace();
+    setDocs([doc({ id: "d1", name: "Notes", content: "# Hi" })]);
+    await maybeSnapshotVersion("d1", "# Hi", 1_700_000_000_000);
+    const pushes: any[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/tree")) return json({ folderId: "folder-1", folderName: "Notes", workspaceId: "w1", entries: [] });
+        if (u.includes("/push")) {
+          const body = JSON.parse(String(init!.body));
+          pushes.push(body);
+          return json({
+            results: body.creates.map((create: any) => ({ path: create.path, op: "create", ok: true, fileId: `f-${create.path}`, rev: "r1" })),
+            synced: body.creates.length,
+            failed: 0,
+          });
+        }
+        throw new Error(`unexpected fetch ${u}`);
+      }),
+    );
+
+    await pushToDrive("w1");
+    const historyBody = pushes.find((body) => body.creates.some((create: any) => create.path.startsWith(".mde/history/")));
+    expect(historyBody).toBeTruthy();
+    expect(historyBody.ensureSubfolders).toContain(".mde/history");
+    const historyCreate = historyBody.creates.find((create: any) => create.path.startsWith(".mde/history/"));
+    const parsed = JSON.parse(Buffer.from(historyCreate.contentBase64, "base64").toString("utf-8"));
+    expect(parsed.snapshots[0]).toMatchObject({ id: expect.any(String), content: "# Hi" });
+  });
+
+  it("pulls and merges history snapshots and notes by id", async () => {
+    linkedWorkspace();
+    const remoteHistory = JSON.stringify({
+      snapshots: [{ id: "s-remote", timestamp: 1_700_000_000_000, content: "# old" }],
+      notes: [{ id: "n1", from: 0, to: 5, quote: "# old", orphaned: false, body: "note from another device", createdAt: 1 }],
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("/tree")) {
+          return json({
+            folderId: "folder-1",
+            folderName: "Notes",
+            workspaceId: "w1",
+            entries: [
+              { fileId: "f1", path: "notes.md", mimeType: "text/markdown", rev: "r1" },
+              { fileId: "h1", path: ".mde/history/notes.json", mimeType: "application/json", rev: "r1" },
+            ],
+          });
+        }
+        if (u.includes("/file/f1")) return json({ contentBase64: b64("# new") });
+        if (u.includes("/file/h1")) return json({ contentBase64: b64(remoteHistory) });
+        throw new Error(`unexpected fetch ${u}`);
+      }),
+    );
+
+    const { failures } = await pullFromDrive("w1");
+    expect(failures).toEqual([]);
+    const stored = get(docsStore)[0]!;
+    const snapshots = await getHistory(stored.id);
+    expect(snapshots).toEqual([expect.objectContaining({ id: "s-remote", content: "# old" })]);
+    expect(stored.notes).toEqual([expect.objectContaining({ id: "n1", body: "note from another device" })]);
+  });
+
+  it("continues past a corrupt history file", async () => {
+    linkedWorkspace();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("/tree")) {
+          return json({
+            folderId: "folder-1",
+            folderName: "Notes",
+            workspaceId: "w1",
+            entries: [
+              { fileId: "f1", path: "notes.md", mimeType: "text/markdown", rev: "r1" },
+              { fileId: "h1", path: ".mde/history/notes.json", mimeType: "application/json", rev: "r1" },
+            ],
+          });
+        }
+        if (u.includes("/file/f1")) return json({ contentBase64: b64("# new") });
+        if (u.includes("/file/h1")) return json({ contentBase64: b64("not json") });
+        throw new Error(`unexpected fetch ${u}`);
+      }),
+    );
+
+    const { failures } = await pullFromDrive("w1");
+    expect(failures).toEqual([expect.objectContaining({ path: ".mde/history/notes.json" })]);
+    expect(get(docsStore)[0]!.content).toBe("# new");
+  });
+
+  it("deletes a pending history file and clears the queue", async () => {
+    workspacesStore.set([
+      {
+        id: "w1",
+        name: "Notes",
+        createdAt: 0,
+        updatedAt: 0,
+        driveLink: { folderId: "folder-1", folderName: "Notes" },
+        pendingDriveHistoryDeletions: [".mde/history/gone.json"],
+      },
+    ]);
+    activeWorkspaceIdStore.set("w1");
+    let pushBody: any;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/tree")) {
+          return json({
+            folderId: "folder-1",
+            folderName: "Notes",
+            workspaceId: "w1",
+            entries: [{ fileId: "h1", path: ".mde/history/gone.json", mimeType: "application/json", rev: "r1" }],
+          });
+        }
+        if (u.includes("/push")) {
+          pushBody = JSON.parse(String(init!.body));
+          return json({ results: [{ path: "h1", op: "delete", ok: true, fileId: "h1" }], synced: 1, failed: 0 });
+        }
+        throw new Error(`unexpected fetch ${u}`);
+      }),
+    );
+
+    await pushToDrive("w1");
+    expect(pushBody.deletes).toEqual(["h1"]);
+    expect(get(workspacesStore)[0]!.pendingDriveHistoryDeletions).toBeUndefined();
   });
 });

@@ -9,6 +9,8 @@ import {
   setWorkspaceDriveLastSynced,
   queueDriveDeletion,
   clearPendingDriveDeletions,
+  queueDriveHistoryDeletion,
+  clearPendingDriveHistoryDeletions,
 } from "../../../../client/src/stores/workspaces";
 import {
   docsStore,
@@ -59,6 +61,18 @@ describe("pending drive deletions", () => {
 
     clearPendingDriveDeletions("w1", ["f1"]);
     expect(get(workspacesStore)[0]!.pendingDriveDeletions).toEqual(["f2"]);
+  });
+});
+
+describe("pending drive history deletions", () => {
+  it("queues once and clears only the sent paths", () => {
+    queueDriveHistoryDeletion("w1", ".mde/history/notes.json");
+    queueDriveHistoryDeletion("w1", ".mde/history/notes.json");
+    queueDriveHistoryDeletion("w1", ".mde/history/docs/plan.json");
+    expect(get(workspacesStore)[0]!.pendingDriveHistoryDeletions).toEqual([".mde/history/notes.json", ".mde/history/docs/plan.json"]);
+
+    clearPendingDriveHistoryDeletions("w1", [".mde/history/notes.json"]);
+    expect(get(workspacesStore)[0]!.pendingDriveHistoryDeletions).toEqual([".mde/history/docs/plan.json"]);
   });
 });
 
@@ -130,11 +144,19 @@ describe("drive doc metadata", () => {
 });
 
 describe("removeDocById", () => {
-  it("queues the Drive file id when a synced doc is deleted", () => {
+  it("queues the Drive file id and history path when a synced doc is deleted", () => {
     workspacesStore.set([ws({ driveLink: { folderId: "folder-1", folderName: "Notes" } })]);
-    docsStore.set([doc({ id: "d1", driveFileId: "f1" })]);
+    docsStore.set([doc({ id: "d1", driveFileId: "f1", drivePath: "notes.md" })]);
     removeDocById("d1");
     expect(get(workspacesStore)[0]!.pendingDriveDeletions).toEqual(["f1"]);
+    expect(get(workspacesStore)[0]!.pendingDriveHistoryDeletions).toEqual([".mde/history/notes.json"]);
+  });
+
+  it("does not queue a history deletion for a Drive-sourced deletion", () => {
+    workspacesStore.set([ws({ driveLink: { folderId: "folder-1", folderName: "Notes" } })]);
+    docsStore.set([doc({ id: "d1", driveFileId: "f1", drivePath: "notes.md" })]);
+    removeDocById("d1", "drive");
+    expect(get(workspacesStore)[0]!.pendingDriveHistoryDeletions).toBeUndefined();
   });
 });
 

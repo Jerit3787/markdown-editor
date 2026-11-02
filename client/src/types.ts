@@ -100,6 +100,10 @@ export interface Workspace {
   // Drive file id", and deleting every unmatched tree file would also
   // remove files never pulled in.
   pendingDriveDeletions?: string[];
+  // Drive history-file paths (".mde/history/notes.json") whose owning doc
+  // was deleted locally. Resolved to file ids on the next push, because a
+  // deleted doc can no longer answer "what was my history path".
+  pendingDriveHistoryDeletions?: string[];
   // Set after any successful push or pull (whichever happens last) —
   // one combined "last synced" timestamp, not separate push/pull ones.
   // Meaningless without repoLink, so clearWorkspaceRepoLink clears this

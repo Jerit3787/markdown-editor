@@ -5,6 +5,8 @@
 // computeNewTreeEntries follows server-side.
 import type { Doc, Workspace, Note } from "./types";
 import type { Snapshot } from "./history";
+import { historyPathFor, historyOwnerDocPath } from "./history-paths";
+export { historyPathFor };
 import {
   docsInWorkspace,
   upsertDocFromRepo,
@@ -334,28 +336,11 @@ export function slugFromRepoPath(repoPath: string): string {
   return repoPath.replace(/\.md$/i, "").split("/").pop() || "untitled";
 }
 
-// .mde/history/<path>.json — one companion file per doc holding its
-// local-only version-history snapshots and personal notes (see
-// docs/superpowers/specs/2026-08-19-repo-local-history-sync-design.md).
-// Derived from the doc's FULL repo path (like assetFolderFor) so two docs
-// sharing a basename in different folders get separate history files; root
-// docs keep the legacy path.
-export function historyPathFor(repoPath: string): string {
-  return `.mde/history/${assetFolderFor(repoPath)}.json`;
-}
-
 // Map an assets/... blob back to the markdown path that owns its folder:
 // "assets/docs/notes/pic.png" -> "docs/notes.md". Null for paths that
 // aren't a doc's asset file (e.g. a blob directly under assets/).
 function assetOwnerDocPath(assetPath: string): string | null {
   const match = /^assets\/(.+)\/[^/]+$/.exec(assetPath);
-  return match ? `${match[1]}.md` : null;
-}
-
-// Map a companion history file back to its doc: ".mde/history/docs/notes.json"
-// -> "docs/notes.md". Handles the legacy single-segment form too.
-function historyOwnerDocPath(historyPath: string): string | null {
-  const match = /^\.mde\/history\/(.+)\.json$/.exec(historyPath);
   return match ? `${match[1]}.md` : null;
 }
 

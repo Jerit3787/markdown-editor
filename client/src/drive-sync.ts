@@ -934,26 +934,34 @@ function chunkPushPlan(plan: PushPlan): PushPlan[] {
 async function sendPlan(workspaceId: string, plan: PushPlan): Promise<PushResult> {
   let combined: PushResult = { results: [], synced: 0, failed: 0 };
   let canDelete = true;
-  for (const chunk of chunkPushPlan(plan)) {
-    // Creates/updates go first. Deletes wait for their result so a failed
-    // rename replacement can never delete the only remote copy first.
-    const body = buildPushBody(chunk, false);
-    const data = await postPush(workspaceId, body);
-    await commitPushResults(workspaceId, chunk, data);
-    combined = mergePushResults(combined, data);
-    if (data.results.some((result) => result.op !== "delete" && !result.ok)) canDelete = false;
-  }
-  if (!canDelete && plan.renames?.length) {
-    const successfulDocIds = new Set<string>();
+  const completedDocIds = new Set<string>();
+  try {
     for (const chunk of chunkPushPlan(plan)) {
+      // Creates/updates go first. Deletes wait for their result so a failed
+      // rename replacement can never delete the only remote copy first.
+      const body = buildPushBody(chunk, false);
+      const data = await postPush(workspaceId, body);
+      await commitPushResults(workspaceId, chunk, data);
+      combined = mergePushResults(combined, data);
       for (const change of [...chunk.creates, ...chunk.updates]) {
         const fileId = "fileId" in change ? change.fileId : undefined;
-        const result = combined.results.find((item) => item.op !== "delete" && item.ok && (item.path === change.path || (!!fileId && item.fileId === fileId)));
-        if (result) successfulDocIds.add(change.docId);
+        const result = data.results.find((item) => item.op !== "delete" && item.ok && (item.path === change.path || (!!fileId && item.fileId === fileId)));
+        if (result) completedDocIds.add(change.docId);
       }
+      if (data.results.some((result) => result.op !== "delete" && !result.ok)) canDelete = false;
     }
-    for (const rename of plan.renames) {
-      if (successfulDocIds.has(rename.docId)) queueDriveDeletion(workspaceId, rename.oldFileId);
+  } catch (err) {
+    // A later chunk can fail after an earlier rename landed. Its old file
+    // id is no longer in any future plan, so queue it before surfacing
+    // the error.
+    for (const rename of plan.renames ?? []) {
+      if (completedDocIds.has(rename.docId)) queueDriveDeletion(workspaceId, rename.oldFileId);
+    }
+    throw err;
+  }
+  if (!canDelete) {
+    for (const rename of plan.renames ?? []) {
+      if (completedDocIds.has(rename.docId)) queueDriveDeletion(workspaceId, rename.oldFileId);
     }
   }
   const deleteIds = canDelete ? [...new Set(plan.deletes)] : [...new Set(plan.pendingDeletes ?? [])];

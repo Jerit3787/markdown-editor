@@ -6,6 +6,28 @@ import type { Env } from "./env";
 // revisions.
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
+const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3";
+// Same cap as the import path — text-only, but keeps a hostile/accidental
+// huge payload from exhausting the Worker's memory.
+const MAX_EXPORT_BYTES = 5 * 1024 * 1024;
+
+function fromBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function sanitizeExportName(raw: unknown): string {
+  const name =
+    typeof raw === "string"
+      ? raw
+          .replace(/[\r\n\t]+/g, " ")
+          .trim()
+          .slice(0, 200)
+      : "";
+  return name || "document.md";
+}
 
 // Attaches `setCookie` (from a transparent token refresh in
 // getGoogleAccessToken) to a Response so the browser keeps the
@@ -41,6 +63,63 @@ export async function handleDrivePickerToken(request: Request, env: Env): Promis
   // project number is the numeric prefix of the OAuth client id.
   const appId = (env.GOOGLE_CLIENT_ID ?? "").split("-")[0] ?? "";
   return withCookie(Response.json({ token: auth.token, apiKey: env.GOOGLE_API_KEY, appId }), auth.setCookie);
+}
+
+export async function handleDriveExport(request: Request, env: Env): Promise<Response> {
+  const auth = await getGoogleAccessToken(request, env);
+  if (!auth) return new Response("Reconnect Google Drive.", { status: 401 });
+
+  let body: { fileId?: unknown; name?: unknown; parentFolderId?: unknown; contentBase64?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return new Response("Invalid JSON.", { status: 400 });
+  }
+  if (typeof body.contentBase64 !== "string" || !body.contentBase64) {
+    return new Response("contentBase64 is required.", { status: 400 });
+  }
+  const bytes = fromBase64(body.contentBase64);
+  if (bytes.byteLength > MAX_EXPORT_BYTES) {
+    return new Response("Document is too large to save to Google Drive.", { status: 413 });
+  }
+
+  const name = sanitizeExportName(body.name);
+  const fileId = typeof body.fileId === "string" && body.fileId ? body.fileId : undefined;
+  const parentFolderId = typeof body.parentFolderId === "string" && body.parentFolderId ? body.parentFolderId : undefined;
+  const h = { Authorization: `Bearer ${auth.token}` };
+
+  if (fileId) {
+    // Content-only update; the file keeps its name/parents.
+    const res = await fetch(`${DRIVE_UPLOAD}/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,webViewLink`, {
+      method: "PATCH",
+      headers: { ...h, "Content-Type": "text/markdown; charset=utf-8" },
+      body: bytes,
+    });
+    if (res.status === 404) return withCookie(Response.json({ error: "not-found" }, { status: 404 }), auth.setCookie);
+    if (res.status === 401) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
+    if (!res.ok) return withCookie(new Response(`Couldn't update the Drive file: HTTP ${res.status}.`, { status: 502 }), auth.setCookie);
+    const data = (await res.json()) as { id: string; name?: string; webViewLink?: string };
+    return withCookie(Response.json({ fileId: data.id, name: data.name ?? name, webViewLink: data.webViewLink }), auth.setCookie);
+  }
+
+  // multipart/related: metadata part + raw markdown part.
+  const boundary = `mde-${crypto.randomUUID()}`;
+  const metadata = JSON.stringify({ name, mimeType: "text/markdown", parents: [parentFolderId ?? "root"] });
+  const multipart = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+    `--${boundary}\r\nContent-Type: text/markdown; charset=utf-8\r\n\r\n`,
+    bytes,
+    `\r\n--${boundary}--\r\n`,
+  ]);
+  const res = await fetch(`${DRIVE_UPLOAD}/files?uploadType=multipart&fields=id,name,webViewLink`, {
+    method: "POST",
+    headers: { ...h, "Content-Type": `multipart/related; boundary=${boundary}` },
+    body: multipart,
+  });
+  if (res.status === 401) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
+  if (!res.ok) return withCookie(new Response(`Couldn't save to Google Drive: HTTP ${res.status}.`, { status: 502 }), auth.setCookie);
+  const data = (await res.json()) as { id: string; name?: string; webViewLink?: string };
+  return withCookie(Response.json({ fileId: data.id, name: data.name ?? name, webViewLink: data.webViewLink }), auth.setCookie);
 }
 
 export async function handleDriveImport(request: Request, env: Env): Promise<Response> {

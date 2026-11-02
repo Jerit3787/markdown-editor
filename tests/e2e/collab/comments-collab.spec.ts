@@ -41,8 +41,13 @@ test("CMT-15: a comment added, replied, resolved and deleted on a shared doc pro
   await expect(owner.locator(".annotation-card", { hasText: "it was the example" })).toBeVisible({ timeout: 10000 });
 
   // Owner resolves it → the peer's card flips its button to "Reopen".
-  await owner.click("#commentsBtn");
-  await owner.locator(".annotation-card", { hasText: "why quick?" }).getByRole("button", { name: "Resolve" }).click();
+  // Adding a comment already opened the owner's rail; clicking
+  // #commentsBtn unconditionally would close it again, leaving the card
+  // off-screen (the app itself must never be horizontally scrollable).
+  const ownerCard = owner.locator(".annotation-card", { hasText: "why quick?" });
+  const railCollapsed = await owner.evaluate(() => document.querySelector(".annotation-rail")?.classList.contains("collapsed") ?? true);
+  if (railCollapsed) await owner.click("#commentsBtn");
+  await ownerCard.getByRole("button", { name: "Resolve" }).click();
   await expect(peer.locator(".annotation-card", { hasText: "why quick?" }).getByRole("button", { name: "Reopen" })).toBeVisible({ timeout: 10000 });
 
   // Owner deletes it → the peer's highlight disappears live.

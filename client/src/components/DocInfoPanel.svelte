@@ -182,7 +182,7 @@
         {/each}
       </div>
     {/if}
-    {#if doc.repoPath || doc.gistId || ($workspaceRepoLinked && !$collabIsOwner)}
+    {#if doc.repoPath || doc.gistId || doc.driveExportId || ($workspaceRepoLinked && !$collabIsOwner)}
       <div class="menu-section-label">Synced to</div>
       {#if doc.repoPath}
         {@const workspace = $workspacesStore.find((w) => w.id === doc.workspaceId)}
@@ -210,6 +210,19 @@
           <span class="doc-info-primary">Gist</span>
           <a class="doc-info-secondary doc-info-link" href={`https://gist.github.com/${doc.gistId}`} target="_blank" rel="noopener">
             View on GitHub
+          </a>
+        </div>
+      {/if}
+      {#if doc.driveExportId}
+        <div class="doc-info-row">
+          <span class="doc-info-primary">Google Drive</span>
+          <a
+            class="doc-info-secondary doc-info-link"
+            href={`https://drive.google.com/file/d/${doc.driveExportId}/view`}
+            target="_blank"
+            rel="noopener"
+          >
+            {doc.driveExportName || "Saved file"}
           </a>
         </div>
       {/if}

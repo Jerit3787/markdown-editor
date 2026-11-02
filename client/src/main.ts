@@ -40,6 +40,7 @@ import DocInfoPanel from "./components/DocInfoPanel.svelte";
 import DocEditModal from "./components/DocEditModal.svelte";
 import ConfirmDialog from "./components/ConfirmDialog.svelte";
 import GistVisibilityDialog from "./components/GistVisibilityDialog.svelte";
+import SaveToDriveDialog from "./components/SaveToDriveDialog.svelte";
 import ShareChoiceModal from "./components/ShareChoiceModal.svelte";
 import MoveToWorkspaceModal from "./components/MoveToWorkspaceModal.svelte";
 import GithubSignInModal from "./components/GithubSignInModal.svelte";
@@ -90,6 +91,7 @@ mount(DocInfoPanel, { target: document.getElementById("doc-info-panel-mount")! }
 mount(DocEditModal, { target: document.getElementById("doc-edit-modal-mount")! });
 mount(ConfirmDialog, { target: document.getElementById("confirm-dialog-mount")! });
 mount(GistVisibilityDialog, { target: document.getElementById("gist-visibility-dialog-mount")! });
+mount(SaveToDriveDialog, { target: document.getElementById("save-to-drive-dialog-mount")! });
 mount(ShareChoiceModal, { target: document.getElementById("share-choice-modal-mount")! });
 mount(MoveToWorkspaceModal, { target: document.getElementById("move-to-workspace-modal-mount")! });
 mount(GithubSignInModal, { target: document.getElementById("github-signin-modal-mount")! });

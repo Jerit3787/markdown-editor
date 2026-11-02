@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleDrivePickerToken, handleDriveImport } from "../../src/google-drive";
+import { handleDrivePickerToken, handleDriveImport, handleDriveExport } from "../../src/google-drive";
 import { encryptJSON } from "../../src/auth";
 import type { Env } from "../../src/env";
 
@@ -99,5 +99,96 @@ describe("handleDriveImport — resource caps", () => {
     const body = (await res.json()) as { results: Array<{ ok: boolean; error?: string }> };
     expect(body.results[0]).toMatchObject({ ok: false });
     expect(body.results[0]!.error).toMatch(/large/i);
+  });
+});
+
+describe("handleDriveExport — save markdown to Drive", () => {
+  const exportBody = (overrides: Record<string, unknown> = {}) => JSON.stringify({ name: "notes.md", contentBase64: btoa("# Hello"), ...overrides });
+
+  it("creates a new file with a multipart upload when no fileId is given", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url: String(url), init });
+        return Response.json({ id: "new-file", name: "notes.md", webViewLink: "https://drive.google.com/file/d/new-file/view" });
+      }),
+    );
+    const req = await connectedReq("https://app/api/drive/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: exportBody({ parentFolderId: "folder-1" }),
+    });
+
+    const res = await handleDriveExport(req, env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      fileId: "new-file",
+      name: "notes.md",
+      webViewLink: "https://drive.google.com/file/d/new-file/view",
+    });
+
+    const call = calls[0]!;
+    expect(call.url).toContain("/upload/drive/v3/files");
+    expect(call.url).toContain("uploadType=multipart");
+    expect(call.init?.method).toBe("POST");
+    expect(String((call.init?.headers as Record<string, string>)["Content-Type"])).toMatch(/^multipart\/related; boundary=/);
+    const bodyText = await (call.init!.body as Blob).text();
+    expect(bodyText).toContain('"name":"notes.md"');
+    expect(bodyText).toContain('"parents":["folder-1"]');
+    expect(bodyText).toContain("# Hello");
+  });
+
+  it("updates an existing file with a media PATCH", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url: String(url), init });
+        return Response.json({ id: "file-1", name: "notes.md", webViewLink: "https://drive.google.com/file/d/file-1/view" });
+      }),
+    );
+    const req = await connectedReq("https://app/api/drive/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: exportBody({ fileId: "file-1" }),
+    });
+
+    const res = await handleDriveExport(req, env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ fileId: "file-1" });
+
+    const call = calls[0]!;
+    expect(call.url).toContain("/upload/drive/v3/files/file-1");
+    expect(call.url).toContain("uploadType=media");
+    expect(call.init?.method).toBe("PATCH");
+  });
+
+  it("returns 404 not-found when the stored file was deleted in Drive", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("not found", { status: 404 })),
+    );
+    const req = await connectedReq("https://app/api/drive/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: exportBody({ fileId: "gone" }),
+    });
+
+    const res = await handleDriveExport(req, env);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not-found" });
+  });
+
+  it("rejects an oversized payload before uploading", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const req = await connectedReq("https://app/api/drive/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "big.md", contentBase64: "A".repeat(7 * 1024 * 1024) }),
+    });
+
+    const res = await handleDriveExport(req, env);
+    expect(res.status).toBe(413);
   });
 });

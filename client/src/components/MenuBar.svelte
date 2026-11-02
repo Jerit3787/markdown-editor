@@ -12,7 +12,7 @@
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
-  import { driveConnected, driveConfigured } from "../stores/driveSync";
+  import { driveConnected, driveConfigured, driveExportBusyLabel } from "../stores/driveSync";
   import { openFindBar } from "../stores/findReplace";
   import { effectiveMode, collabRole, collabIsOwner } from "../stores/collabMode";
 
@@ -43,6 +43,13 @@
   const hasGist = $derived(!!activeDoc?.gistId);
   const gistLabel = $derived($gistBusyLabel ?? (hasGist ? "Update Gist" : "Publish to Gist"));
   const gistBusy = $derived($gistBusyLabel !== null);
+  const hasDriveExport = $derived(!!activeDoc?.driveExportId);
+  const driveExportLabel = $derived($driveExportBusyLabel ?? (hasDriveExport ? "Update in Google Drive" : "Save to Google Drive"));
+  const driveExportBusy = $derived($driveExportBusyLabel !== null);
+  const driveAvailable = $derived($driveConnected || $driveConfigured);
+  // The Publish submenu is shared by Gist and Drive: show it when either
+  // integration is available (Drive works without a GitHub account).
+  const publishMenuVisible = $derived(!publishHidden && (!!$githubUsername || driveAvailable));
   const recentDocs = $derived([...$docsStore].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8));
   const viewEditorOn = $derived(isEditorOn($viewMode));
   const viewPreviewOn = $derived(isPreviewOn($viewMode));
@@ -147,20 +154,37 @@
            Both always exist (toggled via hidden, not {#if}) so the
            submenu's flyout trigger is wired once by initSubmenus at
            mount, regardless of which one is visible when that runs. -->
-      <button id="menuPublishSignedOut" type="button" disabled={!hasActiveDoc} hidden={!!$githubUsername || publishHidden} onclick={() => act(() => window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue."))}>
+      <button id="menuPublishSignedOut" type="button" disabled={!hasActiveDoc} hidden={publishHidden || publishMenuVisible} onclick={() => act(() => window.MDE.requireGithubSignIn("Publishing to Gist needs a connected GitHub account. Sign in to continue."))}>
         <svg class="icon"><use href="#icon-rocket"></use></svg> Publish to Gist
       </button>
-      <div class="menu-submenu" id="publishSubmenu" hidden={!$githubUsername || publishHidden}>
+      <div class="menu-submenu" id="publishSubmenu" hidden={!publishMenuVisible}>
         <button class="menu-submenu-trigger" type="button" disabled={!hasActiveDoc}>
           <svg class="icon"><use href="#icon-rocket"></use></svg> Publish <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
         </button>
         <div class="menu-submenu-panel">
-          <button id="menuPublishGist" type="button" disabled={gistBusy || !hasActiveDoc} onclick={() => act(() => window.MDE.publishGist?.())}>
-            <svg class="icon"><use href="#icon-github"></use></svg> <span id="menuGistLabel">{gistLabel}</span>
-          </button>
-          <a id="gistViewLink" class="menu-link-item" href={hasGist ? `https://gist.github.com/${activeDoc?.gistId}` : "#"} target="_blank" rel="noopener" hidden={!hasGist}>
-            <svg class="icon"><use href="#icon-external-link"></use></svg> View Gist
-          </a>
+          {#if $githubUsername}
+            <button id="menuPublishGist" type="button" disabled={gistBusy || !hasActiveDoc} onclick={() => act(() => window.MDE.publishGist?.())}>
+              <svg class="icon"><use href="#icon-github"></use></svg> <span id="menuGistLabel">{gistLabel}</span>
+            </button>
+            <a id="gistViewLink" class="menu-link-item" href={hasGist ? `https://gist.github.com/${activeDoc?.gistId}` : "#"} target="_blank" rel="noopener" hidden={!hasGist}>
+              <svg class="icon"><use href="#icon-external-link"></use></svg> View Gist
+            </a>
+          {/if}
+          {#if driveAvailable}
+            <button id="menuSaveDrive" type="button" disabled={driveExportBusy || !hasActiveDoc} onclick={() => act(() => window.MDE.saveToDrive?.())}>
+              <svg class="icon"><use href="#icon-cloud"></use></svg> <span id="menuDriveExportLabel">{driveExportLabel}</span>
+            </button>
+            <a
+              id="driveExportViewLink"
+              class="menu-link-item"
+              href={hasDriveExport ? `https://drive.google.com/file/d/${activeDoc?.driveExportId}/view` : "#"}
+              target="_blank"
+              rel="noopener"
+              hidden={!hasDriveExport}
+            >
+              <svg class="icon"><use href="#icon-external-link"></use></svg> View in Drive
+            </a>
+          {/if}
         </div>
       </div>
 

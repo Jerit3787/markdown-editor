@@ -4,7 +4,7 @@ import { handleLogin, handleCallback, handleLogout, handleMe, handleGistCreate, 
 import { handleGistImageUpload } from "./gist-images.js";
 import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
 import { handleGoogleConnect, handleGoogleCallback, handleGoogleStatus, handleGoogleDisconnect } from "./google-auth.js";
-import { handleDrivePickerToken, handleDriveImport } from "./google-drive.js";
+import { handleDrivePickerToken, handleDriveImport, handleDriveExport } from "./google-drive.js";
 import type { Env } from "./env";
 import { generateNonce, appCsp, legalCsp } from "./csp.js";
 
@@ -112,6 +112,7 @@ export default {
     if (url.pathname === "/api/auth/google/disconnect" && request.method === "POST") return handleGoogleDisconnect(request, env);
     if (url.pathname === "/api/auth/google/picker-token" && request.method === "GET") return handleDrivePickerToken(request, env);
     if (url.pathname === "/api/drive/import" && request.method === "POST") return handleDriveImport(request, env);
+    if (url.pathname === "/api/drive/export" && request.method === "POST") return handleDriveExport(request, env);
 
     if (url.pathname === "/api/gist" && request.method === "POST") return handleGistCreate(request, env);
     if (url.pathname === "/api/gists" && request.method === "GET") return handleGistList(request, env);

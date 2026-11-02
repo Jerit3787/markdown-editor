@@ -271,9 +271,15 @@ export function clearPendingDriveDeletions(workspaceId: string, sentFileIds: str
   if (sentFileIds.length === 0) return;
   const sent = new Set(sentFileIds);
   workspacesStore.update((all) =>
-    all.map((w) =>
-      w.id === workspaceId ? { ...w, pendingDriveDeletions: (w.pendingDriveDeletions || []).filter((id) => !sent.has(id)), updatedAt: Date.now() } : w,
-    ),
+    all.map((w) => {
+      if (w.id !== workspaceId) return w;
+      const existing = w.pendingDriveDeletions;
+      // Don't materialize an empty queue (or touch updatedAt) when this
+      // remote-sourced deletion was never in it.
+      if (!existing?.some((id) => sent.has(id))) return w;
+      const next = existing.filter((id) => !sent.has(id));
+      return { ...w, pendingDriveDeletions: next.length ? next : undefined, updatedAt: Date.now() };
+    }),
   );
   persistWorkspaces();
 }

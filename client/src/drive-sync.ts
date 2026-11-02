@@ -674,6 +674,7 @@ export async function pullFromDrive(
       }
     }
     const removed = removeDocsByDriveFileIds(workspaceId, deletedFileIds);
+    clearPendingDriveDeletions(workspaceId, deletedFileIds);
     repoDocSyncHook.onRepoDocsChanged?.({ workspaceId, created: [], updated: adopted, deleted: removed });
     if (adopted.length || removed.length) window.MDE?.reloadActiveDocFromStore?.();
   }

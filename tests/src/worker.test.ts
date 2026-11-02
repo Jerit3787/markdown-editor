@@ -139,3 +139,13 @@ describe("worker routing", () => {
     }
   });
 });
+
+describe("worker routing — Drive export", () => {
+  it("routes POST /api/drive/export to the export handler", async () => {
+    const { env, doFetch } = fakeEnv();
+    const res = await worker.fetch(new Request("https://app.example.com/api/drive/export", { method: "POST", body: "{}" }), env);
+    // No Google session cookie → the handler's own 401, not the SPA fallback.
+    expect(res.status).toBe(401);
+    expect(doFetch).not.toHaveBeenCalled();
+  });
+});

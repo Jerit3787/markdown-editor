@@ -19,6 +19,13 @@ const browser = await chromium.launch(existsSync(SANDBOX_CHROMIUM) ? { executabl
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
 const page = await ctx.newPage();
 
+// The client-only dev server has no Worker, so the real status probe
+// fails and the Drive menu item stays hidden. Mock the one endpoint the
+// shot depends on (configured, not connected) so the menu renders.
+await page.route("**/api/auth/google/status", (route) =>
+  route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ connected: false, configured: true }) }),
+);
+
 await page.goto(BASE);
 await page.waitForFunction(() => window.MDE && typeof window.MDE.getEditor === "function", { timeout: 30000 });
 

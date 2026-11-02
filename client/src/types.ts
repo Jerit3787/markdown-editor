@@ -143,6 +143,13 @@ export interface Doc {
   // renaming the document after the first publish left the gist with
   // two files instead of one renamed one.
   gistFilename?: string;
+  // Standalone "Save to Google Drive" target (parallel to gistId /
+  // gistFilename): the app-owned `.md` file this doc was last saved to.
+  // Independent of the folder-sync fields (`driveFileId`) — a doc can be
+  // exported to a loose Drive file, live inside a synced folder, both, or
+  // neither.
+  driveExportId?: string;
+  driveExportName?: string;
   // Path within the linked workspace's repo (e.g. "docs/notes.md"),
   // once this doc has been pulled from or pushed to it at least once.
   // Parallel to gistId/gistFilename above.
@@ -345,6 +352,8 @@ export interface MDEBridge {
   connectGoogleDrive?: () => void;
   disconnectGoogleDrive?: () => Promise<void>;
   importMarkdownFromDrive?: () => Promise<void>;
+  saveToDrive?: () => Promise<void>;
+  pickDriveFolder?: () => Promise<{ id: string; name: string } | null>;
   // Chained by drive-files.ts's own `message` listener when the Google
   // connect popup reports success — gist.ts-style chaining if needed.
   onGoogleAuthComplete?: () => void;

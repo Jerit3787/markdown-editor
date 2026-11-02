@@ -521,6 +521,18 @@ export function clearActiveDocGist(): Doc | undefined {
   return findDocById(doc.id);
 }
 
+export function setDocDriveExport(id: string, fileId: string, name: string): void {
+  updateDoc(id, { driveExportId: fileId, driveExportName: name });
+  persistDocs();
+}
+
+// The standalone Drive file was deleted outside the app — drop the link
+// so the next save creates a new one.
+export function clearDocDriveExport(id: string): void {
+  updateDoc(id, { driveExportId: undefined, driveExportName: undefined });
+  persistDocs();
+}
+
 export function setDocImage(key: string, dataUrl: string) {
   const doc = getActiveDoc();
   if (!doc) return;

@@ -21,6 +21,7 @@ import {
   upsertDocFromDrive,
   removeDocsByDriveFileIds,
   setDocDriveLinkById,
+  setDocDriveImageRevs,
   ensureActiveDocInWorkspace,
   clearDriveSyncMetadata,
   findDocById,
@@ -612,32 +613,38 @@ async function commitPushResults(workspaceId: string, plan: PushPlan, data: Push
   }
 
   const docs = docsInWorkspace(workspaceId);
-  function commitOne(change: PushChange, fileId: string, rev: string): void {
-    const doc = docs.find((candidate) => candidate.id === change.docId);
-    if (!doc) return;
+
+  function applyImageOps(change: PushChange, doc: Doc): { imageRevs: Record<string, { fileId: string; rev: string; hash?: string }>; ok: boolean } {
     const imageRevs = { ...(doc.driveImageRevs ?? {}) };
-    let imagesOk = true;
+    let ok = true;
     for (const op of change.imageOps) {
       if (op.kind === "create") {
         const result = createdByPath.get(op.path);
         if (!result?.fileId) {
-          imagesOk = false;
+          ok = false;
           continue;
         }
         imageRevs[op.ref] = { fileId: result.fileId, rev: result.rev ?? "", hash: op.hash };
       } else if (op.kind === "update") {
         const result = updatedByFileId.get(op.fileId);
         if (!result) {
-          imagesOk = false;
+          ok = false;
           continue;
         }
         imageRevs[op.ref] = { fileId: op.fileId, rev: result.rev ?? "", hash: op.hash };
       } else if (deleted.has(op.fileId)) {
         delete imageRevs[op.ref];
       } else {
-        imagesOk = false;
+        ok = false;
       }
     }
+    return { imageRevs, ok };
+  }
+
+  function commitOne(change: PushChange, fileId: string, rev: string): void {
+    const doc = docs.find((candidate) => candidate.id === change.docId);
+    if (!doc) return;
+    const { imageRevs, ok } = applyImageOps(change, doc);
     setDocDriveLinkById(change.docId, {
       drivePath: change.path,
       driveFileId: fileId,
@@ -645,17 +652,30 @@ async function commitPushResults(workspaceId: string, plan: PushPlan, data: Push
       driveImageRevs: Object.keys(imageRevs).length ? imageRevs : undefined,
       // A failed image keeps the old hash so the next push re-plans this
       // doc even though its markdown revision was committed.
-      drivePushedHash: imagesOk ? change.contentHash : doc.drivePushedHash,
+      drivePushedHash: ok ? change.contentHash : doc.drivePushedHash,
     });
+  }
+
+  // The server commits each item independently: a failed markdown update
+  // can still leave its images uploaded. Record those successful image
+  // revisions anyway, or the next plan sees a fresh remote image rev
+  // against our old one and raises a false conflict.
+  function commitImagesOnly(change: PushChange): void {
+    const doc = docs.find((candidate) => candidate.id === change.docId);
+    if (!doc || change.imageOps.length === 0) return;
+    const { imageRevs } = applyImageOps(change, doc);
+    setDocDriveImageRevs(change.docId, Object.keys(imageRevs).length ? imageRevs : undefined);
   }
 
   for (const change of plan.creates) {
     const result = createdByPath.get(change.path);
     if (result?.fileId) commitOne(change, result.fileId, result.rev ?? "");
+    else commitImagesOnly(change);
   }
   for (const change of plan.updates) {
     const result = updatedByFileId.get(change.fileId);
     if (result) commitOne(change, change.fileId, result.rev ?? "");
+    else commitImagesOnly(change);
   }
 
   clearPendingDriveDeletions(workspaceId, [...deleted]);

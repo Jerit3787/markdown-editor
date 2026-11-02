@@ -216,3 +216,59 @@ describe("pushToDrive", () => {
     await expect(pullFromDrive("w1")).rejects.toBeInstanceOf(DriveReconnectError);
   });
 });
+
+describe("pushToDrive partial image success", () => {
+  it("records image revisions even when the markdown update fails", async () => {
+    linkedWorkspace();
+    const dataA = `data:image/png;base64,${Buffer.from("A").toString("base64")}`;
+    const dataB = `data:image/png;base64,${Buffer.from("B").toString("base64")}`;
+    const oldHash = await hashPushPayload("![pic](assets/one/img-1.png)", [{ path: "assets/one/img-1.png", dataUrl: dataA }]);
+    docsStore.set([
+      doc({
+        id: "d1",
+        name: "one",
+        content: "![pic](img-1)",
+        images: { "img-1": dataB },
+        driveFileId: "f1",
+        drivePath: "one.md",
+        driveRev: "r1",
+        drivePushedHash: oldHash,
+        driveImageRevs: { "img-1": { fileId: "img1", rev: "ir1", hash: await hashImageDataUrl(dataA) } },
+      }),
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("/tree")) {
+          return json({
+            folderId: "folder-1",
+            folderName: "Notes",
+            workspaceId: "w1",
+            entries: [
+              { fileId: "f1", path: "one.md", mimeType: "text/markdown", rev: "r1" },
+              { fileId: "img1", path: "assets/one/img-1.png", mimeType: "image/png", rev: "ir1" },
+            ],
+          });
+        }
+        if (u.includes("/push")) {
+          return json({
+            results: [
+              { path: "one.md", op: "update", ok: false, fileId: "f1", error: "HTTP 500" },
+              { path: "assets/one/img-1.png", op: "update", ok: true, fileId: "img1", rev: "ir2" },
+            ],
+            synced: 1,
+            failed: 1,
+          });
+        }
+        throw new Error(`unexpected fetch ${u}`);
+      }),
+    );
+
+    await pushToDrive("w1");
+    const stored = get(docsStore)[0]!;
+    expect(stored.driveRev).toBe("r1");
+    expect(stored.drivePushedHash).toBe(oldHash);
+    expect(stored.driveImageRevs?.["img-1"]).toMatchObject({ fileId: "img1", rev: "ir2" });
+  });
+});

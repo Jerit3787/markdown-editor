@@ -606,6 +606,15 @@ export function removeDocsByDriveFileIds(workspaceId: string, fileIds: string[])
   return toRemove.map((d) => d.id);
 }
 
+// Partial-push recovery: image uploads can succeed while the owning
+// markdown update fails. Committing just the image revisions stops the
+// next plan from mistaking those fresh remote revs for a remote edit and
+// raising a false conflict.
+export function setDocDriveImageRevs(id: string, driveImageRevs: Record<string, { fileId: string; rev: string; hash?: string }> | undefined): void {
+  updateDoc(id, { driveImageRevs });
+  persistDocs();
+}
+
 export function setDocDriveLinkById(
   id: string,
   data: {

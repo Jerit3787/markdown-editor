@@ -183,7 +183,7 @@
         {/each}
       </div>
     {/if}
-    {#if doc.repoPath || doc.gistId || doc.driveExportId || doc.driveFileId || ($workspaceRepoLinked && !$collabIsOwner)}
+    {#if doc.repoPath || doc.gistId || doc.driveExportId || (doc.driveFileId && docWorkspace?.driveLink) || ($workspaceRepoLinked && !$collabIsOwner)}
       <div class="menu-section-label">Synced to</div>
       {#if doc.repoPath}
         {#if docWorkspace?.repoLink}

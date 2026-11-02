@@ -232,6 +232,52 @@ export function clearPendingRepoDeletions(workspaceId: string, sentPaths: string
   persistWorkspaces();
 }
 
+// ---- Google Drive folder link ----
+// Independent of the repo link: a workspace can be backed by a repo, a
+// Drive folder, both, or neither.
+export function setWorkspaceDriveLink(id: string, driveLink: { folderId: string; folderName: string }): void {
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, driveLink, updatedAt: Date.now() } : w)));
+  persistWorkspaces();
+}
+
+export function clearWorkspaceDriveLink(id: string): void {
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, driveLink: undefined, driveLastSyncedAt: undefined, updatedAt: Date.now() } : w)));
+  persistWorkspaces();
+}
+
+export function setWorkspaceDriveLastSynced(id: string, timestamp: number): void {
+  workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, driveLastSyncedAt: timestamp, updatedAt: Date.now() } : w)));
+  persistWorkspaces();
+}
+
+// See Workspace.pendingDriveDeletions's own comment — the Drive file id
+// is captured at delete time because the doc itself is gone by the time
+// the next push runs.
+export function queueDriveDeletion(workspaceId: string, fileId: string): void {
+  workspacesStore.update((all) =>
+    all.map((w) => {
+      if (w.id !== workspaceId) return w;
+      const existing = w.pendingDriveDeletions || [];
+      if (existing.includes(fileId)) return w;
+      return { ...w, pendingDriveDeletions: [...existing, fileId], updatedAt: Date.now() };
+    }),
+  );
+  persistWorkspaces();
+}
+
+// Only the ids a push actually sent — a deletion queued while the push was
+// in flight must survive for the next one.
+export function clearPendingDriveDeletions(workspaceId: string, sentFileIds: string[]): void {
+  if (sentFileIds.length === 0) return;
+  const sent = new Set(sentFileIds);
+  workspacesStore.update((all) =>
+    all.map((w) =>
+      w.id === workspaceId ? { ...w, pendingDriveDeletions: (w.pendingDriveDeletions || []).filter((id) => !sent.has(id)), updatedAt: Date.now() } : w,
+    ),
+  );
+  persistWorkspaces();
+}
+
 export function renameWorkspace(id: string, name: string) {
   workspacesStore.update((all) => all.map((w) => (w.id === id ? { ...w, name: name || "Untitled workspace", updatedAt: Date.now() } : w)));
   persistWorkspaces();

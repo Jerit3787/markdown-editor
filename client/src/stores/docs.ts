@@ -12,7 +12,7 @@ import { confirmAction } from "./confirmDialog";
 import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
 import { rewriteWikilinkReferences } from "../wikilink-rewrite";
-import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace, queueRepoDeletion } from "./workspaces";
+import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace, queueRepoDeletion, queueDriveDeletion } from "./workspaces";
 import { mergeById } from "../merge-records";
 import { parseMetadataBlock, type MetadataPair } from "../mmd-metadata";
 import type { BibEntry, CitationPrefs } from "../mmd-citations";
@@ -388,6 +388,10 @@ export function removeDocById(id: string) {
   // anything knows what repo file it used to correspond to, so queue it
   // now for repo-sync.ts's planPush to delete on the next push.
   if (removedDoc?.repoPath && removedWorkspaceId) queueRepoDeletion(removedWorkspaceId, removedDoc.repoPath);
+  // Same last-moment capture for folder sync: the doc (and its file id)
+  // is gone after this line, but the next push still needs to delete the
+  // Drive file.
+  if (removedDoc?.driveFileId && removedWorkspaceId) queueDriveDeletion(removedWorkspaceId, removedDoc.driveFileId);
   docsStore.update((docs) => docs.filter((d) => d.id !== id));
   // Deleting the last remaining doc leaves docs empty and activeId null —
   // the reactive editor subscription shows the empty state rather than
@@ -435,6 +439,13 @@ export function duplicateDoc(id: string): Doc | undefined {
   delete copy.repoPath;
   delete copy.repoSha;
   delete copy.repoImageShas;
+  delete copy.drivePath;
+  delete copy.driveFileId;
+  delete copy.driveRev;
+  delete copy.driveImageRevs;
+  delete copy.drivePushedHash;
+  delete copy.driveExportId;
+  delete copy.driveExportName;
   delete copy.pendingRoomRegistration;
   docsStore.update((docs) => [copy, ...docs]);
   setActiveId(copy.id);
@@ -530,6 +541,105 @@ export function setDocDriveExport(id: string, fileId: string, name: string): voi
 // so the next save creates a new one.
 export function clearDocDriveExport(id: string): void {
   updateDoc(id, { driveExportId: undefined, driveExportName: undefined });
+  persistDocs();
+}
+
+// ---- Google Drive folder sync ----
+// Matching mirrors planPull: the opaque Drive file id wins; drivePath is
+// the fallback for a doc that has never been pushed (first pull after
+// linking to a folder that already has the same path).
+export function upsertDocFromDrive(
+  workspaceId: string,
+  drivePath: string,
+  data: {
+    name: string;
+    content: string;
+    images?: Record<string, string>;
+    diagrams?: Record<string, string>;
+    driveFileId: string;
+    driveRev: string;
+    driveImageRevs?: Record<string, { fileId: string; rev: string }>;
+    drivePushedHash?: string;
+  },
+): { id: string; created: boolean } {
+  const existing = docsInWorkspace(workspaceId).find((d) => d.driveFileId === data.driveFileId || d.drivePath === drivePath);
+  if (existing) {
+    updateDoc(existing.id, {
+      content: data.content,
+      images: data.images,
+      diagrams: data.diagrams,
+      drivePath,
+      driveFileId: data.driveFileId,
+      driveRev: data.driveRev,
+      driveImageRevs: data.driveImageRevs,
+      drivePushedHash: data.drivePushedHash,
+      updatedAt: Date.now(),
+    });
+    persistDocs();
+    return { id: existing.id, created: false };
+  }
+  const doc: Doc = {
+    id: uid(),
+    name: data.name,
+    content: data.content,
+    images: data.images,
+    diagrams: data.diagrams,
+    updatedAt: Date.now(),
+    createdAt: Date.now(),
+    workspaceId,
+    drivePath,
+    driveFileId: data.driveFileId,
+    driveRev: data.driveRev,
+    driveImageRevs: data.driveImageRevs,
+    drivePushedHash: data.drivePushedHash,
+  };
+  doc.name = ensureUniqueName(doc.name, get(docsStore));
+  docsStore.update((docs) => [doc, ...docs]);
+  persistDocs();
+  return { id: doc.id, created: true };
+}
+
+export function removeDocsByDriveFileIds(workspaceId: string, fileIds: string[]): string[] {
+  const ids = new Set(fileIds);
+  const toRemove = docsInWorkspace(workspaceId).filter((d) => d.driveFileId && ids.has(d.driveFileId));
+  for (const doc of toRemove) removeDocById(doc.id);
+  return toRemove.map((d) => d.id);
+}
+
+export function setDocDriveLinkById(
+  id: string,
+  data: {
+    drivePath: string;
+    driveFileId: string;
+    driveRev: string;
+    driveImageRevs?: Record<string, { fileId: string; rev: string }>;
+    drivePushedHash?: string;
+  },
+): void {
+  updateDoc(id, {
+    drivePath: data.drivePath,
+    driveFileId: data.driveFileId,
+    driveRev: data.driveRev,
+    driveImageRevs: data.driveImageRevs,
+    drivePushedHash: data.drivePushedHash,
+  });
+  persistDocs();
+}
+
+// Linking a workspace to a *different* Drive folder (or re-linking after
+// an unlink) must not compare the new folder's revisions against stale
+// ones from the old folder. The standalone Save-to-Drive link is a
+// separate relationship and deliberately survives.
+export function clearDriveSyncMetadata(workspaceId: string): void {
+  for (const doc of docsInWorkspace(workspaceId)) {
+    updateDoc(doc.id, {
+      drivePath: undefined,
+      driveFileId: undefined,
+      driveRev: undefined,
+      driveImageRevs: undefined,
+      drivePushedHash: undefined,
+    });
+  }
   persistDocs();
 }
 

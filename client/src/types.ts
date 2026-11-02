@@ -84,6 +84,22 @@ export interface Workspace {
     repo: string;
     branch: string;
   };
+  // Set once this workspace has been linked to an app-created Google Drive
+  // folder — see client/src/drive-sync.ts. Independent of repoLink and
+  // shared/remoteId: a workspace can be live-shared, repo-linked,
+  // drive-linked, or any combination.
+  driveLink?: {
+    folderId: string;
+    folderName: string;
+  };
+  // Last successful folder-sync push/pull. Meaningless without driveLink.
+  driveLastSyncedAt?: number;
+  // Drive file ids whose local doc was deleted while this workspace stayed
+  // linked, consumed by drive-sync.ts's planPush. Same reasoning as
+  // pendingRepoDeletions: a deleted doc can no longer answer "what was my
+  // Drive file id", and deleting every unmatched tree file would also
+  // remove files never pulled in.
+  pendingDriveDeletions?: string[];
   // Set after any successful push or pull (whichever happens last) —
   // one combined "last synced" timestamp, not separate push/pull ones.
   // Meaningless without repoLink, so clearWorkspaceRepoLink clears this
@@ -150,6 +166,25 @@ export interface Doc {
   // neither.
   driveExportId?: string;
   driveExportName?: string;
+  // ---- folder sync (parallel to repoPath / repoSha / repoImageShas) ----
+  // Synthetic path inside the linked Drive folder (e.g. "notes/todo.md").
+  // Drive has no path lookup; this is derived from the folder tree walk
+  // and used only for display and slug/dedupe on first create.
+  drivePath?: string;
+  driveFileId?: string;
+  // Last-synced headRevisionId (or modifiedTime fallback) — the conflict
+  // key. A current remote rev different from this means the file changed
+  // somewhere else since the last sync.
+  driveRev?: string;
+  // Per embedded image/diagram ref: the Drive file id + revision it was
+  // last synced at, so a remote image edit surfaces as a conflict on the
+  // owning document too (mirrors repoImageShas).
+  driveImageRevs?: Record<string, { fileId: string; rev: string }>;
+  // SHA-256 of the exact payload last pushed (rewritten markdown + asset
+  // paths/bytes). Drive revisions identify remote content only; without
+  // this local half there is no way to tell "nothing changed here" from
+  // "the user edited this doc" before pushing.
+  drivePushedHash?: string;
   // Path within the linked workspace's repo (e.g. "docs/notes.md"),
   // once this doc has been pulled from or pushed to it at least once.
   // Parallel to gistId/gistFilename above.

@@ -155,6 +155,13 @@ export interface Doc {
   // doc.images/doc.diagrams) — each pushed image is its own blob with
   // its own SHA to track.
   repoImageShas?: Record<string, string>;
+  // Set when this document was created locally inside a shared workspace
+  // while the room socket was down: its first sync step1 was dropped, so
+  // the room never learned the id. Persisted so a later rejoin can
+  // register it over HTTP before the room's greeting (which cannot list
+  // it yet — see collab.ts's applyWorkspaceMeta) is treated as a remote
+  // deletion. Cleared once the room's docOrder confirms registration.
+  pendingRoomRegistration?: boolean;
   // Legacy-only: set on documents shared before workspace-level sharing
   // shipped, under the old one-room-per-document model. New code never
   // sets this — a document's shared state now lives on its containing

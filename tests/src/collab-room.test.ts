@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { CollabRoom } from "../../src/collab-room";
 import { encryptSession } from "../../src/auth";
 import type { Env } from "../../src/env";
@@ -284,5 +284,64 @@ describe("CollabRoom.handleMigrateRequest", () => {
     expect(res.status).toBe(410);
     const disc = await room2.fetch(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
     expect(((await disc.json()) as { workspaceId: string }).workspaceId).toBe("ws-prev");
+  });
+});
+
+describe("CollabRoom migration concurrency", () => {
+  it("runs the seed once and gives concurrent callers the same workspace id", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", {});
+    // Bypass session-cookie crypto, whose real async latency would
+    // serialize the two requests and hide the interleaving under test
+    // (authorize() itself is covered by its own suite).
+    (room as unknown as { authorize: () => Promise<unknown> }).authorize = async () => ({ ok: true, username: "alice", role: "editor" });
+    let seedCalls = 0;
+    let releaseSeeds!: () => void;
+    const seedGate = new Promise<void>((resolve) => (releaseSeeds = resolve));
+    (room as unknown as { env: Env }).env = {
+      ...(room.env as object),
+      WORKSPACE_ROOM: {
+        idFromName: (name: string) => name,
+        get: () => ({
+          fetch: async () => {
+            seedCalls++;
+            // Hold both migrations inside the seed until each has passed
+            // the initial tombstone check — the exact interleaving that
+            // used to let both write their own tombstone.
+            await seedGate;
+            return new Response(null, { status: 204 });
+          },
+        }),
+      },
+    } as unknown as Env;
+
+    const first = room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
+    const second = room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
+    for (let i = 0; i < 50 && seedCalls < 2; i++) await Promise.resolve();
+    releaseSeeds();
+
+    const [a, b] = await Promise.all([first, second]);
+    const [ja, jb] = await Promise.all([a.json() as Promise<{ workspaceId: string }>, b.json() as Promise<{ workspaceId: string }>]);
+    const tombstone = await room.state.storage.get("migratedTo");
+    expect(seedCalls).toBe(1); // one migration ran, not one per caller
+    expect(ja.workspaceId).toBe(jb.workspaceId);
+    expect(tombstone).toBe(ja.workspaceId);
+  });
+});
+
+describe("CollabRoom migrated workspace id entropy", () => {
+  it("mints the migrated workspace id from the CSPRNG", async () => {
+    const room = new CollabRoom(fakeState(), fakeEnv);
+    await putAccess(room, "alice", {});
+    (room as unknown as { env: Env }).env = {
+      ...(room.env as object),
+      WORKSPACE_ROOM: { idFromName: (name: string) => name, get: () => ({ fetch: async () => new Response(null, { status: 204 }) }) },
+    } as unknown as Env;
+    const spy = vi.spyOn(crypto, "getRandomValues");
+    const res = await room.handleMigrateRequest(await authedRequest("alice", "/room1/migrate", { method: "POST" }));
+    const body = (await res.json()) as { workspaceId: string };
+    expect(spy).toHaveBeenCalled();
+    expect(body.workspaceId).toMatch(/^[0-9a-f]{64}$/);
+    spy.mockRestore();
   });
 });

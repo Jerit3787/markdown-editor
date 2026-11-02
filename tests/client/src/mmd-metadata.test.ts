@@ -137,3 +137,22 @@ describe("serializeMetadataBlock", () => {
     expect(serializeMetadataBlock(metadata, body)).toBe(original);
   });
 });
+
+describe("parseMetadataBlock — CRLF input", () => {
+  it("parses the wrapped format from a Windows-authored file", () => {
+    const { metadata, body } = parseMetadataBlock("<!--\r\nTitle: My Doc\r\nAuthor: Jane\r\n-->\r\n\r\n# Heading\r\n");
+    expect(metadata).toEqual([
+      { key: "Title", value: "My Doc" },
+      { key: "Author", value: "Jane" },
+    ]);
+    expect(body).toBe("# Heading\n");
+  });
+
+  it("parses the bare key/value format from a Windows-authored file", () => {
+    const { metadata } = parseMetadataBlock("Title: My Doc\r\nAuthor: Jane\r\n\r\nBody.\r\n");
+    expect(metadata).toEqual([
+      { key: "Title", value: "My Doc" },
+      { key: "Author", value: "Jane" },
+    ]);
+  });
+});

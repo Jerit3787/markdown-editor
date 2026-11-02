@@ -1,6 +1,15 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import { turnstilePromptOpen, turnstilePromptError } from "../stores/turnstile";
+
+  onMount(() => {
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $turnstilePromptOpen) cancel();
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
+  });
 
   function cancel() {
     turnstilePromptOpen.set(false);

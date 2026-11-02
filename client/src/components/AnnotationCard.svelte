@@ -34,6 +34,13 @@
   let replyBody = $state("");
 
   const isSuggestion = $derived(annotation.kind === "suggestion");
+  // A comment's replies[0] is its own opening body (see annotations.ts's
+  // commentCard), so its discussion count starts at 1; every reply on a
+  // suggestion is discussion.
+  function discussionReplyCount(a: RailAnnotation): number {
+    const total = a.replies?.length ?? 0;
+    return a.kind === "suggestion" ? total : Math.max(0, total - 1);
+  }
   const isOwn = $derived(!!annotation.author && annotation.author === viewer.name);
   const isEditor = $derived(viewer.role === "editor");
   const isAnon = $derived(annotation.author.startsWith("anon:"));
@@ -139,8 +146,10 @@
         <!-- A comment's first reply is its opening text; every reply on a
              suggestion is discussion. So the collapsed "N replies" count
              starts above 1 for a comment, above 0 for a suggestion. -->
-      {:else if (annotation.replies?.length ?? 0) > (isSuggestion ? 0 : 1)}
-        <p class="annotation-card-count">{annotation.replies!.length === 1 ? "1 reply" : `${annotation.replies!.length} replies`}</p>
+      {:else if discussionReplyCount(annotation) > 0}
+        <p class="annotation-card-count">
+          {discussionReplyCount(annotation) === 1 ? "1 reply" : `${discussionReplyCount(annotation)} replies`}
+        </p>
       {/if}
     </div>
   {/if}

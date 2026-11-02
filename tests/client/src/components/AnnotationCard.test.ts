@@ -184,3 +184,25 @@ test("a third-party reviewer sees the group rows but no action buttons", async (
   expect(screen.container.querySelectorAll(".annotation-card-subedit")).toHaveLength(2);
   expect(screen.container.querySelector(".annotation-card-actions")).toBeNull();
 });
+
+test("a collapsed comment card counts discussion replies, not its own opening body", async () => {
+  const annotation: RailAnnotation = {
+    id: "reply-count-c1",
+    kind: "comment",
+    author: "alice",
+    createdAt: 1,
+    anchorFrom: 0,
+    anchorTo: 5,
+    quote: "hello",
+    resolved: false,
+    // replies[0] is the comment's opening text; only r1 is a reply.
+    replies: [
+      { id: "r0", author: "alice", body: "opening comment", createdAt: 1 },
+      { id: "r1", author: "bob", body: "one reply", createdAt: 2 },
+    ],
+  };
+
+  const screen = await render(AnnotationCard, { annotation, viewer: { role: "editor", name: "alice" }, focused: false });
+
+  await expect.element(screen.getByText("1 reply")).toBeVisible();
+});

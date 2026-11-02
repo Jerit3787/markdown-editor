@@ -39,8 +39,13 @@
   let canvasEl = $state<HTMLDivElement | undefined>();
   let placements = $state<Record<string, { top: number; clamped: "top" | "bottom" | null; connectorY: number | null }>>({});
 
-  const isMobile = () => window.matchMedia("(max-width: 780px)").matches;
-  const anchored = $derived(isEditorOn($viewMode) && !isMobile() && !manualList);
+  // Reactive copy of the breakpoint: `$derived` can't see a bare
+  // matchMedia() call, so resizing/rotating across 780px used to leave
+  // `anchored` (and the cards' absolute layout) stuck in the old mode
+  // until an unrelated state change happened. The media-query listener in
+  // onMount keeps this in step.
+  let isMobileViewport = $state(typeof window !== "undefined" ? window.matchMedia("(max-width: 780px)").matches : false);
+  const anchored = $derived(isEditorOn($viewMode) && !isMobileViewport && !manualList);
 
   function currentDocContext() {
     const doc = getActiveDoc();
@@ -154,6 +159,9 @@
   $effect(() => {
     void $viewMode;
     void manualList;
+    // `anchored` flips when the viewport crosses the mobile breakpoint —
+    // ensure the cards are re-placed (and stuck placements cleared) then.
+    void anchored;
     void annotations;
     scheduleReposition();
   });
@@ -339,6 +347,16 @@
     // overlay in the e2e suite.
     window.addEventListener("resize", onScroll);
 
+    // Keep `anchored` reactive across the 780px breakpoint (see
+    // isMobileViewport above) — resize also schedules a reposition, but
+    // the derived value itself needs this signal to change.
+    const mobileQuery = window.matchMedia("(max-width: 780px)");
+    isMobileViewport = mobileQuery.matches;
+    const onBreakpointChange = (e: MediaQueryListEvent) => {
+      isMobileViewport = e.matches;
+    };
+    mobileQuery.addEventListener("change", onBreakpointChange);
+
     return () => {
       document.getElementById("commentsBtn")?.removeEventListener("click", toggle);
       document.removeEventListener("keydown", onKeydown);
@@ -346,6 +364,7 @@
       window.MDE.onCommentsChanged = null;
       cm?.scrollDOM.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
+      mobileQuery.removeEventListener("change", onBreakpointChange);
     };
   });
 
@@ -375,7 +394,7 @@
 <div class="annotation-rail" class:collapsed={!$commentsPanelOpen} role="complementary" aria-label="Comments">
   <div class="annotation-rail-header">
     <h2>Comments</h2>
-    {#if isEditorOn($viewMode) && !isMobile()}
+    {#if isEditorOn($viewMode) && !isMobileViewport}
       <button type="button" class="secondary-btn" onclick={() => (manualList = !manualList)}>{manualList ? "Anchored" : "List"}</button>
     {/if}
     <button type="button" class="secondary-btn" onclick={close}>Close</button>

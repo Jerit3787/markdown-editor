@@ -48,3 +48,21 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime(ts)).toBe(new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }));
   });
 });
+
+describe("formatRelativeTime — calendar days, not 24-hour windows", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("labels late-yesterday as Yesterday even when it was under 24h ago", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-17T00:30:00"));
+    expect(formatRelativeTime(new Date("2026-08-16T23:30:00").getTime())).toBe("Yesterday");
+  });
+
+  it("does not call a two-calendar-day-old edit Yesterday", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-17T00:30:00"));
+    expect(formatRelativeTime(new Date("2026-08-15T23:30:00").getTime())).toBe("2d ago");
+  });
+});

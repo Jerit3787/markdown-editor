@@ -6,6 +6,7 @@ import {
   dedupeRepoPath,
   rewriteImagesForPush,
   resolveImagesFromPull,
+  assetFolderFor,
   planPull,
   planPush,
   planCreateWorkspaceFromRepo,
@@ -14,6 +15,7 @@ import {
   markerMatchesWorkspace,
   decodeBase64Text,
   pushToRepo,
+  historyPathFor,
   type TreeEntry,
 } from "../../../client/src/repo-sync";
 import "fake-indexeddb/auto";
@@ -898,5 +900,159 @@ describe("pushToRepo", () => {
     const treeRes = await fetch("/api/repo/acme/docs/tree?branch=main");
     const treeData = (await treeRes.json()) as { tree: { path: string }[] };
     expect(treeData.tree.some((e) => e.path === ".mde/history/notes.json")).toBe(true);
+  });
+
+  it("pushes both same-basename docs' images to their own folders without clobbering", async () => {
+    backend.seedRepo("acme", "docs", "main", [{ path: "README.md", content: "placeholder" }]);
+    const ws = createWorkspace("Linked");
+    docsStore.set([
+      {
+        id: "root",
+        name: "notes",
+        content: "![x](pic.png)",
+        updatedAt: 1,
+        createdAt: 1,
+        workspaceId: ws.id,
+        repoPath: "notes.md",
+        images: { "pic.png": "data:image/png;base64,Uk9PVA==" },
+      },
+      {
+        id: "nested",
+        name: "notes",
+        content: "![x](pic.png)",
+        updatedAt: 1,
+        createdAt: 1,
+        workspaceId: ws.id,
+        repoPath: "docs/notes.md",
+        images: { "pic.png": "data:image/png;base64,TkVTVEVEOg==" },
+      },
+    ]);
+
+    await pushToRepo(ws.id, { owner: "acme", repo: "docs", branch: "main" });
+
+    const treeData = (await (await fetch("/api/repo/acme/docs/tree?branch=main")).json()) as { tree: { path: string; sha: string }[] };
+    const rootAsset = treeData.tree.find((e) => e.path === "assets/notes/pic.png");
+    const nestedAsset = treeData.tree.find((e) => e.path === "assets/docs/notes/pic.png");
+    expect(rootAsset).toBeTruthy();
+    expect(nestedAsset).toBeTruthy();
+
+    const rootBlob = (await (await fetch(`/api/repo/acme/docs/blob/${rootAsset!.sha}`)).json()) as { content: string; encoding: string };
+    const nestedBlob = (await (await fetch(`/api/repo/acme/docs/blob/${nestedAsset!.sha}`)).json()) as { content: string; encoding: string };
+    expect(atob(rootBlob.content)).toBe("ROOT");
+    expect(atob(nestedBlob.content)).toBe("NESTED:");
+  });
+
+  it("resolves a push conflict to 'theirs' by adopting the remote content locally", async () => {
+    backend.seedRepo("acme", "docs", "main", [{ path: "note.md", content: "remote version" }]);
+    const ws = createWorkspace("Linked");
+    docsStore.set([
+      { id: "d1", name: "note", content: "local version", updatedAt: 1, createdAt: 1, workspaceId: ws.id, repoPath: "note.md", repoSha: "stale-sha" },
+    ]);
+
+    const { plan, applyResolved } = await pushToRepo(ws.id, { owner: "acme", repo: "docs", branch: "main" });
+    expect(plan.conflicts).toHaveLength(1);
+
+    await applyResolved({ d1: "theirs" });
+
+    const doc = get(docsStore).find((d) => d.id === "d1")!;
+    expect(doc.content).toBe("remote version");
+    expect(doc.repoSha).not.toBe("stale-sha");
+  });
+});
+
+describe("assetFolderFor — full-path asset folders", () => {
+  it("keeps the basename for root-level docs (no path churn)", () => {
+    expect(assetFolderFor("notes.md")).toBe("notes");
+    expect(assetFolderFor("Notes.MD")).toBe("Notes");
+  });
+
+  it("includes the directory for nested docs so same-basename docs cannot collide", () => {
+    expect(assetFolderFor("docs/notes.md")).toBe("docs/notes");
+    expect(assetFolderFor("a/b/notes.md")).toBe("a/b/notes");
+  });
+
+  it("pushes a nested doc's images under its full-path folder", () => {
+    const result = rewriteImagesForPush("![x](pic.png)", "docs/notes", { "pic.png": "data:image/png;base64,AAAA" }, undefined);
+    expect(result.content).toBe("![x](assets/docs/notes/pic.png)");
+    expect(result.assets[0]!.path).toBe("assets/docs/notes/pic.png");
+  });
+
+  it("resolves both the new full-path prefix and the legacy basename prefix", () => {
+    const blobs = {
+      "assets/docs/notes/new.png": "data:image/png;base64,NEW",
+      "assets/notes/old.png": "data:image/png;base64,OLD",
+    };
+    const result = resolveImagesFromPull("![a](assets/docs/notes/new.png) ![b](assets/notes/old.png)", "docs/notes", blobs, "notes");
+    expect(result.content).toBe("![a](new.png) ![b](old.png)");
+    expect(result.images).toEqual({ "new.png": "data:image/png;base64,NEW", "old.png": "data:image/png;base64,OLD" });
+  });
+
+  it("leaves a legacy-prefixed ref alone when no legacy folder is supplied", () => {
+    const input = "![b](assets/notes/old.png)";
+    expect(resolveImagesFromPull(input, "docs/notes", { "assets/notes/old.png": "data:image/png;base64,OLD" })).toEqual({
+      content: input,
+      images: {},
+    });
+  });
+});
+
+describe("historyPathFor — full-path history files", () => {
+  it("keeps root-level docs at the legacy path", () => {
+    expect(historyPathFor("notes.md")).toBe(".mde/history/notes.json");
+  });
+
+  it("nests a nested doc's history file so same-basename docs cannot share one", () => {
+    expect(historyPathFor("docs/notes.md")).toBe(".mde/history/docs/notes.json");
+  });
+});
+
+describe("same-basename docs and path-aware sweeps", () => {
+  const img = (bytes: string) => `data:image/png;base64,${bytes}`;
+
+  it("gives two same-basename docs distinct asset paths (no clobbering)", async () => {
+    const docs = [
+      fakeDoc({ id: "root", name: "notes", repoPath: "notes.md", repoSha: "s1", content: "![x](pic.png)", images: { "pic.png": img("ROOT") } }),
+      fakeDoc({ id: "nested", name: "notes", repoPath: "docs/notes.md", repoSha: "s2", content: "![x](pic.png)", images: { "pic.png": img("NESTED") } }),
+    ];
+    const entries: TreeEntry[] = [
+      { path: "notes.md", sha: "s1", type: "blob" },
+      { path: "docs/notes.md", sha: "s2", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, true);
+    const byPath = new Map(plan.changes.flatMap((c) => c.assets).map((a) => [a.path, a.dataUrl]));
+    expect(byPath.get("assets/notes/pic.png")).toBe(img("ROOT"));
+    expect(byPath.get("assets/docs/notes/pic.png")).toBe(img("NESTED"));
+  });
+
+  it("sweeps the legacy basename asset folder after a nested doc migrates", async () => {
+    const docs = [fakeDoc({ id: "nested", name: "notes", repoPath: "docs/notes.md", repoSha: "s2", content: "hi", images: { "pic.png": img("NESTED") } })];
+    const entries: TreeEntry[] = [
+      { path: "docs/notes.md", sha: "s2", type: "blob" },
+      { path: "assets/notes/old.png", sha: "aa", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, true);
+    expect(plan.deletions).toContain("assets/notes/old.png");
+  });
+
+  it("keeps the baseline asset folder when a root doc with that basename references it", async () => {
+    const docs = [fakeDoc({ id: "root", name: "notes", repoPath: "notes.md", repoSha: "s1", content: "![x](old.png)", images: { "old.png": img("ROOT") } })];
+    const entries: TreeEntry[] = [
+      { path: "notes.md", sha: "s1", type: "blob" },
+      { path: "assets/notes/old.png", sha: "aa", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, true);
+    expect(plan.deletions).not.toContain("assets/notes/old.png");
+  });
+
+  it("sweeps a legacy basename history file but keeps the nested one", async () => {
+    const docs = [fakeDoc({ id: "nested", name: "notes", repoPath: "docs/notes.md", repoSha: "s2", content: "hi" })];
+    const entries: TreeEntry[] = [
+      { path: "docs/notes.md", sha: "s2", type: "blob" },
+      { path: ".mde/history/notes.json", sha: "hh", type: "blob" },
+      { path: ".mde/history/docs/notes.json", sha: "hh2", type: "blob" },
+    ];
+    const plan = await planPush(docs, entries, true);
+    expect(plan.deletions).toContain(".mde/history/notes.json");
+    expect(plan.deletions).not.toContain(".mde/history/docs/notes.json");
   });
 });

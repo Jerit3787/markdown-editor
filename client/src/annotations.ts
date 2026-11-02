@@ -51,6 +51,16 @@ export function displayName(author: string, authorName?: string): string {
   return authorName || author;
 }
 
+/** Merge suggestion discussion threads, de-duplicated by reply id and oldest-first. */
+function mergeSuggestionReplies(...lists: RailAnnotation["replies"][]): RailAnnotation["replies"] {
+  const seen = new Set<string>();
+  const merged = lists
+    .flatMap((list) => list ?? [])
+    .filter((reply) => (seen.has(reply.id) ? false : (seen.add(reply.id), true)))
+    .sort((a, b) => a.createdAt - b.createdAt);
+  return merged.length ? merged : undefined;
+}
+
 function suggestionCards(suggestions: ResolvedSuggestion[], content: string): RailAnnotation[] {
   const sorted = [...suggestions].sort((a, b) => a.from - b.from);
   const out: RailAnnotation[] = [];
@@ -80,6 +90,11 @@ function suggestionCards(suggestions: ResolvedSuggestion[], content: string): Ra
         replacedText: content.slice(del.from, del.to),
         groupedIds: [del.id, ins.id],
         authorName: del.authorName ?? ins.authorName,
+        // Replies can be attached to either half (the rail targets
+        // underlyingIds(a)[0], but a legacy/edited entry may carry them on
+        // the other) — surface both, or a replace-pair's thread renders
+        // nowhere at all.
+        replies: mergeSuggestionReplies(del.replies, ins.replies),
       });
       continue;
     }

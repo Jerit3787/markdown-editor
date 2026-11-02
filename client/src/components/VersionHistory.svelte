@@ -248,6 +248,11 @@
     selectedContent = undefined;
     selectedImages = undefined;
     const result = await loadEntryContent(doc, isShared, entry);
+    // A slower earlier click can resolve after a later one — never let it
+    // overwrite the content the user is actually looking at (restore()
+    // pairs selectedEntry with selectedContent, so a stale payload would
+    // restore the wrong version).
+    if (selectedId !== entry.id) return;
     if (result) {
       selectedContent = result.content;
       selectedImages = result.images;
@@ -280,6 +285,8 @@
     const entry = flatEntries.find((e) => e.id === id);
     if (!entry) return;
     const result = await loadEntryContent(doc, isDocShared(doc), entry);
+    // Same stale-response guard as selectVersion above.
+    if (compareId !== id) return;
     if (result) {
       compareContent = result.content;
       compareImages = result.images;
@@ -295,42 +302,53 @@
     const isShared = isDocShared(doc);
     restoreAllowed = !isShared || !window.MDE.getEditor().state.readOnly;
     loading = true;
-    if (!isShared) await fetchAndMergeRepoHistory(doc);
-    const localList = isShared ? await listSharedVersions(sharedRoomId(doc), doc.id) : await listVersions(doc.id);
-    // listVersions/listSharedVersions both return newest-first, but
-    // groupSnapshotsIntoSessions requires oldest-first input (a negative
-    // gap against a descending list always satisfies "<= sessionGapMs",
-    // silently merging every entry into one group) — sort back to
-    // oldest-first before grouping.
-    const localEntries: LocalEntry[] = localList
-      .map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp, authors: v.authors ?? [] }))
-      .sort((a, b) => a.timestamp - b.timestamp);
-    const groupedLocalEntries: HistoryEntry[] = groupSnapshotsIntoSessions(localEntries).map((g) =>
-      g.entries.length > 1
-        ? {
-            kind: "session" as const,
-            id: g.entries[0]!.id,
-            timestamp: g.endTimestamp,
-            startTimestamp: g.startTimestamp,
-            endTimestamp: g.endTimestamp,
-            entries: g.entries,
-            authors: [...new Set(g.entries.flatMap((e) => e.authors))],
-          }
-        : g.entries[0]!,
-    );
-    const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);
-    versions = [...groupedLocalEntries, ...commitEntries].sort((a, b) => b.timestamp - a.timestamp);
-    loading = false;
-    compareId = "__live__";
-    compareContent = undefined;
-    compareImages = undefined;
-    if (versions.length > 0) {
-      const first = versions[0]!;
-      const initial = first.kind === "session" ? first.entries[first.entries.length - 1]! : first;
-      await selectVersion(doc, isShared, initial);
-    } else {
+    try {
+      if (!isShared) await fetchAndMergeRepoHistory(doc);
+      const localList = isShared ? await listSharedVersions(sharedRoomId(doc), doc.id) : await listVersions(doc.id);
+      // listVersions/listSharedVersions both return newest-first, but
+      // groupSnapshotsIntoSessions requires oldest-first input (a negative
+      // gap against a descending list always satisfies "<= sessionGapMs",
+      // silently merging every entry into one group) — sort back to
+      // oldest-first before grouping.
+      const localEntries: LocalEntry[] = localList
+        .map((v) => ({ kind: "local" as const, id: v.id, timestamp: v.timestamp, authors: v.authors ?? [] }))
+        .sort((a, b) => a.timestamp - b.timestamp);
+      const groupedLocalEntries: HistoryEntry[] = groupSnapshotsIntoSessions(localEntries).map((g) =>
+        g.entries.length > 1
+          ? {
+              kind: "session" as const,
+              id: g.entries[0]!.id,
+              timestamp: g.endTimestamp,
+              startTimestamp: g.startTimestamp,
+              endTimestamp: g.endTimestamp,
+              entries: g.entries,
+              authors: [...new Set(g.entries.flatMap((e) => e.authors))],
+            }
+          : g.entries[0]!,
+      );
+      const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);
+      versions = [...groupedLocalEntries, ...commitEntries].sort((a, b) => b.timestamp - a.timestamp);
+      compareId = "__live__";
+      compareContent = undefined;
+      compareImages = undefined;
+      if (versions.length > 0) {
+        const first = versions[0]!;
+        const initial = first.kind === "session" ? first.entries[first.entries.length - 1]! : first;
+        await selectVersion(doc, isShared, initial);
+      } else {
+        selectedId = null;
+        selectedEntry = null;
+      }
+    } catch (err) {
+      // IndexedDB can disappear mid-read (cleared storage, private mode,
+      // quota). Leaving `loading` true strands the panel on "Loading…"
+      // forever and leaks an unhandled rejection from the $effect.
+      versions = [];
       selectedId = null;
       selectedEntry = null;
+      showToast("Couldn't load version history", "error");
+    } finally {
+      loading = false;
     }
   }
 
@@ -522,7 +540,7 @@
             </select>
           </div>
           <div class="version-history-preview">
-            {#if selectedContent === undefined}
+            {#if selectedContent === undefined || (compareId !== "__live__" && compareContent === undefined)}
               <div class="empty-state">
                 <svg class="empty-state-icon"><use href="#icon-history"></use></svg>
                 <div class="empty-state-title">Loading…</div>

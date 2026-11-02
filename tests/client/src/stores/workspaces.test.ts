@@ -365,3 +365,38 @@ describe("workspaces store — updatedAt", () => {
     expect(get(workspacesStore).find((w) => w.id === "ws-a")).toBeUndefined();
   });
 });
+
+describe("workspaces store — corrupt storage recovery", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+  });
+
+  it("repairs a corrupt-but-parseable mde:workspaces value instead of bricking every later save", async () => {
+    localStorage.setItem("mde:workspaces", JSON.stringify({ not: "an array" }));
+    const { workspacesStore, createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    expect(get(workspacesStore)).toEqual([]);
+
+    createWorkspace("Fresh");
+
+    const persisted = JSON.parse(localStorage.getItem("mde:workspaces")!);
+    expect(Array.isArray(persisted)).toBe(true);
+    expect((persisted as { name: string }[]).some((w) => w.name === "Fresh")).toBe(true);
+  });
+});
+
+describe("workspace id entropy", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+  });
+
+  it("mints ids from the CSPRNG — a workspace id is the room's bearer secret once shared", async () => {
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const spy = vi.spyOn(crypto, "getRandomValues");
+    const ws = createWorkspace("Secret");
+    expect(spy).toHaveBeenCalled();
+    expect(ws.id).toMatch(/^[0-9a-f]{32}$/);
+    spy.mockRestore();
+  });
+});

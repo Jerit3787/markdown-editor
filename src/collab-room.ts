@@ -39,7 +39,10 @@ export interface CommentThread {
 }
 
 function uid(): string {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  // The migration mints the workspace's room id, which is the bearer
+  // secret for a restricted workspace — CSPRNG, not Math.random.
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 type AuthResult = { ok: true; username: string | null; role: Role } | { ok: false; status: number; message: string };
@@ -63,6 +66,13 @@ export class CollabRoom {
   doc: Y.Doc;
   commentThreads: CommentThread[];
   migratedTo: string | null;
+  // In-flight migration, shared by concurrent /migrate callers. Without
+  // this, two requests can both pass the tombstone check, both seed a
+  // fresh WorkspaceRoom, and each return a different id — the loser's
+  // workspace is orphaned while its caller keeps editing it (split
+  // brain). Single-flight within this DO instance; the post-seed
+  // tombstone re-read below stays as the cross-instance safety net.
+  migrationInFlight: Promise<string> | null;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -70,6 +80,7 @@ export class CollabRoom {
     this.doc = new Y.Doc();
     this.commentThreads = [];
     this.migratedTo = null;
+    this.migrationInFlight = null;
 
     this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get<ArrayBuffer>(PERSIST_KEY);
@@ -146,6 +157,24 @@ export class CollabRoom {
       return Response.json({ workspaceId: existingTombstone });
     }
 
+    // First caller starts the migration; any caller that arrived at the
+    // same time awaits that one instead of seeding a second room (see
+    // migrationInFlight's own comment).
+    if (!this.migrationInFlight) {
+      this.migrationInFlight = this.runMigration(request).finally(() => {
+        this.migrationInFlight = null;
+      });
+    }
+    try {
+      const workspaceId = await this.migrationInFlight;
+      this.migratedTo = workspaceId;
+      return Response.json({ workspaceId });
+    } catch (err) {
+      return new Response("Migration failed.", { status: 500 });
+    }
+  }
+
+  private async runMigration(request: Request): Promise<string> {
     const workspaceId = uid() + uid(); // wider than a doc id's uid() to avoid colliding with existing workspace ids
     const access = await this.getAccess();
     const snapshots = await this.getSnapshots();
@@ -168,20 +197,17 @@ export class CollabRoom {
     const res = await this.env.WORKSPACE_ROOM.get(workspaceRoomId).fetch(
       new Request("https://internal/internal/seed", { method: "POST", body: JSON.stringify(seedBody) }),
     );
-    if (!res.ok) return new Response("Migration failed.", { status: 500 });
+    if (!res.ok) throw new Error("seed failed");
 
-    // A concurrent /migrate for the same room may have won the race while
-    // the seed subrequest above was in flight — if so, adopt its result
-    // (our freshly-seeded WorkspaceRoom is unreferenced and gets no
-    // traffic) rather than overwriting the tombstone with a second id.
+    // A concurrent /migrate from a *different* instance (or a race that
+    // somehow slipped past the in-flight guard) may have won while the
+    // seed subrequest above was in flight — if so, adopt its result (our
+    // freshly-seeded WorkspaceRoom is unreferenced and gets no traffic)
+    // rather than overwriting the tombstone with a second id.
     const raced = await this.state.storage.get<string>("migratedTo");
-    if (raced) {
-      this.migratedTo = raced;
-      return Response.json({ workspaceId: raced });
-    }
+    if (raced) return raced;
     await this.state.storage.put("migratedTo", workspaceId);
-    this.migratedTo = workspaceId;
-    return Response.json({ workspaceId });
+    return workspaceId;
   }
 
   // A legacy room may still have a persist alarm scheduled from before

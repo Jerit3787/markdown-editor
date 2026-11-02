@@ -202,3 +202,31 @@ describe("suggestionExtensions", () => {
     view.destroy();
   });
 });
+
+describe("suggestionExtensions — multiple changed ranges", () => {
+  it("records a delete suggestion for every range, not just the last", () => {
+    const doc = docWith("hello world");
+    const view = viewFor(doc, "alice");
+
+    view.dispatch({
+      changes: [
+        { from: 0, to: 5 }, // "hello"
+        { from: 6, to: 11 }, // "world"
+      ],
+    });
+
+    // The transaction is still canceled (no raw deletion), but both ranges
+    // must be represented — the old filter overwrote the first with the
+    // second, silently dropping it.
+    expect(doc.getText("content").toString()).toBe("hello world");
+    const list = listResolvedSuggestions(doc).filter((s) => s.kind === "delete");
+    expect(list).toHaveLength(2);
+    expect(list.map((s) => [s.from, s.to])).toEqual(
+      expect.arrayContaining([
+        [0, 5],
+        [6, 11],
+      ]),
+    );
+    view.destroy();
+  });
+});

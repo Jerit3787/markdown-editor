@@ -59,6 +59,38 @@ describe("worker routing", () => {
     expect(doFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("does not route a path that merely ends in /internal/seed to the WorkspaceRoom DO", async () => {
+    // The versions/comments route wildcards used to match ANY suffix, so
+    // /api/workspace/<id>/docs/<docId>/versions/internal/seed reached
+    // WorkspaceRoom.fetch(), whose `endsWith("/internal/seed")` dispatch
+    // then called the unauthenticated seed handler — an unauthenticated
+    // workspace takeover. The route patterns must only match the real
+    // version/comment shapes.
+    for (const path of [
+      "/api/workspace/ws1/docs/docA/versions/internal/seed",
+      "/api/workspace/ws1/docs/docA/comments/internal/seed",
+      "/api/workspace/ws1/docs/docA/versions/xyz/internal/seed",
+    ]) {
+      const { env, doFetch, assetsFetch } = fakeEnv();
+      await worker.fetch(new Request(`https://app.example.com${path}`, { method: "POST", body: "{}" }), env);
+      expect(doFetch, path).not.toHaveBeenCalled();
+      expect(assetsFetch, path).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("still routes the real version routes to the WorkspaceRoom DO", async () => {
+    for (const path of [
+      "/api/workspace/ws1/docs/docA/versions",
+      "/api/workspace/ws1/docs/docA/versions/abc123",
+      "/api/workspace/ws1/docs/docA/versions/abc123/restore",
+      "/api/workspace/ws1/docs/docA/versions/restore-content",
+    ]) {
+      const { env, doFetch } = fakeEnv();
+      await worker.fetch(new Request(`https://app.example.com${path}`, { method: "GET" }), env);
+      expect(doFetch, path).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("no longer routes the removed legacy /api/collab endpoints to a DO — they fall through to the SPA handler", async () => {
     for (const path of ["/api/collab/room1", "/api/collab/room1/access", "/api/collab/room1/versions", "/api/collab/room1/comments/t1/reply"]) {
       const { env, doFetch, assetsFetch } = fakeEnv();

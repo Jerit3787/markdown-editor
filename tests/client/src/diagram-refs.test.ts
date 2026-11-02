@@ -43,3 +43,10 @@ describe("resolveDiagramRefs", () => {
     expect(resolveDiagramRefs(text, { diagram: "flowchart TD" })).toBe(text);
   });
 });
+
+describe("resolveDiagramRefs — whitespace", () => {
+  it("resolves a ref line with trailing whitespace, matching the preview renderer", () => {
+    const text = "```mermaid\ndiagram \n```\n";
+    expect(resolveDiagramRefs(text, { diagram: "flowchart TD\nA-->B" })).toBe("```mermaid\nflowchart TD\nA-->B\n```\n");
+  });
+});

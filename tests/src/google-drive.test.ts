@@ -59,3 +59,45 @@ describe("handleDriveImport", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("handleDriveImport — resource caps", () => {
+  it("caps the number of files per request", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("alt=media")) return new Response("# ok", { status: 200 });
+      return Response.json({ name: "n.md", mimeType: "text/markdown" });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const fileIds = Array.from({ length: 25 }, (_, i) => `f${i}`);
+    const req = await connectedReq("https://app/api/drive/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileIds }),
+    });
+    const res = await handleDriveImport(req, env);
+    const body = (await res.json()) as { results: unknown[] };
+    expect(body.results).toHaveLength(20);
+    // 20 files × (meta + content) — not 25.
+    expect(fetchMock).toHaveBeenCalledTimes(40);
+  });
+
+  it("rejects a file whose declared size exceeds the per-file cap", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("alt=media")) return new Response("x", { status: 200, headers: { "Content-Length": String(50 * 1024 * 1024) } });
+        return Response.json({ name: "huge.md", mimeType: "text/markdown" });
+      }),
+    );
+    const req = await connectedReq("https://app/api/drive/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileIds: ["big1"] }),
+    });
+    const res = await handleDriveImport(req, env);
+    const body = (await res.json()) as { results: Array<{ ok: boolean; error?: string }> };
+    expect(body.results[0]).toMatchObject({ ok: false });
+    expect(body.results[0]!.error).toMatch(/large/i);
+  });
+});

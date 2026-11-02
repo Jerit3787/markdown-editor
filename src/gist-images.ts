@@ -28,12 +28,17 @@ function base64ToBytes(b64: string): Uint8Array {
 // that (a slash would be read as a path separator by the tree-writing
 // code below, silently nesting the file instead of naming it literally).
 function sanitizeFilename(name: string): string {
-  return (
+  const cleaned =
     name
       .replace(/[\\/]+/g, "_")
       .replace(/[^\w.-]/g, "_")
-      .slice(0, 200) || "image"
-  );
+      .slice(0, 200) || "image";
+  // MemoryFS normalizes dot segments: "." and ".." collapse to the repo
+  // directory / root (writeFile then replaces a DIRECTORY entry with a
+  // file), and ".git" would clobber the freshly-cloned gitdir — all of
+  // which abort the upload with a misleading 502. Reject them up front.
+  if (cleaned === "." || cleaned === ".." || /^\.git(?:\b|$)/i.test(cleaned)) return "";
+  return cleaned;
 }
 
 export async function handleGistImageUpload(request: Request, env: Env, gistId: string): Promise<Response> {

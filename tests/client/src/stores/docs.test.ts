@@ -658,3 +658,55 @@ describe("rewriteWikilinksInLocalDoc", () => {
     expect(rewriteWikilinksInLocalDoc("nonexistent", "Old", "New")).toBe(false);
   });
 });
+
+describe("docs store — resilience and identity", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+  });
+
+  it("renameDoc persists the new name immediately (it never changes content, so the autosave does not)", async () => {
+    const { createDoc, renameDoc, docsStore } = await import("../../../../client/src/stores/docs");
+    const doc = createDoc({ name: "Old Name" });
+    renameDoc(doc.id, "New Name");
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!) as { id: string; name: string }[];
+    expect(persisted.find((d) => d.id === doc.id)?.name).toBe("New Name");
+    expect(get(docsStore).find((d) => d.id === doc.id)?.name).toBe("New Name");
+  });
+
+  it("repairs a corrupt-but-parseable mde:docs value instead of bricking every later save", async () => {
+    localStorage.setItem("mde:docs", JSON.stringify({ not: "an array" }));
+    const { createDoc, docsStore } = await import("../../../../client/src/stores/docs");
+    expect(get(docsStore)).toEqual([]);
+
+    createDoc({ name: "Fresh" });
+
+    const persisted = JSON.parse(localStorage.getItem("mde:docs")!);
+    expect(Array.isArray(persisted)).toBe(true);
+    expect((persisted as { name: string }[]).some((d) => d.name === "Fresh")).toBe(true);
+  });
+
+  it("duplicateDoc does not carry the source's repo identity onto the copy", async () => {
+    const { docsStore, duplicateDoc } = await import("../../../../client/src/stores/docs");
+    const { createWorkspace } = await import("../../../../client/src/stores/workspaces");
+    const ws = createWorkspace("Linked");
+    docsStore.set([
+      {
+        id: "src",
+        name: "Source",
+        content: "body",
+        updatedAt: 1,
+        createdAt: 1,
+        workspaceId: ws.id,
+        repoPath: "notes.md",
+        repoSha: "abc",
+        repoImageShas: { "a.png": "s1" },
+      },
+    ]);
+    const copy = duplicateDoc("src");
+    expect(copy).toBeDefined();
+    expect(copy!.repoPath).toBeUndefined();
+    expect(copy!.repoSha).toBeUndefined();
+    expect(copy!.repoImageShas).toBeUndefined();
+  });
+});

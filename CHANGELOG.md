@@ -13,6 +13,30 @@ All notable changes to this project are documented here. Format follows
 ### Fixed
 
 - The GitHub and Google Drive sign-in popups now update the app immediately on success instead of only after a page reload — the `Cross-Origin-Opener-Policy` header was severing the popup's link back to the app before it could report the result.
+- Closed an unauthenticated workspace-takeover path: a request to a document's version URL ending in `/internal/seed` could reach the migration seed handler and overwrite the access record (making the attacker owner). The internal endpoint now requires its exact internal path and validates what it stores.
+- Documents created while the collaboration socket was down no longer disappear (locally and from the room) when the next connection's greeting omits them, and documents a collaborator created while you were away now appear in your sidebar after rejoining.
+- Edits made while the collaboration socket was down are replayed when the workspace reconnects or the page reloads, instead of being overwritten by the room's older copy.
+- Dismissing the Turnstile challenge no longer leaves the app thinking it is still connected to the workspace (which blocked retrying until a reload).
+- Switching between documents in a shared workspace no longer stacks duplicate awareness listeners that multiplied cursor/presence traffic on every switch.
+- Renaming a document now persists immediately — the name used to revert on reload because a rename changes no content and the autosave only wrote on content changes.
+- Version history no longer restores the wrong version when an earlier selection's slower content load resolves after a later one, and the Diff view shows a loading state instead of crashing while a compare version loads.
+- Version history no longer sticks on "Loading…" forever (with an unhandled error) when IndexedDB is unavailable, and restoring a version succeeds even when writing the undo snapshot fails.
+- Corrupt-but-parseable `localStorage` values for documents or workspaces are repaired instead of permanently blocking every save behind a misleading "storage may be full" toast.
+- Duplicating a repo-linked document no longer copies its repo path/SHAs, which let the copy overwrite the original's file on the next push.
+- MultiMarkdown definition lists, super/subscript, and citations are no longer applied inside inline code or fenced code blocks, and Windows (CRLF) files' metadata blocks are now parsed on import.
+- A collaborator deleting an image now removes it locally too, instead of the stale image surviving and being re-shared.
+- Replies on a "replace" suggestion now stay visible on its card instead of disappearing from the rail.
+- Escape now dismisses every modal (confirm, share choice, gist visibility, Turnstile, document editor, move-to-workspace, join workspace, repo conflicts).
+- "Today"/"Yesterday" labels now use calendar days rather than 24-hour windows, and diagram-reference fences with trailing whitespace export correctly.
+- A malformed session cookie now reads as signed-out instead of 500-ing every authenticated route, gist image uploads reject `.`/`..`/`.git` filenames up front, and version restore is documented as editor-only.
+- Concurrent version-history saves are serialized per document, so two overlapping writes (autosave racing a restore, or two repo-history merges) can no longer silently drop one snapshot; a malformed stored history record is treated as empty.
+- Google Drive import is capped at 20 files per request with a 5 MB per-file limit, processed sequentially, so one request can't exhaust the Worker's subrequest/memory budget.
+- Two simultaneous legacy-link migrations now run one seed and return the same workspace id instead of each creating its own (orphaned) workspace, and migrated/new workspace ids are minted from the CSPRNG because the id is the room's bearer secret.
+- Viewers and reviewers can no longer force the collaboration room to allocate documents for arbitrary ids with awareness/sync frames (an anonymous memory-exhaustion path).
+- The annotation rail now reacts to the 780px breakpoint immediately on resize/rotation, and collapsed comment cards count discussion replies without including the comment's own opening text.
+- Resolving a push conflict with "Take theirs" now actually adopts the remote file (content and images) locally instead of leaving the stale copy and re-raising the same conflict, and a superseded share-choice dialog cancels its earlier promise instead of leaving it hanging.
+- Two repo-linked documents that share a basename (`notes.md` and `docs/notes.md`) now keep separate image folders and separate version-history files instead of overwriting each other; pulls still resolve the old basename paths, and a workspace-owned repo self-migrates on its next push.
+- A guest's assigned name (or a mid-session sign-in) now updates the presence/cursor identity on every open document, Enter in the Find & Replace replace field performs the replacement, the Document Info panel no longer re-fetches commit dates on every autosave, and multi-range edits in Suggesting mode record a deletion suggestion for each range instead of silently dropping all but the last.
 
 ## [1.64.1] - 2026-09-11
 

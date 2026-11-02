@@ -159,3 +159,11 @@ describe("encryptJSON / decryptJSON", () => {
     expect(await decryptJSON(fakeEnv, token)).toBeNull();
   });
 });
+
+describe("getCookie — malformed input", () => {
+  it("returns null instead of throwing on invalid percent-encoding", () => {
+    const request = new Request("https://example.com", { headers: { Cookie: "mde_gh_session=%E0%A4%A" } });
+    expect(() => getCookie(request, "mde_gh_session")).not.toThrow();
+    expect(getCookie(request, "mde_gh_session")).toBeNull();
+  });
+});

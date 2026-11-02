@@ -154,3 +154,12 @@ describe("handleGistImageUpload", () => {
     expect(text).toContain("connect ECONNREFUSED");
   });
 });
+
+describe("handleGistImageUpload — unsafe filenames", () => {
+  it.each([".", "..", ".git"])("rejects the dot-segment filename %s before touching the repo", async (filename) => {
+    const cookie = await sessionCookieHeader();
+    const res = await handleGistImageUpload(imageRequest({ filename, contentBase64: REAL_PNG_BASE64 }, cookie), fakeEnv, "abc123");
+    expect(res.status).toBe(400);
+    expect(gitMock.clone).not.toHaveBeenCalled();
+  });
+});

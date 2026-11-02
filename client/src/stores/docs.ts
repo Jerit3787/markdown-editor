@@ -76,8 +76,14 @@ function loadDocsFromStorage(): Doc[] {
   try {
     const raw = localStorage.getItem(STORAGE_DOCS);
     if (raw) {
-      const parsed = JSON.parse(raw) as Doc[];
-      neededWorkspaceBackfill = Array.isArray(parsed) && parsed.some((d) => !d.workspaceId);
+      const parsed = JSON.parse(raw) as unknown;
+      // Valid JSON is not necessarily a docs array (`{}`, `"x"`, `42`, a
+      // truncated object…). Without this check the `.map` below throws,
+      // the catch returns [], and the bad value is never repaired — every
+      // later save then re-parses the same value and fails forever behind
+      // the misleading "storage may be full" toast.
+      if (!Array.isArray(parsed)) throw new Error("mde:docs is not an array");
+      neededWorkspaceBackfill = parsed.some((d) => !d?.workspaceId);
       // Legacy documents (from before workspaces existed) with no
       // workspace to backfill onto — mde:workspaces was never set,
       // meaning this profile hasn't opened the app since workspaces
@@ -87,7 +93,13 @@ function loadDocsFromStorage(): Doc[] {
       return normalizeLoadedDocs(parsed);
     }
   } catch (e) {
-    /* ignore corrupt storage */
+    // Corrupt or wrong-shaped storage: fall through to the empty state
+    // and repair the key below so saving works again.
+    try {
+      localStorage.setItem(STORAGE_DOCS, "[]");
+    } catch (repairErr) {
+      /* blocked storage — nothing more we can do */
+    }
   }
   // No seeded Welcome doc — a brand-new visitor (or someone who deletes
   // every document) sees the empty state instead, same as VS Code with no
@@ -160,7 +172,16 @@ export function findDocById(id: string): Doc | undefined {
 function persistDocsExcluding(deletedIds: Set<string>) {
   try {
     const raw = localStorage.getItem(STORAGE_DOCS);
-    const external = raw ? (JSON.parse(raw) as Doc[]).filter((d) => !deletedIds.has(d.id)) : [];
+    let external: Doc[] = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) external = parsed.filter((d) => !deletedIds.has(d.id));
+      } catch (parseErr) {
+        // Corrupt external value: overwrite it with this save's clean
+        // array instead of letting it block every write forever.
+      }
+    }
     const merged = mergeById(get(docsStore), external);
     docsStore.set(merged);
     // A doc belonging to an ephemeral workspace (see stores/workspaces.ts's
@@ -405,9 +426,16 @@ export function duplicateDoc(id: string): Doc | undefined {
   const name = ensureUniqueName(`${source.name || "Untitled"} (copy)`, get(docsStore));
   const copy: Doc = { ...source, id: uid(), name, updatedAt: Date.now(), createdAt: Date.now() };
   // A duplicate is a fresh, unshared, unpublished document — it must not
-  // carry over the room/gist identity of the doc it was copied from.
+  // carry over the room/gist/repo identity of the doc it was copied from.
+  // A leaked repoPath is the dangerous one: repo-sync maps docs to files
+  // by path, so two docs claiming one repo file overwrite each other.
   delete copy.shared;
   delete copy.gistId;
+  delete copy.gistFilename;
+  delete copy.repoPath;
+  delete copy.repoSha;
+  delete copy.repoImageShas;
+  delete copy.pendingRoomRegistration;
   docsStore.update((docs) => [copy, ...docs]);
   setActiveId(copy.id);
   persistDocs();
@@ -420,6 +448,11 @@ export function duplicateDoc(id: string): Doc | undefined {
 // picks it up along with content, same as before this doc-state move.
 export function renameDoc(id: string, name: string) {
   updateDoc(id, { name: name || "Untitled" });
+  // A rename changes no content, so the debounced save's own
+  // saveActiveDocContent() early-return (content unchanged) never reaches
+  // persistDocs — persist here or the new name lives only in memory and
+  // is lost on reload.
+  persistDocs();
 }
 
 // Rewrites [[oldName]] -> [[newName]] in one local (non-shared, non-
@@ -659,6 +692,17 @@ export function removeDocsByRepoPaths(workspaceId: string, repoPaths: string[]):
 
 export function setDocRepoLinkById(id: string, repoPath: string, repoSha: string, repoImageShas: Record<string, string> | undefined): void {
   updateDoc(id, { repoPath, repoSha, repoImageShas });
+  persistDocs();
+}
+
+// Persisted marker for a doc created in a shared workspace while the
+// room socket was down (see collab.ts's seedNewDocBinding): it exists
+// locally but the room has never registered its id, so a later greeting
+// must not treat its absence from docOrder as a remote deletion.
+export function setDocPendingRoomRegistration(id: string, pending: boolean): void {
+  const doc = findDocById(id);
+  if (!doc || !!doc.pendingRoomRegistration === pending) return;
+  updateDoc(id, { pendingRoomRegistration: pending });
   persistDocs();
 }
 

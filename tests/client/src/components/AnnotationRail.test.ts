@@ -1,10 +1,12 @@
 import { test, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
 import { render } from "vitest-browser-svelte";
+import { page } from "vitest/browser";
 import AnnotationRail from "../../../../client/src/components/AnnotationRail.svelte";
 import { commentsPanelOpen } from "../../../../client/src/stores/commentsPanel";
 import { enterCollabRoom, leaveCollabRoom } from "../../../../client/src/stores/collabMode";
 import { activeIdStore } from "../../../../client/src/stores/docs";
+import { viewMode } from "../../../../client/src/stores/view";
 
 beforeEach(() => {
   window.MDE = new Proxy({}, { get: () => vi.fn() }) as unknown as typeof window.MDE;
@@ -40,4 +42,19 @@ test("CV2-1b: the comments button is disabled when there is no active doc", asyn
   await expect.poll(() => btn.disabled).toBe(false);
   activeIdStore.set(null);
   await expect.poll(() => btn.disabled).toBe(true);
+});
+
+test("the 780px breakpoint is reactive — anchored mode flips without another state change", async () => {
+  await page.viewport(1280, 900);
+  viewMode.set("split");
+  const screen = await render(AnnotationRail);
+  const canvas = () => screen.container.querySelector(".annotation-rail-canvas");
+
+  await expect.poll(() => canvas()?.classList.contains("anchored")).toBe(true);
+
+  await page.viewport(600, 900);
+  await expect.poll(() => canvas()?.classList.contains("anchored")).toBe(false);
+
+  await page.viewport(1280, 900);
+  await expect.poll(() => canvas()?.classList.contains("anchored")).toBe(true);
 });

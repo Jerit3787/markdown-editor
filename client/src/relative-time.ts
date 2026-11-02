@@ -7,7 +7,17 @@ const DAY = 86400000;
 // then day/week/month buckets before falling back to a full date once
 // "months ago" stops being a useful approximation.
 export function formatRelativeTime(ts: number): string {
-  const days = Math.floor((Date.now() - ts) / DAY);
+  // Calendar-day difference, not elapsed 24h windows: something typed at
+  // 23:30 yesterday and viewed at 00:30 today is "Yesterday", not
+  // "Today", and something two calendar days back is "2d ago" even if it
+  // is only 25 hours old. Math.round absorbs the ±1h DST shift between
+  // two local midnights.
+  const startOfDay = (value: number) => {
+    const d = new Date(value);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+  const days = Math.max(0, Math.round((startOfDay(Date.now()) - startOfDay(ts)) / DAY));
   if (days < 1) return "Today";
   if (days < 2) return "Yesterday";
   if (days < 7) return `${days}d ago`;

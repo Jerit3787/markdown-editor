@@ -18,8 +18,12 @@ const WORKSPACE_ACCESS_REQUEST_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})
 const WORKSPACE_JOIN_TICKET_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/join-ticket$/;
 const WORKSPACE_META_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/meta$/;
 const WORKSPACE_DOCS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs$/;
-const WORKSPACE_DOC_VERSIONS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/versions(\/.*)?$/;
-const WORKSPACE_DOC_COMMENTS_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/comments(\/.*)?$/;
+// Only the four real version-route shapes — NOT an arbitrary suffix. A
+// broader `(\/.*)?` here matched `/versions/internal/seed`, which
+// WorkspaceRoom.fetch() then misread as its internal migration seed
+// endpoint (unauthenticated: see the exact-path dispatch there).
+const WORKSPACE_DOC_VERSIONS_PATH =
+  /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/versions(?:\/(?:restore-content|[A-Za-z0-9_-]{1,128})(?:\/restore)?)?$/;
 const WORKSPACE_DOC_WIKILINK_RENAME_PATH = /^\/api\/workspace\/([A-Za-z0-9_-]{1,128})\/docs\/([A-Za-z0-9_-]{1,128})\/wikilink-rename$/;
 const GIST_PATH = /^\/api\/gist\/([0-9a-f]+)$/i;
 const GIST_IMAGE_PATH = /^\/api\/gist\/([0-9a-f]+)\/image$/i;
@@ -66,12 +70,6 @@ export default {
     const workspaceDocVersionsMatch = url.pathname.match(WORKSPACE_DOC_VERSIONS_PATH);
     if (workspaceDocVersionsMatch) {
       const id = env.WORKSPACE_ROOM.idFromName(workspaceDocVersionsMatch[1]!);
-      return env.WORKSPACE_ROOM.get(id).fetch(request);
-    }
-
-    const workspaceDocCommentsMatch = url.pathname.match(WORKSPACE_DOC_COMMENTS_PATH);
-    if (workspaceDocCommentsMatch) {
-      const id = env.WORKSPACE_ROOM.idFromName(workspaceDocCommentsMatch[1]!);
       return env.WORKSPACE_ROOM.get(id).fetch(request);
     }
 

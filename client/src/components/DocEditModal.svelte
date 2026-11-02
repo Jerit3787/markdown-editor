@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import { docEditModalOpen } from "../stores/docEditModalOpen";
   import { activeIdStore, getActiveDoc, docsStore, setActiveDocMetadata, setActiveDocCitations } from "../stores/docs";
@@ -30,6 +31,14 @@
   function close() {
     docEditModalOpen.set(false);
   }
+
+  onMount(() => {
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $docEditModalOpen) close();
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
+  });
 
   function updateMetadata(next: MetadataPair[]) {
     if (!doc) return;

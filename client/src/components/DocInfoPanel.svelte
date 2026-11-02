@@ -36,18 +36,24 @@
   // Repo-linked docs show their real commit history instead of local
   // timestamps once it resolves — local timestamps render first (no
   // loading flicker) and get replaced in place if this finds something
-  // different. Re-runs whenever the panel switches to a different doc;
-  // the abort on cleanup stops a slow fetch for a previously-viewed doc
-  // from landing after the panel has already moved on and overwriting
-  // the wrong document's display.
+  // different. Only the doc's repo COORDINATES are tracked (path + the
+  // workspace's repoLink fields), not the whole derived `doc` object:
+  // every autosave replaces that object, which used to abort and re-fire
+  // the GitHub commits request on each keystroke.
+  const repoDocPath = $derived(doc?.repoPath);
+  const repoLink = $derived(doc ? $workspacesStore.find((w) => w.id === doc.workspaceId)?.repoLink : undefined);
+  const repoOwner = $derived(repoLink?.owner);
+  const repoName = $derived(repoLink?.repo);
+  const repoBranch = $derived(repoLink?.branch);
   $effect(() => {
+    const path = repoDocPath;
+    const owner = repoOwner;
+    const repo = repoName;
+    const branch = repoBranch;
     repoDates = undefined;
-    if (!doc?.repoPath) return;
-    const workspace = $workspacesStore.find((w) => w.id === doc.workspaceId);
-    const repoLink = workspace?.repoLink;
-    if (!repoLink) return;
+    if (!path || !owner || !repo || !branch) return;
     const controller = new AbortController();
-    fetchRepoDocDates(repoLink.owner, repoLink.repo, repoLink.branch, doc.repoPath, controller.signal).then((dates) => {
+    fetchRepoDocDates(owner, repo, branch, path, controller.signal).then((dates) => {
       if (!controller.signal.aborted) repoDates = dates;
     });
     return () => controller.abort();

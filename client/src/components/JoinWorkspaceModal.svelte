@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import { pendingJoin } from "../stores/joinWorkspace";
   import { workspacesStore, adoptSharedWorkspace, mergeSharedWorkspaceInto, previewSharedWorkspace, switchWorkspace } from "../stores/workspaces";
@@ -6,6 +7,14 @@
   import { releaseShareLinkLock } from "../collab";
 
   let mergeTargetId = $state<string | null>(null);
+
+  onMount(() => {
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $pendingJoin) cancel();
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
+  });
 
   function cancel() {
     pendingJoin.set(null);

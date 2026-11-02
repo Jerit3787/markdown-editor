@@ -50,3 +50,19 @@ describe("transformSuperscriptSubscript", () => {
     expect(transformSuperscriptSubscript("~~gone~~ but H~2~O stays")).toBe("~~gone~~ but H<sub>2</sub>O stays");
   });
 });
+
+describe("MMD inline transforms — code protection", () => {
+  it("does not rewrite definition-list syntax inside a fenced code block", () => {
+    const input = "```md\nTerm\n: definition\n```\n";
+    expect(transformDefinitionLists(input)).toBe(input);
+  });
+
+  it("does not rewrite ^ / ~ inside code spans or fences", () => {
+    const input = "`2^10^` and `H~2~O`\n\n```\nx^2^ y~1~\n```\n";
+    expect(transformSuperscriptSubscript(input)).toBe(input);
+  });
+
+  it("still transforms prose next to an untouched code span", () => {
+    expect(transformSuperscriptSubscript("`2^10^` but 3^2^ = 9")).toBe("`2^10^` but 3<sup>2</sup> = 9");
+  });
+});

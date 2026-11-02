@@ -66,23 +66,22 @@ function suggestionTransactionFilter(doc: Y.Doc, author: () => string) {
     if (!tr.docChanged) return tr;
     if (tr.annotation(ySyncAnnotation) !== undefined) return tr; // a remote change yCollab is applying locally — never intercept
 
-    let deletedFrom = -1;
-    let deletedTo = -1;
+    let deletions: Array<{ from: number; to: number }> = [];
     let insertedText = "";
     let insertedAt = -1;
+    let insertCount = 0;
     tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
-      if (toA > fromA) {
-        deletedFrom = fromA;
-        deletedTo = toA;
-      }
+      if (toA > fromA) deletions.push({ from: fromA, to: toA });
       if (inserted.length > 0) {
+        insertCount++;
         insertedText = inserted.toString();
         insertedAt = fromA;
       }
     });
 
-    if (deletedFrom === -1) return tr; // pure insert (or no-op) — let it apply as-is; recordInsertSuggestion runs from the updateListener below
+    if (deletions.length === 0) return tr; // pure insert (or no-op) — let it apply as-is; recordInsertSuggestion runs from the updateListener below
     void insertedAt;
+    const singleDeletion = deletions.length === 1 ? deletions[0]! : null;
 
     // D2 — a pure deletion (no replacement text) that falls entirely
     // inside this author's own still-pending insert suggestion(s) is the
@@ -93,9 +92,11 @@ function suggestionTransactionFilter(doc: Y.Doc, author: () => string) {
     // this, backspacing a typo in your own suggestion stacked a
     // strike-through card on top of the underline ("added X then deleted
     // X").
-    if (insertedText === "" && rangeWithinOwnInserts(doc, deletedFrom, deletedTo, author())) {
+    if (singleDeletion && insertedText === "" && rangeWithinOwnInserts(doc, singleDeletion.from, singleDeletion.to, author())) {
       const map = getSuggestionsMap(doc);
-      const swallowed = listResolvedSuggestions(doc).filter((s) => s.kind === "insert" && s.author === author() && s.from >= deletedFrom && s.to <= deletedTo);
+      const swallowed = listResolvedSuggestions(doc).filter(
+        (s) => s.kind === "insert" && s.author === author() && s.from >= singleDeletion.from && s.to <= singleDeletion.to,
+      );
       if (swallowed.length > 0) {
         doc.transact(() => {
           for (const s of swallowed) map.delete(s.id);
@@ -104,15 +105,20 @@ function suggestionTransactionFilter(doc: Y.Doc, author: () => string) {
       return tr;
     }
 
-    // A deletion is involved — never let it reach the document. If there
-    // was also an insertion in the same transaction (a selection
-    // replace), re-target it to land right after the deleted range
-    // instead, on top of the UNCHANGED original document.
-    recordDeleteSuggestion(doc, deletedFrom, deletedTo, author());
-    if (insertedText === "") return []; // pure delete — cancel the whole transaction
+    // A deletion is involved — never let it reach the document. Record
+    // EVERY changed range: the previous code tracked only the last one,
+    // silently dropping earlier deletions in a multi-range transaction
+    // (multi-cursor is disabled today, but compound programmatic changes
+    // can still produce one).
+    for (const range of deletions) recordDeleteSuggestion(doc, range.from, range.to, author());
+    // A single replaced range is re-targeted to land right after the
+    // (still-present) deleted text. Multiple changed ranges can't be
+    // expressed as one insert here — cancel the transaction rather than
+    // applying raw deletions; the suggestions recorded above stand.
+    if (!singleDeletion || insertedText === "" || insertCount > 1) return [];
     return {
-      changes: { from: deletedTo, to: deletedTo, insert: insertedText },
-      selection: { anchor: deletedTo + insertedText.length },
+      changes: { from: singleDeletion.to, to: singleDeletion.to, insert: insertedText },
+      selection: { anchor: singleDeletion.to + insertedText.length },
     };
   });
 }

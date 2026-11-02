@@ -558,7 +558,7 @@ export function upsertDocFromDrive(
     diagrams?: Record<string, string>;
     driveFileId: string;
     driveRev: string;
-    driveImageRevs?: Record<string, { fileId: string; rev: string }>;
+    driveImageRevs?: Record<string, { fileId: string; rev: string; hash?: string }>;
     drivePushedHash?: string;
   },
 ): { id: string; created: boolean } {
@@ -612,7 +612,7 @@ export function setDocDriveLinkById(
     drivePath: string;
     driveFileId: string;
     driveRev: string;
-    driveImageRevs?: Record<string, { fileId: string; rev: string }>;
+    driveImageRevs?: Record<string, { fileId: string; rev: string; hash?: string }>;
     drivePushedHash?: string;
   },
 ): void {

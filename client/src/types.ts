@@ -179,7 +179,7 @@ export interface Doc {
   // Per embedded image/diagram ref: the Drive file id + revision it was
   // last synced at, so a remote image edit surfaces as a conflict on the
   // owning document too (mirrors repoImageShas).
-  driveImageRevs?: Record<string, { fileId: string; rev: string }>;
+  driveImageRevs?: Record<string, { fileId: string; rev: string; hash?: string }>;
   // SHA-256 of the exact payload last pushed (rewritten markdown + asset
   // paths/bytes). Drive revisions identify remote content only; without
   // this local half there is no way to tell "nothing changed here" from

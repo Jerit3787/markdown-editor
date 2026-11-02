@@ -267,3 +267,74 @@ describe("duplicate Drive links", () => {
     expect(plan.conflicts).toEqual([{ docId: "d2", docName: "two", drivePath: "two.md" }]);
   });
 });
+
+describe("Drive history files", () => {
+  const snapshot = { id: "s1", timestamp: 1, content: "# old" };
+  const note = { id: "n1", from: 0, to: 5, quote: "hello", orphaned: false, body: "note", createdAt: 1 };
+
+  it("writes the companion history file when snapshots or notes exist", async () => {
+    const history = new Map([["d1", { snapshots: [snapshot], notes: [note] }]]);
+    const plan = await planDrivePush(
+      [doc({ id: "d1", name: "notes", content: "# Hi" })],
+      tree([entry("h1", ".mde/history/notes.json", "r1", "application/json")]),
+      true,
+      [],
+      [],
+      history,
+    );
+    expect(plan.historyChanges).toEqual([
+      { docId: "d1", path: ".mde/history/notes.json", content: JSON.stringify({ snapshots: [snapshot], notes: [note] }), fileId: "h1" },
+    ]);
+  });
+
+  it("still writes history when the markdown content is unchanged", async () => {
+    const content = "# Hi";
+    const history = new Map([["d1", { snapshots: [snapshot], notes: [] }]]);
+    const docs = [
+      doc({
+        id: "d1",
+        name: "notes",
+        content,
+        driveFileId: "f1",
+        drivePath: "notes.md",
+        driveRev: "r1",
+        drivePushedHash: await hashPushPayload(content, []),
+      }),
+    ];
+    const plan = await planDrivePush(docs, tree([entry("f1", "notes.md", "r1")]), true, [], [], history);
+    expect(plan.unchanged).toEqual(["d1"]);
+    expect(plan.historyChanges).toHaveLength(1);
+  });
+
+  it("does not create an empty history file", async () => {
+    const plan = await planDrivePush([doc({ id: "d1", name: "notes", content: "# Hi" })], tree([]), true, [], [], new Map());
+    expect(plan.historyChanges).toEqual([]);
+  });
+
+  it("moves the history file on rename", async () => {
+    const history = new Map([["d1", { snapshots: [snapshot], notes: [] }]]);
+    const docs = [
+      doc({
+        id: "d1",
+        name: "New",
+        driveFileId: "f1",
+        drivePath: "old.md",
+        driveRev: "r1",
+        drivePushedHash: await hashPushPayload("", []),
+      }),
+    ];
+    const entries = [entry("f1", "old.md", "r1"), entry("h1", ".mde/history/old.json", "r1", "application/json")];
+    const plan = await planDrivePush(docs, tree(entries), true, [], [], history);
+    expect(plan.creates.map((change) => change.path)).toEqual(["New.md"]);
+    expect(plan.historyChanges[0]).toMatchObject({ path: ".mde/history/New.json" });
+    expect(plan.historyChanges[0]!.fileId).toBeUndefined();
+    expect(plan.historyDeletes).toEqual([{ path: ".mde/history/old.json", fileId: "h1" }]);
+    expect(plan.deletes).toContain("h1");
+  });
+
+  it("resolves a pending history deletion by path", async () => {
+    const plan = await planDrivePush([], tree([entry("h2", ".mde/history/gone.json", "r1", "application/json")]), true, [], [".mde/history/gone.json"]);
+    expect(plan.deletes).toEqual(["h2"]);
+    expect(plan.historyDeletes).toEqual([{ path: ".mde/history/gone.json", fileId: "h2" }]);
+  });
+});

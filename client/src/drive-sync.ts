@@ -4,7 +4,9 @@
 // own because Drive has opaque file ids and revision tokens instead of
 // paths and git SHAs.
 import { get } from "svelte/store";
-import type { Doc, Workspace } from "./types";
+import type { Doc, Note, Workspace } from "./types";
+import { getHistory, mergeSnapshotsFromRepo, type Snapshot } from "./history";
+import { historyPathFor, historyOwnerDocPath } from "./history-paths";
 import type { ImageAsset } from "./repo-sync";
 import {
   assetFolderFor,
@@ -29,6 +31,7 @@ import {
   saveActiveDocContent,
   activeIdStore,
   activeDocContent,
+  mergeDocNotes,
 } from "./stores/docs";
 import {
   workspacesStore,
@@ -37,7 +40,9 @@ import {
   setWorkspaceDriveLink,
   setWorkspaceDriveLastSynced,
   clearPendingDriveDeletions,
+  clearPendingDriveHistoryDeletions,
   queueDriveDeletion,
+  queueDriveHistoryDeletion,
 } from "./stores/workspaces";
 import { nextAvailableName } from "./doc-naming";
 
@@ -96,6 +101,10 @@ export interface PushPlan {
   conflicts: DriveConflict[];
   unchanged: string[];
   truncated?: boolean;
+  // Portable local-history companion files written in this push.
+  historyChanges: { docId: string; path: string; content: string; fileId?: string }[];
+  // History files that should be removed after a successful create/update.
+  historyDeletes: { path: string; fileId: string }[];
   // Old file id for each locally-renamed doc. Kept separate from
   // `deletes` so a failed sibling push doesn't delete the only copy when
   // the rename itself never landed.
@@ -249,8 +258,24 @@ interface PlannedChange {
   localChanged: boolean;
 }
 
-export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace: boolean, pendingDriveDeletions: string[] = []): Promise<PushPlan> {
-  const plan: PushPlan = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [], pendingDeletes: [] };
+export async function planDrivePush(
+  docs: Doc[],
+  tree: DriveTree,
+  sameWorkspace: boolean,
+  pendingDriveDeletions: string[] = [],
+  pendingHistoryDeletions: string[] = [],
+  localHistory: Map<string, { snapshots: Snapshot[]; notes: Note[] }> = new Map(),
+): Promise<PushPlan> {
+  const plan: PushPlan = {
+    creates: [],
+    updates: [],
+    deletes: [],
+    conflicts: [],
+    unchanged: [],
+    pendingDeletes: [],
+    historyChanges: [],
+    historyDeletes: [],
+  };
   const complete = !tree.truncated;
   const mdEntries = tree.entries.filter((entry) => isMarkdownPath(entry.path));
   const byPath = new Map(tree.entries.map((entry) => [entry.path, entry]));
@@ -298,6 +323,7 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
     }
 
     let renamedOldId: string | undefined;
+    let historyOldPath: string | undefined;
     let derivedPath = false;
     if (!path) {
       // A never-linked doc must not silently adopt a same-named file in
@@ -333,6 +359,7 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
         if (!usedPaths.has(target) || target === path) {
           if (target !== path) {
             renamedOldId = fileId;
+            historyOldPath = path;
             path = dedupeRepoPath(target, usedPaths);
             usedPaths.add(path);
             remote = undefined;
@@ -419,8 +446,29 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
     if (renamedOldId) {
       renamedAway.add(renamedOldId);
       renames.push({ docId: doc.id, oldFileId: renamedOldId });
+      if (historyOldPath) {
+        const oldHistoryPath = historyPathFor(historyOldPath);
+        const oldHistory = byPath.get(oldHistoryPath);
+        const historyPathReused = plan.historyChanges.some((change) => change.path === oldHistoryPath);
+        if (oldHistory && !historyPathReused && !plan.deletes.includes(oldHistory.fileId)) {
+          plan.deletes.push(oldHistory.fileId);
+          plan.historyDeletes.push({ path: oldHistoryPath, fileId: oldHistory.fileId });
+        }
+      }
     }
     for (const fileId of replacedThisDoc) replacedImageIds.add(fileId);
+
+    const history = localHistory.get(doc.id);
+    if (history && (history.snapshots.length > 0 || history.notes.length > 0)) {
+      const historyPath = historyPathFor(path);
+      const existingHistory = byPath.get(historyPath);
+      plan.historyChanges.push({
+        docId: doc.id,
+        path: historyPath,
+        content: JSON.stringify({ snapshots: history.snapshots, notes: history.notes }),
+        fileId: existingHistory?.fileId,
+      });
+    }
 
     collectAssets(folder);
     const referenced = assetsByFolder.get(folder)!;
@@ -451,6 +499,16 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
       plan.updates.push({ ...rest, fileId });
     } else {
       plan.creates.push(rest);
+    }
+  }
+
+  const historyWritePaths = new Set(plan.historyChanges.map((change) => change.path));
+  for (const historyPath of pendingHistoryDeletions) {
+    if (historyWritePaths.has(historyPath)) continue;
+    const entry = byPath.get(historyPath);
+    if (entry && !claimedFileIds.has(entry.fileId) && !plan.deletes.includes(entry.fileId)) {
+      plan.deletes.push(entry.fileId);
+      plan.historyDeletes.push({ path: historyPath, fileId: entry.fileId });
     }
   }
 
@@ -762,6 +820,53 @@ export async function pullFromDrive(
   await applyEntries(plan.creates);
   await applyEntries(plan.updates);
 
+  // Portable local history: .mde/history/<doc path>.json. Merge by
+  // snapshot id, never overwrite; notes follow repo-sync's id-union rule.
+  const deletingIds = new Set(plan.deletions.map((deletion) => deletion.docId));
+  const historyEntries = tree.entries.filter((entry) => entry.path.startsWith(".mde/history/") && entry.path.endsWith(".json"));
+  const currentDocs = docsInWorkspace(workspaceId);
+  let historyDone = 0;
+  for (const entry of historyEntries) {
+    const ownerPath = historyOwnerDocPath(entry.path);
+    if (!ownerPath) continue;
+    const doc = currentDocs.find((candidate) => candidate.drivePath === ownerPath) ?? docs.find((candidate) => candidate.drivePath === ownerPath);
+    if (!doc || deletingIds.has(doc.id)) continue;
+    historyDone++;
+    onProgress?.(`Merging history ${historyDone}/${historyEntries.length}…`);
+    try {
+      const base64 = await downloadBase64(entry.fileId);
+      const parsed = JSON.parse(decodeBase64Text(base64)) as { snapshots?: unknown; notes?: unknown };
+      const snapshots = Array.isArray(parsed.snapshots)
+        ? parsed.snapshots.filter(
+            (snapshot): snapshot is Snapshot =>
+              !!snapshot &&
+              typeof snapshot === "object" &&
+              typeof (snapshot as Snapshot).id === "string" &&
+              typeof (snapshot as Snapshot).timestamp === "number" &&
+              typeof (snapshot as Snapshot).content === "string",
+          )
+        : [];
+      const notes = Array.isArray(parsed.notes)
+        ? parsed.notes.filter(
+            (note): note is Note =>
+              !!note &&
+              typeof note === "object" &&
+              typeof (note as Note).id === "string" &&
+              typeof (note as Note).body === "string" &&
+              typeof (note as Note).quote === "string" &&
+              typeof (note as Note).from === "number" &&
+              typeof (note as Note).to === "number" &&
+              typeof (note as Note).createdAt === "number",
+          )
+        : [];
+      if (snapshots.length) await mergeSnapshotsFromRepo(doc.id, snapshots);
+      if (notes.length) mergeDocNotes(doc.id, notes);
+    } catch (err) {
+      if (err instanceof DriveReconnectError) throw err;
+      failures.push({ docId: doc.id, path: entry.path, error: err instanceof Error ? err.message : "history merge failed" });
+    }
+  }
+
   // Deletions are *not* applied yet: the conflict modal is the user's
   // confirmation, and deleting a doc also deletes its local history.
   // applyResolved runs only when the user clicks Apply.
@@ -847,6 +952,23 @@ function buildPushBody(plan: PushPlan, includeDeletes = true): PushBody {
   }
 
   body.deletes = [...new Set(body.deletes)];
+  body.ensureSubfolders = [...subfolders];
+  return body;
+}
+
+function buildHistoryBody(historyChanges: PushPlan["historyChanges"]): PushBody {
+  const body: PushBody = { ensureSubfolders: [], creates: [], updates: [], deletes: [] };
+  const subfolders = new Set<string>();
+  for (const change of historyChanges) {
+    const contentBase64 = toBase64Utf8(change.content);
+    if (change.fileId) {
+      body.updates.push({ fileId: change.fileId, path: change.path, mimeType: "application/json", contentBase64 });
+    } else {
+      body.creates.push({ path: change.path, mimeType: "application/json", contentBase64 });
+      const parent = parentPathOf(change.path);
+      if (parent) subfolders.add(parent);
+    }
+  }
   body.ensureSubfolders = [...subfolders];
   return body;
 }
@@ -962,7 +1084,11 @@ function commitDeleteResults(workspaceId: string, plan: PushPlan, data: PushResu
   // leaving a duplicate behind.
   for (const fileId of plan.deletes) {
     const result = data.results.find((item) => item.op === "delete" && item.fileId === fileId);
-    if (result && !result.ok) queueDriveDeletion(workspaceId, fileId);
+    if (result && !result.ok) {
+      queueDriveDeletion(workspaceId, fileId);
+      const history = plan.historyDeletes.find((deletion) => deletion.fileId === fileId);
+      if (history) queueDriveHistoryDeletion(workspaceId, history.path);
+    }
   }
 }
 
@@ -973,11 +1099,11 @@ const MAX_PUSH_ITEMS = 40;
 // same response as the doc so commitPushResults can pair them.
 function chunkPushPlan(plan: PushPlan): PushPlan[] {
   const chunks: PushPlan[] = [];
-  let current: PushPlan = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [] };
+  let current: PushPlan = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [], historyChanges: [], historyDeletes: [] };
   let count = 0;
   const flush = () => {
     if (current.creates.length || current.updates.length) chunks.push(current);
-    current = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [] };
+    current = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [], historyChanges: [], historyDeletes: [] };
     count = 0;
   };
   const add = (kind: "creates" | "updates", change: PushChange) => {
@@ -1021,10 +1147,17 @@ async function sendPlan(workspaceId: string, plan: PushPlan): Promise<PushResult
     }
     throw err;
   }
+  for (let index = 0; index < plan.historyChanges.length; index += MAX_PUSH_ITEMS) {
+    const chunk = plan.historyChanges.slice(index, index + MAX_PUSH_ITEMS);
+    const data = await postPush(workspaceId, buildHistoryBody(chunk));
+    combined = mergePushResults(combined, data);
+    if (data.results.some((result) => !result.ok)) canDelete = false;
+  }
   if (!canDelete) {
     for (const rename of plan.renames ?? []) {
       if (completedDocIds.has(rename.docId)) queueDriveDeletion(workspaceId, rename.oldFileId);
     }
+    for (const deletion of plan.historyDeletes) queueDriveHistoryDeletion(workspaceId, deletion.path);
   }
   const deleteIds = canDelete ? [...new Set(plan.deletes)] : [...new Set(plan.pendingDeletes ?? [])];
   for (let index = 0; index < deleteIds.length; index += MAX_PUSH_ITEMS) {
@@ -1036,7 +1169,11 @@ async function sendPlan(workspaceId: string, plan: PushPlan): Promise<PushResult
       // A network/401 failure can leave the server's delete phase partly
       // done. Queue the whole chunk — retrying a delete that already
       // happened is a harmless 404.
-      for (const fileId of chunk) queueDriveDeletion(workspaceId, fileId);
+      for (const fileId of chunk) {
+        queueDriveDeletion(workspaceId, fileId);
+        const history = plan.historyDeletes.find((deletion) => deletion.fileId === fileId);
+        if (history) queueDriveHistoryDeletion(workspaceId, history.path);
+      }
       throw err;
     }
     commitDeleteResults(workspaceId, { ...plan, deletes: chunk }, data);
@@ -1049,7 +1186,7 @@ async function sendPlan(workspaceId: string, plan: PushPlan): Promise<PushResult
 async function buildForcePushPlan(workspaceId: string, tree: DriveTree, docs: Doc[]): Promise<PushPlan> {
   const byId = new Map(tree.entries.map((entry) => [entry.fileId, entry]));
   const usedPaths = new Set(tree.entries.map((entry) => entry.path));
-  const plan: PushPlan = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [] };
+  const plan: PushPlan = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [], historyChanges: [], historyDeletes: [] };
 
   for (const doc of docs) {
     let path = doc.drivePath || byId.get(doc.driveFileId ?? "")?.path || "";
@@ -1094,7 +1231,19 @@ export async function pushToDrive(
   const docs = docsInWorkspace(workspaceId);
   const sameWorkspace = tree.workspaceId === workspaceId;
   onProgress?.("Comparing the folder…");
-  const plan = await planDrivePush(docs, tree, sameWorkspace, workspace.pendingDriveDeletions ?? []);
+  const localHistory = new Map<string, { snapshots: Snapshot[]; notes: Note[] }>();
+  for (const doc of docs) {
+    const snapshots = await getHistory(doc.id).catch((): Snapshot[] => []);
+    localHistory.set(doc.id, { snapshots, notes: doc.notes ?? [] });
+  }
+  const plan = await planDrivePush(
+    docs,
+    tree,
+    sameWorkspace,
+    workspace.pendingDriveDeletions ?? [],
+    workspace.pendingDriveHistoryDeletions ?? [],
+    localHistory,
+  );
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
     const adopted: string[] = [];
@@ -1124,22 +1273,26 @@ export async function pushToDrive(
       deletes: plan.deletes,
       conflicts: [],
       unchanged: [],
+      historyChanges: plan.historyChanges,
+      historyDeletes: plan.historyDeletes,
       renames: plan.renames,
       pendingDeletes: plan.pendingDeletes,
     };
-    if (residual.creates.length || residual.updates.length || residual.deletes.length) {
+    if (residual.creates.length || residual.updates.length || residual.deletes.length || residual.historyChanges.length || residual.historyDeletes.length) {
       failed += (await sendPlan(workspaceId, residual)).failed;
     }
     if (adopted.length) repoDocSyncHook.onRepoDocsChanged?.({ workspaceId, created: [], updated: adopted, deleted: [] });
     const currentActiveId = get(activeIdStore);
     if (currentActiveId && adopted.includes(currentActiveId)) window.MDE?.reloadActiveDocFromStore?.();
     setWorkspaceDriveLastSynced(workspaceId, Date.now());
+    if (failed === 0) clearPendingDriveHistoryDeletions(workspaceId, workspace.pendingDriveHistoryDeletions ?? []);
     if (failed > 0) throw new Error(`${failed} file${failed === 1 ? "" : "s"} failed to push — push again to retry`);
   }
 
   if (plan.conflicts.length > 0) return { plan, applyResolved };
 
   const result = await sendPlan(workspaceId, plan);
+  if (result.failed === 0) clearPendingDriveHistoryDeletions(workspaceId, workspace.pendingDriveHistoryDeletions ?? []);
   return { plan, result, applyResolved };
 }
 

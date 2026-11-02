@@ -182,6 +182,7 @@ export async function handleDriveImport(request: Request, env: Env): Promise<Res
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const MAX_TREE_DEPTH = 8;
 const MAX_TREE_FOLDERS = 200;
+const MAX_TREE_FILES = 5000;
 const MAX_PUSH_ITEMS = 40;
 const MAX_PUSH_SUBFOLDERS = 20;
 const MAX_DRIVE_FILE_BYTES = 5 * 1024 * 1024;
@@ -359,7 +360,15 @@ export async function handleDriveTree(request: Request, env: Env, folderId: stri
       if (err instanceof DriveAuthError) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
       return withCookie(new Response(`Couldn't read the Drive folder: ${(err as Error).message}.`, { status: 502 }), auth.setCookie);
     }
+    if (entries.length >= MAX_TREE_FILES) {
+      truncated = true;
+      break;
+    }
     for (const file of files) {
+      if (entries.length >= MAX_TREE_FILES) {
+        truncated = true;
+        break;
+      }
       const path = current.path ? `${current.path}/${file.name ?? "untitled"}` : (file.name ?? "untitled");
       if (file.mimeType === FOLDER_MIME) {
         if (current.depth + 1 < MAX_TREE_DEPTH) queue.push({ id: file.id, path, depth: current.depth + 1 });

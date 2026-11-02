@@ -450,6 +450,14 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     category: "Organization & Navigation",
   },
   {
+    version: "1.68.0",
+    title: "Drive Version History",
+    description:
+      "Documents in a synced Google Drive folder now show their Drive revisions in Version History — preview any earlier revision, diff it against the live document, and restore it. If a document is linked to both GitHub and Drive, both timelines appear together.",
+    screenshot: "/whats-new/drive-history.png",
+    category: "Version History",
+  },
+  {
     version: "1.67.0",
     title: "Google Drive Folder Sync",
     description:

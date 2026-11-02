@@ -8,6 +8,8 @@ import {
   handleDriveTree,
   handleDriveFile,
   handleDrivePush,
+  handleDriveRevisions,
+  handleDriveRevisionContent,
 } from "../../src/google-drive";
 import { encryptJSON } from "../../src/auth";
 import type { Env } from "../../src/env";
@@ -548,5 +550,96 @@ describe("handleDriveTree pagination", () => {
     const body = (await res.json()) as { entries: { path: string }[]; truncated: boolean };
     expect(body.entries.map((entry) => entry.path)).toEqual(["one.md", "two.md"]);
     expect(body.truncated).toBe(false);
+  });
+});
+
+describe("handleDriveRevisions", () => {
+  it("maps revisions and paginates the Drive list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const parsed = new URL(String(url));
+        expect(parsed.pathname).toContain("/drive/v3/files/f1/revisions");
+        expect(parsed.searchParams.get("fields")).toContain("lastModifyingUser(displayName)");
+        if (parsed.searchParams.get("pageToken") === "page-2") {
+          return Response.json({ revisions: [{ id: "rev-2", modifiedTime: "2026-02-02T00:00:00Z", lastModifyingUser: { displayName: "Bob" } }] });
+        }
+        return Response.json({
+          revisions: [{ id: "rev-1", modifiedTime: "2026-02-01T00:00:00Z", lastModifyingUser: { displayName: "Alice" } }],
+          nextPageToken: "page-2",
+        });
+      }),
+    );
+    const res = await handleDriveRevisions(await connectedReq("https://app/api/drive/file/f1/revisions"), env, "f1");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      revisions: [
+        { revId: "rev-1", modifiedTime: "2026-02-01T00:00:00Z", author: "Alice" },
+        { revId: "rev-2", modifiedTime: "2026-02-02T00:00:00Z", author: "Bob" },
+      ],
+    });
+  });
+
+  it("returns an empty list when the file only has its current revision", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ revisions: [{ id: "only", modifiedTime: "2026-02-01T00:00:00Z" }] })),
+    );
+    const res = await handleDriveRevisions(await connectedReq("https://app/api/drive/file/f1/revisions"), env, "f1");
+    expect(await res.json()).toEqual({ revisions: [] });
+  });
+
+  it("404s when the Drive file is gone and 401s on a dead grant", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("gone", { status: 404 })),
+    );
+    const gone = await handleDriveRevisions(await connectedReq("https://app/api/drive/file/f1/revisions"), env, "f1");
+    expect(gone.status).toBe(404);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("unauthorized", { status: 401 })),
+    );
+    const dead = await handleDriveRevisions(await connectedReq("https://app/api/drive/file/f1/revisions"), env, "f1");
+    expect(dead.status).toBe(401);
+  });
+
+  it("401 when not connected", async () => {
+    const res = await handleDriveRevisions(new Request("https://app/api/drive/file/f1/revisions"), env, "f1");
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("handleDriveRevisionContent", () => {
+  it("downloads a revision's media as base64", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("# Old version")),
+    );
+    const res = await handleDriveRevisionContent(await connectedReq("https://app/api/drive/file/f1/revisions/rev-1"), env, "f1", "rev-1");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ contentBase64: Buffer.from("# Old version").toString("base64") });
+  });
+
+  it("rejects an oversized revision and 404s a missing one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("x", { status: 200, headers: { "Content-Length": String(6 * 1024 * 1024) } })),
+    );
+    const big = await handleDriveRevisionContent(await connectedReq("https://app/api/drive/file/f1/revisions/rev-1"), env, "f1", "rev-1");
+    expect(big.status).toBe(413);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("gone", { status: 404 })),
+    );
+    const gone = await handleDriveRevisionContent(await connectedReq("https://app/api/drive/file/f1/revisions/rev-1"), env, "f1", "rev-1");
+    expect(gone.status).toBe(404);
+  });
+
+  it("401 when not connected", async () => {
+    const res = await handleDriveRevisionContent(new Request("https://app/api/drive/file/f1/revisions/rev-1"), env, "f1", "rev-1");
+    expect(res.status).toBe(401);
   });
 });

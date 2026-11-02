@@ -588,3 +588,64 @@ export async function handleDrivePush(request: Request, env: Env, folderId: stri
   const synced = results.filter((item) => item.ok).length;
   return withCookie(Response.json({ results, synced, failed: results.length - synced }), auth.setCookie);
 }
+
+// ---- Drive revisions (Version History) ----
+// Drive exposes per-file revisions only. The list endpoint does not carry
+// media, so preview/restore uses the separate revision-content endpoint.
+
+interface DriveRevisionMeta {
+  id: string;
+  modifiedTime?: string;
+  lastModifyingUser?: { displayName?: string };
+}
+
+export async function handleDriveRevisions(request: Request, env: Env, fileId: string): Promise<Response> {
+  const auth = await getGoogleAccessToken(request, env);
+  if (!auth) return new Response("Reconnect Google Drive.", { status: 401 });
+  const fields = "revisions(id,modifiedTime,lastModifyingUser(displayName)),nextPageToken";
+  const revisions: DriveRevisionMeta[] = [];
+  let pageToken: string | undefined;
+  do {
+    const tokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+    const res = await driveFetch(
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}/revisions?fields=${encodeURIComponent(fields)}&pageSize=1000${tokenParam}`,
+      {},
+      auth.token,
+    );
+    if (res.status === 404) return withCookie(new Response("File not found.", { status: 404 }), auth.setCookie);
+    if (res.status === 401) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
+    if (!res.ok) return withCookie(new Response(`Couldn't list Drive revisions: HTTP ${res.status}.`, { status: 502 }), auth.setCookie);
+    const data = (await res.json()) as { revisions?: DriveRevisionMeta[]; nextPageToken?: string };
+    revisions.push(...(data.revisions ?? []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  const mapped = revisions
+    .filter((revision) => !!revision.id)
+    .map((revision) => ({
+      revId: revision.id,
+      modifiedTime: revision.modifiedTime ?? "",
+      author: revision.lastModifyingUser?.displayName ?? "Google Drive",
+    }));
+  // A file with one revision has no history to show — the current file
+  // itself is already the live document.
+  return withCookie(Response.json({ revisions: mapped.length <= 1 ? [] : mapped }), auth.setCookie);
+}
+
+export async function handleDriveRevisionContent(request: Request, env: Env, fileId: string, revId: string): Promise<Response> {
+  const auth = await getGoogleAccessToken(request, env);
+  if (!auth) return new Response("Reconnect Google Drive.", { status: 401 });
+  const res = await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}/revisions/${encodeURIComponent(revId)}?alt=media`, {}, auth.token);
+  if (res.status === 404) return withCookie(new Response("Revision not found.", { status: 404 }), auth.setCookie);
+  if (res.status === 401) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
+  if (!res.ok) return withCookie(new Response(`Couldn't download the Drive revision: HTTP ${res.status}.`, { status: 502 }), auth.setCookie);
+  const declaredLength = Number(res.headers.get("content-length") ?? "");
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_DRIVE_FILE_BYTES) {
+    return withCookie(new Response("Revision is too large to preview.", { status: 413 }), auth.setCookie);
+  }
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > MAX_DRIVE_FILE_BYTES) {
+    return withCookie(new Response("Revision is too large to preview.", { status: 413 }), auth.setCookie);
+  }
+  return withCookie(Response.json({ contentBase64: toBase64(buf) }), auth.setCookie);
+}

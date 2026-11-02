@@ -21,6 +21,7 @@
   import { showToast } from "../stores/toast";
   import { extractAssetImageRefs } from "../diff-image-row";
   import { decodeBase64Text, slugFromRepoPath, type TreeEntry } from "../repo-sync";
+  import { pullDriveRevisions, getDriveRevisionContent, fetchDriveRevisionImages } from "../drive-sync";
   import { fetchAndMergeRepoHistory } from "../repo-history-sync";
   import DiffView from "./DiffView.svelte";
   import { groupSnapshotsIntoSessions } from "../version-grouping";
@@ -31,13 +32,14 @@
     timestamp: number;
     authors: string[];
   }
-  interface CommitEntry {
-    kind: "commit";
+  interface RemoteEntry {
+    kind: "remote";
+    source: "github" | "drive";
     id: string;
     timestamp: number;
     message: string;
     author: string;
-    html_url: string;
+    html_url?: string;
   }
   interface SessionEntry {
     kind: "session";
@@ -48,7 +50,7 @@
     entries: LocalEntry[];
     authors: string[]; // de-duped union of the nested entries' authors, first-seen order
   }
-  type HistoryEntry = LocalEntry | CommitEntry | SessionEntry;
+  type HistoryEntry = LocalEntry | RemoteEntry | SessionEntry;
 
   function isDocShared(doc: ReturnType<typeof getActiveDoc>): boolean {
     return !!(doc && get(workspacesStore).find((w) => w.id === doc.workspaceId)?.shared);
@@ -120,7 +122,7 @@
     return message.split("\n")[0] || message;
   }
 
-  // GitHub's commit-list-by-path endpoint (loadCommitEntries) follows
+  // GitHub's commit-list-by-path endpoint (loadRemoteEntries) follows
   // renames, so the commit list can include commits from before the
   // doc's file was renamed — but doc.repoPath is always the file's
   // CURRENT path, which didn't exist yet at those older commits.
@@ -139,7 +141,7 @@
     return match?.path;
   }
 
-  async function fetchCommitContent(doc: ReturnType<typeof getActiveDoc>, sha: string): Promise<string | undefined> {
+  async function fetchGithubContent(doc: ReturnType<typeof getActiveDoc>, sha: string): Promise<string | undefined> {
     if (!doc?.repoPath) return undefined;
     const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
     const repoLink = ws?.repoLink;
@@ -157,7 +159,7 @@
     return renamedPath ? await fetchAt(renamedPath) : undefined;
   }
 
-  async function fetchCommitImages(doc: ReturnType<typeof getActiveDoc>, sha: string, content: string): Promise<Record<string, string>> {
+  async function fetchGithubImages(doc: ReturnType<typeof getActiveDoc>, sha: string, content: string): Promise<Record<string, string>> {
     if (!doc?.repoPath) return {};
     const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
     const repoLink = ws?.repoLink;
@@ -177,7 +179,30 @@
     return images;
   }
 
-  async function loadCommitEntries(doc: ReturnType<typeof getActiveDoc>): Promise<CommitEntry[]> {
+  async function loadRemoteEntries(doc: ReturnType<typeof getActiveDoc>, source: "github" | "drive"): Promise<RemoteEntry[]> {
+    if (source === "drive") {
+      if (!doc?.driveFileId) return [];
+      try {
+        const revisions = await pullDriveRevisions(doc.driveFileId);
+        return revisions.map((revision) => {
+          const timestamp = Date.parse(revision.modifiedTime);
+          const when = Number.isFinite(timestamp)
+            ? new Date(timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+            : "";
+          return {
+            kind: "remote" as const,
+            source: "drive" as const,
+            id: revision.revId,
+            timestamp: Number.isFinite(timestamp) ? timestamp : 0,
+            message: when || "Google Drive revision",
+            author: revision.author || "Google Drive",
+          };
+        });
+      } catch (err) {
+        // A Drive outage/reconnect must not take local history down with it.
+        return [];
+      }
+    }
     if (!doc?.repoPath) return [];
     const ws = get(workspacesStore).find((w) => w.id === doc.workspaceId);
     const repoLink = ws?.repoLink;
@@ -196,7 +221,8 @@
       if (!res.ok) return [];
       const data = (await res.json()) as { sha: string; commit: { message: string; author: { name: string; date: string } }; html_url: string }[];
       return data.map((c) => ({
-        kind: "commit" as const,
+        kind: "remote" as const,
+        source: "github" as const,
         id: c.sha,
         timestamp: new Date(c.commit.author.date).getTime(),
         message: firstLine(c.commit.message),
@@ -211,7 +237,7 @@
   async function loadEntryContent(
     doc: ReturnType<typeof getActiveDoc>,
     isShared: boolean,
-    entry: LocalEntry | CommitEntry,
+    entry: LocalEntry | RemoteEntry,
   ): Promise<{ content: string; images: Record<string, string> | undefined } | undefined> {
     if (!doc) return undefined;
     if (entry.kind === "local") {
@@ -230,19 +256,31 @@
       }
       return { content, images: await getVersionImages(doc.id, entry.id) };
     }
-    const content = await fetchCommitContent(doc, entry.id);
+    if (entry.source === "drive") {
+      if (!doc.driveFileId) return undefined;
+      try {
+        const content = await getDriveRevisionContent(doc.driveFileId, entry.id);
+        const driveImages = await fetchDriveRevisionImages(doc, content);
+        // Match the local branch: no images → undefined, not an empty object.
+        return { content, images: Object.keys(driveImages).length ? driveImages : undefined };
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Couldn't load this version's content", "error");
+        return undefined;
+      }
+    }
+    const content = await fetchGithubContent(doc, entry.id);
     if (content === undefined) {
       showToast("Couldn't load this version's content", "error");
       return undefined;
     }
-    const commitImages = await fetchCommitImages(doc, entry.id, content);
+    const commitImages = await fetchGithubImages(doc, entry.id, content);
     // Match the local branch: no images → undefined, not an empty object
     // (which, once wrapped by $state, isn't structured-cloneable into the
     // IndexedDB snapshot a restore appends).
     return { content, images: Object.keys(commitImages).length ? commitImages : undefined };
   }
 
-  async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, entry: LocalEntry | CommitEntry) {
+  async function selectVersion(doc: ReturnType<typeof getActiveDoc>, isShared: boolean, entry: LocalEntry | RemoteEntry) {
     selectedId = entry.id;
     selectedEntry = entry;
     selectedContent = undefined;
@@ -259,7 +297,7 @@
     }
   }
 
-  const flatEntries = $derived.by((): (LocalEntry | CommitEntry)[] => versions.flatMap((v) => (v.kind === "session" ? v.entries : [v])));
+  const flatEntries = $derived.by((): (LocalEntry | RemoteEntry)[] => versions.flatMap((v) => (v.kind === "session" ? v.entries : [v])));
 
   // The overall-newest entry's real id — versions[0]?.id can't be used
   // directly for this once sessions exist, since a SessionEntry's own id
@@ -271,8 +309,8 @@
     return first.kind === "session" ? first.entries[first.entries.length - 1]!.id : first.id;
   });
 
-  function compareLabel(entry: LocalEntry | CommitEntry): string {
-    return entry.kind === "commit" ? entry.message : formatTimestamp(entry.timestamp);
+  function compareLabel(entry: LocalEntry | RemoteEntry): string {
+    return entry.kind === "remote" ? entry.message : formatTimestamp(entry.timestamp);
   }
 
   async function selectCompare(id: string) {
@@ -326,8 +364,11 @@
             }
           : g.entries[0]!,
       );
-      const commitEntries: HistoryEntry[] = await loadCommitEntries(doc);
-      versions = [...groupedLocalEntries, ...commitEntries].sort((a, b) => b.timestamp - a.timestamp);
+      const workspace = get(workspacesStore).find((w) => w.id === doc.workspaceId);
+      const remoteEntries: HistoryEntry[] = [];
+      if (workspace?.repoLink) remoteEntries.push(...(await loadRemoteEntries(doc, "github")));
+      if (workspace?.driveLink && doc.driveFileId) remoteEntries.push(...(await loadRemoteEntries(doc, "drive")));
+      versions = [...groupedLocalEntries, ...remoteEntries].sort((a, b) => b.timestamp - a.timestamp);
       compareId = "__live__";
       compareContent = undefined;
       compareImages = undefined;
@@ -507,17 +548,19 @@
                 type="button"
                 class="version-history-row"
                 class:active={v.id === selectedId}
+                aria-label={v.kind === "remote" && v.source === "drive" ? `Google Drive revision: ${formatTimestamp(v.timestamp)}, by ${v.author}` : undefined}
                 onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), v)}
               >
                 <span class="version-history-row-label">
-                  {#if v.kind === "commit"}
-                    <svg class="icon"><use href="#icon-github"></use></svg>
+                  {#if v.kind === "remote"}
+                    <svg class="icon"><use href={v.source === "drive" ? "#icon-cloud" : "#icon-github"}></use></svg>
                   {/if}
-                  <span class="version-history-label-text">{v.kind === "commit" ? v.message : formatTimestamp(v.timestamp)}</span>
+                  <span class="version-history-label-text">{v.kind === "remote" ? v.message : formatTimestamp(v.timestamp)}</span>
                 </span>
                 <span class="version-history-row-meta">
                   {#if i === 0}<span class="version-history-current">(current)</span>{/if}
                   {#if v.kind === "local"}{@render authorAvatars(v.authors)}{/if}
+                  {#if v.kind === "remote"}{@render authorAvatars([v.author])}{/if}
                 </span>
               </button>
             {/if}

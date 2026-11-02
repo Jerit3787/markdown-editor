@@ -1,10 +1,10 @@
 diff --git a/src/worker.ts b/src/worker.ts
-index cb00cb0..9f76331 100644
+index a7f9240..73da6ed 100644
 --- a/src/worker.ts
 +++ b/src/worker.ts
-@@ -14,9 +14,20 @@ import {
-   handleDriveFile,
-   handleDrivePush,
+@@ -16,9 +16,20 @@ import {
+   handleDriveRevisions,
+   handleDriveRevisionContent,
  } from "./google-drive.js";
 +import { encryptSession, cookieHeader, SESSION_COOKIE } from "./auth.js";
  import type { Env } from "./env";
@@ -23,7 +23,7 @@ index cb00cb0..9f76331 100644
  // The legacy per-document CollabRoom is a migration-only shim now (see
  // src/collab-room.ts) — /migrate is its only live endpoint; everything
  // else moved to WorkspaceRoom in the workspace pivot.
-@@ -52,6 +63,17 @@ export default {
+@@ -56,6 +67,17 @@ export default {
    async fetch(request: Request, env: Env): Promise<Response> {
      const url = new URL(request.url);
  

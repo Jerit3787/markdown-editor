@@ -18,14 +18,37 @@ window.MDE.importMarkdownFromDrive = importMarkdownFromDrive;
 
 checkSession();
 
+// Set when an import was requested before Drive was connected: the menu
+// item had to open the OAuth popup first. The popup's success message
+// resumes the import, instead of leaving the user to find and click the
+// menu item again. Expires so a cancelled/abandoned connect can't fire a
+// surprise picker much later.
+let pendingImportAfterConnect = false;
+let pendingImportRequestedAt = 0;
+const PENDING_IMPORT_TTL_MS = 5 * 60 * 1000;
+
+function clearPendingImport(): void {
+  pendingImportAfterConnect = false;
+  pendingImportRequestedAt = 0;
+}
+
 // The GitHub popup's `mde-github-auth` listener lives in
 // GithubSignInModal.svelte, not app.ts — so this module registers its own
 // listener for `mde-google-auth`, mirroring that pattern.
 window.addEventListener("message", (e) => {
   if (e.origin !== location.origin || !e.data || e.data.type !== "mde-google-auth") return;
-  if (e.data.ok) {
-    driveConnected.set(true);
-    window.MDE.onGoogleAuthComplete?.();
+  if (!e.data.ok) {
+    // The popup reported a failure — don't leave a stale resume request.
+    clearPendingImport();
+    return;
+  }
+  driveConnected.set(true);
+  window.MDE.onGoogleAuthComplete?.();
+  if (pendingImportAfterConnect && Date.now() - pendingImportRequestedAt <= PENDING_IMPORT_TTL_MS) {
+    clearPendingImport();
+    void importMarkdownFromDrive();
+  } else {
+    clearPendingImport();
   }
 });
 
@@ -138,7 +161,12 @@ async function importMarkdownFromDrive(): Promise<void> {
   }
   const tokRes = await fetch("/api/auth/google/picker-token");
   if (tokRes.status === 401) {
-    window.MDE.connectGoogleDrive?.(); // connect, then the user re-runs
+    // Not connected yet: remember that the user actually wanted to import,
+    // so the OAuth popup's success handler can resume this instead of
+    // making them re-open the menu item (see the message listener above).
+    pendingImportAfterConnect = true;
+    pendingImportRequestedAt = Date.now();
+    window.MDE.connectGoogleDrive?.();
     return;
   }
   if (!tokRes.ok) {

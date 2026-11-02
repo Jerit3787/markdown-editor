@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.65.1] - 2026-11-02
+
+### Fixed
+
+- Choosing File > Open > Markdown from Google Drive while Drive wasn't connected opened the OAuth popup and then stopped — you had to find and click the menu item again after authorizing. The pending import now resumes by opening the Google Picker automatically once the popup reports success.
+
 ## [1.65.0] - 2026-11-02
 
 ### Added

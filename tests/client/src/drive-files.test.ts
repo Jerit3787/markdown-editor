@@ -16,6 +16,10 @@ async function load() {
 
 beforeEach(() => {
   vi.resetModules();
+  // createDoc persists into localStorage, and persistDocs merges external
+  // docs back in — clear it so one test's imported docs can't inflate the
+  // next test's store.
+  localStorage.clear();
   (window as any).MDE = {};
 });
 
@@ -112,13 +116,54 @@ describe("importMarkdownFromDrive", () => {
     docsStore.set([]);
     const connectSpy = vi.fn();
     (window as any).MDE.connectGoogleDrive = connectSpy;
-    (mod as any).__setPickerForTest(() => {
-      throw new Error("picker should not open");
-    });
+    // A no-op seam: if a later test's auth-success message reaches this
+    // module instance's listener, it must not throw out of the async
+    // resume path (this test itself returns before the picker is used).
+    (mod as any).__setPickerForTest(() => {});
 
     await (window as any).MDE.importMarkdownFromDrive();
     expect(connectSpy).toHaveBeenCalled();
     expect(get(docsStore)).toHaveLength(0);
+    vi.unstubAllGlobals();
+  });
+
+  it("resumes the pending import when the connect popup reports success", async () => {
+    let pickerTokenCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("/picker-token")) {
+          pickerTokenCalls++;
+          if (pickerTokenCalls === 1) return new Response("Reconnect", { status: 401 });
+          return new Response(JSON.stringify({ token: "t", apiKey: "k", appId: "999" }), { status: 200 });
+        }
+        if (u.includes("/api/drive/import")) {
+          return new Response(JSON.stringify({ results: [{ fileId: "a", name: "Todo.md", contentBase64: btoa("# Todo"), ok: true }] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ connected: false }), { status: 200 });
+      }),
+    );
+    const { mod, docsStore, workspacesStore } = await load();
+    workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0 }]);
+    docsStore.set([]);
+    const connectSpy = vi.fn();
+    (window as any).MDE.connectGoogleDrive = connectSpy;
+    let pickerOpened = false;
+    (mod as any).__setPickerForTest((_t: string, _k: string, _a: string, onPicked: (f: { id: string; name: string }[]) => void) => {
+      pickerOpened = true;
+      onPicked([{ id: "a", name: "Todo.md" }]);
+    });
+
+    await (window as any).MDE.importMarkdownFromDrive();
+    expect(connectSpy).toHaveBeenCalled();
+    expect(pickerOpened).toBe(false);
+
+    // The OAuth popup reports success after the user finishes consent.
+    window.dispatchEvent(new MessageEvent("message", { origin: location.origin, data: { type: "mde-google-auth", ok: true } }));
+
+    await vi.waitFor(() => expect(pickerOpened).toBe(true));
+    await vi.waitFor(() => expect(get(docsStore)).toHaveLength(1));
     vi.unstubAllGlobals();
   });
 });

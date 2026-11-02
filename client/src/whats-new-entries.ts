@@ -441,4 +441,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/google-drive.png",
     category: "Organization & Navigation",
   },
+  {
+    version: "1.66.0",
+    title: "Save to Google Drive",
+    description:
+      'File > Publish can now save the open document as a real .md file in your Google Drive — My Drive or a folder you choose. Later saves update that same file in place, the menu switches to "Update in Google Drive", and a View in Drive link takes you straight to it.',
+    screenshot: "/whats-new/drive-save.png",
+    category: "Organization & Navigation",
+  },
 ];

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.66.0] - 2026-11-02
+
+### Added
+
+- **Google Drive — save and update markdown.** File ▸ Publish now saves the open document as a real `.md` file in Google Drive, either in My Drive or in a folder you pick with Google's folder chooser. Later saves update that same file in place — the document remembers its Drive file, so the menu switches to "Update in Google Drive" and adds a "View in Drive" link. The export is markdown-only (embedded images stay local and are noted in the success toast), and a file deleted in Drive automatically falls back to creating a new one.
+
 ## [1.65.1] - 2026-11-02
 
 ### Fixed

@@ -561,6 +561,62 @@ async function downloadBase64(fileId: string): Promise<string> {
   return data.contentBase64;
 }
 
+export interface DriveRevision {
+  revId: string;
+  modifiedTime: string;
+  author: string;
+}
+
+export async function pullDriveRevisions(fileId: string): Promise<DriveRevision[]> {
+  const data = await jsonFetch<{ revisions?: DriveRevision[] }>(
+    `/api/drive/file/${encodeURIComponent(fileId)}/revisions`,
+    undefined,
+    "Couldn't load Drive revisions",
+  );
+  return data.revisions ?? [];
+}
+
+export async function getDriveRevisionContent(fileId: string, revId: string): Promise<string> {
+  const data = await jsonFetch<{ contentBase64: string }>(
+    `/api/drive/file/${encodeURIComponent(fileId)}/revisions/${encodeURIComponent(revId)}`,
+    undefined,
+    "Couldn't load the Drive revision",
+  );
+  return decodeBase64Text(data.contentBase64);
+}
+
+// Drive stores images as separate files, so a historical markdown revision
+// does not carry its own image bytes. Resolve each `assets/...` reference
+// through the doc's current image file ids; if the image changed after the
+// doc revision, the preview shows the current bytes (same limitation as a
+// Drive revision itself, which is content-only).
+export async function fetchDriveRevisionImages(doc: Doc, content: string): Promise<Record<string, string>> {
+  const folder = doc.drivePath ? assetFolderForDrivePath(doc.drivePath) : "";
+  const prefix = folder ? `assets/${folder}/` : "";
+  const images: Record<string, string> = {};
+  const assetPaths = [...content.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g)].map((match) => match[1]!);
+  for (const assetPath of assetPaths) {
+    let ref = prefix && assetPath.startsWith(prefix) ? assetPath.slice(prefix.length) : "";
+    let stored = ref ? doc.driveImageRevs?.[ref] : undefined;
+    if (!stored) {
+      const keys = Object.keys(doc.driveImageRevs ?? {});
+      const tail = assetPath.split("/").pop() ?? "";
+      const stem = tail.replace(/\.[^.]+$/, "");
+      ref = keys.find((key) => tail === key || stem === key || tail.startsWith(`${key}.`)) ?? "";
+      stored = ref ? doc.driveImageRevs?.[ref] : undefined;
+    }
+    if (!stored) continue;
+    try {
+      const base64 = await downloadBase64(stored.fileId);
+      images[assetPath] = `data:${mimeFromAssetPath(assetPath)};base64,${base64}`;
+    } catch (err) {
+      if (err instanceof DriveReconnectError) throw err;
+      // A deleted/oversized asset shouldn't break the rest of the preview.
+    }
+  }
+  return images;
+}
+
 function parentPathOf(path: string): string {
   const parts = path.split("/").filter(Boolean);
   parts.pop();

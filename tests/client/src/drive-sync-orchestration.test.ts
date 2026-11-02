@@ -2,7 +2,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import "fake-indexeddb/auto";
 import { get } from "svelte/store";
-import { linkWorkspaceToDrive, pullFromDrive, pushToDrive, DriveReconnectError, hashPushPayload, hashImageDataUrl } from "../../../client/src/drive-sync";
+import {
+  linkWorkspaceToDrive,
+  pullFromDrive,
+  pushToDrive,
+  DriveReconnectError,
+  hashPushPayload,
+  hashImageDataUrl,
+  pullDriveRevisions,
+  getDriveRevisionContent,
+  fetchDriveRevisionImages,
+} from "../../../client/src/drive-sync";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
 import { docsStore, activeIdStore, activeDocContent } from "../../../client/src/stores/docs";
 import type { Doc } from "../../../client/src/types";
@@ -700,5 +710,55 @@ describe("pull conflict failures", () => {
     expect(plan.conflicts).toHaveLength(1);
     await expect(applyResolved({ d1: "theirs" })).rejects.toThrow(/couldn't be pulled/);
     expect(get(docsStore)[0]!.content).toBe("# local");
+  });
+});
+
+describe("Drive revision helpers", () => {
+  it("maps the revisions endpoint and decodes revision content", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.endsWith("/revisions")) {
+          return json({ revisions: [{ revId: "rev-2", modifiedTime: "2026-02-02T00:00:00Z", author: "Alice" }] });
+        }
+        if (u.includes("/revisions/rev-2")) return json({ contentBase64: b64("# Old") });
+        throw new Error(`unexpected fetch ${u}`);
+      }),
+    );
+
+    await expect(pullDriveRevisions("f1")).resolves.toEqual([{ revId: "rev-2", modifiedTime: "2026-02-02T00:00:00Z", author: "Alice" }]);
+    await expect(getDriveRevisionContent("f1", "rev-2")).resolves.toBe("# Old");
+  });
+
+  it("resolves a revision's asset paths through the doc's image revisions", async () => {
+    const imageBase64 = Buffer.from("PNG").toString("base64");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).includes("/file/img1")) return json({ contentBase64: imageBase64 });
+        throw new Error(`unexpected fetch ${String(url)}`);
+      }),
+    );
+    const doc = {
+      id: "d1",
+      name: "notes",
+      content: "",
+      updatedAt: 0,
+      createdAt: 0,
+      workspaceId: "w1",
+      drivePath: "notes.md",
+      driveImageRevs: { "pic.png": { fileId: "img1", rev: "ir1" } },
+    } as unknown as Doc;
+    const images = await fetchDriveRevisionImages(doc, "![pic](assets/notes/pic.png)");
+    expect(images).toEqual({ "assets/notes/pic.png": `data:image/png;base64,${imageBase64}` });
+  });
+
+  it("surfaces a 401 as a reconnect error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("unauthorized", { status: 401 })),
+    );
+    await expect(pullDriveRevisions("f1")).rejects.toBeInstanceOf(DriveReconnectError);
   });
 });

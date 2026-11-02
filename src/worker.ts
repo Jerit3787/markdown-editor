@@ -4,7 +4,16 @@ import { handleLogin, handleCallback, handleLogout, handleMe, handleGistCreate, 
 import { handleGistImageUpload } from "./gist-images.js";
 import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
 import { handleGoogleConnect, handleGoogleCallback, handleGoogleStatus, handleGoogleDisconnect } from "./google-auth.js";
-import { handleDrivePickerToken, handleDriveImport, handleDriveExport } from "./google-drive.js";
+import {
+  handleDrivePickerToken,
+  handleDriveImport,
+  handleDriveExport,
+  handleDriveCreateFolder,
+  handleDriveListFolders,
+  handleDriveTree,
+  handleDriveFile,
+  handleDrivePush,
+} from "./google-drive.js";
 import type { Env } from "./env";
 import { generateNonce, appCsp, legalCsp } from "./csp.js";
 
@@ -32,6 +41,12 @@ const REPO_BLOB_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/blob\/([0-9a-f]+)$/i;
 const REPO_PUSH_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/push$/;
 const REPO_COMMITS_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/commits$/;
 const REPO_FILE_AT_REF_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/contents\/(.+)$/;
+
+// Drive folder sync. Exact shapes only — a broader suffix match would let
+// a future /revisions route be swallowed by the plain file download.
+const DRIVE_TREE_PATH = /^\/api\/drive\/folder\/([^/]+)\/tree$/;
+const DRIVE_PUSH_PATH = /^\/api\/drive\/folder\/([^/]+)\/push$/;
+const DRIVE_FILE_PATH = /^\/api\/drive\/file\/([^/]+)$/;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -113,6 +128,15 @@ export default {
     if (url.pathname === "/api/auth/google/picker-token" && request.method === "GET") return handleDrivePickerToken(request, env);
     if (url.pathname === "/api/drive/import" && request.method === "POST") return handleDriveImport(request, env);
     if (url.pathname === "/api/drive/export" && request.method === "POST") return handleDriveExport(request, env);
+    if (url.pathname === "/api/drive/folder" && request.method === "POST") return handleDriveCreateFolder(request, env);
+    if (url.pathname === "/api/drive/folders" && request.method === "GET") return handleDriveListFolders(request, env);
+
+    const driveTreeMatch = url.pathname.match(DRIVE_TREE_PATH);
+    if (driveTreeMatch && request.method === "GET") return handleDriveTree(request, env, decodeURIComponent(driveTreeMatch[1]!));
+    const drivePushMatch = url.pathname.match(DRIVE_PUSH_PATH);
+    if (drivePushMatch && request.method === "POST") return handleDrivePush(request, env, decodeURIComponent(drivePushMatch[1]!));
+    const driveFileMatch = url.pathname.match(DRIVE_FILE_PATH);
+    if (driveFileMatch && request.method === "GET") return handleDriveFile(request, env, decodeURIComponent(driveFileMatch[1]!));
 
     if (url.pathname === "/api/gist" && request.method === "POST") return handleGistCreate(request, env);
     if (url.pathname === "/api/gists" && request.method === "GET") return handleGistList(request, env);

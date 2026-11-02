@@ -43,7 +43,13 @@
 </script>
 
 {#if $repoConflictModalOpen && $repoConflictState}
-  <Modal title={$repoConflictState.kind === "pull" ? "Resolve Pull Conflicts" : "Resolve Push Conflicts"} icon="icon-github" wide labelledBy="repoConflictModalTitle" onClose={close}>
+  <Modal
+    title={$repoConflictState.kind === "pull" ? "Resolve Pull Conflicts" : "Resolve Push Conflicts"}
+    icon={$repoConflictState.source === "drive" ? "icon-cloud" : "icon-github"}
+    wide
+    labelledBy="repoConflictModalTitle"
+    onClose={close}
+  >
     {#if $repoConflictState.conflicts.length > 0}
       <div class="menu-section-label">Changed on both sides</div>
       {#each $repoConflictState.conflicts as conflict (conflict.docId)}

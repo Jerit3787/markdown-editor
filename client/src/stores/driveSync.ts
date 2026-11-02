@@ -21,3 +21,8 @@ export const driveImportBusyLabel = writable<string | null>(null);
 // Transient status text while a "Save to Google Drive" export is in
 // flight — the menu label shows "Saving…" / "Updating…" and disables.
 export const driveExportBusyLabel = writable<string | null>(null);
+
+// Folder-sync presentational state, mirroring stores/repoSync.ts.
+export const openDriveModalOpen = writable(false);
+export const linkDriveModalOpen = writable(false);
+export const driveSyncBusyLabel = writable<string | null>(null);

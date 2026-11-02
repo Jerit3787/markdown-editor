@@ -1202,6 +1202,17 @@ ${bodyHtml}
     refreshSaveStatus() {
       setSaveStatus(savedLabel(getActiveDoc()));
     },
+    // External sync (Drive pull / "take theirs") writes straight to
+    // docsStore, which normally only reloads the editor when the active
+    // doc *id* changes. Without this, the live CodeMirror buffer keeps the
+    // old text and the next autosave writes it back over the pulled copy.
+    reloadActiveDocFromStore() {
+      const doc = getActiveDoc();
+      if (!doc) return;
+      loadDocIntoEditor(doc);
+      window.MDE.updatePreview?.();
+      updateCounts();
+    },
     // Editor text with any ![](refName) image references inlined back to
     // their real data URIs — what gets published to a Gist, since a Gist
     // needs to stand on its own outside this app.

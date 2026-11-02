@@ -59,10 +59,11 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| **Total**                          | **345** |  **0** |  **0** | **345** |
+| 15. Google Drive folder sync       |      14 |       0 |    0 |    14 |
+| **Total**                          | **359** |  **0** |  **0** | **359** |
 
 **Every enumerated scenario now has a test asserting its outcome —
-314 / 314, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
+359 / 359, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
 first pass). Phases 1–14 + Buckets A/B, the real-GitHub and WebKit
 harnesses, the legacy-share migration and image-marker races, and the
 last soft spots (COLLAB-31, VER-08, GIST-05) are all closed.
@@ -572,6 +573,27 @@ _Source: `client/src/components/MenuBar.svelte`, `client/src/components/CommandP
 | SHELL-36 | `requireJoinTicket()` — anonymous + `generalAccess:"anyone"` + `TURNSTILE_SECRET_KEY` set requires a valid `?ticket=` (401 `turnstile-required` without, ok with); a ticket for another workspace fails; a signed-in session bypasses; unset key → no check; a restricted link → no check (existing role check already stops anon). Called only from the WS-upgrade branch of `WorkspaceRoom.fetch()`; `authorize()` itself no longer gates so the pre-join `GET /docs` / `/meta` fetches stay reachable | integration | covered | `tests/src/workspace-room.test.ts` | v1.58.0 |
 | SHELL-37 | Client Turnstile — `turnstileEnabled` false + `getJoinTicket` returns `null` with no fetch / no script when `VITE_TURNSTILE_SITE_KEY` is unset; `clearJoinTicket` removes the per-workspace `mde:joinTicket:<id>` entry only and survives a storage throw; `TurnstilePrompt` renders only while `turnstilePromptOpen`, with a Retry affordance on error and a Cancel that closes it | unit + component | covered | `tests/client/src/turnstile.test.ts`, `tests/client/src/components/TurnstilePrompt.test.ts` | v1.58.0 |
 | SHELL-38 | Content-Security-Policy — `src/csp.ts` builds the policy per request (`appCsp(nonce)` / `legalCsp(nonce)`, no `'unsafe-inline'`/`'unsafe-eval'` in `script-src`, GA + Turnstile allowlist kept, `generateNonce()` distinct 16-byte base64); the Worker transforms every `text/html` response — strips the `<meta>` CSP, stamps `nonce="…"` on every `<script>`, sets `Content-Security-Policy` + `Cache-Control: no-store` (strict `default-src 'none'` variant for `/privacy` + `/terms`, request URL forwarded unchanged). `client/index.html` + `legal/*.html` keep a `<meta>` CSP as the `vite dev` policy (`default-src 'self'` / `object-src 'none'` / inline snippet pinned by recomputed `sha256`; legal pages `default-src 'none'`); `client/public/_headers` carries only `X-Frame-Options: DENY` / `nosniff` / `Referrer-Policy` / `Permissions-Policy` / `COOP` (no CSP). End-to-end: editing + inline math + Mermaid + data/remote images + every menu + HTML/MD/PDF export produce no CSP violation under `vite dev`; against the built bundle on `wrangler dev` — math + a diagram render clean, `GET /` and `GET /privacy` return a nonce-bearing CSP header with no `<meta>` CSP in the body, two requests get distinct nonces, every `<script>` in the served bytes carries the header's nonce, `Cache-Control: no-store`. JSD-compatibility itself is edge-only — verified manually post-deploy. | unit + e2e + e2e-collab | covered | `tests/src/csp.test.ts`, `tests/src/worker.test.ts`, `tests/client/src/csp.test.ts`, `tests/e2e/local/csp.spec.ts`, `tests/e2e/collab/csp-built.spec.ts`, `tests/e2e/collab/live-sync.spec.ts` | v1.60.3 |
+
+## 15. Google Drive folder sync
+
+_Source: `src/google-drive.ts`, `client/src/drive-sync.ts`, `client/src/drive-sync-ui.ts`, `client/src/stores/driveSync.ts`, `client/src/components/OpenDriveModal.svelte`, `client/src/components/LinkDriveModal.svelte`_
+
+| ID       | Scenario                                                                                                 | Level       | Status  | Test                                                  | Notes |
+| -------- | -------------------------------------------------------------------------------------------------------- | ----------- | ------- | ----------------------------------------------------- | ----- |
+| DRIVE-01 | `POST /api/drive/folder` creates an app-owned folder with the `mde`/`mdeWorkspace`/`mdeWorkspaceName` appProperties | integration | covered | `tests/src/google-drive.test.ts` | drive.file folders only |
+| DRIVE-02 | `GET /api/drive/folders` filters to app folders and maps `mdeWorkspace` to `workspaceId` | integration | covered | `tests/src/google-drive.test.ts` | |
+| DRIVE-03 | `GET /api/drive/folder/:id/tree` BFS-walks nested folders, flattens synthetic paths, and falls back from `headRevisionId` to `modifiedTime` | integration | covered | `tests/src/google-drive.test.ts` | depth/folder caps |
+| DRIVE-04 | `GET /api/drive/file/:id` returns base64 and rejects a file over the 5 MB cap | integration | covered | `tests/src/google-drive.test.ts` | |
+| DRIVE-05 | `POST /api/drive/folder/:id/push` ensures subfolders, creates/updates/deletes, and returns a per-item result with HTTP 200 on a partial failure | integration | covered | `tests/src/google-drive.test.ts` | best-effort, no rollback |
+| DRIVE-06 | `planDrivePull` classifies create/update/unchanged/conflict/deletion, matches by file id then path, and treats an image rev change as a doc change | unit | covered | `tests/client/src/drive-sync.test.ts` | |
+| DRIVE-07 | `planDrivePush` slugifies/dedupes paths, renames by create+delete, conflicts when the remote rev moved, and only adopts paths in a folder this workspace owns | unit | covered | `tests/client/src/drive-sync.test.ts` | |
+| DRIVE-08 | `planDrivePush` creates/updates images by ref, deletes orphaned assets only in an owned folder, and carries pending deletions through unless reclaimed | unit | covered | `tests/client/src/drive-sync.test.ts` | |
+| DRIVE-09 | `hashPushPayload` is stable across asset order and changes when content changes; a matching hash + rev is `unchanged` | unit | covered | `tests/client/src/drive-sync.test.ts` | local half of the conflict key |
+| DRIVE-10 | `linkWorkspaceToDrive` creates the folder, stores the link, clears stale metadata, and pushes every local doc | integration | covered | `tests/client/src/drive-sync-orchestration.test.ts` | |
+| DRIVE-11 | `pullFromDrive` downloads markdown + images, rewrites `assets/...` refs, records file/image revs and a pushed hash, and applies a remote deletion without echoing it back | integration | covered | `tests/client/src/drive-sync-orchestration.test.ts` | |
+| DRIVE-12 | `pushToDrive` commits only successful results, leaves a failed doc's rev/hash untouched, and records images that succeeded even when their markdown update failed | integration | covered | `tests/client/src/drive-sync-orchestration.test.ts` | retry is the next push |
+| DRIVE-13 | Open/link modals list app folders, create a workspace or folder, and close for a progress toast | component | covered | `tests/client/src/components/OpenDriveModal.test.ts`, `LinkDriveModal.test.ts` | |
+| DRIVE-14 | File ▸ Google Drive reflects connect/open/link/linked states; Document info shows the folder path and standalone export row | component | covered | `tests/client/src/components/MenuBar.test.ts`, `DocInfoPanel.test.ts` | reuses the conflict modal with `source:"drive"` |
 
 ---
 

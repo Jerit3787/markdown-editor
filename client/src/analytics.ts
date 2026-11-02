@@ -73,7 +73,7 @@ export function initAnalytics(): void {
   analyticsConsent.subscribe(applyConsent); // fires immediately with current value
 }
 
-export type AnalyticsEvent = "shared_workspace" | "published_gist" | "linked_repo" | "exported_doc" | "opened_command_palette";
+export type AnalyticsEvent = "shared_workspace" | "published_gist" | "linked_repo" | "linked_drive" | "exported_doc" | "opened_command_palette";
 
 // Fires whenever analytics is active for this session (configured + not a
 // hard browser opt-out). Consent Mode decides cookie vs cookieless — the

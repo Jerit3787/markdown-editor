@@ -101,7 +101,7 @@ function extFromDataUrl(dataUrl: string): string {
 // not a real MIME type, and a data URL claiming it fails that regex, so an
 // image round-tripped through repo-sync used to silently drop out of any
 // later Gist publish instead of being pushed.
-function mimeFromAssetPath(path: string): string {
+export function mimeFromAssetPath(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase() || "";
   const subtype: Record<string, string> = { jpg: "jpeg", jpeg: "jpeg", svg: "svg+xml" };
   return `image/${subtype[ext] || ext || "png"}`;

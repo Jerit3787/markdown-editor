@@ -12,7 +12,7 @@
   import { docInfoPanelOpen } from "../stores/docInfoPanel";
   import { workspacesStore, activeWorkspaceIdStore } from "../stores/workspaces";
   import { repoSyncBusyLabel } from "../stores/repoSync";
-  import { driveConnected, driveConfigured, driveExportBusyLabel } from "../stores/driveSync";
+  import { driveConnected, driveConfigured, driveExportBusyLabel, driveSyncBusyLabel } from "../stores/driveSync";
   import { openFindBar } from "../stores/findReplace";
   import { effectiveMode, collabRole, collabIsOwner } from "../stores/collabMode";
 
@@ -57,6 +57,10 @@
   const hasRepoLink = $derived(!!activeWorkspace?.repoLink);
   const repoLinkLabel = $derived(activeWorkspace?.repoLink ? `${activeWorkspace.repoLink.owner}/${activeWorkspace.repoLink.repo}` : "");
   const repoLastSyncedLabel = $derived(activeWorkspace?.repoLastSyncedAt ? `Synced ${window.MDE.formatRelativeTime(activeWorkspace.repoLastSyncedAt)}` : "");
+  const hasDriveLink = $derived(!!activeWorkspace?.driveLink);
+  const driveFolderLabel = $derived(activeWorkspace?.driveLink?.folderName ?? "");
+  const driveLastSyncedLabel = $derived(activeWorkspace?.driveLastSyncedAt ? `Synced ${window.MDE.formatRelativeTime(activeWorkspace.driveLastSyncedAt)}` : "");
+  const driveSyncBusy = $derived(!!$driveSyncBusyLabel);
 
   // Combined "annotations needing attention" count — the rail (opened by
   // #commentsBtn) shows comments and suggestions together, so one number
@@ -210,6 +214,55 @@
             </button>
             <button type="button" onclick={() => act(() => window.MDE.unlinkRepo?.())}>
               <svg class="icon"><use href="#icon-x"></use></svg> Unlink Repo
+            </button>
+          {/if}
+        </div>
+      </div>
+
+      <div class="menu-submenu" hidden={publishHidden || !driveAvailable}>
+        <button class="menu-submenu-trigger" type="button">
+          <svg class="icon"><use href="#icon-cloud"></use></svg> Google Drive <svg class="icon menu-chevron"><use href="#icon-chevron-right"></use></svg>
+        </button>
+        <div class="menu-submenu-panel">
+          {#if !$driveConnected}
+            <button id="menuConnectDrive" type="button" onclick={() => act(() => window.MDE.connectGoogleDrive?.())}>
+              <svg class="icon"><use href="#icon-cloud"></use></svg> Connect Google Drive...
+            </button>
+          {:else}
+            <button id="menuOpenDriveFolder" type="button" onclick={() => act(() => window.MDE.openDriveFolderPicker?.())}>
+              <svg class="icon"><use href="#icon-download"></use></svg> Open a synced folder as a workspace...
+            </button>
+            {#if !hasDriveLink}
+              <button id="menuLinkDrive" type="button" disabled={!hasWorkspace} onclick={() => act(() => window.MDE.openDriveLinkModal?.())}>
+                <svg class="icon"><use href="#icon-upload"></use></svg> Link this workspace to a Drive folder...
+              </button>
+            {:else}
+              <a
+                id="driveFolderLink"
+                class="menu-link-item drive-folder-link"
+                href={`https://drive.google.com/drive/folders/${activeWorkspace?.driveLink?.folderId}`}
+                target="_blank"
+                rel="noopener"
+              >
+                <svg class="icon"><use href="#icon-cloud"></use></svg>
+                {driveFolderLabel}
+              </a>
+              {#if driveLastSyncedLabel}
+                <div class="menu-section-label menu-section-sublabel">{driveLastSyncedLabel}</div>
+              {/if}
+              <button id="menuPullDrive" type="button" disabled={driveSyncBusy} onclick={() => act(() => window.MDE.pullFromDriveAction?.())}>
+                <svg class="icon"><use href="#icon-download"></use></svg> {$driveSyncBusyLabel === "Pulling…" ? "Pulling…" : "Pull from Drive"}
+              </button>
+              <button id="menuPushDrive" type="button" disabled={driveSyncBusy} onclick={() => act(() => window.MDE.pushToDriveAction?.())}>
+                <svg class="icon"><use href="#icon-upload"></use></svg> {$driveSyncBusyLabel === "Pushing…" ? "Pushing…" : "Push to Drive"}
+              </button>
+              <button id="menuUnlinkDrive" type="button" onclick={() => act(() => window.MDE.unlinkDrive?.())}>
+                <svg class="icon"><use href="#icon-x"></use></svg> Unlink from Drive
+              </button>
+            {/if}
+            <div class="menu-divider"></div>
+            <button id="menuDisconnectDrive" type="button" onclick={() => act(() => window.MDE.disconnectDriveAction?.())}>
+              <svg class="icon"><use href="#icon-x"></use></svg> Disconnect Google Drive
             </button>
           {/if}
         </div>

@@ -193,3 +193,35 @@ test("A1/A2: Publish + GitHub Repo are hidden for a non-owner shared session, sh
 
   githubUsername.set(null);
 });
+
+test("DRIVE-SYNC-1: connected with no link offers opening or linking a folder", async () => {
+  const { driveConnected, driveConfigured } = await import("../../../../client/src/stores/driveSync");
+  driveConnected.set(true);
+  driveConfigured.set(true);
+  const screen = await render(MenuBar);
+
+  expect(screen.container.querySelector("#menuConnectDrive")).toBeNull();
+  expect(screen.container.querySelector("#menuOpenDriveFolder")!.hasAttribute("hidden")).toBe(false);
+  expect(screen.container.querySelector("#menuLinkDrive")!.hasAttribute("hidden")).toBe(false);
+  expect(screen.container.querySelector("#menuPullDrive")).toBeNull();
+  driveConnected.set(false);
+  driveConfigured.set(false);
+});
+
+test("DRIVE-SYNC-2: a linked workspace shows the folder plus pull/push/unlink", async () => {
+  const { driveConnected, driveConfigured } = await import("../../../../client/src/stores/driveSync");
+  driveConnected.set(true);
+  driveConfigured.set(true);
+  workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0, driveLink: { folderId: "folder-1", folderName: "Notes" } }]);
+  activeWorkspaceIdStore.set("w1");
+  const screen = await render(MenuBar);
+
+  expect(screen.container.querySelector("#menuLinkDrive")).toBeNull();
+  const folderLink = screen.container.querySelector("#driveFolderLink") as HTMLAnchorElement;
+  expect(folderLink.textContent).toContain("Notes");
+  expect(folderLink.getAttribute("href")).toBe("https://drive.google.com/drive/folders/folder-1");
+  expect(screen.container.querySelector("#menuPullDrive")!.hasAttribute("hidden")).toBe(false);
+  expect(screen.container.querySelector("#menuPushDrive")!.hasAttribute("hidden")).toBe(false);
+  driveConnected.set(false);
+  driveConfigured.set(false);
+});

@@ -9,6 +9,7 @@ import "./collab";
 import "./gist";
 import "./drive-files";
 import "./repo-sync-ui";
+import "./drive-sync-ui";
 import "./formatting-commands";
 import "./style.scss";
 
@@ -58,6 +59,8 @@ import OpenGistModal from "./components/OpenGistModal.svelte";
 import RepoLinkModal from "./components/RepoLinkModal.svelte";
 import RepoConflictModal from "./components/RepoConflictModal.svelte";
 import OpenRepoModal from "./components/OpenRepoModal.svelte";
+import OpenDriveModal from "./components/OpenDriveModal.svelte";
+import LinkDriveModal from "./components/LinkDriveModal.svelte";
 
 // #settings-mount / #share-mount / #doclist-mount / #toast-mount /
 // #menubar-mount / #editor-mount / #toolbar-mount already exist by the
@@ -107,6 +110,8 @@ mount(OpenGistModal, { target: document.getElementById("open-gist-modal-mount")!
 mount(RepoLinkModal, { target: document.getElementById("repo-link-modal-mount")! });
 mount(RepoConflictModal, { target: document.getElementById("repo-conflict-modal-mount")! });
 mount(OpenRepoModal, { target: document.getElementById("open-repo-modal-mount")! });
+mount(OpenDriveModal, { target: document.getElementById("open-drive-modal-mount")! });
+mount(LinkDriveModal, { target: document.getElementById("link-drive-modal-mount")! });
 mount(DiagramEditor, { target: document.getElementById("diagram-editor-mount")! });
 mount(WhatsNew, { target: document.getElementById("whats-new-mount")! });
 mount(CommandPalette, { target: document.getElementById("command-palette-mount")! });

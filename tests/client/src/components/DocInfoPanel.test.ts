@@ -130,3 +130,15 @@ test("does not refetch the repo's commit dates on unrelated autosave updates", a
   expect(commitFetches).toBe(1);
   vi.unstubAllGlobals();
 });
+
+test("shows the folder-sync Drive row when the doc is linked to a Drive folder", async () => {
+  workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0, driveLink: { folderId: "folder-1", folderName: "Notes" } }]);
+  docsStore.set([
+    { id: "d1", name: "Test", content: "", updatedAt: 0, createdAt: 0, workspaceId: "w1", driveFileId: "file-1", drivePath: "notes.md", driveRev: "r1" },
+  ]);
+  activeIdStore.set("d1");
+  const screen = await render(DocInfoPanel);
+  const link = screen.getByRole("link", { name: /Notes — notes\.md/ });
+  await expect.element(link).toBeVisible();
+  expect(link.element().getAttribute("href")).toBe("https://drive.google.com/file/d/file-1/view");
+});

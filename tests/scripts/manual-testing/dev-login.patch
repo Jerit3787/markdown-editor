@@ -1,11 +1,11 @@
 diff --git a/src/worker.ts b/src/worker.ts
-index c8134f6..5d9c564 100644
+index cb00cb0..9f76331 100644
 --- a/src/worker.ts
 +++ b/src/worker.ts
-@@ -5,9 +5,20 @@ import { handleGistImageUpload } from "./gist-images.js";
- import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
- import { handleGoogleConnect, handleGoogleCallback, handleGoogleStatus, handleGoogleDisconnect } from "./google-auth.js";
- import { handleDrivePickerToken, handleDriveImport, handleDriveExport } from "./google-drive.js";
+@@ -14,9 +14,20 @@ import {
+   handleDriveFile,
+   handleDrivePush,
+ } from "./google-drive.js";
 +import { encryptSession, cookieHeader, SESSION_COOKIE } from "./auth.js";
  import type { Env } from "./env";
  import { generateNonce, appCsp, legalCsp } from "./csp.js";
@@ -23,7 +23,7 @@ index c8134f6..5d9c564 100644
  // The legacy per-document CollabRoom is a migration-only shim now (see
  // src/collab-room.ts) — /migrate is its only live endpoint; everything
  // else moved to WorkspaceRoom in the workspace pivot.
-@@ -37,6 +48,17 @@ export default {
+@@ -52,6 +63,17 @@ export default {
    async fetch(request: Request, env: Env): Promise<Response> {
      const url = new URL(request.url);
  

@@ -11,6 +11,10 @@ export const repoSyncBusyLabel = writable<string | null>(null);
 
 export interface RepoConflictState {
   kind: "pull" | "push";
+  // "drive" swaps the modal's icon/copy. The path field stays repoPath so
+  // existing repo callers/tests don't need to change; Drive callers pass
+  // the synthetic drivePath in it.
+  source?: "repo" | "drive";
   conflicts: { docId: string; docName: string; repoPath: string }[];
   deletions: { docId: string; docName: string; repoPath: string }[];
   onResolve: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>;

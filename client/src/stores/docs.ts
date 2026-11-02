@@ -12,7 +12,7 @@ import { confirmAction } from "./confirmDialog";
 import { relocateAnchor } from "../anchor";
 import { ensureUniqueName, nextAvailableName } from "../doc-naming";
 import { rewriteWikilinkReferences } from "../wikilink-rewrite";
-import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace, queueRepoDeletion } from "./workspaces";
+import { activeWorkspaceIdStore, workspacesStore, switchWorkspace, createWorkspace, queueRepoDeletion, queueDriveDeletion } from "./workspaces";
 import { mergeById } from "../merge-records";
 import { parseMetadataBlock, type MetadataPair } from "../mmd-metadata";
 import type { BibEntry, CitationPrefs } from "../mmd-citations";
@@ -381,13 +381,16 @@ export function switchDoc(id: string): boolean {
 // confirms first) and RenameCollisionModal.svelte's Replace action
 // (where the modal itself is already the confirmation). Exported so
 // that component can call it directly.
-export function removeDocById(id: string) {
+export function removeDocById(id: string, source?: "repo" | "drive" | "remote") {
   const removedDoc = findDocById(id);
   const removedWorkspaceId = removedDoc?.workspaceId;
-  // The doc is about to be gone for good — this is the last moment
-  // anything knows what repo file it used to correspond to, so queue it
-  // now for repo-sync.ts's planPush to delete on the next push.
-  if (removedDoc?.repoPath && removedWorkspaceId) queueRepoDeletion(removedWorkspaceId, removedDoc.repoPath);
+  // A local delete (no source) is the only one that should propagate to
+  // either integration. A deletion that arrived FROM Drive must not be
+  // echoed into the repo (or vice versa) — the doc is gone locally, but
+  // the other provider still has its copy and the user didn't ask to
+  // delete it there.
+  if (!source && removedDoc?.repoPath && removedWorkspaceId) queueRepoDeletion(removedWorkspaceId, removedDoc.repoPath);
+  if (!source && removedDoc?.driveFileId && removedWorkspaceId) queueDriveDeletion(removedWorkspaceId, removedDoc.driveFileId);
   docsStore.update((docs) => docs.filter((d) => d.id !== id));
   // Deleting the last remaining doc leaves docs empty and activeId null —
   // the reactive editor subscription shows the empty state rather than
@@ -435,6 +438,13 @@ export function duplicateDoc(id: string): Doc | undefined {
   delete copy.repoPath;
   delete copy.repoSha;
   delete copy.repoImageShas;
+  delete copy.drivePath;
+  delete copy.driveFileId;
+  delete copy.driveRev;
+  delete copy.driveImageRevs;
+  delete copy.drivePushedHash;
+  delete copy.driveExportId;
+  delete copy.driveExportName;
   delete copy.pendingRoomRegistration;
   docsStore.update((docs) => [copy, ...docs]);
   setActiveId(copy.id);
@@ -530,6 +540,117 @@ export function setDocDriveExport(id: string, fileId: string, name: string): voi
 // so the next save creates a new one.
 export function clearDocDriveExport(id: string): void {
   updateDoc(id, { driveExportId: undefined, driveExportName: undefined });
+  persistDocs();
+}
+
+// ---- Google Drive folder sync ----
+// Matching mirrors planPull: the opaque Drive file id wins; drivePath is
+// the fallback for a doc that has never been pushed (first pull after
+// linking to a folder that already has the same path).
+export function upsertDocFromDrive(
+  workspaceId: string,
+  drivePath: string,
+  data: {
+    name: string;
+    content: string;
+    images?: Record<string, string>;
+    diagrams?: Record<string, string>;
+    driveFileId: string;
+    driveRev: string;
+    driveImageRevs?: Record<string, { fileId: string; rev: string; hash?: string }>;
+    drivePushedHash?: string;
+  },
+): { id: string; created: boolean } {
+  const existing = docsInWorkspace(workspaceId).find((d) => d.driveFileId === data.driveFileId || d.drivePath === drivePath);
+  if (existing) {
+    updateDoc(existing.id, {
+      // A Drive-side rename should follow through locally, but never at
+      // the cost of breaking the app's global name uniqueness.
+      name: ensureUniqueName(data.name || "Untitled", get(docsStore), existing.id),
+      content: data.content,
+      images: data.images,
+      diagrams: data.diagrams,
+      drivePath,
+      driveFileId: data.driveFileId,
+      driveRev: data.driveRev,
+      driveImageRevs: data.driveImageRevs,
+      drivePushedHash: data.drivePushedHash,
+      updatedAt: Date.now(),
+    });
+    persistDocs();
+    return { id: existing.id, created: false };
+  }
+  const doc: Doc = {
+    id: uid(),
+    name: data.name,
+    content: data.content,
+    images: data.images,
+    diagrams: data.diagrams,
+    updatedAt: Date.now(),
+    createdAt: Date.now(),
+    workspaceId,
+    drivePath,
+    driveFileId: data.driveFileId,
+    driveRev: data.driveRev,
+    driveImageRevs: data.driveImageRevs,
+    drivePushedHash: data.drivePushedHash,
+  };
+  doc.name = ensureUniqueName(doc.name, get(docsStore));
+  docsStore.update((docs) => [doc, ...docs]);
+  persistDocs();
+  return { id: doc.id, created: true };
+}
+
+export function removeDocsByDriveFileIds(workspaceId: string, fileIds: string[]): string[] {
+  const ids = new Set(fileIds);
+  const toRemove = docsInWorkspace(workspaceId).filter((d) => d.driveFileId && ids.has(d.driveFileId));
+  for (const doc of toRemove) removeDocById(doc.id, "drive");
+  return toRemove.map((d) => d.id);
+}
+
+// Partial-push recovery: image uploads can succeed while the owning
+// markdown update fails. Committing just the image revisions stops the
+// next plan from mistaking those fresh remote revs for a remote edit and
+// raising a false conflict.
+export function setDocDriveImageRevs(id: string, driveImageRevs: Record<string, { fileId: string; rev: string; hash?: string }> | undefined): void {
+  updateDoc(id, { driveImageRevs });
+  persistDocs();
+}
+
+export function setDocDriveLinkById(
+  id: string,
+  data: {
+    drivePath: string;
+    driveFileId: string;
+    driveRev: string;
+    driveImageRevs?: Record<string, { fileId: string; rev: string; hash?: string }>;
+    drivePushedHash?: string;
+  },
+): void {
+  updateDoc(id, {
+    drivePath: data.drivePath,
+    driveFileId: data.driveFileId,
+    driveRev: data.driveRev,
+    driveImageRevs: data.driveImageRevs,
+    drivePushedHash: data.drivePushedHash,
+  });
+  persistDocs();
+}
+
+// Linking a workspace to a *different* Drive folder (or re-linking after
+// an unlink) must not compare the new folder's revisions against stale
+// ones from the old folder. The standalone Save-to-Drive link is a
+// separate relationship and deliberately survives.
+export function clearDriveSyncMetadata(workspaceId: string): void {
+  for (const doc of docsInWorkspace(workspaceId)) {
+    updateDoc(doc.id, {
+      drivePath: undefined,
+      driveFileId: undefined,
+      driveRev: undefined,
+      driveImageRevs: undefined,
+      drivePushedHash: undefined,
+    });
+  }
   persistDocs();
 }
 
@@ -698,7 +819,7 @@ export function upsertDocFromRepo(
 export function removeDocsByRepoPaths(workspaceId: string, repoPaths: string[]): string[] {
   const paths = new Set(repoPaths);
   const toRemove = docsInWorkspace(workspaceId).filter((d) => d.repoPath && paths.has(d.repoPath));
-  for (const doc of toRemove) removeDocById(doc.id);
+  for (const doc of toRemove) removeDocById(doc.id, "repo");
   return toRemove.map((d) => d.id);
 }
 

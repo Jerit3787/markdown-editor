@@ -449,4 +449,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/drive-save.png",
     category: "Organization & Navigation",
   },
+  {
+    version: "1.67.0",
+    title: "Google Drive Folder Sync",
+    description:
+      "Link a workspace to a Google Drive folder and keep every document — plus its images — in sync across devices. Pull or push from File > Google Drive, resolve files changed on both sides one at a time, and open a synced folder as a workspace on another machine to pick up where you left off.",
+    screenshot: "/whats-new/drive-folder-sync.png",
+    category: "Organization & Navigation",
+  },
 ];

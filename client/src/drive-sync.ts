@@ -253,6 +253,7 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
   const usedPaths = new Set(tree.entries.map((entry) => entry.path));
   const claimedFileIds = new Set<string>();
   const claimedPaths = new Set<string>();
+  const seenFileIds = new Set<string>();
   const assetsByFolder = new Map<string, Set<string>>();
   const staleImageIds = new Set<string>();
   const replacedImageIds = new Set<string>();
@@ -270,6 +271,14 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
   }
 
   for (const doc of docs) {
+    // Two local docs claiming one Drive file would both PATCH it and
+    // overwrite each other. Keep the first owner; flag the rest.
+    if (doc.driveFileId && seenFileIds.has(doc.driveFileId)) {
+      plan.conflicts.push({ docId: doc.id, docName: doc.name, drivePath: doc.drivePath ?? drivePathForDocName(doc.name) });
+      continue;
+    }
+    if (doc.driveFileId) seenFileIds.add(doc.driveFileId);
+
     let path = doc.drivePath || "";
     let remote = doc.driveFileId ? byId.get(doc.driveFileId) : undefined;
     let fileId = remote?.fileId;

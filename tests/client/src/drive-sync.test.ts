@@ -256,3 +256,14 @@ describe("locally edited doc whose remote file was deleted", () => {
     expect(plan.creates.map((change) => change.path)).toEqual(["notes.md"]);
   });
 });
+
+describe("duplicate Drive links", () => {
+  it("flags a second local doc claiming the same Drive file instead of patching it twice", async () => {
+    const docs = [
+      doc({ id: "d1", name: "one", driveFileId: "f1", drivePath: "one.md", driveRev: "r1" }),
+      doc({ id: "d2", name: "two", driveFileId: "f1", drivePath: "two.md", driveRev: "r1" }),
+    ];
+    const plan = await planDrivePush(docs, tree([entry("f1", "one.md", "r1")]), true, []);
+    expect(plan.conflicts).toEqual([{ docId: "d2", docName: "two", drivePath: "two.md" }]);
+  });
+});

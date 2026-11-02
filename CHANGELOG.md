@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.67.1] - 2026-11-03
+
+### Fixed
+
+- Google Drive folder sync now flushes the open editor before a pull and only reloads it when that document actually changed, so pulling no longer resets the cursor/undo history — and edits typed while a pull is in flight are left for conflict resolution instead of being overwritten. A locally deleted document is no longer pulled back before its queued deletion reaches Drive.
+- A Drive push that hits a conflict now sends the non-conflicting documents and deletions too, instead of leaving them unsent after the resolution modal. Failed "Take theirs" downloads and partial pushes now report an error instead of a misleading success toast.
+- Large workspaces are pushed in chunks under the Worker's per-request item cap. Renamed documents' old Drive files are retried for deletion even when another file in the same push fails, and a renamed document's images are copied into its new asset folder before the old copies are removed.
+- Google Drive tree walks paginate every folder and report a `truncated` flag instead of silently treating an incomplete scan as "everything else was deleted"; truncated pulls also keep existing image bytes and revisions. Upstream Google 401s during subfolder lookup now surface as a reconnect prompt.
+
 ## [1.67.0] - 2026-11-02
 
 ### Added

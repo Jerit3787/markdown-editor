@@ -123,7 +123,7 @@ describe("pullFromDrive", () => {
 
   it("waits for confirmation before removing a local doc whose Drive file disappeared", async () => {
     linkedWorkspace();
-    setDocs([doc({ id: "d1", name: "Gone", driveFileId: "gone", drivePath: "gone.md", driveRev: "r1" })]);
+    setDocs([doc({ id: "d1", name: "Gone", driveFileId: "gone", drivePath: "gone.md", driveRev: "r1", drivePushedHash: await hashPushPayload("", []) })]);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => json({ folderId: "folder-1", folderName: "Notes", workspaceId: "w1", entries: [] })),
@@ -509,5 +509,196 @@ describe("remote renames", () => {
     const stored = get(docsStore)[0]!;
     expect(stored.drivePath).toBe("renamed.md");
     expect(stored.name).toBe("My Notes");
+  });
+});
+
+describe("pull guard rails", () => {
+  it("does not recreate a file whose local deletion is queued for push", async () => {
+    workspacesStore.set([
+      { id: "w1", name: "Notes", createdAt: 0, updatedAt: 0, driveLink: { folderId: "folder-1", folderName: "Notes" }, pendingDriveDeletions: ["f1"] },
+    ]);
+    activeWorkspaceIdStore.set("w1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        json({
+          folderId: "folder-1",
+          folderName: "Notes",
+          workspaceId: "w1",
+          entries: [{ fileId: "f1", path: "notes.md", mimeType: "text/markdown", rev: "r1" }],
+        }),
+      ),
+    );
+
+    const { plan } = await pullFromDrive("w1");
+    expect(plan.creates).toEqual([]);
+    expect(get(docsStore)).toEqual([]);
+  });
+
+  it("does not overwrite the active editor when it changed while the pull was in flight", async () => {
+    linkedWorkspace();
+    setDocs([
+      doc({
+        id: "d1",
+        name: "notes",
+        content: "# start",
+        driveFileId: "f1",
+        drivePath: "notes.md",
+        driveRev: "r1",
+        drivePushedHash: await hashPushPayload("# start", []),
+      }),
+    ]);
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("/tree")) {
+        activeDocContent.set("# typed during pull");
+        return json({
+          folderId: "folder-1",
+          folderName: "Notes",
+          workspaceId: "w1",
+          entries: [{ fileId: "f1", path: "notes.md", mimeType: "text/markdown", rev: "r2" }],
+        });
+      }
+      throw new Error(`should not download: ${u}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { plan } = await pullFromDrive("w1");
+    expect(plan.conflicts).toHaveLength(1);
+    expect(get(docsStore)[0]!.content).toBe("# start");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("only reloads the editor when the active doc itself changed", async () => {
+    linkedWorkspace();
+    setDocs([
+      doc({
+        id: "d1",
+        name: "one",
+        content: "# old",
+        driveFileId: "f1",
+        drivePath: "one.md",
+        driveRev: "r1",
+        drivePushedHash: await hashPushPayload("# old", []),
+      }),
+      doc({
+        id: "d2",
+        name: "two",
+        content: "# two",
+        driveFileId: "f2",
+        drivePath: "two.md",
+        driveRev: "r1",
+        drivePushedHash: await hashPushPayload("# two", []),
+      }),
+    ]);
+    activeIdStore.set("d2");
+    activeDocContent.set("# two");
+    const reload = vi.fn();
+    window.MDE = { reloadActiveDocFromStore: reload } as unknown as typeof window.MDE;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("/tree")) {
+          return json({
+            folderId: "folder-1",
+            folderName: "Notes",
+            workspaceId: "w1",
+            entries: [
+              { fileId: "f1", path: "one.md", mimeType: "text/markdown", rev: "r2" },
+              { fileId: "f2", path: "two.md", mimeType: "text/markdown", rev: "r1" },
+            ],
+          });
+        }
+        if (u.includes("/file/f1")) return json({ contentBase64: b64("# new") });
+        throw new Error(`unexpected fetch ${u}`);
+      }),
+    );
+
+    await pullFromDrive("w1");
+    expect(reload).not.toHaveBeenCalled();
+    expect(get(docsStore).find((entry) => entry.id === "d1")!.content).toBe("# new");
+  });
+});
+
+describe("truncated pull images", () => {
+  it("reuses existing image bytes when a referenced asset was not scanned", async () => {
+    linkedWorkspace();
+    const dataUrl = `data:image/png;base64,${Buffer.from("A").toString("base64")}`;
+    setDocs([
+      doc({
+        id: "d1",
+        name: "notes",
+        content: "![pic](pic.png)",
+        images: { "pic.png": dataUrl },
+        driveFileId: "f1",
+        drivePath: "notes.md",
+        driveRev: "r1",
+        drivePushedHash: await hashPushPayload("![pic](assets/notes/pic.png)", [{ path: "assets/notes/pic.png", dataUrl }]),
+        driveImageRevs: { "pic.png": { fileId: "img1", rev: "ir1", hash: await hashImageDataUrl(dataUrl) } },
+      }),
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("/tree")) {
+          return json({
+            folderId: "folder-1",
+            folderName: "Notes",
+            workspaceId: "w1",
+            truncated: true,
+            entries: [{ fileId: "f1", path: "notes.md", mimeType: "text/markdown", rev: "r2" }],
+          });
+        }
+        if (u.includes("/file/f1")) return json({ contentBase64: b64("![pic](assets/notes/pic.png)") });
+        throw new Error(`unexpected fetch ${u}`);
+      }),
+    );
+
+    const { plan } = await pullFromDrive("w1");
+    expect(plan.updates).toHaveLength(1);
+    const stored = get(docsStore)[0]!;
+    expect(stored.content).toBe("![pic](pic.png)");
+    expect(stored.images).toEqual({ "pic.png": dataUrl });
+    expect(stored.driveImageRevs?.["pic.png"]).toMatchObject({ fileId: "img1", rev: "ir1" });
+  });
+});
+
+describe("pull conflict failures", () => {
+  it("rejects when a chosen 'take theirs' download fails", async () => {
+    linkedWorkspace();
+    setDocs([
+      doc({
+        id: "d1",
+        name: "one",
+        content: "# local",
+        driveFileId: "f1",
+        drivePath: "one.md",
+        driveRev: "r1",
+        drivePushedHash: await hashPushPayload("# old", []),
+      }),
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("/tree")) {
+          return json({
+            folderId: "folder-1",
+            folderName: "Notes",
+            workspaceId: "w1",
+            entries: [{ fileId: "f1", path: "one.md", mimeType: "text/markdown", rev: "r2" }],
+          });
+        }
+        if (u.includes("/file/f1")) return new Response("boom", { status: 500 });
+        throw new Error(`unexpected fetch ${u}`);
+      }),
+    );
+
+    const { plan, applyResolved } = await pullFromDrive("w1");
+    expect(plan.conflicts).toHaveLength(1);
+    await expect(applyResolved({ d1: "theirs" })).rejects.toThrow(/couldn't be pulled/);
+    expect(get(docsStore)[0]!.content).toBe("# local");
   });
 });

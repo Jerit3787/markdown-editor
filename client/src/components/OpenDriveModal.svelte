@@ -83,6 +83,8 @@
         repoConflictModalOpen.set(true);
       } else if (result.failures.length > 0) {
         finishProgressToast(toastId, `${result.switched ? "Switched to" : "Opened"} ${folder.folderName} — ${result.failures.length} file${result.failures.length === 1 ? "" : "s"} failed to download`, "info");
+      } else if (result.plan.truncated) {
+        finishProgressToast(toastId, `${result.switched ? "Switched to" : "Opened"} ${folder.folderName} — this folder is too large to scan completely; some files were skipped`, "info", 5000);
       } else {
         finishProgressToast(toastId, `${result.switched ? "Switched to" : "Opened"} ${folder.folderName} from Google Drive`, "success");
       }

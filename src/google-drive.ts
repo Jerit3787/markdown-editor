@@ -181,7 +181,8 @@ export async function handleDriveImport(request: Request, env: Env): Promise<Res
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const MAX_TREE_DEPTH = 8;
-const MAX_TREE_FOLDERS = 40;
+const MAX_TREE_FOLDERS = 200;
+const MAX_TREE_FILES = 5000;
 const MAX_PUSH_ITEMS = 40;
 const MAX_PUSH_SUBFOLDERS = 20;
 const MAX_DRIVE_FILE_BYTES = 5 * 1024 * 1024;
@@ -302,14 +303,25 @@ export async function handleDriveListFolders(request: Request, env: Env): Promis
   // `appProperties has { key='mde' and value='1' }` is the app-folder
   // marker. A folder created by another app/workspace never appears here.
   const q = `mimeType='${FOLDER_MIME}' and appProperties has { key='mde' and value='1' } and trashed=false`;
-  const fields = "files(id,name,appProperties,modifiedTime)";
-  const res = await driveFetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=100`, {}, auth.token);
-  if (res.status === 401) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
-  if (!res.ok) return withCookie(new Response(`Couldn't list Drive folders: HTTP ${res.status}.`, { status: 502 }), auth.setCookie);
-  const data = (await res.json()) as { files?: DriveFileMeta[] };
+  const fields = "files(id,name,appProperties,modifiedTime),nextPageToken";
+  const files: DriveFileMeta[] = [];
+  let pageToken: string | undefined;
+  do {
+    const tokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+    const res = await driveFetch(
+      `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=100${tokenParam}`,
+      {},
+      auth.token,
+    );
+    if (res.status === 401) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
+    if (!res.ok) return withCookie(new Response(`Couldn't list Drive folders: HTTP ${res.status}.`, { status: 502 }), auth.setCookie);
+    const data = (await res.json()) as { files?: DriveFileMeta[]; nextPageToken?: string };
+    files.push(...(data.files ?? []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
   return withCookie(
     Response.json({
-      folders: (data.files ?? []).map((file) => ({
+      folders: files.map((file) => ({
         folderId: file.id,
         folderName: file.name ?? "Untitled folder",
         workspaceId: file.appProperties?.mdeWorkspace ?? null,
@@ -348,7 +360,15 @@ export async function handleDriveTree(request: Request, env: Env, folderId: stri
       if (err instanceof DriveAuthError) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
       return withCookie(new Response(`Couldn't read the Drive folder: ${(err as Error).message}.`, { status: 502 }), auth.setCookie);
     }
+    if (entries.length >= MAX_TREE_FILES) {
+      truncated = true;
+      break;
+    }
     for (const file of files) {
+      if (entries.length >= MAX_TREE_FILES) {
+        truncated = true;
+        break;
+      }
       const path = current.path ? `${current.path}/${file.name ?? "untitled"}` : (file.name ?? "untitled");
       if (file.mimeType === FOLDER_MIME) {
         if (current.depth + 1 < MAX_TREE_DEPTH) queue.push({ id: file.id, path, depth: current.depth + 1 });
@@ -434,7 +454,7 @@ export async function handleDrivePush(request: Request, env: Env, folderId: stri
   const updates = (Array.isArray(body.updates) ? body.updates : []).filter(
     (x): x is PushUpdate => !!x && typeof x === "object" && typeof (x as PushUpdate).fileId === "string" && typeof (x as PushUpdate).contentBase64 === "string",
   );
-  const deletes = (Array.isArray(body.deletes) ? body.deletes.filter((x): x is string => typeof x === "string") : []).slice(0, MAX_PUSH_ITEMS);
+  const deletes = Array.isArray(body.deletes) ? body.deletes.filter((x): x is string => typeof x === "string") : [];
   if (creates.length + updates.length + deletes.length > MAX_PUSH_ITEMS) {
     return withCookie(new Response("Too many files in one Drive push.", { status: 413 }), auth.setCookie);
   }
@@ -454,6 +474,7 @@ export async function handleDrivePush(request: Request, env: Env, folderId: stri
       }
       const q = `'${escapeDriveQuery(parent)}' in parents and name = '${escapeDriveQuery(segment)}' and mimeType = '${FOLDER_MIME}' and trashed = false`;
       const listRes = await driveFetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=10`, {}, token);
+      if (listRes.status === 401) throw new DriveAuthError("reconnect");
       if (!listRes.ok) throw new Error(`folder lookup HTTP ${listRes.status}`);
       const listed = (await listRes.json()) as { files?: { id: string }[] };
       let id = listed.files?.[0]?.id;
@@ -485,6 +506,7 @@ export async function handleDrivePush(request: Request, env: Env, folderId: stri
     try {
       await ensureFolderPath(subfolder);
     } catch (err) {
+      if (err instanceof DriveAuthError) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
       // Keep going; each affected create records the real per-file error.
       break;
     }

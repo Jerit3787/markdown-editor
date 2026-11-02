@@ -506,6 +506,22 @@ describe("upstream 401 handling", () => {
       "f1",
     );
     expect(push.status).toBe(401);
+
+    const pushWithSubfolder = await handleDrivePush(
+      await connectedReq("https://app/api/drive/folder/f1/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ensureSubfolders: ["assets/notes"],
+          creates: [{ path: "assets/notes/pic.png", mimeType: "image/png", contentBase64: "YQ==" }],
+          updates: [],
+          deletes: [],
+        }),
+      }),
+      env,
+      "f1",
+    );
+    expect(pushWithSubfolder.status).toBe(401);
   });
 });
 

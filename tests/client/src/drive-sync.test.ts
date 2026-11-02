@@ -228,3 +228,42 @@ describe("rename conflicts", () => {
     expect(plan.creates).toEqual([]);
   });
 });
+
+describe("pending local deletions", () => {
+  it("does not pull back a file the user already deleted locally", () => {
+    const plan = planDrivePull(tree([entry("f1", "notes.md", "r1")]), [], new Set(), ["f1"]);
+    expect(plan.creates).toEqual([]);
+  });
+});
+
+describe("pending deletions on incomplete trees", () => {
+  it("still retries a known pending deletion", async () => {
+    const plan = await planDrivePush([], { ...tree([]), truncated: true }, true, ["gone"]);
+    expect(plan.deletes).toEqual(["gone"]);
+    expect(plan.pendingDeletes).toEqual(["gone"]);
+  });
+});
+
+describe("locally edited doc whose remote file was deleted", () => {
+  it("keeps the local copy instead of queuing it for deletion", () => {
+    const docs = [doc({ id: "d1", name: "notes", driveFileId: "gone", drivePath: "notes.md", driveRev: "r1" })];
+    expect(planDrivePull(tree([]), docs, new Set(["d1"])).deletions).toEqual([]);
+  });
+
+  it("recreates the remote file on the next push", async () => {
+    const docs = [doc({ id: "d1", name: "notes", driveFileId: "gone", drivePath: "notes.md", driveRev: "r1" })];
+    const plan = await planDrivePush(docs, tree([]), true, []);
+    expect(plan.creates.map((change) => change.path)).toEqual(["notes.md"]);
+  });
+});
+
+describe("duplicate Drive links", () => {
+  it("flags a second local doc claiming the same Drive file instead of patching it twice", async () => {
+    const docs = [
+      doc({ id: "d1", name: "one", driveFileId: "f1", drivePath: "one.md", driveRev: "r1" }),
+      doc({ id: "d2", name: "two", driveFileId: "f1", drivePath: "two.md", driveRev: "r1" }),
+    ];
+    const plan = await planDrivePush(docs, tree([entry("f1", "one.md", "r1")]), true, []);
+    expect(plan.conflicts).toEqual([{ docId: "d2", docName: "two", drivePath: "two.md" }]);
+  });
+});

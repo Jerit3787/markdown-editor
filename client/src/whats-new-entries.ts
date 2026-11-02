@@ -450,6 +450,14 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     category: "Organization & Navigation",
   },
   {
+    version: "1.69.0",
+    title: "Drive Folder History",
+    description:
+      "Version history and personal notes now travel with a synced Google Drive folder. Pull the folder on another device and your local snapshots and comments come along, merged by id so nothing is overwritten — even after a rename.",
+    screenshot: "/whats-new/drive-folder-history.png",
+    category: "Version History",
+  },
+  {
     version: "1.68.0",
     title: "Drive Version History",
     description:

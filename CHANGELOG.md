@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.69.0] - 2026-11-03
+
+### Added
+
+- **Google Drive — folder-backed local history.** A synced workspace now carries each document's local version snapshots and personal notes in `.mde/history/<path>.json` inside the Drive folder. Pulling the folder on another device merges them by snapshot id (nothing is overwritten), and renaming or deleting a document moves or removes its companion history file with the markdown.
+
 ## [1.68.0] - 2026-11-03
 
 ### Added

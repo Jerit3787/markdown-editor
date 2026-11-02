@@ -59,11 +59,11 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| 15. Google Drive folder sync       |      16 |       0 |    0 |    16 |
-| **Total**                          | **361** |  **0** |  **0** | **361** |
+| 15. Google Drive folder sync       |      18 |       0 |    0 |    18 |
+| **Total**                          | **363** |  **0** |  **0** | **363** |
 
 **Every enumerated scenario now has a test asserting its outcome —
-361 / 361, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
+363 / 363, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
 first pass). Phases 1–14 + Buckets A/B, the real-GitHub and WebKit
 harnesses, the legacy-share migration and image-marker races, and the
 last soft spots (COLLAB-31, VER-08, GIST-05) are all closed.
@@ -596,6 +596,8 @@ _Source: `src/google-drive.ts`, `client/src/drive-sync.ts`, `client/src/drive-sy
 | DRIVE-14 | File ▸ Google Drive reflects connect/open/link/linked states; Document info shows the folder path and standalone export row | component | covered | `tests/client/src/components/MenuBar.test.ts`, `DocInfoPanel.test.ts` | reuses the conflict modal with `source:"drive"` |
 | DRIVE-15 | Drive revision list paginates and maps ids/timestamps/authors, returns empty for a single revision, and revision media is capped (404/401 handled) | integration | covered | `tests/src/google-drive.test.ts` | Version History source |
 | DRIVE-16 | Version History merges Drive revisions with local history, previews/diffs/restores a revision, shows both GitHub and Drive timelines, and degrades to local history on a Drive failure | component | covered | `tests/client/src/components/VersionHistoryDriveRevisions.test.ts` | `RemoteEntry.source` |
+| DRIVE-17 | `.mde/history` planner: writes snapshots+notes even when markdown is unchanged, moves the companion file on rename, and resolves queued history deletions by path | unit | covered | `tests/client/src/drive-sync.test.ts` | portable local history |
+| DRIVE-18 | Push sends the history JSON in its own capped batch; pull merges snapshots by id and notes, continues past corrupt JSON, and clears a successful pending history deletion | integration | covered | `tests/client/src/drive-sync-orchestration.test.ts`, `tests/client/src/stores/drive-sync-store.test.ts` | `mergeSnapshotsFromRepo` reused |
 
 ---
 

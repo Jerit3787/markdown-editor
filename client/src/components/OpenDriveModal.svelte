@@ -63,10 +63,6 @@
     const toastId = showProgressToast("Opening from Google Drive…");
     try {
       const result = await openDriveFolderAsWorkspace(folder, (message) => updateProgressToast(toastId, message));
-      if (result.kind === "switch") {
-        finishProgressToast(toastId, `Switched to ${folder.folderName}`, "success");
-        return;
-      }
       if (result.plan.conflicts.length > 0 || result.plan.deletions.length > 0) {
         dismissToast(toastId);
         repoConflictState.set({
@@ -85,8 +81,10 @@
           onResolve: result.applyResolved,
         });
         repoConflictModalOpen.set(true);
+      } else if (result.failures.length > 0) {
+        finishProgressToast(toastId, `${result.switched ? "Switched to" : "Opened"} ${folder.folderName} — ${result.failures.length} file${result.failures.length === 1 ? "" : "s"} failed to download`, "info");
       } else {
-        finishProgressToast(toastId, `Opened ${folder.folderName} from Google Drive`, "success");
+        finishProgressToast(toastId, `${result.switched ? "Switched to" : "Opened"} ${folder.folderName} from Google Drive`, "success");
       }
     } catch (err) {
       if (err instanceof DriveReconnectError) {

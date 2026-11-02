@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planDrivePull, planDrivePush, hashPushPayload, type DriveEntry, type DriveTree } from "../../../client/src/drive-sync";
+import { planDrivePull, planDrivePush, hashPushPayload, hashImageDataUrl, type DriveEntry, type DriveTree } from "../../../client/src/drive-sync";
 import type { Doc } from "../../../client/src/types";
 
 function doc(overrides: Partial<Doc> = {}): Doc {
@@ -152,5 +152,79 @@ describe("planDrivePush", () => {
     const docs = [doc({ id: "d1", name: "keep", driveFileId: "keep", drivePath: "keep.md", driveRev: "r1", drivePushedHash: await hashPushPayload("", []) })];
     const entries = [entry("keep", "keep.md", "r1"), entry("gone", "gone.md", "r1")];
     expect((await planDrivePush(docs, tree(entries), true, ["gone", "keep"])).deletes).toEqual(["gone"]);
+  });
+});
+
+describe("truncated Drive trees", () => {
+  it("never infers a remote deletion from an incomplete tree", () => {
+    const docs = [doc({ id: "d1", name: "Gone", driveFileId: "gone", drivePath: "gone.md", driveRev: "r1" })];
+    const incomplete = { ...tree([]), truncated: true };
+    expect(planDrivePull(incomplete, docs, new Set()).deletions).toEqual([]);
+  });
+
+  it("leaves a missing linked doc alone instead of creating a duplicate", async () => {
+    const docs = [doc({ id: "d1", name: "one", driveFileId: "f1", drivePath: "one.md", driveRev: "r1", drivePushedHash: await hashPushPayload("", []) })];
+    const plan = await planDrivePush(docs, { ...tree([]), truncated: true }, true, ["f1"]);
+    expect(plan.creates).toEqual([]);
+    expect(plan.updates).toEqual([]);
+    expect(plan.unchanged).toEqual(["d1"]);
+  });
+
+  it("skips orphan cleanup on an incomplete tree", async () => {
+    const docs = [doc({ id: "d1", name: "notes", driveFileId: "f1", drivePath: "notes.md", driveRev: "r1", drivePushedHash: await hashPushPayload("", []) })];
+    const entries = [entry("f1", "notes.md", "r1"), entry("orphan", "assets/notes/orphan.png", "ir1", "image/png")];
+    const plan = await planDrivePush(docs, { ...tree(entries), truncated: true }, true, []);
+    expect(plan.deletes).toEqual([]);
+  });
+});
+
+describe("renames with images", () => {
+  it("moves an image into the new asset folder and deletes the old file", async () => {
+    const dataUrl = "data:image/png;base64,QQ==";
+    const oldContent = "![pic](assets/old/img-1.png)";
+    const docs = [
+      doc({
+        id: "d1",
+        name: "New",
+        content: "![pic](img-1)",
+        images: { "img-1": dataUrl },
+        driveFileId: "f1",
+        drivePath: "old.md",
+        driveRev: "r1",
+        drivePushedHash: await hashPushPayload(oldContent, [{ path: "assets/old/img-1.png", dataUrl }]),
+        driveImageRevs: { "img-1": { fileId: "img1", rev: "ir1", hash: await hashImageDataUrl(dataUrl) } },
+      }),
+    ];
+    const entries = [entry("f1", "old.md", "r1"), entry("img1", "assets/old/img-1.png", "ir1", "image/png")];
+    const plan = await planDrivePush(docs, tree(entries), true, []);
+    expect(plan.creates).toHaveLength(1);
+    expect(plan.creates[0]!.path).toBe("New.md");
+    expect(plan.creates[0]!.imageOps).toEqual([expect.objectContaining({ kind: "create", path: "assets/New/img-1.png" })]);
+    expect(plan.deletes).toEqual(expect.arrayContaining(["f1", "img1"]));
+  });
+});
+
+describe("rename conflicts", () => {
+  it("does not delete the old file when the renamed doc also conflicts", async () => {
+    const dataA = "data:image/png;base64,QQ==";
+    const dataB = "data:image/png;base64,Qg==";
+    const docs = [
+      doc({
+        id: "d1",
+        name: "New",
+        content: "![pic](img-1)",
+        images: { "img-1": dataB },
+        driveFileId: "f1",
+        drivePath: "old.md",
+        driveRev: "r1",
+        drivePushedHash: await hashPushPayload("![pic](assets/old/img-1.png)", [{ path: "assets/old/img-1.png", dataUrl: dataA }]),
+        driveImageRevs: { "img-1": { fileId: "img1", rev: "ir1", hash: await hashImageDataUrl(dataA) } },
+      }),
+    ];
+    const entries = [entry("f1", "old.md", "r1"), entry("img1", "assets/old/img-1.png", "ir2", "image/png")];
+    const plan = await planDrivePush(docs, tree(entries), true, []);
+    expect(plan.conflicts).toHaveLength(1);
+    expect(plan.deletes).toEqual([]);
+    expect(plan.creates).toEqual([]);
   });
 });

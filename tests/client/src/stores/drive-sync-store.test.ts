@@ -137,3 +137,18 @@ describe("removeDocById", () => {
     expect(get(workspacesStore)[0]!.pendingDriveDeletions).toEqual(["f1"]);
   });
 });
+
+describe("remote-sourced deletions", () => {
+  it("does not echo a Drive deletion into the repo or Drive push queues", () => {
+    workspacesStore.set([
+      ws({
+        repoLink: { owner: "acme", repo: "notes", branch: "main" },
+        driveLink: { folderId: "folder-1", folderName: "Notes" },
+      }),
+    ]);
+    docsStore.set([doc({ id: "d1", repoPath: "notes.md", driveFileId: "f1" })]);
+    removeDocById("d1", "drive");
+    expect(get(workspacesStore)[0]!.pendingRepoDeletions).toBeUndefined();
+    expect(get(workspacesStore)[0]!.pendingDriveDeletions).toBeUndefined();
+  });
+});

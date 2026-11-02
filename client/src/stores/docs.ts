@@ -381,17 +381,16 @@ export function switchDoc(id: string): boolean {
 // confirms first) and RenameCollisionModal.svelte's Replace action
 // (where the modal itself is already the confirmation). Exported so
 // that component can call it directly.
-export function removeDocById(id: string) {
+export function removeDocById(id: string, source?: "repo" | "drive") {
   const removedDoc = findDocById(id);
   const removedWorkspaceId = removedDoc?.workspaceId;
-  // The doc is about to be gone for good — this is the last moment
-  // anything knows what repo file it used to correspond to, so queue it
-  // now for repo-sync.ts's planPush to delete on the next push.
-  if (removedDoc?.repoPath && removedWorkspaceId) queueRepoDeletion(removedWorkspaceId, removedDoc.repoPath);
-  // Same last-moment capture for folder sync: the doc (and its file id)
-  // is gone after this line, but the next push still needs to delete the
-  // Drive file.
-  if (removedDoc?.driveFileId && removedWorkspaceId) queueDriveDeletion(removedWorkspaceId, removedDoc.driveFileId);
+  // A local delete (no source) is the only one that should propagate to
+  // either integration. A deletion that arrived FROM Drive must not be
+  // echoed into the repo (or vice versa) — the doc is gone locally, but
+  // the other provider still has its copy and the user didn't ask to
+  // delete it there.
+  if (!source && removedDoc?.repoPath && removedWorkspaceId) queueRepoDeletion(removedWorkspaceId, removedDoc.repoPath);
+  if (!source && removedDoc?.driveFileId && removedWorkspaceId) queueDriveDeletion(removedWorkspaceId, removedDoc.driveFileId);
   docsStore.update((docs) => docs.filter((d) => d.id !== id));
   // Deleting the last remaining doc leaves docs empty and activeId null —
   // the reactive editor subscription shows the empty state rather than
@@ -565,6 +564,9 @@ export function upsertDocFromDrive(
   const existing = docsInWorkspace(workspaceId).find((d) => d.driveFileId === data.driveFileId || d.drivePath === drivePath);
   if (existing) {
     updateDoc(existing.id, {
+      // A Drive-side rename should follow through locally, but never at
+      // the cost of breaking the app's global name uniqueness.
+      name: ensureUniqueName(data.name || "Untitled", get(docsStore), existing.id),
       content: data.content,
       images: data.images,
       diagrams: data.diagrams,
@@ -602,7 +604,7 @@ export function upsertDocFromDrive(
 export function removeDocsByDriveFileIds(workspaceId: string, fileIds: string[]): string[] {
   const ids = new Set(fileIds);
   const toRemove = docsInWorkspace(workspaceId).filter((d) => d.driveFileId && ids.has(d.driveFileId));
-  for (const doc of toRemove) removeDocById(doc.id);
+  for (const doc of toRemove) removeDocById(doc.id, "drive");
   return toRemove.map((d) => d.id);
 }
 
@@ -817,7 +819,7 @@ export function upsertDocFromRepo(
 export function removeDocsByRepoPaths(workspaceId: string, repoPaths: string[]): string[] {
   const paths = new Set(repoPaths);
   const toRemove = docsInWorkspace(workspaceId).filter((d) => d.repoPath && paths.has(d.repoPath));
-  for (const doc of toRemove) removeDocById(doc.id);
+  for (const doc of toRemove) removeDocById(doc.id, "repo");
   return toRemove.map((d) => d.id);
 }
 

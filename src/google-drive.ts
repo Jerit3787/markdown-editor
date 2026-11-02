@@ -220,7 +220,6 @@ async function driveFetch(url: string, init: RequestInit, token: string): Promis
       res = await doFetch();
     }
   }
-  if (res.status === 401) throw new DriveAuthError("reconnect");
   return res;
 }
 
@@ -248,11 +247,19 @@ function baseNameOf(path: string): string {
 
 async function listDriveFiles(token: string, parentId: string): Promise<DriveFileMeta[]> {
   const q = `'${escapeDriveQuery(parentId)}' in parents and trashed = false`;
-  const fields = "files(id,name,mimeType,headRevisionId,modifiedTime)";
-  const res = await driveFetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=1000`, {}, token);
-  if (!res.ok) throw new Error(`folder list HTTP ${res.status}`);
-  const data = (await res.json()) as { files?: DriveFileMeta[] };
-  return data.files ?? [];
+  const fields = "files(id,name,mimeType,headRevisionId,modifiedTime),nextPageToken";
+  const files: DriveFileMeta[] = [];
+  let pageToken: string | undefined;
+  do {
+    const tokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+    const res = await driveFetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=1000${tokenParam}`, {}, token);
+    if (res.status === 401) throw new DriveAuthError("reconnect");
+    if (!res.ok) throw new Error(`folder list HTTP ${res.status}`);
+    const data = (await res.json()) as { files?: DriveFileMeta[]; nextPageToken?: string };
+    files.push(...(data.files ?? []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  return files;
 }
 
 export async function handleDriveCreateFolder(request: Request, env: Env): Promise<Response> {
@@ -326,19 +333,26 @@ export async function handleDriveTree(request: Request, env: Env, folderId: stri
   const entries: Array<{ fileId: string; path: string; mimeType: string; rev: string }> = [];
   const queue: Array<{ id: string; path: string; depth: number }> = [{ id: folderId, path: "", depth: 0 }];
   let foldersWalked = 0;
-  while (queue.length > 0 && foldersWalked < MAX_TREE_FOLDERS) {
+  let truncated = false;
+  while (queue.length > 0) {
+    if (foldersWalked >= MAX_TREE_FOLDERS) {
+      truncated = true;
+      break;
+    }
     const current = queue.shift()!;
     foldersWalked++;
     let files: DriveFileMeta[];
     try {
       files = await listDriveFiles(auth.token, current.id);
     } catch (err) {
+      if (err instanceof DriveAuthError) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
       return withCookie(new Response(`Couldn't read the Drive folder: ${(err as Error).message}.`, { status: 502 }), auth.setCookie);
     }
     for (const file of files) {
       const path = current.path ? `${current.path}/${file.name ?? "untitled"}` : (file.name ?? "untitled");
       if (file.mimeType === FOLDER_MIME) {
         if (current.depth + 1 < MAX_TREE_DEPTH) queue.push({ id: file.id, path, depth: current.depth + 1 });
+        else truncated = true;
         continue;
       }
       entries.push({ fileId: file.id, path, mimeType: file.mimeType ?? "application/octet-stream", rev: revOf(file) });
@@ -351,6 +365,7 @@ export async function handleDriveTree(request: Request, env: Env, folderId: stri
       folderName: meta.name ?? "Drive folder",
       workspaceId: meta.appProperties?.mdeWorkspace ?? null,
       entries,
+      truncated,
     }),
     auth.setCookie,
   );
@@ -452,6 +467,7 @@ export async function handleDrivePush(request: Request, env: Env, folderId: stri
           },
           token,
         );
+        if (createRes.status === 401) throw new DriveAuthError("reconnect");
         if (!createRes.ok) throw new Error(`folder create HTTP ${createRes.status}`);
         const created = (await createRes.json()) as { id: string };
         id = created.id;
@@ -476,67 +492,75 @@ export async function handleDrivePush(request: Request, env: Env, folderId: stri
 
   const results: PushResultItem[] = [];
 
-  for (const create of creates) {
-    const path = create.path;
-    try {
-      const bytes = fromBase64(create.contentBase64);
-      if (bytes.byteLength > MAX_DRIVE_FILE_BYTES) throw new Error("file too large");
-      const mimeType = typeof create.mimeType === "string" && create.mimeType ? create.mimeType : "application/octet-stream";
-      const parent = await ensureFolderPath(parentPathOf(path));
-      const name = sanitizeDriveName(baseNameOf(path), "untitled");
-      const boundary = `mde-${crypto.randomUUID()}`;
-      const metadata = JSON.stringify({ name, mimeType, parents: [parent] });
-      const multipart = new Blob([
-        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
-        `--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
-        bytes,
-        `\r\n--${boundary}--\r\n`,
-      ]);
-      const res = await driveFetch(
-        `${DRIVE_UPLOAD}/files?uploadType=multipart&fields=id,headRevisionId,modifiedTime`,
-        { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart },
-        auth.token,
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as DriveFileMeta;
-      results.push({ path, op: "create", ok: true, fileId: data.id, rev: revOf(data) });
-    } catch (err) {
-      if (err instanceof DriveAuthError) throw err;
-      results.push({ path, op: "create", ok: false, error: (err as Error).message });
+  try {
+    for (const create of creates) {
+      const path = create.path;
+      try {
+        const bytes = fromBase64(create.contentBase64);
+        if (bytes.byteLength > MAX_DRIVE_FILE_BYTES) throw new Error("file too large");
+        const mimeType = typeof create.mimeType === "string" && create.mimeType ? create.mimeType : "application/octet-stream";
+        const parent = await ensureFolderPath(parentPathOf(path));
+        const name = sanitizeDriveName(baseNameOf(path), "untitled");
+        const boundary = `mde-${crypto.randomUUID()}`;
+        const metadata = JSON.stringify({ name, mimeType, parents: [parent] });
+        const multipart = new Blob([
+          `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+          `--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
+          bytes,
+          `\r\n--${boundary}--\r\n`,
+        ]);
+        const res = await driveFetch(
+          `${DRIVE_UPLOAD}/files?uploadType=multipart&fields=id,headRevisionId,modifiedTime`,
+          { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart },
+          auth.token,
+        );
+        if (res.status === 401) throw new DriveAuthError("reconnect");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as DriveFileMeta;
+        results.push({ path, op: "create", ok: true, fileId: data.id, rev: revOf(data) });
+      } catch (err) {
+        if (err instanceof DriveAuthError) throw err;
+        results.push({ path, op: "create", ok: false, error: (err as Error).message });
+      }
     }
-  }
 
-  for (const update of updates) {
-    const path = typeof update.path === "string" && update.path ? update.path : update.fileId;
-    try {
-      const bytes = fromBase64(update.contentBase64);
-      if (bytes.byteLength > MAX_DRIVE_FILE_BYTES) throw new Error("file too large");
-      const res = await driveFetch(
-        `${DRIVE_UPLOAD}/files/${encodeURIComponent(update.fileId)}?uploadType=media&fields=id,headRevisionId,modifiedTime`,
-        { method: "PATCH", headers: { "Content-Type": "application/octet-stream" }, body: bytes },
-        auth.token,
-      );
-      if (res.status === 404) throw new Error("not-found");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as DriveFileMeta;
-      results.push({ path, op: "update", ok: true, fileId: data.id || update.fileId, rev: revOf(data) });
-    } catch (err) {
-      if (err instanceof DriveAuthError) throw err;
-      results.push({ path, op: "update", ok: false, fileId: update.fileId, error: (err as Error).message });
+    for (const update of updates) {
+      const path = typeof update.path === "string" && update.path ? update.path : update.fileId;
+      try {
+        const bytes = fromBase64(update.contentBase64);
+        if (bytes.byteLength > MAX_DRIVE_FILE_BYTES) throw new Error("file too large");
+        const res = await driveFetch(
+          `${DRIVE_UPLOAD}/files/${encodeURIComponent(update.fileId)}?uploadType=media&fields=id,headRevisionId,modifiedTime`,
+          { method: "PATCH", headers: { "Content-Type": "application/octet-stream" }, body: bytes },
+          auth.token,
+        );
+        if (res.status === 401) throw new DriveAuthError("reconnect");
+        if (res.status === 404) throw new Error("not-found");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as DriveFileMeta;
+        results.push({ path, op: "update", ok: true, fileId: data.id || update.fileId, rev: revOf(data) });
+      } catch (err) {
+        if (err instanceof DriveAuthError) throw err;
+        results.push({ path, op: "update", ok: false, fileId: update.fileId, error: (err as Error).message });
+      }
     }
-  }
 
-  for (const fileId of deletes) {
-    try {
-      const res = await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: "DELETE" }, auth.token);
-      // Already gone is success: the caller's goal (file no longer
-      // exists) is satisfied, and a retry shouldn't keep reporting it.
-      if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`);
-      results.push({ path: fileId, op: "delete", ok: true, fileId });
-    } catch (err) {
-      if (err instanceof DriveAuthError) throw err;
-      results.push({ path: fileId, op: "delete", ok: false, fileId, error: (err as Error).message });
+    for (const fileId of deletes) {
+      try {
+        const res = await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: "DELETE" }, auth.token);
+        if (res.status === 401) throw new DriveAuthError("reconnect");
+        // Already gone is success: the caller's goal (file no longer
+        // exists) is satisfied, and a retry shouldn't keep reporting it.
+        if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`);
+        results.push({ path: fileId, op: "delete", ok: true, fileId });
+      } catch (err) {
+        if (err instanceof DriveAuthError) throw err;
+        results.push({ path: fileId, op: "delete", ok: false, fileId, error: (err as Error).message });
+      }
     }
+  } catch (err) {
+    if (err instanceof DriveAuthError) return withCookie(new Response("Reconnect Google Drive.", { status: 401 }), auth.setCookie);
+    throw err;
   }
 
   const synced = results.filter((item) => item.ok).length;

@@ -120,7 +120,7 @@
     }
 
     const docIds = $docsStore.filter((d) => d.workspaceId === id).map((d) => d.id);
-    docIds.forEach(removeDocById);
+    docIds.forEach((docId) => removeDocById(docId));
     deleteWorkspaceRecord(id);
     if ($activeWorkspaceIdStore) ensureActiveDocInWorkspace($activeWorkspaceIdStore);
     close();

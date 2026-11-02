@@ -477,3 +477,60 @@ describe("handleDrivePush", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("upstream 401 handling", () => {
+  it("folder create/list/file/tree/push all surface a dead Google token as 401", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("unauthorized", { status: 401 })),
+    );
+    const create = await handleDriveCreateFolder(
+      await connectedReq("https://app/api/drive/folder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId: "w1", workspaceName: "WS", folderName: "Notes" }),
+      }),
+      env,
+    );
+    expect(create.status).toBe(401);
+    expect((await handleDriveListFolders(await connectedReq("https://app/api/drive/folders"), env)).status).toBe(401);
+    expect((await handleDriveFile(await connectedReq("https://app/api/drive/file/f1"), env, "f1")).status).toBe(401);
+    expect((await handleDriveTree(await connectedReq("https://app/api/drive/folder/f1/tree"), env, "f1")).status).toBe(401);
+    const push = await handleDrivePush(
+      await connectedReq("https://app/api/drive/folder/f1/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ensureSubfolders: [], creates: [], updates: [{ fileId: "x", path: "x.md", contentBase64: "YQ==" }], deletes: [] }),
+      }),
+      env,
+      "f1",
+    );
+    expect(push.status).toBe(401);
+  });
+});
+
+describe("handleDriveTree pagination", () => {
+  it("follows nextPageToken instead of silently dropping later files", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const parsed = new URL(String(url));
+        const q = parsed.searchParams.get("q") ?? "";
+        if (String(url).includes("/files/folder-1?") && !q) {
+          return Response.json({ id: "folder-1", name: "Notes", appProperties: { mdeWorkspace: "w1" } });
+        }
+        if (parsed.searchParams.get("pageToken") === "page-2") {
+          return Response.json({ files: [{ id: "doc-2", name: "two.md", mimeType: "text/markdown", headRevisionId: "r2" }] });
+        }
+        return Response.json({
+          files: [{ id: "doc-1", name: "one.md", mimeType: "text/markdown", headRevisionId: "r1" }],
+          nextPageToken: "page-2",
+        });
+      }),
+    );
+    const res = await handleDriveTree(await connectedReq("https://app/api/drive/folder/folder-1/tree"), env, "folder-1");
+    const body = (await res.json()) as { entries: { path: string }[]; truncated: boolean };
+    expect(body.entries.map((entry) => entry.path)).toEqual(["one.md", "two.md"]);
+    expect(body.truncated).toBe(false);
+  });
+});

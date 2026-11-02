@@ -251,6 +251,9 @@ export interface MDEBridge {
   switchDoc(id: string): void;
   jumpToLine(id: string, line: number): void;
   refreshSaveStatus(): void;
+  // Reloads the active editor from docsStore after an external sync (Drive
+  // pull / conflict resolution) changed the doc behind the editor buffer.
+  reloadActiveDocFromStore?(): void;
   getResolvedContent(): string;
   setDocImage(key: string, dataUrl: string): void;
   onImageAdded: ((key: string, dataUrl: string) => void) | null;

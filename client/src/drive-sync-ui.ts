@@ -91,10 +91,12 @@ window.MDE.pullFromDriveAction = async () => {
   driveSyncBusyLabel.set("Pulling…");
   const toastId = showProgressToast("Pulling from Google Drive…");
   try {
-    const { plan, applyResolved } = await pullFromDrive(active.workspaceId, new Set(), (message) => updateProgressToast(toastId, message));
+    const { plan, applyResolved, failures } = await pullFromDrive(active.workspaceId, new Set(), (message) => updateProgressToast(toastId, message));
     if (plan.conflicts.length > 0 || plan.deletions.length > 0) {
       dismissToast(toastId);
       openConflicts("pull", active.workspaceId, plan.conflicts, plan.deletions, applyResolved);
+    } else if (failures.length > 0) {
+      finishProgressToast(toastId, `Pulled with ${failures.length} file${failures.length === 1 ? "" : "s"} failed — pull again to retry`, "info", 5000);
     } else {
       finishProgressToast(toastId, "Pulled from Google Drive", "success");
     }

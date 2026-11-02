@@ -26,6 +26,7 @@ import {
   clearDriveSyncMetadata,
   findDocById,
   repoDocSyncHook,
+  saveActiveDocContent,
 } from "./stores/docs";
 import {
   workspacesStore,
@@ -34,6 +35,7 @@ import {
   setWorkspaceDriveLink,
   setWorkspaceDriveLastSynced,
   clearPendingDriveDeletions,
+  queueDriveDeletion,
 } from "./stores/workspaces";
 import { nextAvailableName } from "./doc-naming";
 
@@ -49,6 +51,10 @@ export interface DriveTree {
   folderName: string;
   workspaceId: string | null;
   entries: DriveEntry[];
+  // The server stopped at its folder/depth cap. Absence from `entries`
+  // then means "not scanned", not "deleted" — never infer deletions or
+  // prune assets from a truncated tree.
+  truncated?: boolean;
 }
 
 export interface DriveConflict {
@@ -84,6 +90,10 @@ export interface PushPlan {
   deletes: string[];
   conflicts: DriveConflict[];
   unchanged: string[];
+  // Old file id for each locally-renamed doc. Kept separate from
+  // `deletes` so a failed sibling push doesn't delete the only copy when
+  // the rename itself never landed.
+  renames?: { docId: string; oldFileId: string }[];
 }
 
 export function assetFolderForDrivePath(drivePath: string): string {
@@ -175,7 +185,11 @@ export function planDrivePull(tree: DriveTree, docs: Doc[], dirtyDocIds: Set<str
       continue;
     }
     matchedDocIds.add(doc.id);
-    const changed = doc.driveRev !== entry.rev || imageChanged(doc, treeById);
+    // A rename in Drive can keep the same headRevisionId; the path is
+    // still a change worth pulling so the local doc doesn't keep pointing
+    // at (and later renaming back to) the old name.
+    const pathChanged = !!doc.drivePath && doc.drivePath !== entry.path;
+    const changed = pathChanged || doc.driveRev !== entry.rev || imageChanged(doc, treeById);
     if (!changed) {
       plan.unchanged.push(doc.id);
     } else if (dirtyDocIds.has(doc.id)) {
@@ -185,14 +199,16 @@ export function planDrivePull(tree: DriveTree, docs: Doc[], dirtyDocIds: Set<str
     }
   }
 
-  for (const doc of docs) {
-    if (!doc.driveFileId) continue;
-    // Only a doc whose file id really vanished is a deletion. A doc
-    // matched by path without a file id is a first-pull candidate, not a
-    // remote deletion.
-    if (mdById.has(doc.driveFileId)) continue;
-    if (matchedDocIds.has(doc.id)) continue;
-    plan.deletions.push({ docId: doc.id, docName: doc.name, drivePath: doc.drivePath ?? doc.name });
+  if (!tree.truncated) {
+    for (const doc of docs) {
+      if (!doc.driveFileId) continue;
+      // Only a doc whose file id really vanished is a deletion. A doc
+      // matched by path without a file id is a first-pull candidate, not a
+      // remote deletion.
+      if (mdById.has(doc.driveFileId)) continue;
+      if (matchedDocIds.has(doc.id)) continue;
+      plan.deletions.push({ docId: doc.id, docName: doc.name, drivePath: doc.drivePath ?? doc.name });
+    }
   }
 
   return plan;
@@ -210,6 +226,7 @@ interface PlannedChange {
 
 export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace: boolean, pendingDriveDeletions: string[] = []): Promise<PushPlan> {
   const plan: PushPlan = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [] };
+  const complete = !tree.truncated;
   const mdEntries = tree.entries.filter((entry) => isMarkdownPath(entry.path));
   const byPath = new Map(tree.entries.map((entry) => [entry.path, entry]));
   const byId = new Map(tree.entries.map((entry) => [entry.fileId, entry]));
@@ -218,8 +235,10 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
   const claimedPaths = new Set<string>();
   const assetsByFolder = new Map<string, Set<string>>();
   const staleImageIds = new Set<string>();
+  const replacedImageIds = new Set<string>();
   const renamedAway = new Set<string>();
   const planned: PlannedChange[] = [];
+  const renames: { docId: string; oldFileId: string }[] = [];
 
   function collectAssets(folder: string): Set<string> {
     let set = assetsByFolder.get(folder);
@@ -235,20 +254,37 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
     let remote = doc.driveFileId ? byId.get(doc.driveFileId) : undefined;
     let fileId = remote?.fileId;
 
+    if (doc.driveFileId && !remote && !complete) {
+      // The tree walk stopped early; this file may simply not have been
+      // visited. Leave the doc alone rather than creating a duplicate.
+      plan.unchanged.push(doc.id);
+      if (doc.drivePath) claimedPaths.add(doc.drivePath);
+      claimedFileIds.add(doc.driveFileId);
+      continue;
+    }
+
+    let renamedOldId: string | undefined;
+    let derivedPath = false;
     if (!path) {
       // A never-linked doc must not silently adopt a same-named file in
       // the target folder — it might be another device's document that
       // has not been pulled yet. Dedupe into a fresh path instead.
       path = dedupeRepoPath(drivePathForDocName(doc.name), usedPaths);
-      usedPaths.add(path);
+      derivedPath = true;
       remote = undefined;
       fileId = undefined;
     } else if (remote && remote.path !== path) {
       // The file was renamed in Drive since our last sync. Keep the
       // current Drive path until the local name actually changes.
       path = remote.path;
-      usedPaths.add(path);
     }
+    if (!derivedPath && !remote && claimedPaths.has(path)) {
+      // Another doc already planned this exact path — don't create a
+      // same-named duplicate. A path merely present in the TREE is left
+      // alone so the unproven-path conflict below can still fire.
+      path = dedupeRepoPath(path, usedPaths);
+    }
+    usedPaths.add(path);
 
     // A local rename writes the new path and deletes the old file, same
     // as repo-sync. Compare case-insensitively so a doc named "Notes"
@@ -257,11 +293,12 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
     if (remote && fileId) {
       const currentSlug = slugFromRepoPath(path).toLowerCase();
       const wantedSlug = slugifyDocName(doc.name).toLowerCase();
-      if (wantedSlug !== currentSlug) {
-        const target = `${slugifyDocName(doc.name)}.md`;
+      if (wantedSlug !== currentSlug && complete) {
+        const parent = parentPathOf(path);
+        const target = parent ? `${parent}/${slugifyDocName(doc.name)}.md` : `${slugifyDocName(doc.name)}.md`;
         if (!usedPaths.has(target) || target === path) {
           if (target !== path) {
-            renamedAway.add(fileId);
+            renamedOldId = fileId;
             path = dedupeRepoPath(target, usedPaths);
             usedPaths.add(path);
             remote = undefined;
@@ -285,6 +322,7 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
     const imageOps: ImageOp[] = [];
     let localImageChanged = false;
     let remoteImageChanged = false;
+    const replacedThisDoc: string[] = [];
     const referencedRefs = new Set<string>();
     for (const asset of assets) {
       const ref = refForAssetPath(asset.path, folder, doc.images);
@@ -292,9 +330,21 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
       const stored = doc.driveImageRevs?.[ref];
       const storedEntry = stored ? byId.get(stored.fileId) : undefined;
       const imageHash = await hashImageDataUrl(asset.dataUrl);
-      if (!stored || !storedEntry) {
+      if (stored && storedEntry && storedEntry.path !== asset.path) {
+        // The doc's asset folder moved (a rename). The old image id still
+        // exists under the old path; upload a copy under the new path and
+        // delete the old one only after the doc write succeeds.
         imageOps.push({ kind: "create", ref, path: asset.path, contentBase64: dataUrlToBase64(asset.dataUrl), hash: imageHash });
+        if (complete) replacedThisDoc.push(stored.fileId);
+        if (storedEntry.rev !== stored.rev) remoteImageChanged = true;
         localImageChanged = true;
+      } else if (!stored || !storedEntry) {
+        // A stored id missing from a truncated tree may exist; don't
+        // upload a duplicate on a guess.
+        if (!stored || complete) {
+          imageOps.push({ kind: "create", ref, path: asset.path, contentBase64: dataUrlToBase64(asset.dataUrl), hash: imageHash });
+          localImageChanged = true;
+        }
       } else if (storedEntry.rev !== stored.rev) {
         remoteImageChanged = true;
         if (stored.hash !== imageHash) localImageChanged = true;
@@ -307,13 +357,15 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
     for (const [ref, stored] of Object.entries(doc.driveImageRevs ?? {})) {
       if (referencedRefs.has(ref)) continue;
       if (pendingDriveDeletions.includes(stored.fileId)) continue;
-      if (byId.has(stored.fileId) && sameWorkspace) staleRefs.push(stored.fileId);
+      if (complete && byId.has(stored.fileId) && sameWorkspace) staleRefs.push(stored.fileId);
     }
 
     const localChanged = doc.drivePushedHash !== contentHash || localImageChanged;
     const revMoved = remote ? (doc.driveRev ? remote.rev !== doc.driveRev : !sameWorkspace) : false;
     const pathMatch = !fileId && byPath.get(path);
-    const foreignPathMatch = !!pathMatch && !sameWorkspace;
+    const pathMatchOwner = pathMatch ? docs.find((candidate) => candidate.id !== doc.id && candidate.driveFileId === pathMatch.fileId) : undefined;
+    const pathMatchBlocked = !!pathMatch && (claimedFileIds.has(pathMatch.fileId) || !!pathMatchOwner);
+    const foreignPathMatch = !!pathMatch && (!sameWorkspace || pathMatchBlocked);
 
     if ((revMoved && localChanged) || (remoteImageChanged && localChanged) || foreignPathMatch) {
       plan.conflicts.push({ docId: doc.id, docName: doc.name, drivePath: path });
@@ -325,10 +377,16 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
     // In our own folder, a doc with a path but no stored id can adopt the
     // file already at that path (a pull that never finished, or a doc
     // restored from a backup).
-    if (!fileId && sameWorkspace && pathMatch) {
+    if (!fileId && sameWorkspace && pathMatch && !pathMatchBlocked) {
       fileId = pathMatch.fileId;
       remote = pathMatch;
     }
+
+    if (renamedOldId) {
+      renamedAway.add(renamedOldId);
+      renames.push({ docId: doc.id, oldFileId: renamedOldId });
+    }
+    for (const fileId of replacedThisDoc) replacedImageIds.add(fileId);
 
     collectAssets(folder);
     const referenced = assetsByFolder.get(folder)!;
@@ -362,17 +420,22 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
     }
   }
 
-  for (const fileId of renamedAway) {
-    if (byId.has(fileId) && !claimedFileIds.has(fileId) && !plan.deletes.includes(fileId)) plan.deletes.push(fileId);
-  }
-  for (const fileId of pendingDriveDeletions) {
-    if (byId.has(fileId) && !claimedFileIds.has(fileId) && !plan.deletes.includes(fileId)) plan.deletes.push(fileId);
-  }
-  for (const fileId of staleImageIds) {
-    if (!claimedFileIds.has(fileId) && !plan.deletes.includes(fileId)) plan.deletes.push(fileId);
+  if (complete) {
+    for (const fileId of renamedAway) {
+      if (byId.has(fileId) && !claimedFileIds.has(fileId) && !plan.deletes.includes(fileId)) plan.deletes.push(fileId);
+    }
+    for (const fileId of pendingDriveDeletions) {
+      if (byId.has(fileId) && !claimedFileIds.has(fileId) && !plan.deletes.includes(fileId)) plan.deletes.push(fileId);
+    }
+    for (const fileId of staleImageIds) {
+      if (!claimedFileIds.has(fileId) && !plan.deletes.includes(fileId)) plan.deletes.push(fileId);
+    }
+    for (const fileId of replacedImageIds) {
+      if (!claimedFileIds.has(fileId) && !plan.deletes.includes(fileId)) plan.deletes.push(fileId);
+    }
   }
 
-  if (sameWorkspace) {
+  if (sameWorkspace && complete) {
     for (const [folder, referenced] of assetsByFolder) {
       const prefix = `assets/${folder}/`;
       for (const entry of tree.entries) {
@@ -383,8 +446,21 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
         plan.deletes.push(entry.fileId);
       }
     }
+    // Dead-folder sweep: assets/<slug>/... whose owning doc is gone from
+    // both the tree and this workspace. Only safe on a complete tree and
+    // a folder this workspace actually owns.
+    for (const entry of tree.entries) {
+      const match = /^assets\/(.+)\/[^/]+$/.exec(entry.path);
+      if (!match) continue;
+      const owner = `${match[1]}.md`;
+      if (usedPaths.has(owner) || claimedPaths.has(owner)) continue;
+      if (planned.some((change) => change.path === owner)) continue;
+      if (claimedFileIds.has(entry.fileId) || plan.deletes.includes(entry.fileId)) continue;
+      plan.deletes.push(entry.fileId);
+    }
   }
 
+  plan.renames = renames;
   return plan;
 }
 
@@ -483,12 +559,21 @@ async function applyRemoteEntry(workspaceId: string, tree: DriveTree, entry: Dri
   const rewritten = rewriteImagesForPush(resolved.content, folder, resolved.images, undefined);
   const pushedHash = await hashPushPayload(rewritten.content, rewritten.assets);
   const existing = docsInWorkspace(workspaceId).find((doc) => doc.driveFileId === entry.fileId || doc.drivePath === entry.path);
-  const name = existing?.name ?? (entry.path.split("/").pop() ?? "untitled").replace(/\.md$/i, "");
+  const remoteName = (entry.path.split("/").pop() ?? "untitled").replace(/\.md$/i, "");
+  const oldSlug = existing?.drivePath ? slugFromRepoPath(existing.drivePath) : undefined;
+  // Adopt a remote rename only when the local name was just the old path
+  // basename; a deliberate custom name stays put.
+  const name = existing && (!oldSlug || existing.name !== oldSlug) ? existing.name : remoteName;
+  // Preserve image bytes we already had. An asset could be missing from
+  // this response because of a truncated tree/one failed image download;
+  // wiping the map would lose recoverable data for references the new
+  // content no longer resolves.
+  const mergedImages = { ...(existing?.images ?? {}), ...resolved.images };
 
   return upsertDocFromDrive(workspaceId, entry.path, {
     name,
     content: resolved.content,
-    images: Object.keys(resolved.images).length ? resolved.images : undefined,
+    images: Object.keys(mergedImages).length ? mergedImages : undefined,
     driveFileId: entry.fileId,
     driveRev: entry.rev,
     driveImageRevs: Object.keys(resolvedRevs).length ? resolvedRevs : undefined,
@@ -496,17 +581,51 @@ async function applyRemoteEntry(workspaceId: string, tree: DriveTree, entry: Dri
   });
 }
 
+export interface PullFailure {
+  docId?: string;
+  path: string;
+  error: string;
+}
+
+async function computeDirtyDocIds(workspaceId: string): Promise<Set<string>> {
+  const dirty = new Set<string>();
+  for (const doc of docsInWorkspace(workspaceId)) {
+    if (!doc.driveFileId && !doc.drivePath) continue;
+    if (!doc.drivePushedHash) {
+      // A linked doc with no local hash predates the hash field. Treat it
+      // as dirty rather than silently overwriting whatever is local.
+      dirty.add(doc.id);
+      continue;
+    }
+    const path = doc.drivePath || drivePathForDocName(doc.name);
+    const folder = assetFolderForDrivePath(path);
+    const { content, assets } = rewriteImagesForPush(doc.content, folder, doc.images, doc.diagrams);
+    if ((await hashPushPayload(content, assets)) !== doc.drivePushedHash) dirty.add(doc.id);
+  }
+  return dirty;
+}
+
 export async function pullFromDrive(
   workspaceId: string,
   dirtyDocIds: Set<string> = new Set(),
   onProgress?: (message: string) => void,
-): Promise<{ plan: PullPlan; applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void> }> {
+): Promise<{
+  plan: PullPlan;
+  applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>;
+  failures: PullFailure[];
+}> {
+  // The live editor buffer is the source of truth while a doc is open;
+  // flush it before hashing/planning so a just-typed edit counts as dirty
+  // instead of being overwritten by a remote update.
+  saveActiveDocContent();
   const { tree } = await fetchTree(workspaceId);
   const docs = docsInWorkspace(workspaceId);
-  const plan = planDrivePull(tree, docs, dirtyDocIds);
+  const dirty = new Set([...dirtyDocIds, ...(await computeDirtyDocIds(workspaceId))]);
+  const plan = planDrivePull(tree, docs, dirty);
   const entriesById = new Map(tree.entries.map((entry) => [entry.fileId, entry]));
   const entriesByPath = new Map(tree.entries.map((entry) => [entry.path, entry]));
   const total = plan.creates.length + plan.updates.length;
+  const failures: PullFailure[] = [];
   let done = 0;
   const created: string[] = [];
   const updated: string[] = [];
@@ -517,23 +636,28 @@ export async function pullFromDrive(
       if (!entry) continue;
       done++;
       onProgress?.(`Pulling ${done}/${total} file${total === 1 ? "" : "s"}…`);
-      const result = await applyRemoteEntry(workspaceId, tree, entry);
-      (result.created ? created : updated).push(result.id);
+      try {
+        const result = await applyRemoteEntry(workspaceId, tree, entry);
+        (result.created ? created : updated).push(result.id);
+      } catch (err) {
+        if (err instanceof DriveReconnectError) throw err;
+        failures.push({ path: entry.path, error: err instanceof Error ? err.message : "download failed" });
+      }
     }
   }
 
   await applyEntries(plan.creates);
   await applyEntries(plan.updates);
 
+  // Deletions are *not* applied yet: the conflict modal is the user's
+  // confirmation, and deleting a doc also deletes its local history.
+  // applyResolved runs only when the user clicks Apply.
   const deletedFileIds = plan.deletions
     .map((deletion) => docs.find((doc) => doc.id === deletion.docId)?.driveFileId)
     .filter((fileId): fileId is string => !!fileId);
-  const removed = removeDocsByDriveFileIds(workspaceId, deletedFileIds);
-  // removeDocById queues every local delete for the next push; a deletion
-  // that came FROM Drive must not be echoed back as one.
-  clearPendingDriveDeletions(workspaceId, deletedFileIds);
   setWorkspaceDriveLastSynced(workspaceId, Date.now());
-  repoDocSyncHook.onRepoDocsChanged?.({ workspaceId, created, updated, deleted: removed });
+  repoDocSyncHook.onRepoDocsChanged?.({ workspaceId, created, updated, deleted: [] });
+  window.MDE?.reloadActiveDocFromStore?.();
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
     const adopted: string[] = [];
@@ -541,13 +665,20 @@ export async function pullFromDrive(
       if (resolutions[conflict.docId] !== "theirs") continue;
       const entry = entriesByPath.get(conflict.drivePath);
       if (!entry) continue;
-      const result = await applyRemoteEntry(workspaceId, tree, entry);
-      adopted.push(result.id);
+      try {
+        const result = await applyRemoteEntry(workspaceId, tree, entry);
+        adopted.push(result.id);
+      } catch (err) {
+        if (err instanceof DriveReconnectError) throw err;
+        failures.push({ docId: conflict.docId, path: conflict.drivePath, error: err instanceof Error ? err.message : "download failed" });
+      }
     }
-    if (adopted.length) repoDocSyncHook.onRepoDocsChanged?.({ workspaceId, created: [], updated: adopted, deleted: [] });
+    const removed = removeDocsByDriveFileIds(workspaceId, deletedFileIds);
+    repoDocSyncHook.onRepoDocsChanged?.({ workspaceId, created: [], updated: adopted, deleted: removed });
+    if (adopted.length || removed.length) window.MDE?.reloadActiveDocFromStore?.();
   }
 
-  return { plan, applyResolved };
+  return { plan, applyResolved, failures };
 }
 
 interface PushBody {
@@ -557,8 +688,8 @@ interface PushBody {
   deletes: string[];
 }
 
-function buildPushBody(plan: PushPlan): PushBody {
-  const body: PushBody = { ensureSubfolders: [], creates: [], updates: [], deletes: [...plan.deletes] };
+function buildPushBody(plan: PushPlan, includeDeletes = true): PushBody {
+  const body: PushBody = { ensureSubfolders: [], creates: [], updates: [], deletes: includeDeletes ? [...plan.deletes] : [] };
   const subfolders = new Set<string>();
   const addSubfolder = (path: string) => {
     const parent = parentPathOf(path);
@@ -575,7 +706,7 @@ function buildPushBody(plan: PushPlan): PushBody {
       } else if (op.kind === "update") {
         body.updates.push({ fileId: op.fileId, path: op.path, mimeType: mimeFromAssetPath(op.path), contentBase64: op.contentBase64 });
         addSubfolder(op.path);
-      } else {
+      } else if (includeDeletes) {
         body.deletes.push(op.fileId);
       }
     }
@@ -590,7 +721,7 @@ function buildPushBody(plan: PushPlan): PushBody {
       } else if (op.kind === "update") {
         body.updates.push({ fileId: op.fileId, path: op.path, mimeType: mimeFromAssetPath(op.path), contentBase64: op.contentBase64 });
         addSubfolder(op.path);
-      } else {
+      } else if (includeDeletes) {
         body.deletes.push(op.fileId);
       }
     }
@@ -662,8 +793,13 @@ async function commitPushResults(workspaceId: string, plan: PushPlan, data: Push
   // against our old one and raises a false conflict.
   function commitImagesOnly(change: PushChange): void {
     const doc = docs.find((candidate) => candidate.id === change.docId);
-    if (!doc || change.imageOps.length === 0) return;
-    const { imageRevs } = applyImageOps(change, doc);
+    // A failed markdown update may still have uploaded new/changed images.
+    // Its successful DELETE ops are a different story: the remote file
+    // still references the old images, so removing them locally would
+    // leave a broken remote document. Leave those for the next push.
+    const safeOps = change.imageOps.filter((op) => op.kind !== "delete");
+    if (!doc || safeOps.length === 0) return;
+    const { imageRevs } = applyImageOps({ ...change, imageOps: safeOps }, doc);
     setDocDriveImageRevs(change.docId, Object.keys(imageRevs).length ? imageRevs : undefined);
   }
 
@@ -682,20 +818,102 @@ async function commitPushResults(workspaceId: string, plan: PushPlan, data: Push
   setWorkspaceDriveLastSynced(workspaceId, Date.now());
 }
 
-async function sendPlan(workspaceId: string, plan: PushPlan): Promise<PushResult> {
+async function postPush(workspaceId: string, body: PushBody): Promise<PushResult> {
   const workspace = workspaceWithLink(workspaceId);
-  const body = buildPushBody(plan);
-  if (body.creates.length === 0 && body.updates.length === 0 && body.deletes.length === 0) {
-    setWorkspaceDriveLastSynced(workspaceId, Date.now());
-    return { results: [], synced: 0, failed: 0 };
-  }
-  const data = await jsonFetch<PushResult>(
+  return jsonFetch<PushResult>(
     `/api/drive/folder/${encodeURIComponent(workspace.driveLink!.folderId)}/push`,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
     "Push to Google Drive failed",
   );
-  await commitPushResults(workspaceId, plan, data);
-  return data;
+}
+
+function mergePushResults(a: PushResult, b: PushResult): PushResult {
+  return { results: [...a.results, ...b.results], synced: a.synced + b.synced, failed: a.failed + b.failed };
+}
+
+function commitDeleteResults(workspaceId: string, plan: PushPlan, data: PushResult): void {
+  const deleted = new Set<string>();
+  for (const result of data.results) {
+    if (result.op !== "delete" || !result.fileId) continue;
+    if (result.ok) deleted.add(result.fileId);
+  }
+  clearPendingDriveDeletions(workspaceId, [...deleted]);
+  // A rename's old file id only appears in this push plan once. If its
+  // delete failed, queue it so the next push still removes it instead of
+  // leaving a duplicate behind.
+  for (const fileId of plan.deletes) {
+    const result = data.results.find((item) => item.op === "delete" && item.fileId === fileId);
+    if (result && !result.ok) queueDriveDeletion(workspaceId, fileId);
+  }
+}
+
+const MAX_PUSH_ITEMS = 40;
+
+// A workspace larger than the Worker's per-request item cap is split by
+// document, never mid-document: a doc's image results must travel in the
+// same response as the doc so commitPushResults can pair them.
+function chunkPushPlan(plan: PushPlan): PushPlan[] {
+  const chunks: PushPlan[] = [];
+  let current: PushPlan = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [] };
+  let count = 0;
+  const flush = () => {
+    if (current.creates.length || current.updates.length) chunks.push(current);
+    current = { creates: [], updates: [], deletes: [], conflicts: [], unchanged: [] };
+    count = 0;
+  };
+  const add = (kind: "creates" | "updates", change: PushChange) => {
+    const cost = 1 + change.imageOps.length;
+    if (cost > MAX_PUSH_ITEMS) throw new Error("One document has too many embedded images to push in a single request.");
+    if (count + cost > MAX_PUSH_ITEMS) flush();
+    current[kind].push(change as never);
+    count += cost;
+  };
+  for (const change of plan.creates) add("creates", change);
+  for (const change of plan.updates) add("updates", change);
+  flush();
+  return chunks;
+}
+
+async function sendPlan(workspaceId: string, plan: PushPlan): Promise<PushResult> {
+  let combined: PushResult = { results: [], synced: 0, failed: 0 };
+  let canDelete = true;
+  for (const chunk of chunkPushPlan(plan)) {
+    // Creates/updates go first. Deletes wait for their result so a failed
+    // rename replacement can never delete the only remote copy first.
+    const body = buildPushBody(chunk, false);
+    const data = await postPush(workspaceId, body);
+    await commitPushResults(workspaceId, chunk, data);
+    combined = mergePushResults(combined, data);
+    if (data.results.some((result) => result.op !== "delete" && !result.ok)) canDelete = false;
+  }
+  if (!canDelete && plan.renames?.length) {
+    const successfulDocIds = new Set<string>();
+    for (const chunk of chunkPushPlan(plan)) {
+      for (const change of [...chunk.creates, ...chunk.updates]) {
+        const fileId = "fileId" in change ? change.fileId : undefined;
+        const result = combined.results.find((item) => item.op !== "delete" && item.ok && (item.path === change.path || (!!fileId && item.fileId === fileId)));
+        if (result) successfulDocIds.add(change.docId);
+      }
+    }
+    for (const rename of plan.renames) {
+      if (successfulDocIds.has(rename.docId) && !plan.deletes.includes(rename.oldFileId)) queueDriveDeletion(workspaceId, rename.oldFileId);
+    }
+  }
+  const deleteIds = [...new Set(plan.deletes)];
+  if (canDelete) {
+    for (let index = 0; index < deleteIds.length; index += MAX_PUSH_ITEMS) {
+      const data = await postPush(workspaceId, {
+        ensureSubfolders: [],
+        creates: [],
+        updates: [],
+        deletes: deleteIds.slice(index, index + MAX_PUSH_ITEMS),
+      });
+      commitDeleteResults(workspaceId, { ...plan, deletes: deleteIds.slice(index, index + MAX_PUSH_ITEMS) }, data);
+      combined = mergePushResults(combined, data);
+    }
+  }
+  setWorkspaceDriveLastSynced(workspaceId, Date.now());
+  return combined;
 }
 
 async function buildForcePushPlan(workspaceId: string, tree: DriveTree, docs: Doc[]): Promise<PushPlan> {
@@ -741,6 +959,7 @@ export async function pushToDrive(
   workspaceId: string,
   onProgress?: (message: string) => void,
 ): Promise<{ plan: PushPlan; result?: PushResult; applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void> }> {
+  saveActiveDocContent();
   const { workspace, tree } = await fetchTree(workspaceId);
   const docs = docsInWorkspace(workspaceId);
   const sameWorkspace = tree.workspaceId === workspaceId;
@@ -764,7 +983,16 @@ export async function pushToDrive(
       const forcePlan = await buildForcePushPlan(workspaceId, tree, winning);
       await sendPlan(workspaceId, forcePlan);
     }
+    // A push conflict pauses the WHOLE plan. Now that the conflicted docs
+    // are resolved, send everything else that was waiting (new docs,
+    // non-conflicting updates, pending deletions) instead of leaving it
+    // unsent until the user happens to push again.
+    const residual: PushPlan = { creates: plan.creates, updates: plan.updates, deletes: plan.deletes, conflicts: [], unchanged: [] };
+    if (residual.creates.length || residual.updates.length || residual.deletes.length) {
+      await sendPlan(workspaceId, residual);
+    }
     if (adopted.length) repoDocSyncHook.onRepoDocsChanged?.({ workspaceId, created: [], updated: adopted, deleted: [] });
+    if (adopted.length) window.MDE?.reloadActiveDocFromStore?.();
     setWorkspaceDriveLastSynced(workspaceId, Date.now());
   }
 
@@ -805,14 +1033,14 @@ export function planCreateWorkspaceFromDrive(folder: { folderId: string; folderN
   return { action: "create", workspaceName: nextAvailableName(folder.folderName, taken) };
 }
 
-export type OpenDriveFolderResult =
-  | { kind: "switch"; workspaceId: string }
-  | {
-      kind: "opened";
-      workspace: Workspace;
-      plan: PullPlan;
-      applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>;
-    };
+export interface OpenDriveFolderResult {
+  kind: "opened";
+  workspace: Workspace;
+  switched: boolean;
+  plan: PullPlan;
+  applyResolved: (resolutions: Record<string, "mine" | "theirs">) => Promise<void>;
+  failures: PullFailure[];
+}
 
 export async function openDriveFolderAsWorkspace(
   folder: { folderId: string; folderName: string },
@@ -820,12 +1048,17 @@ export async function openDriveFolderAsWorkspace(
 ): Promise<OpenDriveFolderResult> {
   const plan = planCreateWorkspaceFromDrive(folder, get(workspacesStore));
   if (plan.action === "switch") {
-    if (switchWorkspace(plan.workspaceId)) ensureActiveDocInWorkspace(plan.workspaceId);
-    return { kind: "switch", workspaceId: plan.workspaceId };
+    const workspace = get(workspacesStore).find((item) => item.id === plan.workspaceId)!;
+    switchWorkspace(workspace.id);
+    // Re-opening a folder must also retry a pull that previously failed
+    // partway instead of silently landing on an empty/partial workspace.
+    const pull = await pullFromDrive(workspace.id, new Set(), onProgress);
+    ensureActiveDocInWorkspace(workspace.id);
+    return { kind: "opened", workspace, switched: true, plan: pull.plan, applyResolved: pull.applyResolved, failures: pull.failures };
   }
   const workspace = createWorkspace(plan.workspaceName);
   setWorkspaceDriveLink(workspace.id, { folderId: folder.folderId, folderName: folder.folderName });
   const pull = await pullFromDrive(workspace.id, new Set(), onProgress);
   ensureActiveDocInWorkspace(workspace.id);
-  return { kind: "opened", workspace, plan: pull.plan, applyResolved: pull.applyResolved };
+  return { kind: "opened", workspace, switched: false, plan: pull.plan, applyResolved: pull.applyResolved, failures: pull.failures };
 }

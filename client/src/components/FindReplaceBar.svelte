@@ -117,7 +117,21 @@
     </div>
     {#if $findBarMode === "replace"}
       <div class="replace-row">
-        <input type="text" placeholder="Replace" bind:value={replaceText} aria-label="Replace" />
+        <input
+          type="text"
+          placeholder="Replace"
+          bind:value={replaceText}
+          aria-label="Replace"
+          onkeydown={(e) => {
+            if (e.key !== "Enter") return;
+            // The bar's own Enter handler would otherwise run "find next"
+            // while focus is in this field. Replace here, and keep the
+            // replacement from also triggering the container handler.
+            e.preventDefault();
+            e.stopPropagation();
+            doReplace();
+          }}
+        />
         <button type="button" onclick={doReplace} disabled={readOnly || !query.valid || matchInfo.total === 0}>Replace</button>
         <button type="button" onclick={doReplaceAll} disabled={readOnly || !query.valid || matchInfo.total === 0}>Replace All</button>
       </div>

@@ -164,3 +164,20 @@ test("SRCH-15: the Find query is not retained across a close then reopen", async
   const second = await render(FindReplaceBar);
   await expect.element(second.getByLabelText("Find").last()).toHaveValue("");
 });
+
+test("Enter in the Replace field performs the replacement", async () => {
+  mountEditor("cat cat");
+  findBarMode.set("replace");
+  const screen = await render(FindReplaceBar);
+  await screen.getByLabelText("Find").fill("cat");
+  const replaceInput = screen.getByLabelText("Replace", { exact: true });
+  await replaceInput.fill("dog");
+  await replaceInput.click();
+  // The first Enter selects the current match (CodeMirror's replaceNext
+  // semantics); the second replaces it. Before the fix both Enters just
+  // ran "find next" and nothing was replaced.
+  await userEvent.keyboard("{Enter}");
+  await userEvent.keyboard("{Enter}");
+
+  expect(view.state.doc.toString()).toBe("dog cat");
+});

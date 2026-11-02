@@ -14,7 +14,12 @@ const STORAGE_WORKSPACES = "mde:workspaces";
 const STORAGE_ACTIVE_WORKSPACE = "mde:activeWorkspace";
 
 function uid() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  // A workspace's local id becomes the Durable Object room id the first
+  // time it's shared, and for a restricted room that id is the only
+  // secret standing between the workspace and the public internet — use
+  // the CSPRNG, not Math.random's non-cryptographic PRNG.
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // null (as opposed to []) means the key has genuinely never been set —
@@ -26,10 +31,15 @@ function loadWorkspacesFromStorage(): Workspace[] | null {
   const raw = localStorage.getItem(STORAGE_WORKSPACES);
   if (raw === null) return null;
   try {
-    const parsed = JSON.parse(raw) as Workspace[];
+    const parsed = JSON.parse(raw) as unknown;
+    // Valid JSON isn't necessarily a workspace array (`{}`, `"x"`, …) —
+    // treating that as "never set" repairs the key via the first-run
+    // persist below; leaving it in place made every later save throw and
+    // fail behind a misleading "storage may be full" toast.
+    if (!Array.isArray(parsed)) return null;
     return parsed.map((w) => ({ ...w, updatedAt: w.updatedAt ?? w.createdAt }));
   } catch (e) {
-    return [];
+    return null;
   }
 }
 
@@ -60,7 +70,15 @@ export const activeWorkspaceIdStore = writable<string | null>(initialActiveWorks
 function persistWorkspacesExcluding(deletedIds: Set<string>) {
   try {
     const raw = localStorage.getItem(STORAGE_WORKSPACES);
-    const external = raw ? (JSON.parse(raw) as Workspace[]).filter((w) => !deletedIds.has(w.id)) : [];
+    let external: Workspace[] = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) external = parsed.filter((w) => !deletedIds.has(w.id));
+      } catch (parseErr) {
+        // Corrupt external value: this save's clean array replaces it.
+      }
+    }
     const merged = mergeById(get(workspacesStore), external);
     workspacesStore.set(merged);
     // Ephemeral workspaces (see previewSharedWorkspace) live in the store

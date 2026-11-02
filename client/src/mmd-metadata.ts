@@ -76,7 +76,13 @@ function skipSeparator(lines: string[], from: number): number {
 // existed — a bare run of "Key: Value" lines with no comment wrapper at
 // all. If neither is present, there is no metadata block.
 export function parseMetadataBlock(text: string): { metadata: MetadataPair[]; body: string } {
-  const lines = text.split("\n");
+  // Windows-authored files arrive with CRLF. Every check below compares
+  // "\n"-split lines (metadata regex, blank separator, the literal "-->"/
+  // "<!--" lines), and a trailing "\r" defeats all of them, so normalize
+  // before scanning. A document with no metadata block still returns the
+  // original `text` untouched (see the fallback below).
+  const normalized = text.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
 
   if (lines[0] === COMMENT_OPEN) {
     const closeIndex = lines.indexOf(COMMENT_CLOSE, 1);

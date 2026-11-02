@@ -43,6 +43,8 @@ import {
   removeDocById,
   docRemovalHook,
   repoDocSyncHook,
+  setDocPendingRoomRegistration,
+  deleteDocImage,
 } from "./stores/docs";
 import { debounceWithFlush } from "./debounce";
 import { pendingJoin } from "./stores/joinWorkspace";
@@ -134,6 +136,16 @@ interface DocBinding {
   // Same, for the `comments` Y.Map observer feeding
   // window.MDE.onCommentsChanged.
   commentsObserved?: boolean;
+  // Same, for the awareness "update" listener that mirrors local cursor
+  // state to the room. Re-binding the SAME doc (switching away and back
+  // within one workspace) must not attach a second listener — each extra
+  // one re-sends every awareness frame and reruns presence handling.
+  awarenessObserved?: boolean;
+  // Set once a received sync-step1 has been answered with this binding's
+  // own state (step2). Only then does a content-bearing reply prove the
+  // room has actually been offered the replayed offline updates, so only
+  // then is the persisted unsynced-update buffer safe to clear.
+  step2Sent?: boolean;
 }
 
 const workspaceRoom = {
@@ -185,6 +197,97 @@ let joinGeneration = 0;
 // lands. Cleared (and the correct lock applied) once the role is known.
 let joiningShareLink = false;
 
+// Local Yjs updates emitted while the socket couldn't carry them (it was
+// closed, or not OPEN yet). Persisted on teardown/pagehide and replayed
+// into the fresh binding on the next join — without this, a teardown
+// before the socket reconnects discards edits the room never saw, and
+// bindActiveDoc's "server content wins" reconcile then overwrites the
+// local record with the stale server copy (silent data loss).
+const UNSYNCED_PREFIX = "mde:collab:unsynced:";
+// Base64 chars; localStorage is ~5 MB per origin shared with every doc,
+// so an unusually large paste falls back to "can't durably keep it"
+// rather than risking the docs themselves failing to save.
+const MAX_UNSYNCED_CHARS = 2_000_000;
+const unsyncedUpdates = new Map<string, Uint8Array[]>();
+
+function unsyncedStorageKey(remoteId: string, docId: string): string {
+  return `${UNSYNCED_PREFIX}${remoteId}:${docId}`;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function recordUnsyncedUpdate(docId: string, update: Uint8Array): void {
+  const remoteId = workspaceRoom.workspaceId;
+  if (!remoteId) return;
+  const key = `${remoteId}\u0000${docId}`;
+  const list = unsyncedUpdates.get(key);
+  if (list) list.push(update);
+  else unsyncedUpdates.set(key, [update]);
+}
+
+// Merges + persists every buffered update for the current workspace, then
+// drops the in-memory staging copies (the persisted form is what replay
+// reads). Best-effort: quota/private-mode failures just skip persistence.
+function persistUnsyncedUpdates(): void {
+  const remoteId = workspaceRoom.workspaceId;
+  if (!remoteId) return;
+  for (const [key, updates] of unsyncedUpdates) {
+    const [wsId, docId] = key.split("\u0000");
+    if (wsId !== remoteId || !docId || updates.length === 0) continue;
+    try {
+      const encoded = bytesToBase64(Y.mergeUpdates(updates));
+      if (encoded.length > MAX_UNSYNCED_CHARS) continue;
+      localStorage.setItem(unsyncedStorageKey(remoteId, docId), encoded);
+    } catch (err) {
+      /* quota/blocked — replay is best-effort */
+    }
+  }
+  unsyncedUpdates.clear();
+}
+
+function loadUnsyncedUpdates(remoteId: string, docId: string): Uint8Array | null {
+  try {
+    const raw = localStorage.getItem(unsyncedStorageKey(remoteId, docId));
+    return raw ? base64ToBytes(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function clearUnsyncedUpdates(docId: string): void {
+  const remoteId = workspaceRoom.workspaceId;
+  if (!remoteId) return;
+  unsyncedUpdates.delete(`${remoteId}\u0000${docId}`);
+  try {
+    localStorage.removeItem(unsyncedStorageKey(remoteId, docId));
+  } catch (err) {
+    /* blocked — nothing to clear */
+  }
+}
+
+/** @internal test seam — drops staged/persisted replay buffers between cases. */
+export function __resetUnsyncedUpdatesForTest(): void {
+  unsyncedUpdates.clear();
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(UNSYNCED_PREFIX)) localStorage.removeItem(key);
+    }
+  } catch (err) {
+    /* blocked */
+  }
+}
+
 // Documents in the shared workspace whose Y.Text/images changed while
 // they weren't the active document — the active document's content
 // already flows into docsStore through the normal CodeMirror ->
@@ -195,6 +298,18 @@ const dirtyBackgroundDocs = new Set<string>();
 function markDirty(docId: string): void {
   dirtyBackgroundDocs.add(docId);
   backgroundSyncDebounce.trigger();
+}
+
+// `metadata`/`citations` are plain JSON strings in the peer-writable meta
+// map. A malformed value must never throw out of a Yjs observer (that
+// aborts the whole sync frame, so the doc never reaches "synced") or out
+// of the teardown flush — fall back to "nothing to apply" instead.
+function parseJsonValue<T>(raw: string, fallback: T): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    return fallback;
+  }
 }
 
 function flushDirtyBackgroundDocs(): void {
@@ -211,9 +326,9 @@ function flushDirtyBackgroundDocs(): void {
     const images = imageEntries.length > 0 ? Object.fromEntries(imageEntries) : undefined;
     const name = binding.metaMap.get("name");
     const metadataRaw = binding.metaMap.get("metadata");
-    const metadata = metadataRaw !== undefined ? JSON.parse(metadataRaw) : undefined;
+    const metadata = metadataRaw !== undefined ? parseJsonValue<Doc["metadata"]>(metadataRaw, undefined) : undefined;
     const citationsRaw = binding.metaMap.get("citations");
-    const citations = citationsRaw !== undefined ? JSON.parse(citationsRaw) : undefined;
+    const citations = citationsRaw !== undefined ? parseJsonValue<Doc["citations"]>(citationsRaw, undefined) : undefined;
     if (syncRemoteDocContent(docId, content, images, name, metadata, citations)) changed = true;
   }
   dirtyBackgroundDocs.clear();
@@ -229,6 +344,10 @@ let currentAccess: typeof DEFAULT_ACCESS | null = null;
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
+  // A plain reload has no teardownWorkspace() call to persist under —
+  // pagehide is the last synchronous chance to keep updates the socket
+  // never carried (see UNSYNCED_PREFIX).
+  window.addEventListener("pagehide", () => persistUnsyncedUpdates());
   // Tear the workspace connection down before a doc load ONLY when the
   // load is leaving the currently-connected shared workspace. Switching
   // between two documents of the *same* connected workspace must keep the
@@ -339,6 +458,19 @@ let lastIdentityId = get(collabIdentity).id;
 collabIdentity.subscribe((v) => {
   if (v.id === lastIdentityId) return;
   lastIdentityId = v.id;
+  // The identity label is part of every bound doc's awareness local state
+  // (remote cursor labels + presence). Re-set it on every binding, not
+  // just the active one — an anonymous guest's server-assigned name
+  // arrives after the first bind, and a mid-session sign-in would
+  // otherwise leave the stale label until a rebind.
+  const identity = localCollabIdentity();
+  for (const binding of workspaceRoom.docs.values()) {
+    binding.awareness.setLocalState({
+      user: { name: identity.name, color: identity.color },
+      role: binding.role,
+      username: window.MDE.githubUsername,
+    });
+  }
   if (!workspaceRoom.activeDocId) return;
   const binding = workspaceRoom.docs.get(workspaceRoom.activeDocId);
   if (binding) applyEditorMode(binding, get(effectiveMode) ?? "editing");
@@ -697,6 +829,24 @@ async function joinWorkspace(
     if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-register
   }
 
+  // Docs created locally while the socket was down never registered
+  // their ids with the room, so the room's docId list doesn't include
+  // them. Register them over HTTP before connecting (same greeting-race
+  // guard as the seedDocId branch above); a failed registration keeps
+  // the pending flag so applyWorkspaceMeta still refuses to delete them.
+  if (role === "editor") {
+    const localWorkspace = get(workspacesStore).find((w) => w.remoteId === workspaceId);
+    const pendingDocs = localWorkspace
+      ? get(docsStore).filter((d) => d.workspaceId === localWorkspace.id && d.pendingRoomRegistration && !docIds.includes(d.id))
+      : [];
+    for (const pending of pendingDocs) {
+      seedNewDocBinding(pending.id, pending, role);
+      const registered = await registerDocWithRoom(workspaceId, pending.id);
+      if (myGeneration !== joinGeneration) return myGeneration; // superseded mid-register
+      if (registered) setDocPendingRoomRegistration(pending.id, false);
+    }
+  }
+
   // Turnstile: an anonymous connection to an "anyone with the link"
   // workspace must carry a signed join ticket on the WS upgrade. Solve
   // the challenge (or reuse a cached ticket) now, before the socket
@@ -705,8 +855,11 @@ async function joinWorkspace(
     try {
       workspaceRoom.joinTicket = await getJoinTicket(workspaceId);
     } catch {
-      // The visitor dismissed the challenge — stay disconnected, in
-      // read-only preview, the same as a link with no access.
+      // The visitor dismissed the challenge — workspaceId/role were
+      // already set above, so tear the half-open room down before showing
+      // the denied state. Leaving them set made later doc switches treat
+      // this as a live connection (no reconnect, no retry) until reload.
+      teardownWorkspace();
       workspaceAccessDenied.set("no-session");
       window.MDE.setReadOnly(true);
       lockToPreviewOnly();
@@ -753,7 +906,7 @@ function seedDocBindingFromEditor(docId: string): void {
 // ever learns of a docId when a message naming it arrives (see
 // workspace-room.ts's isNewDoc handling), and nothing else would trigger
 // that round trip for a doc introduced this way.
-function seedNewDocBinding(docId: string, doc: Doc, role: string): void {
+function seedNewDocBinding(docId: string, doc: Doc, role: string): DocBinding {
   const binding = createDocBinding(docId, role);
   binding.ydoc.transact(() => {
     if (doc.content) binding.ytext.insert(0, doc.content);
@@ -763,6 +916,20 @@ function seedNewDocBinding(docId: string, doc: Doc, role: string): void {
     if (doc.images) Object.entries(doc.images).forEach(([key, dataUrl]) => binding.imagesMap.set(key, dataUrl));
   }, "local");
   markDocSynced(docId);
+  // `send` silently drops while the socket isn't OPEN, which is exactly
+  // the "doc created offline" case: the room never learns this id. Mark
+  // it persistently so the next join registers it before the room's
+  // greeting (which cannot list it yet) is read as a deletion — see
+  // applyWorkspaceMeta. Never clear here: only the room's own docOrder is
+  // proof that registration actually landed.
+  if (workspaceRoom.ws?.readyState !== WebSocket.OPEN) setDocPendingRoomRegistration(docId, true);
+  sendSyncStep1(docId, binding);
+  return binding;
+}
+
+// One doc's initial sync frame — used on every (re)connect and when a
+// locally-created doc has to be re-announced to the room.
+function sendSyncStep1(docId: string, binding: DocBinding): void {
   const encoder = encoding.createEncoder();
   encoding.writeVarUint(encoder, MESSAGE_SYNC);
   encoding.writeVarString(encoder, docId);
@@ -866,7 +1033,14 @@ function createDocBinding(docId: string, role: string): DocBinding {
     if (tr.origin === "local") return;
     if (workspaceRoom.activeDocId === docId) {
       event.changes.keys.forEach((change, key) => {
-        if (change.action === "delete") return;
+        if (change.action === "delete") {
+          // A collaborator removed this image — drop it from the local
+          // record too, or the stale data survives (and gets re-seeded
+          // into the map on the next share).
+          deleteDocImage(key);
+          window.MDE.updatePreview?.();
+          return;
+        }
         const dataUrl = imagesMap.get(key);
         if (dataUrl) window.MDE.setDocImage(key, dataUrl);
       });
@@ -888,7 +1062,7 @@ function createDocBinding(docId: string, role: string): DocBinding {
     if (event.changes.keys.has("metadata")) {
       if (workspaceRoom.activeDocId === docId) {
         const raw = metaMap.get("metadata");
-        if (raw !== undefined) window.MDE.setDocMetadata(docId, JSON.parse(raw));
+        if (raw !== undefined) window.MDE.setDocMetadata(docId, parseJsonValue<NonNullable<Doc["metadata"]>>(raw, []));
       } else {
         markDirty(docId);
       }
@@ -896,7 +1070,7 @@ function createDocBinding(docId: string, role: string): DocBinding {
     if (event.changes.keys.has("citations")) {
       if (workspaceRoom.activeDocId === docId) {
         const raw = metaMap.get("citations");
-        if (raw !== undefined) window.MDE.setDocCitations(docId, JSON.parse(raw));
+        if (raw !== undefined) window.MDE.setDocCitations(docId, parseJsonValue<NonNullable<Doc["citations"]>>(raw, EMPTY_CITATIONS));
       } else {
         markDirty(docId);
       }
@@ -941,6 +1115,10 @@ function createDocBinding(docId: string, role: string): DocBinding {
     encoding.writeVarString(encoder, docId);
     syncProtocol.writeUpdate(encoder, update);
     send(encoding.toUint8Array(encoder));
+    // send() silently drops while the socket isn't OPEN — stage those
+    // updates so a teardown/rejoin (or reload) can replay them instead of
+    // letting the room's stale copy win (see UNSYNCED_PREFIX above).
+    if (workspaceRoom.ws?.readyState !== WebSocket.OPEN) recordUnsyncedUpdate(docId, update);
   };
   ydoc.on("update", ydocUpdateHandler);
 
@@ -962,6 +1140,19 @@ function createDocBinding(docId: string, role: string): DocBinding {
   };
   bindingSyncResolvers.set(docId, resolveSynced);
   workspaceRoom.docs.set(docId, binding);
+  // Replay any local updates the room never received (edits made while
+  // the socket was down, persisted at the last teardown/pagehide). Yjs
+  // updates are idempotent, so replaying an already-synced one is a
+  // no-op; the next step1 carries whatever is still genuinely missing.
+  const remoteId = workspaceRoom.workspaceId;
+  const replayed = remoteId ? loadUnsyncedUpdates(remoteId, docId) : null;
+  if (replayed) {
+    try {
+      binding.ydoc.transact(() => Y.applyUpdate(binding.ydoc, replayed, "local"), "local");
+    } catch (err) {
+      /* malformed persisted state — drop it rather than break the binding */
+    }
+  }
   return binding;
 }
 
@@ -1155,10 +1346,13 @@ async function bindActiveDoc(docId: string): Promise<void> {
   // Viewing mode. `username` stays the GitHub username (null for a guest);
   // the guest's label rides in `user.name`.
   binding.awareness.setLocalState({ user: { name: identityName, color: identityColor }, role: binding.role, username });
-  binding.awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
-    sendAwareness(docId, binding.awareness, added.concat(updated, removed));
-    updatePresence();
-  });
+  if (!binding.awarenessObserved) {
+    binding.awarenessObserved = true;
+    binding.awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
+      sendAwareness(docId, binding.awareness, added.concat(updated, removed));
+      updatePresence();
+    });
+  }
 
   pendingSuggestionCount.set(getSuggestionsMap(binding.ydoc).size);
 
@@ -1182,6 +1376,9 @@ function destroyBinding(docId: string): void {
 
 function teardownWorkspace(): void {
   joinGeneration++;
+  // Stage any updates the socket never carried before the bindings are
+  // destroyed — the next join replays them (see UNSYNCED_PREFIX above).
+  persistUnsyncedUpdates();
   // Cancels any pending debounce timer and runs the flush immediately —
   // its side effects (docsStore writes, persistDocs) happen synchronously
   // within this call even though the returned Promise resolves later, so
@@ -1281,10 +1478,25 @@ function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: s
   }
   const orderSet = new Set(docOrder);
   for (const doc of get(docsStore).filter((d) => d.workspaceId === local.id)) {
-    if (!orderSet.has(doc.id)) {
-      destroyBinding(doc.id);
-      removeDocById(doc.id);
+    if (orderSet.has(doc.id)) {
+      if (doc.pendingRoomRegistration) {
+        // The room now lists it — the registration finally landed.
+        setDocPendingRoomRegistration(doc.id, false);
+      }
+      continue;
     }
+    if (doc.pendingRoomRegistration) {
+      // A greeting is generated at socket-accept time, before this
+      // client's own first sync frames can register a doc created while
+      // the socket was down. Its absence from docOrder is therefore not
+      // a remote deletion — keep the local record and re-announce the
+      // doc; the room's next meta broadcast will include it.
+      const binding = workspaceRoom.docs.get(doc.id) ?? seedNewDocBinding(doc.id, doc, workspaceRoom.role ?? "editor");
+      sendSyncStep1(doc.id, binding);
+      continue;
+    }
+    destroyBinding(doc.id);
+    removeDocById(doc.id);
   }
 }
 
@@ -1315,11 +1527,7 @@ function connectWorkspace(): void {
     everOpened = true;
     workspaceRoom.reconnectDelay = 1000;
     for (const [docId, binding] of workspaceRoom.docs.entries()) {
-      const encoder = encoding.createEncoder();
-      encoding.writeVarUint(encoder, MESSAGE_SYNC);
-      encoding.writeVarString(encoder, docId);
-      syncProtocol.writeSyncStep1(encoder, binding.ydoc);
-      send(encoding.toUint8Array(encoder));
+      sendSyncStep1(docId, binding);
       if (binding.awareness.getLocalState() !== null) sendAwareness(docId, binding.awareness, [binding.awareness.clientID]);
     }
     if (workspaceRoom.activeDocId) sendPresence(workspaceRoom.activeDocId);
@@ -1447,9 +1655,16 @@ function handleServerMessage(data: Uint8Array): void {
     // A docId discovered just now is only ever introduced by a
     // content-bearing broadcast (see discoverRemoteDocBinding's own
     // comment) — never the room's own step1 greeting, which only ever
-    // targets docs already known at connection time — so this always
-    // has real content to import by the time it runs.
-    if (isNewToUs) registerDiscoveredDoc(docId, binding);
+    // targets docs already known at connection time. A doc the room
+    // already knew when this client joined still needs importing the
+    // first time real content arrives: joinWorkspace pre-creates a
+    // binding for every server docId, so the "unknown binding" check
+    // alone left documents created by a collaborator while this client
+    // was away syncing into a phantom binding that never appeared in the
+    // sidebar. Content-bearing only — a step1 has nothing to import.
+    if (messageType === MESSAGE_SYNC && syncMessageType !== syncProtocol.messageYjsSyncStep1 && !findDocById(docId)) {
+      registerDiscoveredDoc(docId, binding);
+    }
     // The room's DO always greets a freshly-opened socket with its OWN
     // sync step1 for every doc it already knows about (see
     // WorkspaceRoom.handleSession) — sent unconditionally, before it's
@@ -1465,7 +1680,17 @@ function handleServerMessage(data: Uint8Array): void {
     // the real content had arrived, so that next, content-bearing
     // message got forwarded into a CodeMirror view that already showed
     // that same content locally, doubling it. See markDocSynced.
-    if (syncMessageType !== syncProtocol.messageYjsSyncStep1) markDocSynced(docId);
+    if (syncMessageType === syncProtocol.messageYjsSyncStep1) {
+      // The reply written above is this binding's own full state (step2)
+      // — including any replayed offline updates — so the room has now
+      // been offered them. The next content-bearing frame (which can
+      // only arrive after it processed that reply) is what proves they
+      // landed, so the buffer is cleared there, not here.
+      binding.step2Sent = true;
+    } else {
+      markDocSynced(docId);
+      if (binding.step2Sent) clearUnsyncedUpdates(docId);
+    }
   } else if (messageType === MESSAGE_AWARENESS) {
     const update = decoding.readVarUint8Array(decoder);
     awarenessProtocol.applyAwarenessUpdate(binding.awareness, update, "server");
@@ -1637,15 +1862,17 @@ async function fetchWorkspaceDocIds(workspaceId: string): Promise<string[]> {
 // been deleted. Best-effort: on failure, the doc's own step1 sync frame
 // still registers it once the socket opens — just without this guard
 // against that first-greeting race.
-async function registerDocWithRoom(workspaceId: string, docId: string): Promise<void> {
+async function registerDocWithRoom(workspaceId: string, docId: string): Promise<boolean> {
   try {
-    await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs`, {
+    const res = await fetch(`/api/workspace/${encodeURIComponent(workspaceId)}/docs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ docId }),
     });
+    return res.ok;
   } catch (err) {
     /* best-effort, see comment above */
+    return false;
   }
 }
 

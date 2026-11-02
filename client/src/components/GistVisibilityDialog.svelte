@@ -1,8 +1,17 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import { gistVisibilityRequest } from "../stores/gistVisibilityDialog";
 
   let choice = $state<"secret" | "public">("secret");
+
+  onMount(() => {
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $gistVisibilityRequest) respond(null);
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
+  });
 
   function respond(visibility: "public" | "secret" | null) {
     $gistVisibilityRequest?.resolve(visibility);

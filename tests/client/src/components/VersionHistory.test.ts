@@ -333,3 +333,110 @@ test("VER-16: more than three editors collapse to 3 avatars + a +N chip", async 
   expect(row.querySelector(".version-history-author-more")!.textContent).toContain("+2");
   vi.unstubAllGlobals();
 });
+
+test("a slow earlier selection cannot overwrite a newer one before Restore (commit select race)", async () => {
+  const SHA_OLD = "a".repeat(40);
+  const SHA_MID = "b".repeat(40);
+  const SHA_NEW = "c".repeat(40);
+  workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0, repoLink: { owner: "o", repo: "r", branch: "main" } }]);
+  docsStore.set([{ id: DOC_ID, name: "Test", content: "live", updatedAt: 0, createdAt: 0, workspaceId: "w1", repoPath: "doc.md" }]);
+  activeIdStore.set(DOC_ID);
+
+  const commits = [
+    { sha: SHA_NEW, commit: { message: "newest commit", author: { name: "A", date: new Date(3_000).toISOString() } }, html_url: "" },
+    { sha: SHA_MID, commit: { message: "middle commit", author: { name: "A", date: new Date(2_000).toISOString() } }, html_url: "" },
+    { sha: SHA_OLD, commit: { message: "old commit", author: { name: "A", date: new Date(1_000).toISOString() } }, html_url: "" },
+  ];
+  let releaseOld!: (res: Response) => void;
+  const oldContent = new Promise<Response>((resolve) => (releaseOld = resolve));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("/.mde/history/")) return new Response("missing", { status: 404 });
+      if (u.includes("/commits")) return jsonRes(commits);
+      if (u.includes(`ref=${SHA_OLD}`)) return oldContent;
+      if (u.includes(`ref=${SHA_MID}`)) return jsonRes({ content: btoa("content-middle"), encoding: "base64" });
+      if (u.includes(`ref=${SHA_NEW}`)) return jsonRes({ content: btoa("content-newest"), encoding: "base64" });
+      return new Response("missing", { status: 404 });
+    }),
+  );
+
+  let inserted: string | null = null;
+  window.MDE = {
+    getEditor: () => ({
+      state: { readOnly: false, doc: { length: 4 } },
+      dispatch: (tr: { changes: { insert: string } }) => {
+        inserted = tr.changes.insert;
+      },
+    }),
+    formatRelativeTime: () => "just now",
+    githubSessionReady: Promise.resolve(),
+    githubUsername: "alice",
+  } as unknown as typeof window.MDE;
+
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText("middle commit")).toBeVisible();
+
+  // Click the slow entry first, then the fast one: the fast response is
+  // what the user is actually looking at when the slow one finally lands.
+  await screen.getByText("old commit").click();
+  await screen.getByText("middle commit").click();
+  await expect.element(screen.getByText("content-middle")).toBeVisible();
+
+  releaseOld(jsonRes({ content: btoa("content-old"), encoding: "base64" }));
+  await new Promise((r) => setTimeout(r, 0));
+
+  await screen.getByRole("button", { name: "Restore this version" }).click();
+  await expect.poll(() => inserted).toBe("content-middle");
+  vi.unstubAllGlobals();
+});
+
+test("Diff mode shows a loading state instead of crashing when a compare version cannot load", async () => {
+  const SHA_OK = "d".repeat(40);
+  const SHA_BROKEN = "e".repeat(40);
+  workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0, repoLink: { owner: "o", repo: "r", branch: "main" } }]);
+  docsStore.set([{ id: DOC_ID, name: "Test", content: "live", updatedAt: 0, createdAt: 0, workspaceId: "w1", repoPath: "doc.md" }]);
+  activeIdStore.set(DOC_ID);
+  toasts.set([]);
+
+  // Newest (the initial selection) loads fine; only the older compare
+  // target is broken — otherwise the initial selection itself would sit
+  // at "Loading…" and mask the bug.
+  const commits = [
+    { sha: SHA_OK, commit: { message: "good commit", author: { name: "A", date: new Date(2_000).toISOString() } }, html_url: "" },
+    { sha: SHA_BROKEN, commit: { message: "broken commit", author: { name: "A", date: new Date(1_000).toISOString() } }, html_url: "" },
+  ];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("/.mde/history/")) return new Response("missing", { status: 404 });
+      if (u.includes("/commits")) return jsonRes(commits);
+      // Only the good commit's content resolves; the broken one 404s
+      // (and its rename-fallback tree lookup 404s too).
+      if (u.includes(`ref=${SHA_OK}`)) return jsonRes({ content: btoa("good content"), encoding: "base64" });
+      return new Response("missing", { status: 404 });
+    }),
+  );
+
+  window.MDE = {
+    getEditor: () => ({ state: { readOnly: false, doc: { length: 4 } }, dispatch: vi.fn() }),
+    formatRelativeTime: () => "just now",
+    githubSessionReady: Promise.resolve(),
+    githubUsername: "alice",
+  } as unknown as typeof window.MDE;
+
+  const screen = await render(VersionHistory);
+  versionHistoryOpen.set(true);
+  await expect.element(screen.getByText("broken commit")).toBeVisible();
+
+  await screen.getByRole("button", { name: "Diff" }).click();
+  const select = screen.getByLabelText("Compare against").element() as HTMLSelectElement;
+  select.value = SHA_BROKEN;
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+
+  await expect.element(screen.getByText("Loading…")).toBeVisible();
+  vi.unstubAllGlobals();
+});

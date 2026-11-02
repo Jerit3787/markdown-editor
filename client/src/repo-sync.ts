@@ -50,6 +50,15 @@ export function dedupeRepoPath(basePath: string, existingPaths: Set<string>): st
   return `${stem}-${n}${ext}`;
 }
 
+// A doc's asset folder, derived from its FULL repo path rather than its
+// basename: "notes.md" -> "notes" (unchanged for root docs, so no churn),
+// but "docs/notes.md" -> "docs/notes". Two docs sharing a basename
+// therefore get separate assets/<folder>/ directories and separate
+// history files instead of overwriting each other.
+export function assetFolderFor(repoPath: string): string {
+  return repoPath.replace(/\.md$/i, "");
+}
+
 export const WORKSPACE_MARKER_PATH = ".mde/workspace.json";
 
 export interface WorkspaceMarker {
@@ -128,22 +137,32 @@ export function rewriteImagesForPush(
   return { content: newContent, assets };
 }
 
-export function resolveImagesFromPull(content: string, docSlug: string, blobs: Record<string, string>): { content: string; images: Record<string, string> } {
+export function resolveImagesFromPull(
+  content: string,
+  assetFolder: string,
+  blobs: Record<string, string>,
+  legacyFolder?: string,
+): { content: string; images: Record<string, string> } {
   const images: Record<string, string> = {};
-  const prefix = `assets/${docSlug}/`;
+  // A repo pushed before the full-path scheme migration still references
+  // assets from the legacy basename folder; resolve both so nothing breaks
+  // until the next push rewrites the refs.
+  const folders = legacyFolder && legacyFolder !== assetFolder ? [assetFolder, legacyFolder] : [assetFolder];
+  const prefixes = folders.map((folder) => `assets/${folder}/`);
   // The internal ref is deterministic (the source path's own suffix after
-  // the assets/<slug>/ prefix), not a fresh Date.now()-based mint per
-  // pull — a timestamp-based ref changed on every pull even when the
-  // image itself was byte-identical, which (a) turned an untouched image
-  // line into a spurious diff whenever an unrelated part of the file was
-  // re-pulled, and (b) round-tripped back through rewriteImagesForPush as
-  // a NEW asset path every single push, silently renaming the file in
-  // the repo despite zero real edits. This exact form (the raw suffix,
-  // slashes included) is what makes that round trip exact: push's own
-  // hasExt branch writes assets/<slug>/<ref> back out unchanged.
+  // the assets/.../ prefix), not a fresh Date.now()-based mint per pull —
+  // a timestamp-based ref changed on every pull even when the image itself
+  // was byte-identical, which (a) turned an untouched image line into a
+  // spurious diff whenever an unrelated part of the file was re-pulled,
+  // and (b) round-tripped back through rewriteImagesForPush as a NEW asset
+  // path every single push, silently renaming the file in the repo despite
+  // zero real edits. This exact form (the raw suffix, slashes included) is
+  // what makes that round trip exact: push's own hasExt branch writes
+  // assets/<folder>/<ref> back out unchanged.
   const seenRefs = new Map<string, string>(); // source ref -> assigned internal key, mirrors rewriteImagesForPush's own seenRefs reuse
   const newContent = content.replace(MARKDOWN_IMAGE_RE, (match, alt, ref) => {
-    if (!ref.startsWith(prefix) || !blobs[ref]) return match;
+    const prefix = prefixes.find((p) => ref.startsWith(p) && blobs[ref]);
+    if (!prefix) return match;
     let internalRef = seenRefs.get(ref);
     if (!internalRef) {
       internalRef = ref.slice(prefix.length);
@@ -262,7 +281,7 @@ export async function pullFromRepo(
       blobs[assetPath] = `data:${mimeFromAssetPath(assetPath)};base64,${assetData.content.replace(/\n/g, "")}`;
     }
 
-    const resolved = resolveImagesFromPull(rawContent, docSlug, blobs);
+    const resolved = resolveImagesFromPull(rawContent, assetFolderFor(repoPath), blobs, docSlugFor(repoPath));
     const result = upsertDocFromRepo(workspaceId, repoPath, {
       name: docSlug,
       content: resolved.content,
@@ -315,13 +334,29 @@ export function slugFromRepoPath(repoPath: string): string {
   return repoPath.replace(/\.md$/i, "").split("/").pop() || "untitled";
 }
 
-// .mde/history/<slug>.json — one companion file per doc holding its
+// .mde/history/<path>.json — one companion file per doc holding its
 // local-only version-history snapshots and personal notes (see
 // docs/superpowers/specs/2026-08-19-repo-local-history-sync-design.md).
-// Same slug as the assets/<slug>/ folder, so a rename keeps both paths
-// in sync via the same rename/delete detection already in planPush.
+// Derived from the doc's FULL repo path (like assetFolderFor) so two docs
+// sharing a basename in different folders get separate history files; root
+// docs keep the legacy path.
 export function historyPathFor(repoPath: string): string {
-  return `.mde/history/${slugFromRepoPath(repoPath)}.json`;
+  return `.mde/history/${assetFolderFor(repoPath)}.json`;
+}
+
+// Map an assets/... blob back to the markdown path that owns its folder:
+// "assets/docs/notes/pic.png" -> "docs/notes.md". Null for paths that
+// aren't a doc's asset file (e.g. a blob directly under assets/).
+function assetOwnerDocPath(assetPath: string): string | null {
+  const match = /^assets\/(.+)\/[^/]+$/.exec(assetPath);
+  return match ? `${match[1]}.md` : null;
+}
+
+// Map a companion history file back to its doc: ".mde/history/docs/notes.json"
+// -> "docs/notes.md". Handles the legacy single-segment form too.
+function historyOwnerDocPath(historyPath: string): string | null {
+  const match = /^\.mde\/history\/(.+)\.json$/.exec(historyPath);
+  return match ? `${match[1]}.md` : null;
 }
 
 function serializeCitationsBlock(citations: { prefs: CitationPrefs; bibliography: BibEntry[] } | undefined, content: string): string {
@@ -381,15 +416,16 @@ export async function planPush(
   // outright (unlike pendingRepoDeletions, there's no "never pulled in"
   // ambiguity: the doc that owned this path still exists right now).
   const renameOldPaths: string[] = [];
-  // slug -> the assets/<slug>/ blob paths its doc STILL references this
-  // push. Only populated for docs that already tracked this exact repoPath
-  // (not new, not a rename, not a by-name adopt, not conflicted) — those
-  // are the ones whose assets/<slug>/ contents we can trust ourselves to
-  // prune. Any blob under such a slug that isn't in the set is an orphan
-  // left behind by an image the doc no longer references (deleted line,
-  // Manage Images delete, a version restore that dropped it) and is swept
-  // below, the same way a deleted doc's whole folder is.
-  const referencedSlugAssets = new Map<string, Set<string>>();
+  // asset folder (repo path minus .md) -> the assets/... blob paths its
+  // doc STILL references this push. Only populated for docs that already
+  // tracked this exact repoPath (not new, not a rename, not a by-name
+  // adopt, not conflicted) — those are the ones whose folder contents we
+  // can trust ourselves to prune. Any blob under such a folder that isn't
+  // in the set is an orphan left behind by an image the doc no longer
+  // references (deleted line, Manage Images delete, a version restore that
+  // dropped it) and is swept below, the same way a deleted doc's whole
+  // folder is.
+  const referencedFolderAssets = new Map<string, Set<string>>();
 
   for (const doc of docs) {
     let repoPath = doc.repoPath;
@@ -439,7 +475,7 @@ export async function planPush(
     }
     const { content, assets } = rewriteImagesForPush(
       serializeCitationsBlock(doc.citations, serializeMetadataBlock(doc.metadata ?? [], doc.content)),
-      slugFromRepoPath(repoPath),
+      assetFolderFor(repoPath),
       doc.images,
       doc.diagrams,
     );
@@ -467,18 +503,18 @@ export async function planPush(
     claimedPaths.add(repoPath);
     if (!contentUnchanged) plan.changes.push({ docId: doc.id, repoPath, content, assets });
 
-    // Record which assets/<slug>/ blobs this doc still points at, so the
+    // Record which assets/... blobs this doc still points at, so the
     // orphan sweep below can delete the ones it doesn't. Skipped for a
     // never-pushed doc that just adopted an existing filename by name
     // match (matchedExistingFile) and for a rename into a new path
     // (isNewPath) — same "we never pulled these in, can't call them
     // orphans" caution the pendingRepoDeletions guard uses.
     if (!isNewPath && !matchedExistingFile) {
-      const slug = slugFromRepoPath(repoPath);
-      let refd = referencedSlugAssets.get(slug);
+      const folder = assetFolderFor(repoPath);
+      let refd = referencedFolderAssets.get(folder);
       if (!refd) {
         refd = new Set<string>();
-        referencedSlugAssets.set(slug, refd);
+        referencedFolderAssets.set(folder, refd);
       }
       for (const asset of assets) refd.add(asset.path);
     }
@@ -502,7 +538,7 @@ export async function planPush(
     if (treePaths.has(path) && !claimedPaths.has(path) && !plan.deletions.includes(path)) plan.deletions.push(path);
   }
   // Each deleted doc's companion history file (if it has one) is deleted
-  // right alongside it — same slug-derived path as its assets/<slug>/
+  // right alongside it — derived from the same full repo path as its asset
   // folder, so a rename or delete never leaves an orphaned history file.
   for (const mdPath of [...plan.deletions]) {
     const historyPath = historyPathFor(mdPath);
@@ -511,28 +547,25 @@ export async function planPush(
     }
   }
 
-  // A deleted or renamed-away doc also orphans its assets/<slug>/ image
-  // folder — sweep every asset blob whose slug we're deleting and that no
-  // live doc still claims (rewriteImagesForPush is where assets/<slug>/ is
-  // written; same slug scheme as historyPathFor). Guards against a name
-  // being reclaimed by another doc this same push.
-  const deletedSlugs = new Set(plan.deletions.map(slugFromRepoPath));
-  const liveSlugs = new Set([...claimedPaths].map(slugFromRepoPath));
+  // A deleted or renamed-away doc also orphans its own asset folder — the
+  // folder is derived from the doc's exact path now, so a same-basename
+  // sibling is never involved. Guards against a path being reclaimed by
+  // another doc this same push.
+  const removedDocPaths = new Set([...plan.deletions, ...renameOldPaths]);
   for (const path of treeShaByPath.keys()) {
-    const match = /^assets\/([^/]+)\//.exec(path);
-    if (!match) continue;
-    const slug = match[1];
-    if (deletedSlugs.has(slug) && !liveSlugs.has(slug) && !plan.deletions.includes(path)) {
+    const owner = assetOwnerDocPath(path);
+    if (!owner) continue;
+    if (removedDocPaths.has(owner) && !claimedPaths.has(owner) && !plan.deletions.includes(path)) {
       plan.deletions.push(path);
     }
   }
 
-  // Orphan sweep for STILL-LINKED docs: a blob under assets/<slug>/ whose
-  // doc no longer references it (see referencedSlugAssets above) is dead
-  // weight — pull never re-imports an unreferenced asset, so it just
+  // Orphan sweep for STILL-LINKED docs: a blob under an owned asset folder
+  // whose doc no longer references it (see referencedFolderAssets above) is
+  // dead weight — pull never re-imports an unreferenced asset, so it just
   // accumulates in the repo push after push. Delete it.
-  for (const [slug, refd] of referencedSlugAssets) {
-    const assetPrefix = `assets/${slug}/`;
+  for (const [folder, refd] of referencedFolderAssets) {
+    const assetPrefix = `assets/${folder}/`;
     for (const path of treeShaByPath.keys()) {
       if (path.startsWith(assetPrefix) && !refd.has(path) && !plan.deletions.includes(path)) {
         plan.deletions.push(path);
@@ -540,22 +573,19 @@ export async function planPush(
     }
   }
 
-  // Dead-slug sweep — only on a repo this workspace actually owns (its
+  // Dead-folder sweep — only on a repo this workspace actually owns (its
   // .mde/workspace.json identifies us; see checkWorkspaceMarker). An
-  // assets/<slug>/ folder or a .mde/history/<slug>.json with NO matching
-  // <slug>.md anywhere in the tree and no live doc is a leftover from a
-  // document deleted long ago — before this sweep existed, or with its
-  // pendingRepoDeletions entry already consumed. On a first link to a repo
-  // we don't own we can't tell such a folder from content we simply
-  // haven't pulled yet, so this stays gated on sameWorkspace.
+  // assets/... blob or .mde/history/... file maps back to the markdown
+  // path that should own it; when neither the tree nor a live doc has that
+  // path, it is a leftover from a document deleted long ago (or a legacy
+  // basename folder a nested doc has since migrated away from). On a first
+  // link to a repo we don't own we can't tell such a path from content we
+  // simply haven't pulled yet, so this stays gated on sameWorkspace.
   if (sameWorkspace) {
-    const mdSlugs = new Set(filterMarkdownEntries(mdEntries).map((e) => slugFromRepoPath(e.path)));
     for (const path of treeShaByPath.keys()) {
-      const assetMatch = /^assets\/([^/]+)\//.exec(path);
-      const historyMatch = /^\.mde\/history\/([^/]+)\.json$/.exec(path);
-      const slug = assetMatch ? assetMatch[1]! : historyMatch ? historyMatch[1]! : null;
-      if (slug === null) continue;
-      if (!mdSlugs.has(slug) && !liveSlugs.has(slug) && !plan.deletions.includes(path)) {
+      const owner = assetOwnerDocPath(path) ?? historyOwnerDocPath(path);
+      if (!owner) continue;
+      if (!treePaths.has(owner) && !claimedPaths.has(owner) && !plan.deletions.includes(path)) {
         plan.deletions.push(path);
       }
     }
@@ -665,6 +695,42 @@ export async function pushToRepo(
   setWorkspaceLastSynced(workspaceId, Date.now());
 
   async function applyResolved(resolutions: Record<string, "mine" | "theirs">): Promise<void> {
+    // "Take theirs" means adopt the remote file, not merely skip the push:
+    // leaving the local copy untouched used to leave the doc's stale
+    // repoSha in place, so the next push flagged the same conflict again
+    // while the UI claimed it had been resolved.
+    for (const conflict of plan.conflicts) {
+      if (resolutions[conflict.docId] !== "theirs") continue;
+      const localDoc = docsInWorkspace(workspaceId).find((d) => d.id === conflict.docId);
+      if (!localDoc) continue;
+      const blobRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/blob/${conflict.remoteSha}`);
+      if (!blobRes.ok) continue; // best-effort — a later pull can retry
+      const blobData = await blobRes.json();
+      const rawContent = blobData.encoding === "base64" ? decodeBase64Text(blobData.content) : blobData.content;
+      // Resolve assets exactly like pullFromRepo's fetchAndApply: fetch
+      // every referenced assets/.../ blob from the same tree and rewrite
+      // the markdown back to internal ref keys.
+      const imageRefs = [...rawContent.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g)].map((m) => m[1] as string);
+      const blobs: Record<string, string> = {};
+      for (const assetPath of imageRefs) {
+        const assetEntry = entries.find((e) => e.type === "blob" && e.path === assetPath);
+        if (!assetEntry) continue;
+        const assetRes = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/blob/${assetEntry.sha}`);
+        if (!assetRes.ok) continue;
+        const assetData = await assetRes.json();
+        blobs[assetPath] = `data:${mimeFromAssetPath(assetPath)};base64,${assetData.content.replace(/\n/g, "")}`;
+      }
+      const resolved = resolveImagesFromPull(rawContent, assetFolderFor(conflict.repoPath), blobs, slugFromRepoPath(conflict.repoPath));
+      const result = upsertDocFromRepo(workspaceId, conflict.repoPath, {
+        name: localDoc.name,
+        content: resolved.content,
+        images: Object.keys(resolved.images).length ? resolved.images : undefined,
+        repoSha: conflict.remoteSha,
+      });
+      // A repo-linked workspace that is also live-shared must reflect the
+      // adopted content in the room, same as a pull's own repo hook.
+      repoDocSyncHook.onRepoDocsChanged?.({ workspaceId, created: [], updated: [result.id], deleted: [] });
+    }
     const winningDocs = plan.conflicts.filter((c) => resolutions[c.docId] === "mine").map((c) => docs.find((d) => d.id === c.docId)!);
     // sameWorkspace is unused here — the empty tree means matchedExistingFile
     // can never become true in this retry, so its value doesn't affect anything.

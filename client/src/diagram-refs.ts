@@ -18,7 +18,10 @@ export function diagramKey(diagrams: Record<string, string>): string {
 export function resolveDiagramRefs(text: string, diagrams: Record<string, string> | undefined): string {
   if (!diagrams) return text;
   return text.replace(/```mermaid[ \t]*\n([^\n]*)\n```/g, (match, ref) => {
-    const source = diagrams[ref];
+    // The preview renderer looks the key up via code.trim(); a hand-
+    // written/pasted fence with trailing whitespace must resolve the same
+    // way here, or export/publish leaves a literal one-line ref fence.
+    const source = diagrams[ref.trim()];
     return source ? `\`\`\`mermaid\n${source}\n\`\`\`` : match;
   });
 }

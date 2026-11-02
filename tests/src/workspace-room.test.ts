@@ -1600,6 +1600,38 @@ describe("WorkspaceRoom.handleMetaRequest", () => {
 });
 
 describe("WorkspaceRoom.handleInternalSeedRequest", () => {
+  it("cannot be reached through an external path that merely ends in /internal/seed", async () => {
+    // Regression: fetch() used to dispatch on `pathname.endsWith(...)`,
+    // so an external request to .../versions/internal/seed hit the
+    // unauthenticated seed handler and could overwrite the access record.
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const request = new Request("https://app.example.com/api/workspace/ws1/docs/docA/versions/internal/seed", {
+      method: "POST",
+      body: JSON.stringify({
+        docId: "docA",
+        update: [],
+        access: { owner: "mallory", generalAccess: "restricted", requireAccount: false, role: "viewer", invited: [] },
+      }),
+    });
+    const res = await room.fetch(request);
+    expect(res.status).not.toBe(204);
+    expect((await room.getAccess()).owner).toBeNull();
+    expect(room.docIds).toEqual([]);
+  });
+
+  it("accepts the migration shim's own internal-host seed request", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "migrated");
+    const request = new Request("https://internal/internal/seed", {
+      method: "POST",
+      body: JSON.stringify({ docId: "docA", update: Array.from(Y.encodeStateAsUpdate(scratch)) }),
+    });
+    const res = await room.fetch(request);
+    expect(res.status).toBe(204);
+    expect(room.docIds).toEqual(["docA"]);
+  });
+
   it("seeds a document's Yjs state, access, snapshots, and comments from a migration payload", async () => {
     const room = new WorkspaceRoom(fakeState(), fakeEnvWithSecret);
     const scratch = new Y.Doc();
@@ -2757,5 +2789,43 @@ describe("WorkspaceRoom anon authorship", () => {
     const { room, ws, docRoom } = await roomWithAnon("editor");
     await applyFrom(room, ws, docRoom, (c) => c.getText("content").insert(0, "hello from a guest"));
     expect((await room.getSnapshots("doc1")).at(-1)!.authors).toEqual(["Bold Wren"]);
+  });
+});
+
+describe("document-room allocation boundary", () => {
+  function awarenessFrame(docId: string): ArrayBuffer {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+    encoding.writeVarString(encoder, docId);
+    encoding.writeVarUint8Array(encoder, new Uint8Array([0]));
+    return encoding.toUint8Array(encoder).buffer as ArrayBuffer;
+  }
+
+  it("ignores an awareness frame for a docId that isn't a workspace member", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    room.sessions.set(ws, { username: "anon-1", role: "viewer", viewingDocId: null });
+
+    await room.handleMessage(ws, awarenessFrame("made-up-doc"));
+
+    expect(room.docs.has("made-up-doc")).toBe(false);
+    expect(room.docIds).toEqual([]);
+  });
+
+  it("does not let a non-editor introduce a new document via a sync frame", async () => {
+    const room = new WorkspaceRoom(fakeState(), fakeEnv);
+    const ws = { send: () => {} } as unknown as WebSocket;
+    room.sessions.set(ws, { username: "bob", role: "reviewer", viewingDocId: null });
+    const scratch = new Y.Doc();
+    scratch.getText("content").insert(0, "x");
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    encoding.writeVarString(encoder, "new-doc");
+    syncProtocol.writeSyncStep1(encoder, scratch);
+
+    await room.handleMessage(ws, encoding.toUint8Array(encoder).buffer as ArrayBuffer);
+
+    expect(room.docs.has("new-doc")).toBe(false);
+    expect(room.docIds).toEqual([]);
   });
 });

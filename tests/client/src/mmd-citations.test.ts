@@ -85,3 +85,16 @@ describe("transformCitations — structured source", () => {
     expect(out).not.toContain('id="cite-B"');
   });
 });
+
+describe("transformCitations — code protection", () => {
+  it("leaves a citation definition inside a fenced code block untouched", () => {
+    const input = "```md\n[@Smith2020]: Smith, J. (2020). Title.\n```\n";
+    expect(transformCitations(input, prefs(), [])).toBe(input);
+  });
+
+  it("leaves a citation marker inside a code span untouched", () => {
+    const bibliography: BibEntry[] = [{ key: "Smith2020", author: "Smith", year: "2020", text: "Title" }];
+    const out = transformCitations("`[@Smith2020]`", prefs({ bibliographySource: "structured" }), bibliography);
+    expect(out).toBe("`[@Smith2020]`");
+  });
+});

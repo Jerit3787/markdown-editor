@@ -117,7 +117,15 @@ export async function verifyAnonToken(env: Env, token: string): Promise<{ anonId
 export function getCookie(request: Request, name: string): string | null {
   const header = request.headers.get("Cookie") || "";
   const match = header.match(new RegExp(`(?:^|; )${name}=([^;]+)`));
-  return match && match[1] ? decodeURIComponent(match[1]) : null;
+  if (!match || !match[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch (err) {
+    // A malformed percent-escape (mangled header/proxy, hand-edited
+    // cookie) must read as "no session" — throwing here 500s every
+    // authenticated route for that browser until the cookie expires.
+    return null;
+  }
 }
 
 export function cookieHeader(name: string, value: string, { maxAge }: { maxAge?: number } = {}): string {

@@ -10,6 +10,17 @@
 // CODE_SEGMENT_RE from here.
 export const CODE_SEGMENT_RE = /(```[\s\S]*?```|`[^`\n]*`)/g;
 
+// Applies `fn` to every non-code segment of `text`, leaving fenced and
+// inline code verbatim — the whole-string form for transforms (deflists,
+// super/subscript, citations) whose own pattern can't be expressed as a
+// simple `replace` over each segment.
+export function mapOutsideCode(text: string, fn: (segment: string) => string): string {
+  return text
+    .split(CODE_SEGMENT_RE)
+    .map((segment, i) => (i % 2 === 1 ? segment : fn(segment)))
+    .join("");
+}
+
 // String.prototype.replace's function form, but only over the parts of
 // `text` outside a code segment. Splitting on a *capturing* regex
 // interleaves the code segments at odd indices — left verbatim.

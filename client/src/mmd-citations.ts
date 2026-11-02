@@ -1,5 +1,6 @@
 import { marked } from "marked";
 import { escapeHtml } from "./escape-html";
+import { mapOutsideCode } from "./markdown-code";
 
 export interface BibEntry {
   key: string;
@@ -34,24 +35,28 @@ export function transformCitations(text: string, prefs: CitationPrefs, structure
   if (prefs.bibliographySource === "structured") {
     for (const entry of structuredBibliography) pool.set(entry.key, entry);
   } else {
-    body = body.replace(DEFINITION_RE[prefs.markerStyle], (_match, key: string, refText: string) => {
-      pool.set(key, { key, author: "", year: "", text: refText.trim() });
-      return "";
-    });
+    body = mapOutsideCode(body, (segment) =>
+      segment.replace(DEFINITION_RE[prefs.markerStyle], (_match, key: string, refText: string) => {
+        pool.set(key, { key, author: "", year: "", text: refText.trim() });
+        return "";
+      }),
+    );
   }
 
   const order: string[] = [];
-  body = body.replace(MARKER_RE[prefs.markerStyle], (match, key: string) => {
-    const entry = pool.get(key);
-    if (!entry) return match;
-    if (!order.includes(key)) order.push(key);
-    if (prefs.displayStyle === "numbered") {
-      const n = order.indexOf(key) + 1;
-      return `<sup><a href="#cite-${escapeHtml(key)}">${n}</a></sup>`;
-    }
-    const label = entry.author && entry.year ? `${entry.author}, ${entry.year}` : entry.author || entry.year || entry.key;
-    return `(${label})`;
-  });
+  body = mapOutsideCode(body, (segment) =>
+    segment.replace(MARKER_RE[prefs.markerStyle], (match, key: string) => {
+      const entry = pool.get(key);
+      if (!entry) return match;
+      if (!order.includes(key)) order.push(key);
+      if (prefs.displayStyle === "numbered") {
+        const n = order.indexOf(key) + 1;
+        return `<sup><a href="#cite-${escapeHtml(key)}">${n}</a></sup>`;
+      }
+      const label = entry.author && entry.year ? `${entry.author}, ${entry.year}` : entry.author || entry.year || entry.key;
+      return `(${label})`;
+    }),
+  );
 
   if (order.length === 0) return body;
 

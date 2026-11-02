@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import { moveToWorkspaceDocId, closeMoveToWorkspaceModal } from "../stores/moveToWorkspace";
   import { docsStore, activeIdStore, findDocById, moveDocToWorkspace, ensureActiveDocInWorkspace } from "../stores/docs";
@@ -10,6 +11,14 @@
     const counts = new Map<string, number>();
     for (const d of $docsStore) counts.set(d.workspaceId, (counts.get(d.workspaceId) || 0) + 1);
     return counts;
+  });
+
+  onMount(() => {
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $moveToWorkspaceDocId) closeMoveToWorkspaceModal();
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
   });
 
   function pick(workspaceId: string) {

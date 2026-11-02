@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import { repoConflictModalOpen, repoConflictState } from "../stores/repoSync";
   import { showToast } from "../stores/toast";
@@ -10,6 +11,14 @@
     if ($repoConflictState) {
       choices = Object.fromEntries($repoConflictState.conflicts.map((c) => [c.docId, "mine" as const]));
     }
+  });
+
+  onMount(() => {
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $repoConflictModalOpen) close();
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
   });
 
   function close() {

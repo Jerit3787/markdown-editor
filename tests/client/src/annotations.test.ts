@@ -175,3 +175,26 @@ describe("railAnnotationsForShared — line grouping (D4)", () => {
     expect(cards.filter((c) => c.subEdits)).toHaveLength(1);
   });
 });
+
+describe("railAnnotationsForShared — replace-pair discussion threads", () => {
+  it("carries replies attached to either half of a replace pair onto the card", () => {
+    const doc = docWith(CONTENT);
+    recordDeleteSuggestion(doc, 0, 5, "alice"); // "hello"
+    recordInsertSuggestion(doc, 5, 11, "alice"); // " world"
+    const list = listResolvedSuggestions(doc);
+    const del = list.find((s) => s.kind === "delete")!;
+    const ins = list.find((s) => s.kind === "insert")!;
+    const withReplies = list.map((s) =>
+      s.id === del.id
+        ? { ...s, replies: [{ id: "r1", author: "bob", body: "why?", createdAt: 2 }] }
+        : s.id === ins.id
+          ? { ...s, replies: [{ id: "r2", author: "carol", body: "sure", createdAt: 1 }] }
+          : s,
+    );
+
+    const cards = railAnnotationsForShared(withReplies, [], CONTENT);
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.replacedText).toBe("hello");
+    expect(cards[0]!.replies?.map((r) => r.id)).toEqual(["r2", "r1"]);
+  });
+});

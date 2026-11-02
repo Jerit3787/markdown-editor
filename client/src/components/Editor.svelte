@@ -113,9 +113,17 @@
     cm5?.on("vim-mode-change", updateFromVimState);
   }
 
+  // A rapid mode switch can leave two dynamic imports in flight; module
+  // resolution order is not selection order, so apply only the latest
+  // request's extensions (a stale import must not overwrite the newest
+  // keymap).
+  let keybindingRequest = 0;
+
   async function applyKeybindingMode(mode: KeybindingMode): Promise<void> {
     if (!view) return;
+    const request = ++keybindingRequest;
     const extensions = await keybindingsExtensionsFor(mode);
+    if (request !== keybindingRequest || !view) return;
     view.dispatch({ effects: keybindingsCompartment.reconfigure(extensions) });
     await updateKeybindingIndicator(mode);
   }

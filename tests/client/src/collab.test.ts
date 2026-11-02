@@ -36,6 +36,7 @@ import {
   joinSharedLink,
   handleRepoDocsChanged,
   openShareModal,
+  __resetUnsyncedUpdatesForTest,
 } from "../../../client/src/collab";
 import { docsStore, activeIdStore } from "../../../client/src/stores/docs";
 import { workspacesStore, activeWorkspaceIdStore } from "../../../client/src/stores/workspaces";
@@ -45,6 +46,7 @@ import { workspaceRepoLinked } from "../../../client/src/stores/repoSync";
 
 import { workspaceAccessDenied, identityUnverified, shareModalOpen } from "../../../client/src/stores/share";
 import { getSuggestionsMap } from "../../../client/src/suggestions";
+import { collabIdentity } from "../../../client/src/stores/collabIdentity";
 import type { Doc, Workspace } from "../../../client/src/types";
 
 function fakeDoc(overrides: Partial<Doc>): Doc {
@@ -53,6 +55,13 @@ function fakeDoc(overrides: Partial<Doc>): Doc {
 function fakeWorkspace(overrides: Partial<Workspace>): Workspace {
   return { id: "w1", name: "Workspace", createdAt: 0, updatedAt: 0, ...overrides };
 }
+
+// Staged offline updates are persisted under workspace+doc keys that stay
+// behind after a teardown; tests reuse the same small id set, so clear
+// them between cases (production keys are per real workspace/doc).
+afterEach(() => {
+  __resetUnsyncedUpdatesForTest();
+});
 
 describe("isIdentityUnverified", () => {
   it("is true when there's no session and general access is 'anyone', even with the owner visible", () => {
@@ -297,6 +306,11 @@ describe("pushWorkspaceDocDelete", () => {
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
   static OPEN = 1;
+  // Doc content the "room" already holds, keyed by docId — used to build
+  // the step2 reply below. Empty by default (the handshake just needs to
+  // complete); a test that models a rejoin against real server content
+  // registers its Y.Doc here.
+  static serverDocs = new Map<string, Y.Doc>();
   url: string;
   binaryType = "";
   readyState = 0;
@@ -305,6 +319,7 @@ class MockWebSocket {
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
   closed = false;
+  sent: Uint8Array[] = [];
   constructor(url: string) {
     this.url = url;
     MockWebSocket.instances.push(this);
@@ -330,6 +345,7 @@ class MockWebSocket {
   // step1 — using an empty Y.Doc, since these tests only care that the
   // handshake completes, not about specific synced content.
   send(data: Uint8Array) {
+    this.sent.push(data);
     const decoder = decoding.createDecoder(data);
     if (decoding.readVarUint(decoder) !== 0 /* MESSAGE_SYNC */) return;
     const docId = decoding.readVarString(decoder);
@@ -337,7 +353,7 @@ class MockWebSocket {
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, 0 /* MESSAGE_SYNC */);
       encoding.writeVarString(encoder, docId);
-      syncProtocol.writeSyncStep2(encoder, new Y.Doc());
+      syncProtocol.writeSyncStep2(encoder, MockWebSocket.serverDocs.get(docId) ?? new Y.Doc());
       this.onmessage?.({ data: encoding.toUint8Array(encoder).buffer as ArrayBuffer });
     });
   }
@@ -1321,7 +1337,9 @@ describe("discovering a document created by another collaborator", () => {
   // workspaceRoom.docs caches bindings by docId for the lifetime of the
   // module (see "suggestion-mode role wiring" above for the same note),
   // so this returns a fresh, uniquely-suffixed setup each time.
-  async function setup(suffix: string) {
+  // extraRoomDocIds simulates documents the room already had when this
+  // client joined (e.g. created by a collaborator while it was away).
+  async function setup(suffix: string, extraRoomDocIds: string[] = []) {
     document.body.innerHTML = '<div id="shareBtn"></div>';
     MockWebSocket.instances = [];
     vi.stubGlobal("WebSocket", MockWebSocket);
@@ -1332,7 +1350,7 @@ describe("discovering a document created by another collaborator", () => {
           return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
         }
         if (url.includes("/docs")) {
-          return { ok: true, json: async () => [`doc-${suffix}-a`] };
+          return { ok: true, json: async () => [`doc-${suffix}-a`, ...extraRoomDocIds] };
         }
         return { ok: false, json: async () => ({}) };
       }),
@@ -1341,7 +1359,7 @@ describe("discovering a document created by another collaborator", () => {
       enterCollabMode: vi.fn(),
       exitCollabMode: vi.fn(),
       setReadOnly: vi.fn(),
-      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } } })),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } }, dispatch: vi.fn() })),
       githubUsername: "alice",
       githubSessionReady: Promise.resolve(),
       setDocImage: vi.fn(),
@@ -1356,7 +1374,7 @@ describe("discovering a document created by another collaborator", () => {
     handleDocChanged(doc);
     for (let i = 0; i < 10; i++) await Promise.resolve();
 
-    return { ws };
+    return { ws, doc };
   }
 
   afterEach(() => {
@@ -1447,6 +1465,56 @@ describe("discovering a document created by another collaborator", () => {
 
     expect(workspaceRoom.docs.has("doc-disc3-b")).toBe(false);
     expect(get(docsStore).find((d) => d.id === "doc-disc3-b")).toBeUndefined();
+  });
+
+  it("imports a document the room already had at join time but this client never saw", async () => {
+    // joinWorkspace pre-creates a binding for every docId the room lists,
+    // so a doc created by a collaborator while this client was away is
+    // NOT "new to us" at frame time. Without also checking the local
+    // doc list, it synced into a phantom binding and never appeared in
+    // the sidebar at all.
+    const remoteDoc = new Y.Doc();
+    remoteDoc.getText("content").insert(0, "written while away");
+    remoteDoc.getMap<string>("meta").set("name", "Remote New");
+    MockWebSocket.serverDocs.set("doc-rejoin-remote", remoteDoc);
+
+    const { ws } = await setup("rejoin", ["doc-rejoin-remote"]);
+    expect(workspaceRoom.docs.has("doc-rejoin-remote")).toBe(true);
+
+    const localDoc = get(docsStore).find((d) => d.id === "doc-rejoin-remote");
+    expect(localDoc?.name).toBe("Remote New");
+    expect(localDoc?.content).toBe("written while away");
+    expect(localDoc?.workspaceId).toBe(ws.id);
+  });
+
+  it("replays edits made while the socket was down when the workspace is rejoined", async () => {
+    // The server's copy is stale: the user typed while the socket was
+    // down, then the workspace was torn down and rejoined (workspace
+    // switch, unshare/re-share, reload). The old client overwrote that
+    // edit with the server's content — silent data loss.
+    const serverDoc = new Y.Doc();
+    serverDoc.getText("content").insert(0, "server old");
+    MockWebSocket.serverDocs.set("doc-offline-a", serverDoc);
+
+    const { ws, doc } = await setup("offline");
+    const binding = workspaceRoom.docs.get(doc.id)!;
+    // Simulate a dropped socket: send() only transmits at OPEN.
+    MockWebSocket.instances[0]!.readyState = 3;
+
+    binding.ydoc.transact(() => binding.ytext.insert(binding.ytext.length, " + offline edit"), "local");
+    teardownWorkspace();
+
+    const unsyncedKey = `mde:collab:unsynced:${ws.remoteId}:${doc.id}`;
+    expect(localStorage.getItem(unsyncedKey)).toBeTruthy();
+
+    // Rejoin the same workspace: a fresh, blank binding is created and
+    // the room's (stale) state arrives through the mock's step2 reply.
+    handleDocChanged(doc);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+
+    const rejoined = workspaceRoom.docs.get(doc.id);
+    expect(rejoined?.ytext.toString()).toContain("offline edit");
+    expect(rejoined?.ytext.toString()).toContain("server old");
   });
 
   it("does not re-import a document that's already locally known", async () => {
@@ -1567,6 +1635,51 @@ describe("incoming workspace meta sync (rename + document removal)", () => {
     expect(get(docsStore).find((d) => d.id === docA.id)).toBeDefined();
     expect(get(docsStore).find((d) => d.id === docB.id)).toBeDefined();
     expect(workspaceRoom.docs.has(docB.id)).toBe(true);
+  });
+
+  // A document created while the socket was down is seeded locally but
+  // never reaches the room, so the accept-time greeting on the next
+  // reconnect omits it. Treating that greeting as authoritative used to
+  // destroy the local record (and DELETE it from the room) — total loss
+  // of everything typed offline.
+  it("does not delete a locally-created doc the room has never registered", async () => {
+    const { ws, docA, docB } = await setup("metapending");
+    docsStore.update((docs) => [
+      ...docs,
+      {
+        id: "doc-metapending-new",
+        name: "Offline Doc",
+        content: "unsynced work",
+        updatedAt: 1,
+        createdAt: 1,
+        workspaceId: ws.id,
+        pendingRoomRegistration: true,
+      },
+    ]);
+
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id]);
+
+    expect(get(docsStore).find((d) => d.id === "doc-metapending-new")).toBeDefined();
+  });
+
+  it("clears the pending-registration flag once the room's docOrder includes the doc", async () => {
+    const { ws, docA, docB } = await setup("metapending2");
+    docsStore.update((docs) => [
+      ...docs,
+      {
+        id: "doc-metapending2-new",
+        name: "Offline Doc",
+        content: "unsynced work",
+        updatedAt: 1,
+        createdAt: 1,
+        workspaceId: ws.id,
+        pendingRoomRegistration: true,
+      },
+    ]);
+
+    sendWorkspaceMeta("Old Name", [docA.id, docB.id, "doc-metapending2-new"]);
+
+    expect(get(docsStore).find((d) => d.id === "doc-metapending2-new")?.pendingRoomRegistration).toBe(false);
   });
 
   // E1 regression: a repo-linked-AND-shared workspace used to lose its
@@ -1720,5 +1833,125 @@ describe("owner-deleted-the-workspace teardown", () => {
     expect(get(workspacesStore).find((w) => w.id === ws.id)).toBeUndefined();
     expect(get(docsStore).find((d) => d.id === docA.id)).toBeUndefined();
     expect(get(workspaceAccessDenied)).toBe("deleted");
+  });
+});
+
+describe("collaboration robustness (media, hostile metadata, listener stacking)", () => {
+  const MESSAGE_SYNC = 0;
+  const MESSAGE_AWARENESS = 1;
+
+  async function setup(suffix: string, extraRoomDocIds: string[] = []) {
+    document.body.innerHTML = '<div id="shareBtn"></div>';
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).includes("/access")) {
+          return { ok: true, json: async () => ({ owner: "alice", generalAccess: "anyone", requireAccount: false, role: "editor", invited: [] }) };
+        }
+        if (String(url).includes("/docs")) return { ok: true, json: async () => [`doc-${suffix}-a`, ...extraRoomDocIds] };
+        return { ok: false, json: async () => ({}) };
+      }),
+    );
+    window.MDE = {
+      enterCollabMode: vi.fn(),
+      exitCollabMode: vi.fn(),
+      setReadOnly: vi.fn(),
+      getEditor: vi.fn(() => ({ state: { doc: { toString: () => "" } }, dispatch: vi.fn() })),
+      githubUsername: "alice",
+      githubSessionReady: Promise.resolve(),
+      setDocImage: vi.fn(),
+      requireGithubSignIn: vi.fn(),
+      updatePreview: vi.fn(),
+    } as unknown as typeof window.MDE;
+
+    const ws = fakeSharedWorkspace({ id: `local-ws-${suffix}`, remoteId: `remote-${suffix}` });
+    workspacesStore.set([ws]);
+    const doc = { id: `doc-${suffix}-a`, name: "A", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    const other = { id: `doc-${suffix}-b`, name: "B", content: "", updatedAt: 0, createdAt: 0, workspaceId: ws.id };
+    docsStore.set([doc, other]);
+    activeIdStore.set(doc.id);
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    return { ws, doc, other };
+  }
+
+  function sendRawSyncUpdate(docId: string, sourceDoc: Y.Doc) {
+    const update = Y.encodeStateAsUpdate(sourceDoc);
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    encoding.writeVarString(encoder, docId);
+    syncProtocol.writeUpdate(encoder, update);
+    MockWebSocket.instances[0]!.onmessage!({ data: encoding.toUint8Array(encoder).buffer as ArrayBuffer } as MessageEvent);
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("does not stack a second awareness listener on every rebind of the same doc", async () => {
+    const { doc, other } = await setup("aware", ["doc-aware-b"]);
+    // Same-workspace doc switch away and back: no teardown, bindings reused.
+    handleDocChanged(other);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    handleDocChanged(doc);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    const binding = workspaceRoom.docs.get(doc.id)!;
+    const socket = MockWebSocket.instances[0]!;
+    socket.sent = [];
+    binding.awareness.setLocalState({ user: { name: "alice", color: "#fff" } });
+    await Promise.resolve();
+
+    const awarenessFrames = socket.sent.filter((frame) => {
+      const decoder = decoding.createDecoder(frame);
+      if (decoding.readVarUint(decoder) !== MESSAGE_AWARENESS) return false;
+      return decoding.readVarString(decoder) === doc.id;
+    });
+    expect(awarenessFrames.length).toBe(1);
+  });
+
+  it("propagates a collaborator's image deletion into the local document record", async () => {
+    const { doc } = await setup("imgdel");
+    const { setDocImage } = await import("../../../client/src/stores/docs");
+    window.MDE.setDocImage = (key, dataUrl) => setDocImage(key, dataUrl);
+
+    const source = new Y.Doc();
+    source.getMap<string>("images").set("pic.png", "data:image/png;base64,AAAA");
+    sendRawSyncUpdate(doc.id, source);
+    expect(get(docsStore).find((d) => d.id === doc.id)?.images?.["pic.png"]).toBe("data:image/png;base64,AAAA");
+
+    // A full-state update after the delete carries the tombstone, which the
+    // observer sees as a "delete" change.
+    source.getMap<string>("images").delete("pic.png");
+    sendRawSyncUpdate(doc.id, source);
+    expect(get(docsStore).find((d) => d.id === doc.id)?.images?.["pic.png"]).toBeUndefined();
+  });
+
+  it("updates every bound doc's awareness identity when the local identity changes", async () => {
+    const { doc } = await setup("identityaware");
+    window.MDE.githubUsername = null;
+    collabIdentity.set({ id: "anon:identity-test", name: "Quiet Lynx" });
+    await Promise.resolve();
+
+    const state = workspaceRoom.docs.get(doc.id)!.awareness.getLocalState() as { user?: { name?: string } } | null;
+    expect(state?.user?.name).toBe("Quiet Lynx");
+
+    collabIdentity.set({ id: "", name: "" });
+  });
+
+  it("survives malformed metadata/citations values written by a peer", async () => {
+    const { other } = await setup("badmeta", ["doc-badmeta-b"]);
+    const source = new Y.Doc();
+    source.getMap("meta").set("metadata", "{not json");
+    source.getMap("meta").set("citations", "also not json");
+    // Background doc: the malformed values are parsed by the deferred
+    // flush, which teardownWorkspace() runs synchronously — a throw there
+    // used to abort the teardown and leave the socket/bindings dangling.
+    sendRawSyncUpdate(other.id, source);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(() => teardownWorkspace()).not.toThrow();
+    expect(workspaceRoom.workspaceId).toBeNull();
   });
 });

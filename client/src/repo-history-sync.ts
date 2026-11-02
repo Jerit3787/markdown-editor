@@ -11,7 +11,7 @@
 import { get } from "svelte/store";
 import type { Doc, Note } from "./types";
 import { workspacesStore } from "./stores/workspaces";
-import { historyPathFor, decodeBase64Text } from "./repo-sync";
+import { historyPathFor, decodeBase64Text, slugFromRepoPath } from "./repo-sync";
 import { mergeSnapshotsFromRepo, type Snapshot } from "./history";
 import { mergeDocNotes } from "./stores/docs";
 
@@ -30,14 +30,23 @@ export async function fetchAndMergeRepoHistory(doc: Doc): Promise<void> {
   const repoLink = get(workspacesStore).find((w) => w.id === doc.workspaceId)?.repoLink;
   if (!repoLink) return;
   const historyPath = historyPathFor(doc.repoPath);
-  const encodedPath = historyPath.split("/").map(encodeURIComponent).join("/");
-  let res: Response;
-  try {
-    res = await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/contents/${encodedPath}?ref=${encodeURIComponent(repoLink.branch)}`);
-  } catch (err) {
-    return;
+  // Repos pushed before the full-path history scheme keep their companion
+  // file at the legacy basename path — try both before giving up.
+  const legacyHistoryPath = `.mde/history/${slugFromRepoPath(doc.repoPath)}.json`;
+  const fetchHistoryFile = async (path: string): Promise<Response | null> => {
+    const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+    try {
+      return await fetch(`/api/repo/${repoLink.owner}/${repoLink.repo}/contents/${encodedPath}?ref=${encodeURIComponent(repoLink.branch)}`);
+    } catch (err) {
+      return null;
+    }
+  };
+
+  let res = await fetchHistoryFile(historyPath);
+  if ((!res || !res.ok) && legacyHistoryPath !== historyPath) {
+    res = await fetchHistoryFile(legacyHistoryPath);
   }
-  if (!res.ok) return; // 404 = no companion file pushed yet; any other failure — best-effort, nothing to merge
+  if (!res || !res.ok) return; // 404 = no companion file pushed yet; any other failure — best-effort
   const data = (await res.json()) as { content: string; encoding: string };
   const raw = data.encoding === "base64" ? decodeBase64Text(data.content) : data.content;
   let parsed: { snapshots?: Snapshot[]; notes?: Note[] };

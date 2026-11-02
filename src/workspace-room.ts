@@ -527,7 +527,12 @@ export class WorkspaceRoom {
     if (url.pathname.endsWith("/access")) return this.handleAccessRequest(request);
     if (url.pathname.endsWith("/docs")) return this.handleDocsRequest(request);
     if (url.pathname.endsWith("/meta")) return this.handleMetaRequest(request);
-    if (url.pathname.endsWith("/internal/seed")) return this.handleInternalSeedRequest(request);
+    // The migration seed is an internal-only subrequest (CollabRoom
+    // constructs it against the "internal" host). Require BOTH the exact
+    // path and that internal host — an external path that merely *ends*
+    // with "/internal/seed" (e.g. /docs/<id>/versions/internal/seed) must
+    // never reach this unauthenticated handler (workspace takeover).
+    if (url.pathname === "/internal/seed" && url.hostname === "internal") return this.handleInternalSeedRequest(request);
 
     // (SP-B retired the four /docs/:id/comments* HTTP routes — comment
     // threads now sync as a `comments` Y.Map over the WebSocket.)
@@ -1045,6 +1050,12 @@ export class WorkspaceRoom {
       // logic below, and the registration after, both key off it.
       const isNewDoc = !this.docIds.includes(docId);
 
+      // Only an editor may allocate a room for an id this instance has
+      // never loaded. A room that already exists (comments/version access
+      // may have created it) is fine — this only guards against
+      // unbounded allocation, not membership itself (MDE-25 below).
+      if (isNewDoc && !this.docs.has(docId) && session.role !== "editor") return;
+
       await this.withDocRoom(docId, (docRoom) => {
         // A reviewer's write is allowed to apply (they must be able to
         // type suggestions), but the server then enforces that they only
@@ -1109,6 +1120,12 @@ export class WorkspaceRoom {
         await this.state.storage.put("docs", this.docIds);
       }
     } else if (messageType === MESSAGE_AWARENESS) {
+      // Awareness only exists for docs this instance already holds — a
+      // non-member id can only be introduced by an editor (who may
+      // already register docs over HTTP anyway), never by a viewer/
+      // reviewer. This keeps an anonymous link visitor from allocating a
+      // DocRoom for arbitrary ids.
+      if (!this.docIds.includes(docId) && !this.docs.has(docId) && session.role !== "editor") return;
       const update = decoding.readVarUint8Array(decoder);
       await this.withDocRoom(docId, (docRoom) => {
         awarenessProtocol.applyAwarenessUpdate(docRoom.awareness, update, ws);
@@ -1615,6 +1632,7 @@ export class WorkspaceRoom {
   // from worker.ts's routing (see src/worker.ts's WORKSPACE_* patterns,
   // none of which match "/internal/...").
   async handleInternalSeedRequest(request: Request): Promise<Response> {
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
     let body: { docId?: unknown; docName?: unknown; update?: unknown; access?: unknown; snapshots?: unknown; comments?: unknown };
     try {
       body = await request.json();
@@ -1627,8 +1645,21 @@ export class WorkspaceRoom {
     const docId = body.docId;
     const docName = typeof body.docName === "string" ? body.docName.trim() : "";
 
-    if (body.access) {
-      await this.state.storage.put("access", body.access);
+    if (body.access && typeof body.access === "object") {
+      // Normalize rather than storing the payload verbatim: this endpoint
+      // is internal-only (see fetch()'s exact-path guard), but persisting
+      // an unvalidated record here was what made the old routing slip a
+      // full workspace takeover. Keep the stored shape identical to what
+      // PUT /access writes.
+      const raw = body.access as Partial<AccessRecord>;
+      const next: AccessRecord = {
+        owner: typeof raw.owner === "string" ? raw.owner : null,
+        generalAccess: raw.generalAccess === "anyone" ? "anyone" : "restricted",
+        requireAccount: raw.requireAccount === true,
+        role: (["viewer", "reviewer", "editor"] as const).includes(raw.role as Role) ? (raw.role as Role) : "viewer",
+        invited: Array.isArray(raw.invited) ? normalizeInvited(raw.invited) : [],
+      };
+      await this.state.storage.put("access", next);
       this.cachedAccess = await this.getAccess();
     }
 

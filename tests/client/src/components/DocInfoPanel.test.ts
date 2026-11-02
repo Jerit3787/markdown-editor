@@ -91,3 +91,42 @@ test("A5: the owner does not get the read-only row", async () => {
   workspaceRepoLinked.set(false);
   collabIsOwner.set(false);
 });
+
+test("does not refetch the repo's commit dates on unrelated autosave updates", async () => {
+  window.MDE = {
+    formatRelativeTime: () => "just now",
+    updatePreview: vi.fn(),
+    githubSessionReady: Promise.resolve(),
+    githubUsername: "alice",
+  } as unknown as typeof window.MDE;
+  workspacesStore.set([{ id: "w1", name: "WS", createdAt: 0, updatedAt: 0, repoLink: { owner: "o", repo: "r", branch: "main" } }]);
+  docsStore.set([{ id: "d1", name: "Doc", content: "hello", updatedAt: 1, createdAt: 1, workspaceId: "w1", repoPath: "doc.md" }]);
+  activeIdStore.set("d1");
+  docInfoPanelOpen.set(true);
+
+  let commitFetches = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (String(url).includes("/commits")) {
+        commitFetches++;
+        return new Response(
+          JSON.stringify([{ sha: "a", commit: { message: "m", author: { name: "A", date: new Date(2_000).toISOString() } }, html_url: "" }]),
+          { status: 200 },
+        );
+      }
+      return new Response("[]", { status: 200 });
+    }),
+  );
+
+  const screen = await render(DocInfoPanel);
+  await expect.poll(() => commitFetches).toBe(1);
+
+  // A plain content autosave replaces the doc object but must not re-run
+  // the repo-date fetch (the doc's repo coordinates didn't change).
+  docsStore.update((docs) => docs.map((d) => (d.id === "d1" ? { ...d, content: "hello edited", updatedAt: 2 } : d)));
+  await new Promise((r) => setTimeout(r, 50));
+
+  expect(commitFetches).toBe(1);
+  vi.unstubAllGlobals();
+});

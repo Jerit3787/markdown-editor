@@ -1,11 +1,12 @@
 import "fake-indexeddb/auto";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   maybeSnapshotVersion,
   listVersions,
   getVersionContent,
   getVersionImages,
   restoreLocalVersion,
+  restoreLocalVersionContent,
   deleteHistory,
   getHistory,
   mergeSnapshotsFromRepo,
@@ -162,5 +163,52 @@ describe("mergeSnapshotsFromRepo", () => {
     expect(versions).toHaveLength(300);
     // listVersions reverses to newest-first — the newest merged-in remote entry must survive the cap
     expect(versions[0]!.id).toBe("remote-39");
+  });
+});
+
+describe("restore is best-effort about the history write", () => {
+  it("restoreLocalVersionContent still resolves when the IndexedDB write path fails", async () => {
+    const { restoreLocalVersionContent } = await import("../../../client/src/history");
+    const originalOpen = indexedDB.open.bind(indexedDB);
+    const spy = vi.spyOn(indexedDB, "open").mockImplementation(() => {
+      const req = {} as IDBOpenDBRequest;
+      // Every later open (the append's read+write) fails, as when storage
+      // is unavailable or over quota.
+      queueMicrotask(() => (req as unknown as { onerror?: () => void }).onerror?.());
+      return req;
+    });
+    try {
+      await expect(restoreLocalVersionContent("restore-quota-doc", "restored body")).resolves.toBeUndefined();
+    } finally {
+      spy.mockRestore();
+      void originalOpen;
+    }
+  });
+});
+
+describe("concurrent snapshot writes", () => {
+  it("serializes two overlapping read-modify-write cycles instead of dropping one", async () => {
+    const docId = "history-race-doc";
+    await Promise.all([restoreLocalVersionContent(docId, "first", 1_000), restoreLocalVersionContent(docId, "second", 1_001)]);
+    const contents = (await getHistory(docId)).map((s) => s.content).sort();
+    expect(contents).toEqual(["first", "second"]);
+  });
+});
+
+describe("malformed stored records", () => {
+  it("treats a record without a snapshots array as empty instead of throwing", async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open("mde-history", 1);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction("docHistory", "readwrite");
+      tx.objectStore("docHistory").put({ docId: "malformed-record" });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+
+    await expect(listVersions("malformed-record")).resolves.toEqual([]);
   });
 });

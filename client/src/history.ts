@@ -37,6 +37,29 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
+// Per-doc write queue. Every snapshot mutation is a read-modify-write of
+// one array, and the read and write are separate IndexedDB transactions —
+// two overlapping saves (the debounced autosave racing a restore, or two
+// repo-history merges) could both read the same base and let the later
+// put silently drop the other's snapshot. Serialize the whole cycle by
+// docId; the chain survives individual rejections (callers still see
+// their own error).
+const historyWriteQueues = new Map<string, Promise<unknown>>();
+
+function withHistoryLock<T>(docId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = historyWriteQueues.get(docId) ?? Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  historyWriteQueues.set(docId, tail);
+  void tail.then(() => {
+    if (historyWriteQueues.get(docId) === tail) historyWriteQueues.delete(docId);
+  });
+  return run;
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -53,7 +76,7 @@ export async function getHistory(docId: string): Promise<Snapshot[]> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
     const req = tx.objectStore(STORE_NAME).get(docId);
-    req.onsuccess = () => resolve(req.result ? req.result.snapshots : []);
+    req.onsuccess = () => resolve(req.result && Array.isArray(req.result.snapshots) ? req.result.snapshots : []);
     req.onerror = () => reject(req.error);
   });
 }
@@ -69,10 +92,12 @@ async function putHistory(docId: string, snapshots: Snapshot[]): Promise<void> {
 }
 
 async function appendSnapshot(docId: string, content: string, now: number, images?: Record<string, string>): Promise<void> {
-  const snapshots = await getHistory(docId);
-  snapshots.push({ id: uid(), timestamp: now, content, images });
-  while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
-  await putHistory(docId, snapshots);
+  await withHistoryLock(docId, async () => {
+    const snapshots = await getHistory(docId);
+    snapshots.push({ id: uid(), timestamp: now, content, images });
+    while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
+    await putHistory(docId, snapshots);
+  });
 }
 
 // Called from app.ts's saveNow(), for documents that have never been
@@ -81,26 +106,28 @@ async function appendSnapshot(docId: string, content: string, now: number, image
 // a best-effort background record, not the document's source of truth.
 export async function maybeSnapshotVersion(docId: string, content: string, now: number = Date.now(), images?: Record<string, string>): Promise<void> {
   try {
-    let snapshots = await getHistory(docId);
-    const last = snapshots[snapshots.length - 1];
-    if (last) {
-      if (now - last.timestamp < SNAPSHOT_INTERVAL_MS) return;
-      if (last.content === content) return;
-      // The most recent session may have just closed (nothing captured
-      // in the last SESSION_GAP_MS) — if so, collapse it down to its
-      // final snapshot now, before this new one starts a fresh session.
-      // A still-open session (small gap) is left untouched.
-      const groups = groupSnapshotsIntoSessions(snapshots);
-      const lastGroup = groups[groups.length - 1]!;
-      if (now - lastGroup.endTimestamp > SESSION_GAP_MS && lastGroup.entries.length > 1) {
-        const idsToKeep = new Set(snapshots.map((s) => s.id));
-        for (const entry of lastGroup.entries.slice(0, -1)) idsToKeep.delete(entry.id);
-        snapshots = snapshots.filter((s) => idsToKeep.has(s.id));
+    await withHistoryLock(docId, async () => {
+      let snapshots = await getHistory(docId);
+      const last = snapshots[snapshots.length - 1];
+      if (last) {
+        if (now - last.timestamp < SNAPSHOT_INTERVAL_MS) return;
+        if (last.content === content) return;
+        // The most recent session may have just closed (nothing captured
+        // in the last SESSION_GAP_MS) — if so, collapse it down to its
+        // final snapshot now, before this new one starts a fresh session.
+        // A still-open session (small gap) is left untouched.
+        const groups = groupSnapshotsIntoSessions(snapshots);
+        const lastGroup = groups[groups.length - 1]!;
+        if (now - lastGroup.endTimestamp > SESSION_GAP_MS && lastGroup.entries.length > 1) {
+          const idsToKeep = new Set(snapshots.map((s) => s.id));
+          for (const entry of lastGroup.entries.slice(0, -1)) idsToKeep.delete(entry.id);
+          snapshots = snapshots.filter((s) => idsToKeep.has(s.id));
+        }
       }
-    }
-    snapshots.push({ id: uid(), timestamp: now, content, images });
-    while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
-    await putHistory(docId, snapshots);
+      snapshots.push({ id: uid(), timestamp: now, content, images });
+      while (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
+      await putHistory(docId, snapshots);
+    });
   } catch (err) {
     // best-effort — see comment above
   }
@@ -135,7 +162,13 @@ export async function restoreLocalVersion(
   const content = await getVersionContent(docId, versionId);
   if (content === undefined) return undefined;
   const images = await getVersionImages(docId, versionId);
-  await appendSnapshot(docId, content, now, images);
+  try {
+    await appendSnapshot(docId, content, now, images);
+  } catch (err) {
+    // Best-effort, same rationale as maybeSnapshotVersion: a full or
+    // unavailable IndexedDB must not make the restore itself fail — the
+    // content is already in hand and the caller will apply it.
+  }
   return { content, images };
 }
 
@@ -145,7 +178,11 @@ export async function restoreLocalVersion(
 // just skipping the snapshot lookup since the caller already has the
 // content in hand.
 export async function restoreLocalVersionContent(docId: string, content: string, now: number = Date.now(), images?: Record<string, string>): Promise<void> {
-  await appendSnapshot(docId, content, now, images);
+  try {
+    await appendSnapshot(docId, content, now, images);
+  } catch (err) {
+    // Best-effort — see restoreLocalVersion above.
+  }
 }
 
 // Merges a repo-linked doc's companion history file (fetched by
@@ -155,23 +192,27 @@ export async function restoreLocalVersionContent(docId: string, content: string,
 // is safe to call repeatedly and never loses this device's own
 // not-yet-pushed history.
 export async function mergeSnapshotsFromRepo(docId: string, remoteSnapshots: Snapshot[]): Promise<void> {
-  const local = await getHistory(docId);
-  const byId = new Map(local.map((s) => [s.id, s]));
-  for (const s of remoteSnapshots) {
-    if (!byId.has(s.id)) byId.set(s.id, s);
-  }
-  const merged = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp);
-  while (merged.length > MAX_SNAPSHOTS) merged.shift();
-  await putHistory(docId, merged);
+  await withHistoryLock(docId, async () => {
+    const local = await getHistory(docId);
+    const byId = new Map(local.map((s) => [s.id, s]));
+    for (const s of remoteSnapshots) {
+      if (!byId.has(s.id)) byId.set(s.id, s);
+    }
+    const merged = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp);
+    while (merged.length > MAX_SNAPSHOTS) merged.shift();
+    await putHistory(docId, merged);
+  });
 }
 
 export async function deleteHistory(docId: string): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete(docId);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+  return withHistoryLock(docId, async () => {
+    const db = await openDb();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      tx.objectStore(STORE_NAME).delete(docId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   });
 }
 

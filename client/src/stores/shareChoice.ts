@@ -3,7 +3,7 @@
 // Cancel + one action isn't enough here: sharing a document that has
 // siblings needs a real choice between "just this document" and "the
 // whole workspace", not a single yes/no.
-import { writable } from "svelte/store";
+import { get, writable } from "svelte/store";
 
 export type ShareChoiceResult = "cancel" | "document" | "workspace";
 
@@ -18,6 +18,10 @@ export const shareChoiceRequest = writable<ShareChoiceRequestState | null>(null)
 
 export function shareChoice(docName: string, workspaceName: string, docCount: number): Promise<ShareChoiceResult> {
   return new Promise((resolve) => {
+    // A second request replaces the store value; without this the first
+    // caller's promise would never settle (the modal now resolves the
+    // second). Cancel the superseded flow explicitly.
+    get(shareChoiceRequest)?.resolve("cancel");
     shareChoiceRequest.set({ docName, workspaceName, docCount, resolve });
   });
 }

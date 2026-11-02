@@ -1,6 +1,15 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import { confirmRequest } from "../stores/confirmDialog";
+
+  onMount(() => {
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $confirmRequest) respond(false);
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
+  });
 
   function respond(confirmed: boolean) {
     $confirmRequest?.resolve(confirmed);

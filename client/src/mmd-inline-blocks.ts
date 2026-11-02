@@ -1,4 +1,5 @@
 import { marked } from "marked";
+import { mapOutsideCode } from "./markdown-code";
 
 // Term
 // Term 2
@@ -15,15 +16,17 @@ export const DEFLIST_GROUP_RE = /^((?:[^\s:][^\n]*\n)+)((?::[ \t]+[^\n]+\n?)+)/g
 const DEFLIST_DEF_LINE_RE = /^:[ \t]+([^\n]+)$/gm;
 
 export function transformDefinitionLists(text: string): string {
-  return text.replace(DEFLIST_GROUP_RE, (_match, termLines: string, defLines: string) => {
-    const terms = termLines
-      .trim()
-      .split("\n")
-      .map((t) => `<dt>${marked.parseInline(t.trim())}</dt>`)
-      .join("");
-    const defs = [...defLines.matchAll(DEFLIST_DEF_LINE_RE)].map((m) => `<dd>${marked.parseInline(m[1]!.trim())}</dd>`).join("");
-    return `<dl>${terms}${defs}</dl>\n\n`;
-  });
+  return mapOutsideCode(text, (segment) =>
+    segment.replace(DEFLIST_GROUP_RE, (_match, termLines: string, defLines: string) => {
+      const terms = termLines
+        .trim()
+        .split("\n")
+        .map((t) => `<dt>${marked.parseInline(t.trim())}</dt>`)
+        .join("");
+      const defs = [...defLines.matchAll(DEFLIST_DEF_LINE_RE)].map((m) => `<dd>${marked.parseInline(m[1]!.trim())}</dd>`).join("");
+      return `<dl>${terms}${defs}</dl>\n\n`;
+    }),
+  );
 }
 
 // 2^10^ -> 2<sup>10</sup>. Neither delimiter may touch whitespace, and the
@@ -38,8 +41,10 @@ export const SUPERSCRIPT_RE = /(?<!\[)\^(?!\s)([^\s^]+?)(?<!\s)\^/g;
 export const STRIKETHROUGH_OR_SUBSCRIPT_RE = /~~[^~\n]+~~|~(?!\s)([^\s~]+?)(?<!\s)~/g;
 
 export function transformSuperscriptSubscript(text: string): string {
-  const withSuperscript = text.replace(SUPERSCRIPT_RE, (_m, body: string) => `<sup>${marked.parseInline(body)}</sup>`);
-  return withSuperscript.replace(STRIKETHROUGH_OR_SUBSCRIPT_RE, (m, body: string | undefined) =>
-    body === undefined ? m : `<sub>${marked.parseInline(body)}</sub>`,
-  );
+  return mapOutsideCode(text, (segment) => {
+    const withSuperscript = segment.replace(SUPERSCRIPT_RE, (_m, body: string) => `<sup>${marked.parseInline(body)}</sup>`);
+    return withSuperscript.replace(STRIKETHROUGH_OR_SUBSCRIPT_RE, (m, body: string | undefined) =>
+      body === undefined ? m : `<sub>${marked.parseInline(body)}</sub>`,
+    );
+  });
 }

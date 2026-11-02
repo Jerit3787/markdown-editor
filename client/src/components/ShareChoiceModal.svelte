@@ -1,6 +1,15 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
   import { shareChoiceRequest, type ShareChoiceResult } from "../stores/shareChoice";
+
+  onMount(() => {
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && $shareChoiceRequest) respond("cancel");
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
+  });
 
   function respond(choice: ShareChoiceResult) {
     $shareChoiceRequest?.resolve(choice);

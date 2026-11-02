@@ -68,3 +68,25 @@ describe("fetchAndMergeRepoHistory", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("fetchAndMergeRepoHistory — legacy history path fallback", () => {
+  it("falls back to the legacy basename path when the nested path 404s", async () => {
+    const doc = linkedDoc("doc-legacy-history", { repoPath: "docs/notes.md" });
+    const remote = { snapshots: [{ id: "legacy-snap", timestamp: 10, content: "old" }], notes: [] };
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        urls.push(String(url));
+        if (String(url).includes("/.mde/history/docs/notes.json")) return new Response("not found", { status: 404 });
+        return new Response(JSON.stringify({ content: btoa(JSON.stringify(remote)), encoding: "base64" }), { status: 200 });
+      }),
+    );
+
+    await fetchAndMergeRepoHistory(doc);
+
+    expect(urls.some((u) => u.includes("/.mde/history/docs/notes.json"))).toBe(true);
+    expect(urls.some((u) => u.includes("/.mde/history/notes.json"))).toBe(true);
+    expect((await getHistory("doc-legacy-history")).map((s) => s.id)).toEqual(["legacy-snap"]);
+  });
+});

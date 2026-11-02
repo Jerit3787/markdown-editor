@@ -54,6 +54,8 @@
       }
       if (result?.failed) {
         finishProgressToast(toastId, `Linked to “${name}” — ${result.failed} file${result.failed === 1 ? "" : "s"} failed to upload`, "info");
+      } else if (plan.truncated) {
+        finishProgressToast(toastId, `Linked to “${name}” — this folder is too large to scan completely; some files were skipped`, "info", 5000);
       } else {
         finishProgressToast(toastId, `Linked to “${name}” in Google Drive`, "success");
         track("linked_drive");

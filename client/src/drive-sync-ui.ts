@@ -97,6 +97,8 @@ window.MDE.pullFromDriveAction = async () => {
       openConflicts("pull", active.workspaceId, plan.conflicts, plan.deletions, applyResolved);
     } else if (failures.length > 0) {
       finishProgressToast(toastId, `Pulled with ${failures.length} file${failures.length === 1 ? "" : "s"} failed — pull again to retry`, "info", 5000);
+    } else if (plan.truncated) {
+      finishProgressToast(toastId, "Pulled from Google Drive — this folder is too large to scan completely; some files were skipped", "info", 5000);
     } else {
       finishProgressToast(toastId, "Pulled from Google Drive", "success");
     }
@@ -123,6 +125,8 @@ window.MDE.pushToDriveAction = async () => {
     if (failed > 0) {
       const synced = result?.synced ?? 0;
       finishProgressToast(toastId, `Pushed ${synced} of ${synced + failed} files to Drive — push again to retry`, "info", 5000);
+    } else if (plan.truncated) {
+      finishProgressToast(toastId, "Pushed to Google Drive — this folder is too large to scan completely; some files were skipped", "info", 5000);
     } else {
       finishProgressToast(toastId, "Pushed to Google Drive", "success");
     }

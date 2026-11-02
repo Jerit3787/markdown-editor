@@ -71,6 +71,9 @@ export interface PullPlan {
   conflicts: DriveConflict[];
   deletions: { docId: string; docName: string; drivePath: string }[];
   unchanged: string[];
+  // The tree walk hit its folder/depth cap; the UI should say so rather
+  // than implying the scan covered the whole folder.
+  truncated?: boolean;
 }
 
 export type ImageOp =
@@ -92,6 +95,7 @@ export interface PushPlan {
   deletes: string[];
   conflicts: DriveConflict[];
   unchanged: string[];
+  truncated?: boolean;
   // Old file id for each locally-renamed doc. Kept separate from
   // `deletes` so a failed sibling push doesn't delete the only copy when
   // the rename itself never landed.
@@ -231,6 +235,7 @@ export function planDrivePull(tree: DriveTree, docs: Doc[], dirtyDocIds: Set<str
     }
   }
 
+  plan.truncated = !!tree.truncated;
   return plan;
 }
 
@@ -495,6 +500,7 @@ export async function planDrivePush(docs: Doc[], tree: DriveTree, sameWorkspace:
   }
 
   plan.renames = renames;
+  plan.truncated = !!tree.truncated;
   return plan;
 }
 

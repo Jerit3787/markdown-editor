@@ -381,7 +381,7 @@ export function switchDoc(id: string): boolean {
 // confirms first) and RenameCollisionModal.svelte's Replace action
 // (where the modal itself is already the confirmation). Exported so
 // that component can call it directly.
-export function removeDocById(id: string, source?: "repo" | "drive") {
+export function removeDocById(id: string, source?: "repo" | "drive" | "remote") {
   const removedDoc = findDocById(id);
   const removedWorkspaceId = removedDoc?.workspaceId;
   // A local delete (no source) is the only one that should propagate to

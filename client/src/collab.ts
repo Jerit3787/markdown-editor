@@ -1443,7 +1443,7 @@ function handleWorkspaceGone(localWorkspaceId: string): void {
       .filter((d) => d.workspaceId === local.id)
       .map((d) => d.id);
     deleteWorkspaceRecord(local.id);
-    for (const id of docIds) removeDocById(id);
+    for (const id of docIds) removeDocById(id, "remote");
     workspaceAccessDenied.set("deleted");
   } else {
     workspacesStore.update((all) => all.map((w) => (w.id === local.id ? { ...w, shared: undefined, remoteId: undefined, updatedAt: Date.now() } : w)));
@@ -1496,7 +1496,7 @@ function applyWorkspaceMeta(remoteWorkspaceId: string, name: string, docOrder: s
       continue;
     }
     destroyBinding(doc.id);
-    removeDocById(doc.id);
+    removeDocById(doc.id, "remote");
   }
 }
 

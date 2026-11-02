@@ -13,6 +13,8 @@ import {
   handleDriveTree,
   handleDriveFile,
   handleDrivePush,
+  handleDriveRevisions,
+  handleDriveRevisionContent,
 } from "./google-drive.js";
 import type { Env } from "./env";
 import { generateNonce, appCsp, legalCsp } from "./csp.js";
@@ -47,6 +49,8 @@ const REPO_FILE_AT_REF_PATH = /^\/api\/repo\/([^/]+)\/([^/]+)\/contents\/(.+)$/;
 const DRIVE_TREE_PATH = /^\/api\/drive\/folder\/([^/]+)\/tree$/;
 const DRIVE_PUSH_PATH = /^\/api\/drive\/folder\/([^/]+)\/push$/;
 const DRIVE_FILE_PATH = /^\/api\/drive\/file\/([^/]+)$/;
+const DRIVE_REVISIONS_PATH = /^\/api\/drive\/file\/([^/]+)\/revisions$/;
+const DRIVE_REVISION_CONTENT_PATH = /^\/api\/drive\/file\/([^/]+)\/revisions\/([^/]+)$/;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -137,6 +141,12 @@ export default {
     if (drivePushMatch && request.method === "POST") return handleDrivePush(request, env, decodeURIComponent(drivePushMatch[1]!));
     const driveFileMatch = url.pathname.match(DRIVE_FILE_PATH);
     if (driveFileMatch && request.method === "GET") return handleDriveFile(request, env, decodeURIComponent(driveFileMatch[1]!));
+    const driveRevisionMatch = url.pathname.match(DRIVE_REVISION_CONTENT_PATH);
+    if (driveRevisionMatch && request.method === "GET") {
+      return handleDriveRevisionContent(request, env, decodeURIComponent(driveRevisionMatch[1]!), decodeURIComponent(driveRevisionMatch[2]!));
+    }
+    const driveRevisionsMatch = url.pathname.match(DRIVE_REVISIONS_PATH);
+    if (driveRevisionsMatch && request.method === "GET") return handleDriveRevisions(request, env, decodeURIComponent(driveRevisionsMatch[1]!));
 
     if (url.pathname === "/api/gist" && request.method === "POST") return handleGistCreate(request, env);
     if (url.pathname === "/api/gists" && request.method === "GET") return handleGistList(request, env);

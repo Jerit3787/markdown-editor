@@ -228,3 +228,18 @@ describe("rename conflicts", () => {
     expect(plan.creates).toEqual([]);
   });
 });
+
+describe("pending local deletions", () => {
+  it("does not pull back a file the user already deleted locally", () => {
+    const plan = planDrivePull(tree([entry("f1", "notes.md", "r1")]), [], new Set(), ["f1"]);
+    expect(plan.creates).toEqual([]);
+  });
+});
+
+describe("pending deletions on incomplete trees", () => {
+  it("still retries a known pending deletion", async () => {
+    const plan = await planDrivePush([], { ...tree([]), truncated: true }, true, ["gone"]);
+    expect(plan.deletes).toEqual(["gone"]);
+    expect(plan.pendingDeletes).toEqual(["gone"]);
+  });
+});

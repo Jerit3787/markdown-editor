@@ -223,6 +223,10 @@ export function planDrivePull(tree: DriveTree, docs: Doc[], dirtyDocIds: Set<str
       // remote deletion.
       if (mdById.has(doc.driveFileId)) continue;
       if (matchedDocIds.has(doc.id)) continue;
+      // Keep a locally edited doc whose remote file disappeared: pushing
+      // it recreates the file with the local copy instead of deleting the
+      // only remaining version.
+      if (dirtyDocIds.has(doc.id)) continue;
       plan.deletions.push({ docId: doc.id, docName: doc.name, drivePath: doc.drivePath ?? doc.name });
     }
   }

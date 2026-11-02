@@ -243,3 +243,16 @@ describe("pending deletions on incomplete trees", () => {
     expect(plan.pendingDeletes).toEqual(["gone"]);
   });
 });
+
+describe("locally edited doc whose remote file was deleted", () => {
+  it("keeps the local copy instead of queuing it for deletion", () => {
+    const docs = [doc({ id: "d1", name: "notes", driveFileId: "gone", drivePath: "notes.md", driveRev: "r1" })];
+    expect(planDrivePull(tree([]), docs, new Set(["d1"])).deletions).toEqual([]);
+  });
+
+  it("recreates the remote file on the next push", async () => {
+    const docs = [doc({ id: "d1", name: "notes", driveFileId: "gone", drivePath: "notes.md", driveRev: "r1" })];
+    const plan = await planDrivePush(docs, tree([]), true, []);
+    expect(plan.creates.map((change) => change.path)).toEqual(["notes.md"]);
+  });
+});

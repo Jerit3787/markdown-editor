@@ -123,7 +123,7 @@ describe("pullFromDrive", () => {
 
   it("waits for confirmation before removing a local doc whose Drive file disappeared", async () => {
     linkedWorkspace();
-    setDocs([doc({ id: "d1", name: "Gone", driveFileId: "gone", drivePath: "gone.md", driveRev: "r1" })]);
+    setDocs([doc({ id: "d1", name: "Gone", driveFileId: "gone", drivePath: "gone.md", driveRev: "r1", drivePushedHash: await hashPushPayload("", []) })]);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => json({ folderId: "folder-1", folderName: "Notes", workspaceId: "w1", entries: [] })),

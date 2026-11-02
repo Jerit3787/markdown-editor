@@ -181,7 +181,7 @@ export async function handleDriveImport(request: Request, env: Env): Promise<Res
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const MAX_TREE_DEPTH = 8;
-const MAX_TREE_FOLDERS = 40;
+const MAX_TREE_FOLDERS = 200;
 const MAX_PUSH_ITEMS = 40;
 const MAX_PUSH_SUBFOLDERS = 20;
 const MAX_DRIVE_FILE_BYTES = 5 * 1024 * 1024;

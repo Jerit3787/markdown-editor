@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.68.0] - 2026-11-03
+
+### Added
+
+- **Google Drive — version history.** Documents in a synced Drive folder now show their Drive revisions in the Version History panel, alongside local snapshots. Preview any revision, diff it against the live document or another version, and restore it with the existing restore path. A document linked to both GitHub and Drive shows both timelines, and a Drive outage falls back to local history instead of breaking the panel.
+
 ## [1.67.1] - 2026-11-03
 
 ### Fixed

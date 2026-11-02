@@ -186,13 +186,15 @@
         const revisions = await pullDriveRevisions(doc.driveFileId);
         return revisions.map((revision) => {
           const timestamp = Date.parse(revision.modifiedTime);
-          const when = Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : "";
+          const when = Number.isFinite(timestamp)
+            ? new Date(timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+            : "";
           return {
             kind: "remote" as const,
             source: "drive" as const,
             id: revision.revId,
             timestamp: Number.isFinite(timestamp) ? timestamp : 0,
-            message: when ? `Google Drive revision · ${when}` : "Google Drive revision",
+            message: when || "Google Drive revision",
             author: revision.author || "Google Drive",
           };
         });
@@ -546,6 +548,7 @@
                 type="button"
                 class="version-history-row"
                 class:active={v.id === selectedId}
+                aria-label={v.kind === "remote" && v.source === "drive" ? `Google Drive revision: ${formatTimestamp(v.timestamp)}, by ${v.author}` : undefined}
                 onclick={() => selectVersion(getActiveDoc(), isDocShared(getActiveDoc()), v)}
               >
                 <span class="version-history-row-label">

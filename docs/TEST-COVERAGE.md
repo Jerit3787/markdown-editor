@@ -59,11 +59,11 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 12. GitHub repo sync               |      24 |       0 |    0 |    24 |
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
-| 15. Google Drive folder sync       |      14 |       0 |    0 |    14 |
-| **Total**                          | **359** |  **0** |  **0** | **359** |
+| 15. Google Drive folder sync       |      16 |       0 |    0 |    16 |
+| **Total**                          | **361** |  **0** |  **0** | **361** |
 
 **Every enumerated scenario now has a test asserting its outcome —
-359 / 359, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
+361 / 361, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
 first pass). Phases 1–14 + Buckets A/B, the real-GitHub and WebKit
 harnesses, the legacy-share migration and image-marker races, and the
 last soft spots (COLLAB-31, VER-08, GIST-05) are all closed.
@@ -594,6 +594,8 @@ _Source: `src/google-drive.ts`, `client/src/drive-sync.ts`, `client/src/drive-sy
 | DRIVE-12 | `pushToDrive` commits only successful results, leaves a failed doc's rev/hash untouched, and records images that succeeded even when their markdown update failed | integration | covered | `tests/client/src/drive-sync-orchestration.test.ts` | retry is the next push |
 | DRIVE-13 | Open/link modals list app folders, create a workspace or folder, and close for a progress toast | component | covered | `tests/client/src/components/OpenDriveModal.test.ts`, `LinkDriveModal.test.ts` | |
 | DRIVE-14 | File ▸ Google Drive reflects connect/open/link/linked states; Document info shows the folder path and standalone export row | component | covered | `tests/client/src/components/MenuBar.test.ts`, `DocInfoPanel.test.ts` | reuses the conflict modal with `source:"drive"` |
+| DRIVE-15 | Drive revision list paginates and maps ids/timestamps/authors, returns empty for a single revision, and revision media is capped (404/401 handled) | integration | covered | `tests/src/google-drive.test.ts` | Version History source |
+| DRIVE-16 | Version History merges Drive revisions with local history, previews/diffs/restores a revision, shows both GitHub and Drive timelines, and degrades to local history on a Drive failure | component | covered | `tests/client/src/components/VersionHistoryDriveRevisions.test.ts` | `RemoteEntry.source` |
 
 ---
 

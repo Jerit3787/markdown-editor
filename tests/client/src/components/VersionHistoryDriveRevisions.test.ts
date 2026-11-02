@@ -68,7 +68,7 @@ test("DRIVE-VH-1: Drive revisions appear in the timeline", async () => {
   versionHistoryOpen.set(true);
 
   await expect.poll(() => screen.container.querySelectorAll(".version-history-row").length).toBe(2);
-  await expect.element(screen.getByText(/Google Drive revision/).first()).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: /Google Drive revision/ }).first()).toBeVisible();
   await expect.element(screen.getByLabelText("Edited by Alice")).toBeVisible();
   vi.unstubAllGlobals();
 });
@@ -79,7 +79,7 @@ test("DRIVE-VH-2: selecting a Drive revision loads its content and Diff works", 
   versionHistoryOpen.set(true);
 
   await screen
-    .getByText(/Google Drive revision/)
+    .getByRole("button", { name: /Google Drive revision/ })
     .first()
     .click();
   await screen.getByRole("button", { name: "Diff" }).click();
@@ -95,7 +95,7 @@ test("DRIVE-VH-3: restoring a Drive revision dispatches its content", async () =
   versionHistoryOpen.set(true);
 
   await screen
-    .getByText(/Google Drive revision/)
+    .getByRole("button", { name: /Google Drive revision/ })
     .first()
     .click();
   await expect.poll(() => screen.container.querySelector(".version-history-preview")?.textContent ?? "").toContain("an older revision");
@@ -157,7 +157,7 @@ test("DRIVE-VH-4: a doc linked to both GitHub and Drive shows both timelines", a
   versionHistoryOpen.set(true);
 
   await expect.element(screen.getByText("Update from Markdown Editor")).toBeVisible();
-  await expect.element(screen.getByText(/Google Drive revision/).first()).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: /Google Drive revision/ }).first()).toBeVisible();
   vi.unstubAllGlobals();
 });
 

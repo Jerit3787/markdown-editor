@@ -40,7 +40,7 @@ export function appCsp(nonce: string): string {
 }
 
 /**
- * The /privacy and /terms policy. Those pages ship zero script of their
+ * The /privacy, /terms, and /home policy. Those pages ship zero script of their
  * own; `script-src 'nonce-…'` exists ONLY so Cloudflare's injected JSD
  * inline script is stamped and runs cleanly.
  */
@@ -49,7 +49,7 @@ export function legalCsp(nonce: string): string {
     "default-src 'none'",
     `script-src 'nonce-${nonce}'`,
     "style-src 'unsafe-inline'",
-    "img-src 'self'",
+    "img-src 'self' data:",
     "font-src 'self'",
     "base-uri 'self'",
     "form-action 'none'",

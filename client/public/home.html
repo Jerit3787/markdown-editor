@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'none'"
+    />
+    <title>Markdown Editor — The Fast, Private In-Browser Markdown Workspace</title>
+    <meta
+      name="description"
+      content="A fast, distraction-free markdown editor with live preview, real-time collaboration, and local or cloud storage. Free, open source, and runs entirely in your browser — no account or login required."
+    />
+    <link rel="canonical" href="https://editor.danplace.tech/home" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="theme-color" content="#2563eb" />
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://editor.danplace.tech/home" />
+    <meta property="og:title" content="Markdown Editor — The Fast, Private In-Browser Markdown Workspace" />
+    <meta
+      property="og:description"
+      content="A fast, free markdown editor with live preview, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text. No account required."
+    />
+    <meta property="og:image" content="https://editor.danplace.tech/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Markdown Editor — The Fast, Private In-Browser Markdown Workspace" />
+    <meta
+      name="twitter:description"
+      content="A fast, free markdown editor with live preview, real-time multi-user collaboration, and export to Markdown, HTML, PDF, or plain text."
+    />
+    <meta name="twitter:image" content="https://editor.danplace.tech/og-image.png" />
+
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --bg-alt: #f6f8fa;
+        --bg-subtle: #f0f3f6;
+        --card-bg: #ffffff;
+        --text: #1f2328;
+        --text-dim: #656d76;
+        --border: #d0d7de;
+        --border-subtle: #eaeef2;
+        --primary: #2563eb;
+        --primary-hover: #1d4ed8;
+        --primary-text: #ffffff;
+        --accent: #0969da;
+        --code-bg: #f6f8fa;
+        --radius: 8px;
+        --radius-lg: 12px;
+        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --bg-alt: #161b22;
+          --bg-subtle: #21262d;
+          --card-bg: #161b22;
+          --text: #e6edf3;
+          --text-dim: #8b949e;
+          --border: #30363d;
+          --border-subtle: #21262d;
+          --primary: #388bfd;
+          --primary-hover: #1f6feb;
+          --primary-text: #ffffff;
+          --accent: #58a6ff;
+          --code-bg: #1f242c;
+          --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+          --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+        }
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .container {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      /* Navbar */
+      .navbar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(8px);
+      }
+
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 18px;
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .brand img {
+        width: 32px;
+        height: 32px;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+
+      .nav-link {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-dim);
+      }
+
+      .nav-link:hover {
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px 18px;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: var(--radius);
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.15s ease;
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        color: var(--primary-text);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+      }
+
+      .btn-primary:hover {
+        background: var(--primary-hover);
+        text-decoration: none;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .btn-secondary {
+        background: var(--bg-alt);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      .btn-secondary:hover {
+        background: var(--bg-subtle);
+        text-decoration: none;
+      }
+
+      .btn-lg {
+        padding: 12px 24px;
+        font-size: 16px;
+      }
+
+      /* Hero Section */
+      .hero {
+        padding: 72px 0 56px;
+        text-align: center;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 14px;
+        background: var(--bg-alt);
+        border: 1px solid var(--border);
+        border-radius: 9999px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-dim);
+        margin-bottom: 24px;
+      }
+
+      .badge-dot {
+        width: 8px;
+        height: 8px;
+        background: #22c55e;
+        border-radius: 50%;
+      }
+
+      .hero h1 {
+        font-size: 44px;
+        line-height: 1.15;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 0 0 16px;
+        color: var(--text);
+      }
+
+      .hero h2 {
+        font-size: 22px;
+        font-weight: 500;
+        color: var(--text-dim);
+        margin: 0 auto 24px;
+        max-width: 720px;
+        line-height: 1.4;
+      }
+
+      .hero-desc {
+        font-size: 17px;
+        line-height: 1.6;
+        color: var(--text-dim);
+        max-width: 680px;
+        margin: 0 auto 36px;
+      }
+
+      .hero-actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin-bottom: 52px;
+        flex-wrap: wrap;
+      }
+
+      /* Mockup Window */
+      .mockup-window {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+        text-align: left;
+        margin: 0 auto;
+        max-width: 960px;
+      }
+
+      .mockup-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
+        background: var(--bg-alt);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .mockup-dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .dot-red {
+        background: #ff5f56;
+      }
+      .dot-yellow {
+        background: #ffbd2e;
+      }
+      .dot-green {
+        background: #27c93f;
+      }
+
+      .mockup-title {
+        font-size: 12px;
+        color: var(--text-dim);
+        margin-left: 8px;
+        font-family: monospace;
+      }
+
+      .mockup-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        min-height: 300px;
+      }
+
+      .mockup-pane {
+        padding: 24px;
+        font-size: 14px;
+        overflow-x: auto;
+      }
+
+      .mockup-editor {
+        border-right: 1px solid var(--border);
+        background: var(--code-bg);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        color: var(--text);
+        line-height: 1.6;
+      }
+
+      .mockup-editor .cm-heading {
+        color: var(--accent);
+        font-weight: bold;
+      }
+      .mockup-editor .cm-code {
+        color: #e11d48;
+      }
+      .mockup-editor .cm-math {
+        color: #059669;
+      }
+
+      .mockup-preview {
+        background: var(--card-bg);
+        line-height: 1.6;
+      }
+
+      .mockup-preview h2 {
+        font-size: 18px;
+        margin: 0 0 12px;
+        border-bottom: 1px solid var(--border-subtle);
+        padding-bottom: 6px;
+      }
+
+      .mockup-math-box {
+        padding: 12px 16px;
+        background: var(--bg-alt);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius);
+        text-align: center;
+        font-family: serif;
+        font-size: 17px;
+        margin: 14px 0;
+      }
+
+      .mockup-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        background: rgba(37, 99, 235, 0.1);
+        color: var(--primary);
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      /* Sections */
+      .section {
+        padding: 72px 0;
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .section-header {
+        text-align: center;
+        max-width: 680px;
+        margin: 0 auto 48px;
+      }
+
+      .section-header h2 {
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        margin: 0 0 12px;
+      }
+
+      .section-header p {
+        font-size: 16px;
+        color: var(--text-dim);
+        margin: 0;
+      }
+
+      /* Feature Grid */
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+      }
+
+      .feature-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 28px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-shadow: var(--shadow-sm);
+        transition:
+          transform 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+
+      .feature-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+      }
+
+      .feature-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: var(--radius);
+        display: inline-grid;
+        place-items: center;
+        background: rgba(37, 99, 235, 0.1);
+        color: var(--primary);
+        margin-bottom: 4px;
+      }
+
+      .feature-card h3 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+        color: var(--text);
+      }
+
+      .feature-card p {
+        font-size: 14.5px;
+        color: var(--text-dim);
+        margin: 0;
+        line-height: 1.55;
+      }
+
+      /* Google Drive Card */
+      .integration-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 36px 32px;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .integration-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        background: rgba(37, 99, 235, 0.1);
+        color: var(--primary);
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 9999px;
+        margin-bottom: 16px;
+      }
+
+      .integration-card h3 {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 0 0 12px;
+      }
+
+      .integration-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 24px;
+        margin-top: 28px;
+      }
+
+      .integration-point {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .integration-point strong {
+        font-size: 15px;
+        color: var(--text);
+      }
+
+      .integration-point span {
+        font-size: 14px;
+        color: var(--text-dim);
+        line-height: 1.5;
+      }
+
+      /* FAQ */
+      .faq-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+
+      .faq-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 24px;
+      }
+
+      .faq-card h4 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 8px;
+        color: var(--text);
+      }
+
+      .faq-card p {
+        font-size: 14px;
+        color: var(--text-dim);
+        margin: 0;
+        line-height: 1.55;
+      }
+
+      /* Footer */
+      .footer {
+        border-top: 1px solid var(--border);
+        padding: 48px 0;
+        background: var(--bg-alt);
+        font-size: 14px;
+        color: var(--text-dim);
+      }
+
+      .footer-inner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+      }
+
+      .footer-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .footer-links {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      .footer-links a {
+        color: var(--text-dim);
+      }
+
+      .footer-links a:hover {
+        color: var(--text);
+      }
+
+      /* Responsive */
+      @media (max-width: 860px) {
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .integration-grid,
+        .faq-grid,
+        .mockup-body {
+          grid-template-columns: 1fr;
+        }
+
+        .mockup-editor {
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+
+        .hero h1 {
+          font-size: 34px;
+        }
+
+        .nav-links {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <header class="navbar">
+      <div class="container nav-inner">
+        <a href="/home" class="brand">
+          <img src="/logo.svg" width="32" height="32" alt="Markdown Editor Logo" />
+          <span>Markdown Editor</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#features" class="nav-link">Features</a>
+          <a href="#google-drive" class="nav-link">Google Drive</a>
+          <a href="/privacy" class="nav-link">Privacy Policy</a>
+          <a href="/terms" class="nav-link">Terms of Service</a>
+        </nav>
+        <a href="/" class="btn btn-primary" id="topLaunchBtn">Launch Editor</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- Hero Section -->
+      <section class="hero">
+        <div class="container">
+          <div class="badge">
+            <span class="badge-dot"></span>
+            Free &amp; Open Source • 100% In-Browser
+          </div>
+          <h1>Markdown Editor</h1>
+          <h2>The Fast, Private, In-Browser Markdown Workspace</h2>
+          <p class="hero-desc">
+            Write, preview, and collaborate in real-time. Free, open source, and runs entirely in your browser — your notes stay on your machine, with optional
+            cloud sync to Google Drive and GitHub. No account or login required.
+          </p>
+          <div class="hero-actions">
+            <a href="/" class="btn btn-primary btn-lg" id="heroLaunchBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+              Launch Editor — It's Free
+            </a>
+            <a href="https://github.com/Jerit3787/markdown-editor" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                />
+              </svg>
+              View on GitHub
+            </a>
+          </div>
+
+          <!-- Visual Mockup Window -->
+          <div class="mockup-window">
+            <div class="mockup-bar">
+              <span class="mockup-dot dot-red"></span>
+              <span class="mockup-dot dot-yellow"></span>
+              <span class="mockup-dot dot-green"></span>
+              <span class="mockup-title">markdown-editor — demo.md</span>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-pane mockup-editor">
+                <span class="cm-heading"># Release notes draft</span><br /><br />
+                Markdown Editor runs <strong>entirely in your browser</strong>.<br /><br />
+                <span class="cm-heading">## Math &amp; Formulas</span><br />
+                <span class="cm-math">$$\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}$$</span><br /><br />
+                <span class="cm-heading">## Live Diagrams</span><br />
+                <span class="cm-code">```mermaid<br />graph LR<br />&nbsp;&nbsp;Write --> Preview<br />&nbsp;&nbsp;Preview --> Sync<br />```</span>
+              </div>
+              <div class="mockup-pane mockup-preview">
+                <h2>Release notes draft</h2>
+                <p>Markdown Editor runs <strong>entirely in your browser</strong>.</p>
+                <h3>Math &amp; Formulas</h3>
+                <div class="mockup-math-box">&int;<sub>0</sub><sup>&infin;</sup> e<sup>-x&sup2;</sup> dx = &radic;&pi; / 2</div>
+                <h3>Live Diagrams</h3>
+                <div
+                  style="
+                    padding: 12px;
+                    background: var(--bg-alt);
+                    border-radius: var(--radius);
+                    border: 1px solid var(--border-subtle);
+                    display: inline-flex;
+                    gap: 8px;
+                    align-items: center;
+                    font-size: 13px;
+                  "
+                >
+                  <span class="mockup-tag">Write</span> &rarr; <span class="mockup-tag">Preview</span> &rarr;
+                  <span class="mockup-tag">Sync</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Core Features Grid -->
+      <section class="section" id="features">
+        <div class="container">
+          <div class="section-header">
+            <h2>Built for Speed, Privacy, and Focus</h2>
+            <p>Everything you need in a modern markdown editor, without the bloat, subscriptions, or login barriers.</p>
+          </div>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <div class="feature-icon">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2 12h20"></path>
+                  <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6"></path>
+                  <path d="M12 2v10"></path>
+                </svg>
+              </div>
+              <h3>Live Preview &amp; Rich Formatting</h3>
+              <p>
+                Side-by-side rendering with GitHub Flavored Markdown, CodeMirror 6 syntax highlighting, KaTeX mathematical typesetting, and Mermaid diagram
+                generation.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </div>
+              <h3>100% In-Browser Privacy</h3>
+              <p>
+                Offline-first by design. Your notes are stored locally in your browser’s storage — nothing is sent to a central server, and no sign-up or
+                account is required to write.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 2v20"></path>
+                  <path d="m17 5-5-3-5 3"></path>
+                  <path d="m17 19-5 3-5-3"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </div>
+              <h3>Google Drive Integration</h3>
+              <p>
+                Connect your personal Google Drive to open, edit, and sync your markdown files seamlessly using the non-restricted
+                <code>drive.file</code> scope.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+                  ></path>
+                </svg>
+              </div>
+              <h3>GitHub &amp; Gist Sync</h3>
+              <p>Browse your repositories across branches, open markdown documents directly, push commit updates, and publish revision-tracked GitHub Gists.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+              </div>
+              <h3>Real-Time Collaboration</h3>
+              <p>Share workspaces with end-to-end encrypted rooms, live cursor awareness, tracked change suggestions, and inline comment discussion threads.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" x2="12" y1="15" y2="3"></line>
+                </svg>
+              </div>
+              <h3>Flexible Export Options</h3>
+              <p>Export your documents in seconds to raw Markdown (<code>.md</code>), standalone styled HTML, high-resolution formatted PDF, or plain text.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Google Drive & Data Safety Section -->
+      <section class="section" id="google-drive">
+        <div class="container">
+          <div class="integration-card">
+            <div class="integration-badge">Google Drive Integration &amp; Data Safety</div>
+            <h3>Transparent, Privacy-Preserving Google Drive Access</h3>
+            <p style="color: var(--text-dim); margin: 0; font-size: 15px; max-width: 760px; line-height: 1.6">
+              Markdown Editor provides an optional Google Drive integration that allows you to open, view, and save markdown documents directly to and from your
+              personal Google Drive. We follow strict privacy standards and Google's API Services User Data Policy:
+            </p>
+            <div class="integration-grid">
+              <div class="integration-point">
+                <strong>Narrow, Non-Restricted Scope</strong>
+                <span>
+                  We request exclusively <code>https://www.googleapis.com/auth/drive.file</code>. This narrow scope allows the application to access
+                  <strong>only the specific files you explicitly select</strong> via the Google Picker. We cannot see, edit, or delete any other files in your
+                  Drive.
+                </span>
+              </div>
+              <div class="integration-point">
+                <strong>No Server Storage of Documents</strong>
+                <span>
+                  Document contents opened from Google Drive are loaded directly into your browser's local memory for editing. No copy of your document is ever
+                  stored on our servers or databases.
+                </span>
+              </div>
+              <div class="integration-point">
+                <strong>AES-256-GCM Encrypted Tokens</strong>
+                <span>
+                  OAuth tokens are encrypted at rest with AES-256-GCM and stored exclusively in secure, <code>HttpOnly</code>, <code>SameSite</code> cookies.
+                  Disconnecting Google Drive immediately clears the session and revokes access.
+                </span>
+              </div>
+              <div class="integration-point">
+                <strong>No AI Training &amp; Never Sold</strong>
+                <span>
+                  Google user data is never sold, never shared with third parties, and never used to train machine learning or artificial intelligence models.
+                </span>
+              </div>
+            </div>
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-subtle); font-size: 13.5px; color: var(--text-dim)">
+              Learn more in our full <a href="/privacy">Privacy Policy</a> and <a href="/terms">Terms of Service</a>.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ Section -->
+      <section class="section" id="faq">
+        <div class="container">
+          <div class="section-header">
+            <h2>Frequently Asked Questions</h2>
+            <p>Everything you need to know about getting started.</p>
+          </div>
+          <div class="faq-grid">
+            <div class="faq-card">
+              <h4>Do I need to sign up or create an account?</h4>
+              <p>No. Markdown Editor is completely free and works instantly in your browser without requiring any account, email, or password.</p>
+            </div>
+            <div class="faq-card">
+              <h4>Where are my notes stored?</h4>
+              <p>
+                By default, notes are stored locally in your browser using IndexedDB and localStorage. You can also connect GitHub or Google Drive for cloud
+                storage.
+              </p>
+            </div>
+            <div class="faq-card">
+              <h4>Is Markdown Editor open source?</h4>
+              <p>
+                Yes. The entire codebase is open source under the MIT license and hosted publicly on GitHub at
+                <a href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener">github.com/Jerit3787/markdown-editor</a>.
+              </p>
+            </div>
+            <div class="faq-card">
+              <h4>Does it work offline?</h4>
+              <p>
+                Yes. Once loaded, the core editor runs entirely client-side, allowing you to write, format, and preview your notes with zero internet
+                connection.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container footer-inner">
+        <div class="footer-brand">
+          <img src="/logo.svg" width="24" height="24" alt="Markdown Editor" />
+          <span>Markdown Editor</span>
+        </div>
+        <div class="footer-links">
+          <a href="/">Launch App</a>
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Service</a>
+          <a href="https://github.com/Jerit3787/markdown-editor" target="_blank" rel="noopener">GitHub</a>
+          <a href="mailto:support@danplace.tech">support@danplace.tech</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -389,6 +389,13 @@ export interface MDEBridge {
   importMarkdownFromDrive?: () => Promise<void>;
   saveToDrive?: () => Promise<void>;
   pickDriveFolder?: () => Promise<{ id: string; name: string } | null>;
+  // Folder sync — set by drive-sync-ui.ts.
+  openDriveFolderPicker?: () => void;
+  openDriveLinkModal?: () => void;
+  pullFromDriveAction?: () => Promise<void>;
+  pushToDriveAction?: () => Promise<void>;
+  unlinkDrive?: () => void;
+  disconnectDriveAction?: () => Promise<void>;
   // Chained by drive-files.ts's own `message` listener when the Google
   // connect popup reports success — gist.ts-style chaining if needed.
   onGoogleAuthComplete?: () => void;

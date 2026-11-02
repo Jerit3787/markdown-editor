@@ -318,7 +318,10 @@ describe("handleDriveTree", () => {
   });
 
   it("404 when the folder is gone", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("not found", { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("not found", { status: 404 })),
+    );
     const res = await handleDriveTree(await connectedReq("https://app/api/drive/folder/gone/tree"), env, "gone");
     expect(res.status).toBe(404);
   });
@@ -331,14 +334,20 @@ describe("handleDriveTree", () => {
 
 describe("handleDriveFile", () => {
   it("downloads a file as base64", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("# Hello")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("# Hello")),
+    );
     const res = await handleDriveFile(await connectedReq("https://app/api/drive/file/f1"), env, "f1");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ contentBase64: Buffer.from("# Hello").toString("base64") });
   });
 
   it("rejects a file above the 5 MB cap", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("x", { status: 200, headers: { "Content-Length": String(6 * 1024 * 1024) } })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("x", { status: 200, headers: { "Content-Length": String(6 * 1024 * 1024) } })),
+    );
     const res = await handleDriveFile(await connectedReq("https://app/api/drive/file/big"), env, "big");
     expect(res.status).toBe(413);
   });

@@ -41,7 +41,8 @@
   // every autosave replaces that object, which used to abort and re-fire
   // the GitHub commits request on each keystroke.
   const repoDocPath = $derived(doc?.repoPath);
-  const repoLink = $derived(doc ? $workspacesStore.find((w) => w.id === doc.workspaceId)?.repoLink : undefined);
+  const docWorkspace = $derived(doc ? $workspacesStore.find((w) => w.id === doc.workspaceId) : undefined);
+  const repoLink = $derived(docWorkspace?.repoLink);
   const repoOwner = $derived(repoLink?.owner);
   const repoName = $derived(repoLink?.repo);
   const repoBranch = $derived(repoLink?.branch);
@@ -182,20 +183,19 @@
         {/each}
       </div>
     {/if}
-    {#if doc.repoPath || doc.gistId || doc.driveExportId || ($workspaceRepoLinked && !$collabIsOwner)}
+    {#if doc.repoPath || doc.gistId || doc.driveExportId || doc.driveFileId || ($workspaceRepoLinked && !$collabIsOwner)}
       <div class="menu-section-label">Synced to</div>
       {#if doc.repoPath}
-        {@const workspace = $workspacesStore.find((w) => w.id === doc.workspaceId)}
-        {#if workspace?.repoLink}
+        {#if docWorkspace?.repoLink}
           <div class="doc-info-row">
             <span class="doc-info-primary">Repo</span>
             <a
               class="doc-info-secondary doc-info-link"
-              href={`https://github.com/${workspace.repoLink.owner}/${workspace.repoLink.repo}/blob/${workspace.repoLink.branch}/${doc.repoPath}`}
+              href={`https://github.com/${docWorkspace.repoLink.owner}/${docWorkspace.repoLink.repo}/blob/${docWorkspace.repoLink.branch}/${doc.repoPath}`}
               target="_blank"
               rel="noopener"
             >
-              {workspace.repoLink.owner}/{workspace.repoLink.repo} — {doc.repoPath}
+              {docWorkspace.repoLink.owner}/{docWorkspace.repoLink.repo} — {doc.repoPath}
             </a>
           </div>
         {/if}
@@ -210,6 +210,19 @@
           <span class="doc-info-primary">Gist</span>
           <a class="doc-info-secondary doc-info-link" href={`https://gist.github.com/${doc.gistId}`} target="_blank" rel="noopener">
             View on GitHub
+          </a>
+        </div>
+      {/if}
+      {#if doc.driveFileId && docWorkspace?.driveLink}
+        <div class="doc-info-row">
+          <span class="doc-info-primary">Google Drive folder</span>
+          <a
+            class="doc-info-secondary doc-info-link"
+            href={`https://drive.google.com/file/d/${doc.driveFileId}/view`}
+            target="_blank"
+            rel="noopener"
+          >
+            {docWorkspace.driveLink.folderName}{doc.drivePath ? ` — ${doc.drivePath}` : ""}
           </a>
         </div>
       {/if}

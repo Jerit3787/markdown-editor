@@ -433,4 +433,12 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     screenshot: "/whats-new/suggestion-line-grouping.png",
     category: "Collaboration",
   },
+  {
+    version: "1.65.0",
+    title: "Open Markdown from Google Drive",
+    description:
+      "Connect Google Drive from Settings or File > Open, then pick markdown files from anywhere in your Drive to import them as documents — text, headings, and all. Nothing is uploaded; the files are copied into your workspace and saved locally like any other document.",
+    screenshot: "/whats-new/google-drive.png",
+    category: "Organization & Navigation",
+  },
 ];

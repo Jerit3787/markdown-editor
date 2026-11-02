@@ -28,6 +28,24 @@
         color: #1f2328;
         background: #ffffff;
       }
+      .summary {
+        margin: 28px 0;
+        padding: 18px 22px;
+        border: 1px solid #d0d7de;
+        border-radius: 10px;
+        background: #f6f8fa;
+      }
+      .summary h2 {
+        margin: 0 0 8px;
+        font-size: 20px;
+      }
+      .summary ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .summary li {
+        margin: 6px 0;
+      }
       @media (prefers-color-scheme: dark) {
         body {
           color: #e6e6e6;
@@ -35,6 +53,10 @@
         }
         a {
           color: #4d8dff;
+        }
+        .summary {
+          background: #26282c;
+          border-color: #3d4148;
         }
         .updated {
           color: #9aa0a6;
@@ -102,12 +124,38 @@
         </nav>
       </div>
       <h1>Privacy Policy</h1>
-      <p class="updated">Last updated: 2026-09-11</p>
+      <p class="updated">Last updated: 2026-11-02</p>
 
       <p>
         Markdown Editor ("the app", at <code>editor.danplace.tech</code>) is a free, open-source markdown editor. This policy explains what happens to your data
         when you use it. The app is operated by the project's maintainer as a personal project; there is no company behind it.
       </p>
+
+      <div class="summary">
+        <h2>Quick summary</h2>
+        <ul>
+          <li>
+            <strong>Your documents stay on your device.</strong> Notes, workspaces, and version history are stored in your browser's local storage. They are
+            uploaded only when you explicitly share a workspace, publish to a Gist, sync to a repository, or import from Google Drive.
+          </li>
+          <li>
+            <strong>Account data is optional.</strong> GitHub and Google sign-in are needed only for their respective integrations. Tokens are encrypted
+            (AES-256-GCM) in <code>HttpOnly</code> cookies; the app keeps no server-side database of your documents or cloud files.
+          </li>
+          <li>
+            <strong>We never sell your data</strong> and never share it with third parties for advertising. Google user data is never used to train AI models.
+          </li>
+          <li>
+            <strong>Google Drive access is limited</strong> to the <code>drive.file</code> scope: only files you explicitly pick in the Google Picker. See
+            section 6 for the full Google API Services User Data Policy / Limited Use disclosure.
+          </li>
+          <li>
+            <strong>You can delete everything</strong> by signing out, disconnecting Google Drive, deleting shared workspaces, and clearing the site's browser
+            storage. See section 8.
+          </li>
+          <li><strong>Contact:</strong> <a href="mailto:support@danplace.tech">support@danplace.tech</a>.</li>
+        </ul>
+      </div>
 
       <h2>1. Your documents stay on your device.</h2>
       <p>

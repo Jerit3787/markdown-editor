@@ -117,3 +117,15 @@ Before clicking **Submit for Verification** in Google Cloud Console:
 - [ ] Verify domain in Google Search Console:
   - In [Google Search Console](https://search.google.com/search-console), confirm that `danplace.tech` has a green checkmark under the same Google account.
 - [ ] Record and upload your YouTube demo video as **Unlisted**, copy the link, and paste it into the verification form.
+
+---
+
+## 6. If verification still fails after these fixes
+
+Google's automated homepage/privacy checks cache pages and occasionally return templated findings even when the page is compliant (there is a public Google Developer Forums thread from October 2026 about a fully public homepage being flagged as "behind a login page"). Before requesting another review:
+
+1. **The privacy link's raw `href` must match the console exactly.** Google compares the link on the homepage with the URL entered on the consent screen. On `/home` all privacy/terms links are now absolute (`https://editor.danplace.tech/privacy`, no trailing slash). If the console value differs by even a trailing slash or query string, change one to match the other exactly.
+2. **Purge the edge cache** for `/home` and `/privacy` in the Cloudflare dashboard (Caching → Purge Cache → Custom URLs), then use Search Console → URL Inspection → **Request indexing** for both URLs.
+3. **Confirm Search Console ownership** is under the same Google account that owns the Cloud project, for `danplace.tech` (and `editor.danplace.tech` if it is a separate property).
+4. **Re-submit** from OAuth consent screen → Prepare for verification, and confirm the app name is exactly `Markdown Editor` (same capitalization and spacing as the `<h1>` on `/home`).
+5. If the same four templated findings come back, reply to the verification email or contact **oauth-feedback@google.com** with the live URLs, the exact consent-screen values (app name, homepage, privacy-policy URL), and screenshots of both pages. These checks are known to produce false positives that only a human reviewer can clear.

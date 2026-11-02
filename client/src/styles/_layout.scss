@@ -11,7 +11,14 @@
      declaration (not a replacement) so a browser that doesn't
      understand dvh silently keeps the vh fallback above. */
   height: 100dvh;
-  overflow: hidden;
+  /* `clip`, not `hidden`: the app is exactly viewport-sized and must never
+     scroll as a whole. `hidden` still permits programmatic scrolling
+     (focus, scrollIntoView), and the collapsed annotation rail's
+     translateX(100%) box makes #app's scrollWidth ~320px wider than its
+     clientWidth — clicking a menu item could (and did) shift the entire
+     UI horizontally. `clip` forbids scrolling entirely while still
+     clipping the off-screen rail. */
+  overflow: clip;
 }
 
 /* Remote cursor/selection rendering (.cm-ySelection, .cm-ySelectionCaret,

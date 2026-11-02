@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.67.0] - 2026-11-02
+
+### Added
+
+- **Google Drive — folder sync.** Link a workspace to a folder the app creates in Google Drive, then pull or push every document and its embedded images from File ▸ Google Drive. A second device can open the same folder as a workspace and pick up where you left off. Files changed on both sides are flagged per document, with the same Keep mine / Take theirs resolution used by GitHub repo sync, and a partial push retries only the files that failed. Deleting a synced document deletes its Drive file on the next push; unlinking keeps the folder intact.
+
 ## [1.66.0] - 2026-11-02
 
 ### Added

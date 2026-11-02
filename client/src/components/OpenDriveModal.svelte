@@ -112,9 +112,7 @@
 
 {#if $openDriveModalOpen}
   <Modal title="Open a synced folder" icon="icon-cloud" wide labelledBy="openDriveModalTitle" onClose={close}>
-    {#snippet quickAction()}
-      <p class="menu-hint">Folders this app created in your Google Drive. Opening one pulls its markdown and images into a new workspace.</p>
-    {/snippet}
+    <p class="menu-hint">Folders this app created in your Google Drive. Opening one pulls its markdown and images into a new workspace.</p>
     {#if loading}
       <div class="empty-state"><div class="empty-state-desc">Loading folders…</div></div>
     {:else if error}

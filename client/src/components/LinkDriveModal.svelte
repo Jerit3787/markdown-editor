@@ -83,9 +83,7 @@
 
 {#if $linkDriveModalOpen}
   <Modal title="Link Workspace to Google Drive" icon="icon-cloud" labelledBy="linkDriveModalTitle" onClose={close}>
-    {#snippet quickAction()}
-      <p class="menu-hint">Creates a new folder in your Google Drive and pushes every document in this workspace into it. Later pulls and pushes stay in sync.</p>
-    {/snippet}
+    <p class="menu-hint">Creates a new folder in your Google Drive and pushes every document in this workspace into it. Later pulls and pushes stay in sync.</p>
     <label for="driveFolderName" class="menu-section-label">Folder name</label>
     <input
       id="driveFolderName"

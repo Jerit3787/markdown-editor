@@ -45,10 +45,12 @@ test.describe("Dedicated Marketing Homepage (/home)", () => {
 
   test("links to Privacy Policy, Terms of Service, and GitHub in nav and footer", async ({ page }) => {
     await page.goto("/home");
-    await expect(page.locator('.navbar a[href="/privacy"]')).toBeVisible();
-    await expect(page.locator('.navbar a[href="/terms"]')).toBeVisible();
-    await expect(page.locator('.footer a[href="/privacy"]')).toBeVisible();
-    await expect(page.locator('.footer a[href="/terms"]')).toBeVisible();
+    // Absolute URLs intentionally: Google's OAuth verification compares the
+    // raw href against the consent-screen values.
+    await expect(page.locator('.navbar a[href="https://editor.danplace.tech/privacy"]')).toBeVisible();
+    await expect(page.locator('.navbar a[href="https://editor.danplace.tech/terms"]')).toBeVisible();
+    await expect(page.locator('.footer a[href="https://editor.danplace.tech/privacy"]')).toBeVisible();
+    await expect(page.locator('.footer a[href="https://editor.danplace.tech/terms"]')).toBeVisible();
     await expect(page.locator('.footer a[href="https://github.com/Jerit3787/markdown-editor"]')).toBeVisible();
   });
 });

@@ -35,6 +35,8 @@ export const PDF_EXPORT_STYLE_TEXT = `
   .pdf-export-wrapper #preview td { overflow-wrap: anywhere; word-break: break-word; }
   .pdf-export-wrapper #preview img { max-width: 100% !important; height: auto !important; }
   .pdf-export-wrapper #preview p > img:only-child { display: block; margin: 16px auto; }
+  .pdf-export-wrapper #preview p:has(> img:only-child),
+  .pdf-export-wrapper #preview figure { break-inside: avoid; page-break-inside: avoid; }
   .pdf-export-wrapper #preview pre,
   .pdf-export-wrapper #preview table,
   .pdf-export-wrapper #preview blockquote,

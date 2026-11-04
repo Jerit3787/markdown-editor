@@ -10,6 +10,7 @@ export interface InlineRemoteImagesResult {
 }
 
 type FetchLike = (input: string) => Promise<Response>;
+export type InlineRemoteImagesProgress = (done: number, total: number) => void;
 
 async function blobToDataUrl(blob: Blob, contentType: string): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -20,12 +21,15 @@ async function blobToDataUrl(blob: Blob, contentType: string): Promise<string> {
   return `data:${blob.type || contentType};base64,${btoa(binary)}`;
 }
 
-export async function inlineRemoteImages(root: ParentNode, fetchImpl: FetchLike = fetch): Promise<InlineRemoteImagesResult> {
+export async function inlineRemoteImages(
+  root: ParentNode,
+  fetchImpl: FetchLike = fetch,
+  onProgress?: InlineRemoteImagesProgress,
+): Promise<InlineRemoteImagesResult> {
   const images = Array.from(root.querySelectorAll("img"));
   const pageUrl = typeof location !== "undefined" ? location.href : undefined;
   const pageOrigin = pageUrl ? new URL(pageUrl).origin : undefined;
-  let attempted = 0;
-  let failed = 0;
+  const remote: Array<{ image: HTMLImageElement; source: string }> = [];
 
   for (const image of images) {
     const source = image.getAttribute("src") ?? "";
@@ -37,8 +41,13 @@ export async function inlineRemoteImages(root: ParentNode, fetchImpl: FetchLike 
       continue;
     }
     if (pageOrigin && parsed.origin === pageOrigin) continue;
+    remote.push({ image, source });
+  }
 
-    attempted++;
+  onProgress?.(0, remote.length);
+  let failed = 0;
+
+  for (const [index, { image, source }] of remote.entries()) {
     try {
       const res = await fetchImpl(`/api/image-proxy?url=${encodeURIComponent(source)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -51,7 +60,8 @@ export async function inlineRemoteImages(root: ParentNode, fetchImpl: FetchLike 
       // as it did before, and the caller can warn about the count.
       failed++;
     }
+    onProgress?.(index + 1, remote.length);
   }
 
-  return { attempted, failed };
+  return { attempted: remote.length, failed };
 }

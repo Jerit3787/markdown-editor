@@ -698,6 +698,8 @@
   }
 }
 .toast {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -737,6 +739,26 @@
   &-message {
     flex: 1;
   }
+
+  &-progress {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    background-size: 45% 100%;
+    background-repeat: no-repeat;
+    animation: toast-progress 1.15s ease-in-out infinite;
+  }
+}
+@keyframes toast-progress {
+  from {
+    background-position: -50% 0;
+  }
+  to {
+    background-position: 150% 0;
+  }
 }
 .toast-close {
   flex-shrink: 0;
@@ -770,6 +792,11 @@
 @media (prefers-reduced-motion: reduce) {
   .toast {
     animation: none;
+  }
+  .toast-progress {
+    animation: none;
+    background: var(--accent);
+    opacity: 0.55;
   }
 }
 /* Empty State */

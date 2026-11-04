@@ -9,6 +9,9 @@
       <button type="button" class="toast-close" aria-label="Dismiss" onclick={() => dismissToast(t.id)}>
         <svg class="icon"><use href="#icon-x"></use></svg>
       </button>
+      {#if t.busy}
+        <span class="toast-progress" role="progressbar" aria-label="Working"></span>
+      {/if}
     </div>
   {/each}
 </div>

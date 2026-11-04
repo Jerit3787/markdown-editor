@@ -44,6 +44,28 @@ describe("inlineRemoteImages", () => {
     expect(notImage.img.getAttribute("src")).toBe("https://images.example.com/not-image.png");
   });
 
+  it("reports progress before the first fetch and after every attempted image, including failures", async () => {
+    const root = document.createElement("div");
+    for (const name of ["a", "b", "c"]) {
+      const img = document.createElement("img");
+      img.setAttribute("src", `https://images.example.com/${name}.png`);
+      root.appendChild(img);
+    }
+    const fetchMock = vi.fn(async (url: string) =>
+      decodeURIComponent(String(url)).includes("/b.png")
+        ? new Response("gone", { status: 404 })
+        : new Response(new Blob(["png"], { type: "image/png" }), { status: 200, headers: { "Content-Type": "image/png" } }),
+    );
+    const progress: Array<[number, number]> = [];
+    await inlineRemoteImages(root, fetchMock, (done, total) => progress.push([done, total]));
+    expect(progress).toEqual([
+      [0, 3],
+      [1, 3],
+      [2, 3],
+      [3, 3],
+    ]);
+  });
+
   it("processes several images and reports only the failures", async () => {
     const root = document.createElement("div");
     for (const name of ["a", "b", "c"]) {

@@ -20,7 +20,8 @@ describe("PDF export clone styles", () => {
     expect(PDF_EXPORT_STYLE_TEXT).toContain("white-space: nowrap");
   });
 
-  it("lays images out as blocks but does not force them onto a new page", () => {
+  it("lays standalone images out as blocks but leaves inline images inline", () => {
+    expect(PDF_EXPORT_STYLE_TEXT).toContain("img:only-child");
     expect(PDF_EXPORT_STYLE_TEXT).toContain("display: block");
     const avoidRule = PDF_EXPORT_STYLE_TEXT.split("}").find((rule) => rule.includes("break-inside"));
     expect(avoidRule).toBeTruthy();

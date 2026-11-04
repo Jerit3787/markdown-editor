@@ -23,8 +23,16 @@ describe("PDF export clone styles", () => {
   it("lays standalone images out as blocks but leaves inline images inline", () => {
     expect(PDF_EXPORT_STYLE_TEXT).toContain("img:only-child");
     expect(PDF_EXPORT_STYLE_TEXT).toContain("display: block");
+  });
+
+  it("moves standalone images to the next page instead of splitting them", () => {
+    expect(PDF_EXPORT_STYLE_TEXT).toContain("p:has(> img:only-child)");
+    const imageBlockRule = PDF_EXPORT_STYLE_TEXT.split("}").find((rule) => rule.includes("p:has(> img:only-child)")) ?? "";
+    expect(imageBlockRule).toContain("break-inside: avoid");
+    expect(imageBlockRule).toContain("page-break-inside: avoid");
+    // Avoid the <img> itself: html2pdf inserts page padding inside the
+    // paragraph, which can reorder the image ahead of its surrounding text.
     const avoidRule = PDF_EXPORT_STYLE_TEXT.split("}").find((rule) => rule.includes("break-inside"));
-    expect(avoidRule).toBeTruthy();
     expect(avoidRule).not.toContain("#preview img");
   });
 

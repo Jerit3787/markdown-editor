@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.69.3] - 2026-11-04
+
+### Fixed
+
+- **PDF export — screenshots no longer split across pages.** A standalone image that would have straddled a page boundary now moves intact to the next page instead of being cut in half. The surrounding paragraphs keep their original order; pages can end with extra whitespace when a screenshot doesn't fit.
+
 ## [1.69.2] - 2026-11-04
 
 ### Fixed

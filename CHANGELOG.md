@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.69.1] - 2026-11-04
+
+### Fixed
+
+- **PDF export — remote images and clipped content.** Online images referenced with `![](https://…)` were silently dropped from exported PDFs when the image host didn't send CORS headers; they're now fetched through a same-origin, image-only proxy and embedded. Long code lines, wide tables, and unbroken tokens now wrap inside the PDF instead of being clipped at the page edge, and code/table/image blocks avoid being split across pages. The proxy is HTTPS-only with private-host, redirect, content-type, and 10 MB size guards.
+
 ## [1.69.0] - 2026-11-03
 
 ### Added

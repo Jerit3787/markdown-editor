@@ -20,9 +20,9 @@ export interface Env {
   // Google OAuth (Drive integration — see src/google-auth.ts). Optional:
   // absent → every /api/auth/google/* and /api/drive/* route returns 503
   // and the client hides the Google menu items, same as the GitHub path
-  // without GITHUB_CLIENT_SECRET. GOOGLE_CLIENT_ID and GOOGLE_API_KEY are
-  // non-secret (public in every OAuth / Picker request); GOOGLE_CLIENT_SECRET
-  // is a Worker secret.
+  // without GITHUB_CLIENT_SECRET. All three are Worker secrets set with
+  // `wrangler secret put`; the client id and Picker key are public at
+  // runtime but stay out of wrangler.jsonc.
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   GOOGLE_API_KEY?: string;

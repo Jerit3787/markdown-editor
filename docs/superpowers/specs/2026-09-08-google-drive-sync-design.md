@@ -385,10 +385,12 @@ GOOGLE_CLIENT_SECRET: string;  // OAuth client secret (secret)
 GOOGLE_API_KEY: string;        // browser API key for the Google Picker — NOT secret
 ```
 
-`GOOGLE_CLIENT_SECRET` → `wrangler secret put`; `GOOGLE_CLIENT_ID` and
-`GOOGLE_API_KEY` are non-secret (public in every Picker/OAuth request
-anyway) and can be plain `wrangler.jsonc` `vars`. Local: git-ignored
-`.dev.vars`. Absent → `/api/auth/google/*` and `/api/drive/*` return
+All three are set with `wrangler secret put` in production, so deploy
+identifiers stay out of `wrangler.jsonc` and `wrangler versions view`.
+`GOOGLE_CLIENT_ID` and `GOOGLE_API_KEY` are public in every Picker/OAuth
+request anyway, but treating them as Worker secrets keeps the repository
+free of deployment-specific values. Local: git-ignored `.dev.vars`.
+Absent → `/api/auth/google/*` and `/api/drive/*` return
 `503 "Google Drive is not configured."` and the client hides every
 Google menu item (same graceful degradation the GitHub OAuth path
 already has for a missing `GITHUB_CLIENT_SECRET`).

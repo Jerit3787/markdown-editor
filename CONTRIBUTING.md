@@ -87,9 +87,9 @@ and everything else works — same as GitHub OAuth above.
    GOOGLE_CLIENT_SECRET=...
    GOOGLE_API_KEY=...
    ```
-   (`GOOGLE_CLIENT_ID` / `GOOGLE_API_KEY` are non-secret; in production
-   they're plain `wrangler.jsonc` vars and `GOOGLE_CLIENT_SECRET` is a
-   `wrangler secret put`.)
+   (`GOOGLE_CLIENT_ID` and `GOOGLE_API_KEY` are public at runtime, but in
+   production set all three with `wrangler secret put` so no deploy
+   identifiers live in `wrangler.jsonc`.)
 
 ## Build-time variables (optional, production)
 

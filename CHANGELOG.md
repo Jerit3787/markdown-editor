@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.69.2] - 2026-11-04
+
+### Fixed
+
+- **Export — dark mode, text/HTML controls, page breaks, and Focus Mode.** PDFs exported from a dark-mode document now use the light palette, so headings, body text, and math are readable on the white page instead of near-white on white. `.txt` exports no longer include the diagram "Edit" button, no longer duplicate KaTeX's math text, and drop footnote back-arrow characters; `.html` exports also remove the Edit button and give Mermaid diagrams the same centered, chrome-free presentation as the preview. Long inline-code spans stay on one line so their background cannot stretch across a page break and hide neighboring text, and tall screenshots now flow in document order instead of being pulled over the preceding paragraphs. Focus Mode no longer dims non-active paragraphs in PDF, HTML, text, or printed output.
+
 ## [1.69.1] - 2026-11-04
 
 ### Fixed

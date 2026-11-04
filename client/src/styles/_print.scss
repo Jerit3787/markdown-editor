@@ -75,6 +75,11 @@
   // table across two pages, and never leave a heading stranded alone
   // at the bottom of a page with its content pushed to the next one.
   #preview {
+    // Focus Mode is a screen-reading aid; never dim printed/exported text.
+    & > .focus-dim {
+      opacity: 1 !important;
+    }
+
     h1,
     h2,
     h3,

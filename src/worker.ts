@@ -4,6 +4,7 @@ import { handleLogin, handleCallback, handleLogout, handleMe, handleGistCreate, 
 import { handleGistImageUpload } from "./gist-images.js";
 import { handleRepoList, handleRepoCreate, handleRepoTree, handleRepoBlob, handleRepoCommits, handleRepoFileAtRef, handleRepoPush } from "./github-repo.js";
 import { handleGoogleConnect, handleGoogleCallback, handleGoogleStatus, handleGoogleDisconnect } from "./google-auth.js";
+import { handleImageProxy } from "./image-proxy.js";
 import {
   handleDrivePickerToken,
   handleDriveImport,
@@ -124,6 +125,8 @@ export default {
       return handleLogout(request, env);
     }
     if (url.pathname === "/api/auth/github/me") return handleMe(request, env);
+
+    if (url.pathname === "/api/image-proxy" && request.method === "GET") return handleImageProxy(request);
 
     if (url.pathname === "/api/auth/google/connect") return handleGoogleConnect(request, env);
     if (url.pathname === "/api/auth/google/callback") return handleGoogleCallback(request, env);

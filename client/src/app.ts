@@ -46,6 +46,8 @@ import { diagramEditorOpen, diagramEditorRef } from "./stores/diagramEditor";
 import { maybeSnapshotVersion } from "./history";
 import { relocateAnchor } from "./anchor";
 import { renameCollision } from "./stores/renameCollision";
+import { inlineRemoteImages } from "./export-images";
+import { PDF_EXPORT_STYLE_TEXT } from "./pdf-export-style";
 import { get } from "svelte/store";
 // Unlike Mermaid's SVGs (which bake their own <style> in at render time),
 // KaTeX's HTML output has no self-contained styling — it's entirely
@@ -1056,7 +1058,7 @@ import katexCss from "katex/dist/katex.min.css?raw";
     }
 
     if (format === "pdf") {
-      exportPdf(base);
+      await exportPdf(base);
       return;
     }
   }
@@ -1129,8 +1131,15 @@ ${bodyHtml}
     const clone = source.cloneNode(true) as HTMLElement;
     clone.style.padding = "0";
     const wrapper = document.createElement("div");
+    wrapper.className = "pdf-export-wrapper";
     wrapper.style.padding = "20px 30px";
     wrapper.appendChild(clone);
+
+    // PDF-specific layout: wrap long code/table content instead of
+    // clipping it at the page edge, and avoid splitting blocks across pages.
+    const pdfStyle = document.createElement("style");
+    pdfStyle.textContent = PDF_EXPORT_STYLE_TEXT;
+    wrapper.appendChild(pdfStyle);
 
     // Uses createElement + textContent (not a template string) — DOM
     // APIs don't parse textContent as markup, so there's no </style>
@@ -1142,6 +1151,13 @@ ${bodyHtml}
       wrapper.appendChild(styleEl);
     }
 
+    setSaveStatus("Generating PDF…");
+    // html2canvas can only read cross-origin images that opt into CORS.
+    // Pull remote images through our same-origin proxy and inline them as
+    // data URLs before rendering; failures leave the original URL in place.
+    const inlined = await inlineRemoteImages(clone);
+    const failedSuffix = inlined.failed > 0 ? ` — ${inlined.failed} online image${inlined.failed === 1 ? "" : "s"} couldn't be embedded` : "";
+
     const opt = {
       margin: 12,
       filename: `${base}.pdf`,
@@ -1151,19 +1167,14 @@ ${bodyHtml}
       pagebreak: { mode: ["css", "legacy"] },
     };
 
-    setSaveStatus("Generating PDF…");
-    html2pdf()
-      .set(opt)
-      .from(wrapper)
-      .save()
-      .then(() => {
-        setSaveStatus("Saved");
-        showToast(`Exported ${base}.pdf`, "success");
-      })
-      .catch(() => {
-        setSaveStatus("Saved");
-        showToast("Couldn't generate the PDF", "error");
-      });
+    try {
+      await html2pdf().set(opt).from(wrapper).save();
+      setSaveStatus("Saved");
+      showToast(`Exported ${base}.pdf${failedSuffix}`, inlined.failed > 0 ? "info" : "success", failedSuffix ? 5000 : undefined);
+    } catch {
+      setSaveStatus("Saved");
+      showToast("Couldn't generate the PDF", "error");
+    }
   }
 
   function downloadBlob(blob: Blob, filename: string) {

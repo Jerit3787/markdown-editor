@@ -141,6 +141,23 @@ describe("worker routing", () => {
 });
 
 describe("worker routing — Drive export", () => {
+  it("routes GET /api/image-proxy to the image proxy handler", async () => {
+    const { env, assetsFetch } = fakeEnv();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "Content-Type": "image/png" } })),
+    );
+    const res = await worker.fetch(
+      new Request(`https://app.example.com/api/image-proxy?url=${encodeURIComponent("https://images.example.com/a.png")}`, {
+        headers: { "Sec-Fetch-Site": "same-origin" },
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(assetsFetch).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it("routes POST /api/drive/export to the export handler", async () => {
     const { env, doFetch } = fakeEnv();
     const res = await worker.fetch(new Request("https://app.example.com/api/drive/export", { method: "POST", body: "{}" }), env);

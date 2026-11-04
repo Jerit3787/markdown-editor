@@ -47,6 +47,7 @@ import { maybeSnapshotVersion } from "./history";
 import { relocateAnchor } from "./anchor";
 import { renameCollision } from "./stores/renameCollision";
 import { inlineRemoteImages } from "./export-images";
+import { startPdfProgress } from "./export-progress";
 import { PDF_EXPORT_STYLE_TEXT } from "./pdf-export-style";
 import { previewHtmlForExport, previewTextForExport, stripExportUi } from "./export-text";
 import { get } from "svelte/store";
@@ -1156,28 +1157,31 @@ ${bodyHtml}
     }
 
     setSaveStatus("Generating PDF…");
-    // html2canvas can only read cross-origin images that opt into CORS.
-    // Pull remote images through our same-origin proxy and inline them as
-    // data URLs before rendering; failures leave the original URL in place.
-    const inlined = await inlineRemoteImages(clone);
-    const failedSuffix = inlined.failed > 0 ? ` — ${inlined.failed} online image${inlined.failed === 1 ? "" : "s"} couldn't be embedded` : "";
-
-    const opt = {
-      margin: 12,
-      filename: `${base}.pdf`,
-      image: { type: "jpeg" as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" as const },
-      pagebreak: { mode: ["css", "legacy"] },
-    };
+    const progress = startPdfProgress();
 
     try {
+      // html2canvas can only read cross-origin images that opt into CORS.
+      // Pull remote images through our same-origin proxy and inline them as
+      // data URLs before rendering; failures leave the original URL in place.
+      const inlined = await inlineRemoteImages(clone, fetch, (done, total) => progress.image(done, total));
+      const failedSuffix = inlined.failed > 0 ? ` — ${inlined.failed} online image${inlined.failed === 1 ? "" : "s"} couldn't be embedded` : "";
+
+      const opt = {
+        margin: 12,
+        filename: `${base}.pdf`,
+        image: { type: "jpeg" as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" as const },
+        pagebreak: { mode: ["css", "legacy"] },
+      };
+
+      progress.rendering();
       await html2pdf().set(opt).from(wrapper).save();
       setSaveStatus("Saved");
-      showToast(`Exported ${base}.pdf${failedSuffix}`, inlined.failed > 0 ? "info" : "success", failedSuffix ? 5000 : undefined);
+      progress.success(`Exported ${base}.pdf${failedSuffix}`, inlined.failed > 0 ? "info" : "success", failedSuffix ? 5000 : undefined);
     } catch {
       setSaveStatus("Saved");
-      showToast("Couldn't generate the PDF", "error");
+      progress.error("Couldn't generate the PDF");
     }
   }
 

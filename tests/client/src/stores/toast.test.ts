@@ -12,23 +12,23 @@ describe("progress toasts", () => {
     vi.useRealTimers();
   });
 
-  it("showProgressToast adds a toast with no scheduled auto-removal", () => {
+  it("showProgressToast adds a busy toast with no scheduled auto-removal", () => {
     const id = showProgressToast("Pushing…");
-    expect(get(toasts)).toEqual([{ id, message: "Pushing…", type: "info" }]);
+    expect(get(toasts)).toEqual([{ id, message: "Pushing…", type: "info", busy: true }]);
     vi.advanceTimersByTime(60000);
-    expect(get(toasts)).toEqual([{ id, message: "Pushing…", type: "info" }]);
+    expect(get(toasts)).toEqual([{ id, message: "Pushing…", type: "info", busy: true }]);
   });
 
-  it("updateProgressToast replaces the message in place, keeping id and type", () => {
+  it("updateProgressToast replaces the message in place, keeping id, type, and busy", () => {
     const id = showProgressToast("Pushing…");
     updateProgressToast(id, "Pushing 3/8 files…");
-    expect(get(toasts)).toEqual([{ id, message: "Pushing 3/8 files…", type: "info" }]);
+    expect(get(toasts)).toEqual([{ id, message: "Pushing 3/8 files…", type: "info", busy: true }]);
   });
 
-  it("finishProgressToast sets the final message/type, then it's gone after its duration", () => {
+  it("finishProgressToast clears busy, sets the final message/type, then removes it after its duration", () => {
     const id = showProgressToast("Pushing…");
     finishProgressToast(id, "Pushed to repo", "success", 1000);
-    expect(get(toasts)).toEqual([{ id, message: "Pushed to repo", type: "success" }]);
+    expect(get(toasts)).toEqual([{ id, message: "Pushed to repo", type: "success", busy: false }]);
     vi.advanceTimersByTime(999);
     expect(get(toasts)).toHaveLength(1);
     vi.advanceTimersByTime(1);

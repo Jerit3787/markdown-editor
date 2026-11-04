@@ -11,6 +11,8 @@ export interface ToastMsg {
   id: number;
   message: string;
   type: ToastType;
+  /** True while a long-running operation is still in flight. */
+  busy?: boolean;
 }
 
 export const toasts = writable<ToastMsg[]>([]);
@@ -37,7 +39,7 @@ export function dismissToast(id: number) {
 // place rather than creating a new one.
 export function showProgressToast(message: string): number {
   const id = nextId++;
-  toasts.update((list) => [...list, { id, message, type: "info" }]);
+  toasts.update((list) => [...list, { id, message, type: "info", busy: true }]);
   return id;
 }
 
@@ -46,6 +48,6 @@ export function updateProgressToast(id: number, message: string) {
 }
 
 export function finishProgressToast(id: number, message: string, type: ToastType, duration = 3200) {
-  toasts.update((list) => list.map((t) => (t.id === id ? { ...t, message, type } : t)));
+  toasts.update((list) => list.map((t) => (t.id === id ? { ...t, message, type, busy: false } : t)));
   setTimeout(() => dismissToast(id), duration);
 }

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.69.4] - 2026-11-04
+
+### Fixed
+
+- **Export — visible progress instead of a frozen-looking PDF export.** Long PDF exports now keep a progress toast on screen with an animated activity bar: preparing the document, embedding each online image by count, then rendering pages with a running elapsed timer before the success or error result. The same activity bar also appears on the existing Drive and GitHub progress toasts.
+
 ## [1.69.3] - 2026-11-04
 
 ### Fixed

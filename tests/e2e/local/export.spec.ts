@@ -19,6 +19,8 @@ test.describe("export", () => {
     const html = path ? await fs.readFile(path, "utf-8") : "";
     expect(html).toContain("<svg");
     expect(html).not.toContain("```mermaid");
+    // Diagrams must not inherit the generic <pre> code-block chrome.
+    expect(html).toContain("pre.mermaid.mermaid-rendered");
   });
 
   test("pdf export succeeds", async ({ page }) => {

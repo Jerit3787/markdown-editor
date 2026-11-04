@@ -48,6 +48,7 @@ import { relocateAnchor } from "./anchor";
 import { renameCollision } from "./stores/renameCollision";
 import { inlineRemoteImages } from "./export-images";
 import { PDF_EXPORT_STYLE_TEXT } from "./pdf-export-style";
+import { previewHtmlForExport, previewTextForExport, stripExportUi } from "./export-text";
 import { get } from "svelte/store";
 // Unlike Mermaid's SVGs (which bake their own <style> in at render time),
 // KaTeX's HTML output has no self-contained styling — it's entirely
@@ -1043,14 +1044,14 @@ import katexCss from "katex/dist/katex.min.css?raw";
     await window.MDE.flushPreviewRenders?.();
 
     if (format === "txt") {
-      const text = (document.getElementById("preview") as HTMLElement).innerText;
+      const text = previewTextForExport(document.getElementById("preview") as HTMLElement);
       downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), `${base}.txt`);
       showToast(`Exported ${base}.txt`, "success");
       return;
     }
 
     if (format === "html") {
-      const bodyHtml = document.getElementById("preview").innerHTML;
+      const bodyHtml = previewHtmlForExport(document.getElementById("preview") as HTMLElement);
       const doc = buildStandaloneHtml(base, bodyHtml);
       downloadBlob(new Blob([doc], { type: "text/html;charset=utf-8" }), `${base}.html`);
       showToast(`Exported ${base}.html`, "success");
@@ -1100,6 +1101,8 @@ import katexCss from "katex/dist/katex.min.css?raw";
   code { font-family: SFMono-Regular, Consolas, Menlo, monospace; background: #f6f7f9; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.88em; }
   pre { background: #f6f7f9; padding: 14px 16px; border-radius: 8px; overflow-x: auto; border: 1px solid #e2e5e9; }
   pre code { background: none; padding: 0; }
+  pre.mermaid.mermaid-rendered { background: none; border: none; padding: 0; display: flex; justify-content: center; overflow-x: auto; }
+  pre.mermaid.mermaid-rendered svg { max-width: 100%; }
   blockquote { border-left: 3px solid #2563eb; margin: 0; padding: 2px 16px; color: #6b7280; background: #f6f7f9; border-radius: 0 6px 6px 0; }
   table { border-collapse: collapse; width: 100%; }
   th, td { border: 1px solid #e2e5e9; padding: 6px 10px; }
@@ -1129,6 +1132,7 @@ ${bodyHtml}
     const { default: html2pdf } = await import("html2pdf.js");
     const source = document.getElementById("preview");
     const clone = source.cloneNode(true) as HTMLElement;
+    stripExportUi(clone);
     clone.style.padding = "0";
     const wrapper = document.createElement("div");
     wrapper.className = "pdf-export-wrapper";

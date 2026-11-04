@@ -50,7 +50,7 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 3. Markdown dialects               |      25 |       0 |    0 |    25 |
 | 4. Documents, workspaces & multi-tab |    24 |       0 |    0 |    24 |
 | 5. Images                          |      19 |       0 |    0 |    19 |
-| 6. Export & print                  |      14 |       0 |    0 |    14 |
+| 6. Export & print                  |      16 |       0 |    0 |    16 |
 | 7. Find & replace / search         |      16 |       0 |    0 |    16 |
 | 8. Version history & diff view     |      22 |       0 |    0 |    22 |
 | 9. Comments                        |      21 |       0 |    0 |    21 |
@@ -60,10 +60,10 @@ branches, 37.2% functions** (808 tests across 67 files).
 | 13. Mobile                         |      15 |       0 |    0 |    15 |
 | 14. App shell                      |      21 |       0 |    0 |    21 |
 | 15. Google Drive folder sync       |      18 |       0 |    0 |    18 |
-| **Total**                          | **365** |  **0** |  **0** | **365** |
+| **Total**                          | **367** |  **0** |  **0** | **367** |
 
 **Every enumerated scenario now has a test asserting its outcome —
-365 / 365, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
+367 / 367, zero gaps, zero partials** (was 181 / 30 / 96 at the v1.45.2
 first pass). Phases 1–14 + Buckets A/B, the real-GitHub and WebKit
 harnesses, the legacy-share migration and image-marker races, and the
 last soft spots (COLLAB-31, VER-08, GIST-05) are all closed.
@@ -254,7 +254,9 @@ _Source: export / print logic in `client/src/app.ts` (`exportAs`, `exportPdf`, `
 | EXP-11 | The printed page shows the document title as a heading that is hidden on screen                   | e2e   | covered | `tests/e2e/local/print.spec.ts`     |                                                                                        |
 | EXP-12 | File-menu Print and Command Palette Print both call `window.print()`                              | e2e   | covered | `tests/e2e/local/print.spec.ts`     |                                                                                        |
 | EXP-13 | PDF export fetches remote images through the same-origin `/api/image-proxy` and inlines them as data URLs; hosts without CORS no longer disappear, and failed images are counted in the toast. The proxy rejects http, IP literals/local names, non-standard ports, cross-site requests, non-image responses, unsafe redirects, and images over 10 MB | unit + integration | covered | `tests/client/src/export-images.test.ts`, `tests/src/image-proxy.test.ts`, `tests/src/worker.test.ts` | CORS was the root cause of missing online images; proxy is HTTPS-only and capped |
-| EXP-14 | PDF export clone wraps long code lines and wide tables instead of clipping them at the page edge, and avoids splitting code/table/image blocks across pages | unit + manual | covered | `tests/client/src/pdf-export-style.test.ts` | Verified with a real 211 KB PDF export containing a remote image and a long JSON code block |
+| EXP-14 | PDF export wraps long code lines/wide tables instead of clipping them; inline code stays on one line so its background can't stretch across a page break; images flow in document order rather than being pulled over preceding paragraphs; code/table blocks avoid page splits | unit + manual | covered | `tests/client/src/pdf-export-style.test.ts` | Verified against the full 20k-character Radiant writeup: 25 remote screenshots, long JSON/JS blocks, dark mode; no clipped/overlapping text |
+| EXP-15 | Text/HTML exports strip app-only controls and Focus Mode dimming; text export uses each KaTeX formula's TeX once and removes footnote backref arrows | unit | covered | `tests/client/src/export-text.test.ts` | HTML keeps the rendered math/KaTeX markup |
+| EXP-16 | PDF export forces the light palette in dark mode; exported HTML gives rendered Mermaid diagrams the preview's centered chrome-free styling | unit + e2e | covered | `tests/client/src/pdf-export-style.test.ts`, `tests/e2e/local/export.spec.ts` | dark-mode PDF verified manually; HTML diagram CSS asserted in the export e2e |
 
 ## 7. Find & replace / search
 

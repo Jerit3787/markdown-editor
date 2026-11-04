@@ -35,8 +35,8 @@
     // secret (wrangler secret put). Set all three in a git-ignored
     // .dev.vars for local dev — see CONTRIBUTING.md. Empty here → the
     // notConfigured / !GOOGLE_API_KEY guards fire and the feature is hidden.
-    "GOOGLE_CLIENT_ID": "",
-    "GOOGLE_API_KEY": "",
+    "GOOGLE_CLIENT_ID": "902390651399-t1cjqhafam8ua1eba53j28d58jm8bhd3.apps.googleusercontent.com",
+    "GOOGLE_API_KEY": "AIzaSyARnhCuej5u8czpBJcWcw0AssP6UwxgGfM",
   },
 
   // Serves the built client (client/dist/, produced by `npm run build` —
